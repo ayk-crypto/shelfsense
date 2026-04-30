@@ -1860,3 +1860,403 @@ tr.row--wastage td:first-child {
 .wastage-summary-pct {
   font-weight: 600;
 }
+
+/* =============================================
+   Page header actions (multiple buttons)
+   ============================================= */
+.page-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.btn--secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  color: var(--color-primary);
+  border: 1.5px solid var(--color-primary);
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.btn--secondary:hover {
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.btn-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+/* =============================================
+   Barcode scanner full-screen overlay
+   ============================================= */
+.scanner-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: #0a0a0a;
+  display: flex;
+  flex-direction: column;
+}
+
+.scanner-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-width: 520px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.scanner-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.scanner-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #fff;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.scanner-title-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.scanner-topbar-btns {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.scanner-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255,255,255,0.25);
+  background: transparent;
+  color: rgba(255,255,255,0.8);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.scanner-icon-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.scanner-icon-btn:hover {
+  background: rgba(255,255,255,0.12);
+  border-color: rgba(255,255,255,0.5);
+  color: #fff;
+}
+
+.scanner-icon-btn--active {
+  background: rgba(250, 204, 21, 0.2);
+  border-color: #facc15;
+  color: #facc15;
+}
+
+.scanner-icon-btn--active:hover {
+  background: rgba(250, 204, 21, 0.3);
+}
+
+.scanner-close-btn {
+  border-color: rgba(255,255,255,0.2);
+}
+
+/* Camera viewport area */
+.scanner-viewport-wrap {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.scanner-viewport {
+  width: 100%;
+  height: 100%;
+}
+
+/* html5-qrcode injects a video + canvas - make them fill the area */
+.scanner-viewport video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  display: block;
+}
+
+.scanner-viewport canvas {
+  display: none !important;
+}
+
+/* hide any extra html5-qrcode injected UI (there shouldn't be any with Html5Qrcode, but guard anyway) */
+.scanner-viewport img,
+.scanner-viewport button,
+.scanner-viewport select {
+  display: none !important;
+}
+
+.scanner-viewport--hidden {
+  display: none;
+}
+
+/* Aiming frame overlay */
+.scanner-overlay-ui {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.scanner-frame {
+  position: relative;
+  width: 260px;
+  height: 200px;
+}
+
+.scanner-corner {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  border-color: #fff;
+  border-style: solid;
+  border-width: 0;
+}
+
+.scanner-corner--tl { top: 0; left: 0; border-top-width: 3px; border-left-width: 3px; border-radius: 4px 0 0 0; }
+.scanner-corner--tr { top: 0; right: 0; border-top-width: 3px; border-right-width: 3px; border-radius: 0 4px 0 0; }
+.scanner-corner--bl { bottom: 0; left: 0; border-bottom-width: 3px; border-left-width: 3px; border-radius: 0 0 0 4px; }
+.scanner-corner--br { bottom: 0; right: 0; border-bottom-width: 3px; border-right-width: 3px; border-radius: 0 0 4px 0; }
+
+.scanner-laser {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  top: 10px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--color-primary), transparent);
+  border-radius: 1px;
+  animation: scanner-laser-sweep 1.8s ease-in-out infinite;
+}
+
+@keyframes scanner-laser-sweep {
+  0%   { top: 10px; opacity: 0.5; }
+  50%  { top: calc(100% - 12px); opacity: 1; }
+  100% { top: 10px; opacity: 0.5; }
+}
+
+.scanner-hint {
+  margin-top: 20px;
+  color: rgba(255,255,255,0.75);
+  font-size: 14px;
+  text-align: center;
+  letter-spacing: 0.01em;
+}
+
+/* Result panels (found / not found / error) */
+.scanner-result {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 28px 24px;
+  gap: 10px;
+  text-align: center;
+  background: #0a0a0a;
+}
+
+.scanner-result--found {
+  background: #0a0a0a;
+}
+
+.scanner-result-icon {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+}
+
+.scanner-result-icon--ok {
+  color: var(--color-green);
+}
+
+.scanner-result-icon--warn {
+  color: #facc15;
+}
+
+.scanner-result--error .scanner-result-icon {
+  color: var(--color-red);
+}
+
+.scanner-found-name {
+  font-size: 22px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.scanner-found-stock {
+  font-size: 14px;
+  color: rgba(255,255,255,0.6);
+  margin: 0;
+}
+
+.scanner-found-code {
+  font-size: 12px;
+  color: rgba(255,255,255,0.35);
+  font-family: monospace;
+  margin: 0;
+  letter-spacing: 0.05em;
+}
+
+.scanner-result-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0;
+}
+
+.scanner-result-body {
+  font-size: 14px;
+  color: rgba(255,255,255,0.55);
+  margin: 0;
+  max-width: 280px;
+}
+
+/* Feedback flash */
+.scanner-feedback {
+  font-size: 14px;
+  font-weight: 600;
+  padding: 7px 16px;
+  border-radius: 20px;
+}
+
+.scanner-feedback--ok {
+  background: rgba(22, 163, 74, 0.2);
+  color: #4ade80;
+  border: 1px solid rgba(22, 163, 74, 0.3);
+}
+
+.scanner-feedback--err {
+  background: rgba(220, 38, 38, 0.2);
+  color: #f87171;
+  border: 1px solid rgba(220, 38, 38, 0.3);
+}
+
+/* Quick stock action buttons inside scanner */
+.scanner-quick-actions {
+  display: flex;
+  gap: 20px;
+  margin-top: 6px;
+}
+
+.scanner-quick-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.scanner-quick-label {
+  font-size: 11px;
+  color: rgba(255,255,255,0.45);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+.scanner-quick-row {
+  display: flex;
+  gap: 6px;
+}
+
+.scanner-quick-btn {
+  min-width: 48px;
+  padding: 8px 10px;
+  font-size: 15px;
+  font-weight: 700;
+  border-radius: 8px;
+  border: 1.5px solid;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.scanner-quick-btn.btn--quick-in {
+  color: #4ade80;
+  border-color: rgba(74, 222, 128, 0.5);
+}
+
+.scanner-quick-btn.btn--quick-in:hover:not(:disabled) {
+  background: rgba(74, 222, 128, 0.15);
+}
+
+.scanner-quick-btn.btn--quick-out {
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.5);
+}
+
+.scanner-quick-btn.btn--quick-out:hover:not(:disabled) {
+  background: rgba(248, 113, 113, 0.15);
+}
+
+.scanner-quick-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Footer buttons row */
+.scanner-result-footer {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.scanner-result-footer .btn--ghost {
+  color: rgba(255,255,255,0.6);
+  border-color: rgba(255,255,255,0.2);
+}
+
+.scanner-result-footer .btn--ghost:hover {
+  background: rgba(255,255,255,0.08);
+  color: #fff;
+}
+
+.scanner-result-footer .btn--primary {
+  min-width: 120px;
+}
+
+.scanner-result-action {
+  margin-top: 4px;
+  color: rgba(255,255,255,0.6) !important;
+  border-color: rgba(255,255,255,0.2) !important;
+}

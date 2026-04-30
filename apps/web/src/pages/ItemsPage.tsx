@@ -4,6 +4,7 @@ import { createItem, getItems } from "../api/items";
 import { getStockSummary, stockIn, stockOut } from "../api/stock";
 import type { CreateItemInput, Item, StockSummaryItem } from "../types";
 import { formatCurrency } from "../utils/currency";
+import { BarcodeScanner } from "../components/BarcodeScanner";
 
 interface Toast {
   id: number;
@@ -43,6 +44,8 @@ export function ItemsPage() {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   const [addItemOpen, setAddItemOpen] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scanPrefillBarcode, setScanPrefillBarcode] = useState<string | undefined>();
   const [stockInItem, setStockInItem] = useState<Item | null>(null);
   const [stockOutItem, setStockOutItem] = useState<Item | null>(null);
   const [barcodeItem, setBarcodeItem] = useState<Item | null>(null);
@@ -122,9 +125,22 @@ export function ItemsPage() {
           <h1 className="page-title">Items</h1>
           <p className="page-subtitle">Manage your inventory items</p>
         </div>
-        <button className="btn btn--primary" onClick={() => setAddItemOpen(true)}>
-          + Add Item
-        </button>
+        <div className="page-header-actions">
+          <button className="btn btn--secondary" onClick={() => setScannerOpen(true)} title="Scan a barcode">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="btn-icon">
+              <rect x="3" y="3" width="5" height="5" rx="1" />
+              <rect x="16" y="3" width="5" height="5" rx="1" />
+              <rect x="3" y="16" width="5" height="5" rx="1" />
+              <path d="M16 16h5v5" /><path d="M16 21h5" />
+              <path d="M3 12h4" /><path d="M9 3v4" /><path d="M9 9h4" /><path d="M9 12v4" />
+              <path d="M12 9h4" /><path d="M12 16h4" />
+            </svg>
+            Scan
+          </button>
+          <button className="btn btn--primary" onClick={() => { setScanPrefillBarcode(undefined); setAddItemOpen(true); }}>
+            + Add Item
+          </button>
+        </div>
       </div>
 
       {items.length === 0 ? (
@@ -301,14 +317,32 @@ export function ItemsPage() {
 
       {addItemOpen && (
         <AddItemModal
-          onClose={() => setAddItemOpen(false)}
+          prefillBarcode={scanPrefillBarcode}
+          onClose={() => { setAddItemOpen(false); setScanPrefillBarcode(undefined); }}
           onSuccess={(item) => {
             setItems((prev) => [item, ...prev]);
             setAddItemOpen(false);
+            setScanPrefillBarcode(undefined);
             showToast(`"${item.name}" added successfully`, "success");
             void refreshSummary();
           }}
           onError={(msg) => showToast(msg, "error")}
+        />
+      )}
+
+      {scannerOpen && (
+        <BarcodeScanner
+          items={items}
+          summaryMap={summaryMap}
+          onClose={() => {
+            setScannerOpen(false);
+            void refreshSummary();
+          }}
+          onCreateNew={(barcode) => {
+            setScannerOpen(false);
+            setScanPrefillBarcode(barcode);
+            setAddItemOpen(true);
+          }}
         />
       )}
 
@@ -372,10 +406,12 @@ export function ItemsPage() {
 }
 
 function AddItemModal({
+  prefillBarcode,
   onClose,
   onSuccess,
   onError,
 }: {
+  prefillBarcode?: string;
   onClose: () => void;
   onSuccess: (item: Item) => void;
   onError: (msg: string) => void;
@@ -384,7 +420,7 @@ function AddItemModal({
     name: "",
     unit: UNIT_OPTIONS[0],
     category: CATEGORY_OPTIONS[0],
-    barcode: "",
+    barcode: prefillBarcode ?? "",
     minStockLevel: 0,
     trackExpiry: false,
   });
