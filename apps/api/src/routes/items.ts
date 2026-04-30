@@ -1,0 +1,151 @@
+import { Router } from "express";
+import { prisma } from "../db/prisma.js";
+import { requireAuth } from "../middleware/auth.js";
+import { asyncHandler } from "../utils/async-handler.js";
+
+export const itemsRouter = Router();
+
+itemsRouter.use(requireAuth);
+
+itemsRouter.post("/", asyncHandler(async (req, res) => {
+  const workspaceId = getWorkspaceId(req);
+
+  if (!workspaceId) {
+    return res.status(403).json({ error: "Workspace access required" });
+  }
+
+  const data = parseItemInput(req.body);
+
+  if (!data.name || !data.unit) {
+    return res.status(400).json({ error: "Name and unit are required" });
+  }
+
+  const item = await prisma.item.create({
+    data: {
+      ...data,
+      name: data.name,
+      unit: data.unit,
+      workspaceId,
+    },
+  });
+
+  return res.status(201).json({ item });
+}));
+
+itemsRouter.get("/", asyncHandler(async (req, res) => {
+  const workspaceId = getWorkspaceId(req);
+
+  if (!workspaceId) {
+    return res.status(403).json({ error: "Workspace access required" });
+  }
+
+  const items = await prisma.item.findMany({
+    where: { workspaceId },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return res.json({ items });
+}));
+
+itemsRouter.get("/:id", asyncHandler(async (req, res) => {
+  const workspaceId = getWorkspaceId(req);
+
+  if (!workspaceId) {
+    return res.status(403).json({ error: "Workspace access required" });
+  }
+
+  const item = await prisma.item.findFirst({
+    where: { id: req.params.id, workspaceId },
+  });
+
+  if (!item) {
+    return res.status(404).json({ error: "Item not found" });
+  }
+
+  return res.json({ item });
+}));
+
+itemsRouter.patch("/:id", asyncHandler(async (req, res) => {
+  const workspaceId = getWorkspaceId(req);
+
+  if (!workspaceId) {
+    return res.status(403).json({ error: "Workspace access required" });
+  }
+
+  const data = parseItemInput(req.body);
+
+  if (data.name === "" || data.unit === "") {
+    return res.status(400).json({ error: "Name and unit cannot be empty" });
+  }
+
+  const result = await prisma.item.updateMany({
+    where: { id: req.params.id, workspaceId },
+    data,
+  });
+
+  if (result.count === 0) {
+    return res.status(404).json({ error: "Item not found" });
+  }
+
+  const item = await prisma.item.findFirst({
+    where: { id: req.params.id, workspaceId },
+  });
+
+  return res.json({ item });
+}));
+
+itemsRouter.delete("/:id", asyncHandler(async (req, res) => {
+  const workspaceId = getWorkspaceId(req);
+
+  if (!workspaceId) {
+    return res.status(403).json({ error: "Workspace access required" });
+  }
+
+  const result = await prisma.item.deleteMany({
+    where: { id: req.params.id, workspaceId },
+  });
+
+  if (result.count === 0) {
+    return res.status(404).json({ error: "Item not found" });
+  }
+
+  return res.status(204).send();
+}));
+
+function getWorkspaceId(req: Express.Request) {
+  return req.user?.workspaceId ?? null;
+}
+
+function parseItemInput(body: unknown) {
+  const input = body as {
+    name?: unknown;
+    sku?: unknown;
+    barcode?: unknown;
+    unit?: unknown;
+    minStockLevel?: unknown;
+    trackExpiry?: unknown;
+  };
+
+  return {
+    name: parseOptionalString(input.name),
+    sku: parseNullableString(input.sku),
+    barcode: parseNullableString(input.barcode),
+    unit: parseOptionalString(input.unit),
+    minStockLevel:
+      typeof input.minStockLevel === "number" ? input.minStockLevel : undefined,
+    trackExpiry:
+      typeof input.trackExpiry === "boolean" ? input.trackExpiry : undefined,
+  };
+}
+
+function parseOptionalString(value: unknown) {
+  return typeof value === "string" ? value.trim() : undefined;
+}
+
+function parseNullableString(value: unknown) {
+  if (value === null) {
+    return null;
+  }
+
+  return typeof value === "string" ? value.trim() : undefined;
+}
