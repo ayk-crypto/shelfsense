@@ -113,3 +113,29 @@ export interface StockMovementFilters {
   fromDate?: string;
   toDate?: string;
 }
+
+export interface LowStockAlert {
+  itemId: string;
+  itemName: string;
+  unit: string;
+  quantity: number;
+  minStockLevel: number;
+}
+
+export interface ExpiryAlert {
+  id: string;
+  remainingQuantity: number;
+  expiryDate: string;
+  batchNo: string | null;
+  item: {
+    id: string;
+    name: string;
+    unit: string;
+  };
+}
+
+export interface AlertsResponse {
+  lowStock: LowStockAlert[];
+  expiringSoon: ExpiryAlert[];
+  expired: ExpiryAlert[];
+}

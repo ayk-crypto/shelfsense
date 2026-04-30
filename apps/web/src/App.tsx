@@ -1,6 +1,7 @@
 import { Navigate, Route, BrowserRouter as Router, Routes } from "react-router-dom";
 import { AppShell } from "./components/AppShell";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { AlertsPage } from "./pages/AlertsPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ItemsPage } from "./pages/ItemsPage";
 import { LoginPage } from "./pages/LoginPage";
@@ -40,6 +41,7 @@ export function App() {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/items" element={<ItemsPage />} />
             <Route path="/movements" element={<MovementsPage />} />
+            <Route path="/alerts" element={<AlertsPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>

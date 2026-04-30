@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { getExpiringSoon, getStockSummary } from "../api/stock";
-import type { ExpiringBatch, StockSummaryItem } from "../types";
+import { getAlerts } from "../api/alerts";
+import { getStockSummary } from "../api/stock";
+import type { AlertsResponse, StockSummaryItem } from "../types";
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-PH", {
@@ -24,21 +25,27 @@ function daysUntil(dateStr: string) {
   return Math.ceil(diff / (1000 * 60 * 60 * 24));
 }
 
+const EMPTY_ALERTS: AlertsResponse = {
+  lowStock: [],
+  expiringSoon: [],
+  expired: [],
+};
+
 export function DashboardPage() {
   const [summary, setSummary] = useState<StockSummaryItem[]>([]);
-  const [expiring, setExpiring] = useState<ExpiringBatch[]>([]);
+  const [alerts, setAlerts] = useState<AlertsResponse>(EMPTY_ALERTS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
       try {
-        const [summaryRes, expiringRes] = await Promise.all([
+        const [summaryRes, alertsRes] = await Promise.all([
           getStockSummary(),
-          getExpiringSoon(),
+          getAlerts(),
         ]);
         setSummary(summaryRes.summary);
-        setExpiring(expiringRes.batches);
+        setAlerts(alertsRes);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load dashboard data");
       } finally {
@@ -74,8 +81,10 @@ export function DashboardPage() {
 
   const totalValue = summary.reduce((acc, item) => acc + item.totalValue, 0);
   const totalItems = summary.length;
-  const lowStockCount = summary.filter((item) => item.isLowStock).length;
-  const expiringSoonCount = expiring.length;
+  const lowStockCount = alerts.lowStock.length;
+  const expiringSoonCount = alerts.expiringSoon.length;
+  const expiredCount = alerts.expired.length;
+  const totalAlertCount = lowStockCount + expiringSoonCount + expiredCount;
 
   return (
     <div className="dashboard">
@@ -136,6 +145,22 @@ export function DashboardPage() {
         </div>
       </div>
 
+      <div className={`alert-summary ${totalAlertCount > 0 ? "alert-summary--active" : ""}`}>
+        <div>
+          <h2 className="alert-summary-title">Alert Summary</h2>
+          <p className="alert-summary-copy">
+            {totalAlertCount === 0
+              ? "Everything looks clear right now."
+              : `${totalAlertCount} items or batches need attention.`}
+          </p>
+        </div>
+        <div className="alert-summary-counts">
+          <span className="badge badge--yellow">{lowStockCount} low</span>
+          <span className="badge badge--orange">{expiringSoonCount} soon</span>
+          <span className="badge badge--red">{expiredCount} expired</span>
+        </div>
+      </div>
+
       {expiringSoonCount > 0 && (
         <div className="section">
           <div className="section-header">
@@ -144,7 +169,7 @@ export function DashboardPage() {
             </h2>
           </div>
           <div className="expiry-list">
-            {expiring.map((batch) => {
+            {alerts.expiringSoon.map((batch) => {
               const days = daysUntil(batch.expiryDate);
               return (
                 <div key={batch.id} className="expiry-item">

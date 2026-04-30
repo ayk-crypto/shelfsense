@@ -1,9 +1,27 @@
+import { useEffect, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { getAlerts } from "../api/alerts";
 import { useAuth } from "../context/AuthContext";
 
 export function AppShell() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [alertCount, setAlertCount] = useState(0);
+
+  useEffect(() => {
+    async function loadAlertCount() {
+      try {
+        const alerts = await getAlerts();
+        setAlertCount(
+          alerts.lowStock.length + alerts.expiringSoon.length + alerts.expired.length,
+        );
+      } catch {
+        setAlertCount(0);
+      }
+    }
+
+    void loadAlertCount();
+  }, []);
 
   function handleLogout() {
     logout();
@@ -46,6 +64,15 @@ export function AppShell() {
               <path d="M11 14l-3 3 3 3" />
             </svg>
             Movements
+          </NavLink>
+          <NavLink to="/alerts" className={({ isActive }) => `nav-item ${isActive ? "nav-item--active" : ""}`}>
+            <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+            <span className="nav-label">Alerts</span>
+            {alertCount > 0 && <span className="nav-badge">{alertCount}</span>}
           </NavLink>
         </nav>
 
@@ -104,6 +131,17 @@ export function AppShell() {
             <path d="M11 14l-3 3 3 3" />
           </svg>
           <span>Moves</span>
+        </NavLink>
+        <NavLink to="/alerts" className={({ isActive }) => `bottom-nav-item ${isActive ? "bottom-nav-item--active" : ""}`}>
+          <span className="bottom-nav-icon-wrap">
+            <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+            {alertCount > 0 && <span className="bottom-nav-badge">{alertCount}</span>}
+          </span>
+          <span>Alerts</span>
         </NavLink>
         <button className="bottom-nav-item" onClick={handleLogout}>
           <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
