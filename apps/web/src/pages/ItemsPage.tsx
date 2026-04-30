@@ -44,11 +44,30 @@ export function ItemsPage() {
   const [addItemOpen, setAddItemOpen] = useState(false);
   const [stockInItem, setStockInItem] = useState<Item | null>(null);
   const [stockOutItem, setStockOutItem] = useState<Item | null>(null);
+  const [busy, setBusy] = useState<Set<string>>(new Set());
 
   function showToast(msg: string, type: "success" | "error") {
     const id = ++toastSeq;
     setToasts((prev) => [...prev, { id, msg, type }]);
     setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 3500);
+  }
+
+  async function quickAdjust(item: Item, delta: number) {
+    setBusy((prev) => new Set(prev).add(item.id));
+    try {
+      if (delta > 0) {
+        await stockIn({ itemId: item.id, quantity: delta, note: "Quick adjustment" });
+      } else {
+        await stockOut({ itemId: item.id, quantity: -delta, reason: "manual_adjustment", note: "Quick adjustment" });
+      }
+      const sign = delta > 0 ? "+" : "";
+      showToast(`${sign}${delta} ${item.unit} — ${item.name}`, "success");
+      void refreshSummary();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Action failed", "error");
+    } finally {
+      setBusy((prev) => { const s = new Set(prev); s.delete(item.id); return s; });
+    }
   }
 
   async function refreshSummary() {
@@ -142,6 +161,27 @@ export function ItemsPage() {
                         <span className={`badge badge--${status.variant}`}>{status.label}</span>
                       </td>
                       <td className="td-actions">
+                        <span className="quick-btns">
+                          {([1, 5] as const).map((n) => (
+                            <button
+                              key={`+${n}`}
+                              className="btn btn--xs btn--quick btn--quick-in"
+                              disabled={busy.has(item.id)}
+                              onClick={() => { void quickAdjust(item, n); }}
+                              title={`Add ${n} ${item.unit}`}
+                            >+{n}</button>
+                          ))}
+                          {([1, 5] as const).map((n) => (
+                            <button
+                              key={`-${n}`}
+                              className="btn btn--xs btn--quick btn--quick-out"
+                              disabled={busy.has(item.id)}
+                              onClick={() => { void quickAdjust(item, -n); }}
+                              title={`Deduct ${n} ${item.unit}`}
+                            >−{n}</button>
+                          ))}
+                        </span>
+                        <span className="actions-divider" />
                         <button
                           className="btn btn--sm btn--ghost btn--green-text"
                           onClick={() => setStockInItem(item)}
@@ -192,18 +232,40 @@ export function ItemsPage() {
                     </span>
                   </div>
                   <div className="item-card-actions">
-                    <button
-                      className="btn btn--sm btn--ghost btn--green-text item-card-btn"
-                      onClick={() => setStockInItem(item)}
-                    >
-                      + Stock In
-                    </button>
-                    <button
-                      className="btn btn--sm btn--ghost btn--red-text item-card-btn"
-                      onClick={() => setStockOutItem(item)}
-                    >
-                      − Use / Deduct
-                    </button>
+                    <div className="quick-btns quick-btns--card">
+                      {([1, 5] as const).map((n) => (
+                        <button
+                          key={`+${n}`}
+                          className="btn btn--xs btn--quick btn--quick-in"
+                          disabled={busy.has(item.id)}
+                          onClick={() => { void quickAdjust(item, n); }}
+                          title={`Add ${n} ${item.unit}`}
+                        >+{n}</button>
+                      ))}
+                      {([1, 5] as const).map((n) => (
+                        <button
+                          key={`-${n}`}
+                          className="btn btn--xs btn--quick btn--quick-out"
+                          disabled={busy.has(item.id)}
+                          onClick={() => { void quickAdjust(item, -n); }}
+                          title={`Deduct ${n} ${item.unit}`}
+                        >−{n}</button>
+                      ))}
+                    </div>
+                    <div className="item-card-modal-actions">
+                      <button
+                        className="btn btn--sm btn--ghost btn--green-text item-card-btn"
+                        onClick={() => setStockInItem(item)}
+                      >
+                        + Stock In
+                      </button>
+                      <button
+                        className="btn btn--sm btn--ghost btn--red-text item-card-btn"
+                        onClick={() => setStockOutItem(item)}
+                      >
+                        − Use / Deduct
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
