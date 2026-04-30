@@ -31,15 +31,17 @@ model User {
 }
 
 model Workspace {
-  id          String       @id @default(uuid()) @db.Uuid
-  name        String
-  ownerId     String       @db.Uuid
-  createdAt   DateTime     @default(now())
-  owner       User         @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  memberships Membership[]
-  items       Item[]
+  id             String          @id @default(uuid()) @db.Uuid
+  name           String
+  ownerId        String          @db.Uuid
+  createdAt      DateTime        @default(now())
+  owner          User            @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  memberships    Membership[]
+  items          Item[]
   stockBatches StockBatch[]
   stockMovements StockMovement[]
+  suppliers      Supplier[]
+  purchases      Purchase[]
 }
 
 model Membership {
@@ -70,6 +72,7 @@ model Item {
   workspace      Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   stockBatches   StockBatch[]
   stockMovements StockMovement[]
+  purchaseItems  PurchaseItem[]
 
   @@index([workspaceId])
   @@unique([workspaceId, barcode])
@@ -115,4 +118,50 @@ model StockMovement {
   @@index([itemId])
   @@index([batchId])
   @@index([type])
+}
+
+model Supplier {
+  id          String     @id @default(uuid()) @db.Uuid
+  name        String
+  phone       String?
+  notes       String?
+  workspaceId String     @db.Uuid
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  purchases   Purchase[]
+
+  @@index([workspaceId])
+}
+
+model Purchase {
+  id            String         @id @default(uuid()) @db.Uuid
+  supplierId    String         @db.Uuid
+  date          DateTime
+  totalAmount   Float
+  workspaceId   String         @db.Uuid
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  supplier      Supplier       @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  purchaseItems PurchaseItem[]
+
+  @@index([workspaceId])
+  @@index([supplierId])
+  @@index([date])
+}
+
+model PurchaseItem {
+  id         String   @id @default(uuid()) @db.Uuid
+  purchaseId String   @db.Uuid
+  itemId     String   @db.Uuid
+  quantity   Float
+  unitCost   Float
+  total      Float
+  createdAt  DateTime @default(now())
+  purchase   Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  item       Item     @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  @@index([purchaseId])
+  @@index([itemId])
 }

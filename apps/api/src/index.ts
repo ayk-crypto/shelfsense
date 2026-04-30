@@ -6,7 +6,9 @@ import { errorHandler } from "./middleware/error-handler.js";
 import { alertsRouter } from "./routes/alerts.js";
 import { authRouter } from "./routes/auth.js";
 import { itemsRouter } from "./routes/items.js";
+import { purchasesRouter } from "./routes/purchases.js";
 import { stockRouter } from "./routes/stock.js";
+import { suppliersRouter } from "./routes/suppliers.js";
 import { workspaceRouter } from "./routes/workspace.js";
 
 const app = express();
@@ -24,6 +26,8 @@ app.use("/workspace", workspaceRouter);
 app.use("/items", itemsRouter);
 app.use("/stock", stockRouter);
 app.use("/alerts", alertsRouter);
+app.use("/suppliers", suppliersRouter);
+app.use("/purchases", purchasesRouter);
 app.use(errorHandler);
 
 app.listen(env.port, () => {
