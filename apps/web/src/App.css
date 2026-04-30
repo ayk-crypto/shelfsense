@@ -2785,3 +2785,86 @@ tr.row--wastage td:first-child {
   color: var(--color-text-muted);
   margin: 0 0 10px;
 }
+
+/* =============================================
+   Stock Adjustment modal
+   ============================================= */
+
+/* Adjust button colour */
+.btn--blue-text {
+  color: #2563eb;
+}
+
+.btn--blue-text:hover {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+/* Current stock reference bar */
+.adjust-current-stock {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 18px;
+}
+
+.adjust-current-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+}
+
+.adjust-current-value {
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}
+
+.adjust-current-unit {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+/* Difference preview chip */
+.adjust-preview {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border-radius: 8px;
+  padding: 9px 12px;
+  margin-bottom: 16px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.adjust-preview-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.adjust-preview--add {
+  background: #f0fdf4;
+  color: var(--color-green);
+  border: 1px solid #bbf7d0;
+}
+
+.adjust-preview--remove {
+  background: #fff1f2;
+  color: var(--color-red);
+  border: 1px solid #fecdd3;
+}
+
+.adjust-preview--none {
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+}

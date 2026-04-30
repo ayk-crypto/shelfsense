@@ -51,6 +51,7 @@ export function ItemsPage() {
   const [scanPrefillBarcode, setScanPrefillBarcode] = useState<string | undefined>();
   const [stockInItem, setStockInItem] = useState<Item | null>(null);
   const [stockOutItem, setStockOutItem] = useState<Item | null>(null);
+  const [adjustItem, setAdjustItem] = useState<Item | null>(null);
   const [barcodeItem, setBarcodeItem] = useState<Item | null>(null);
   const [busy, setBusy] = useState<Set<string>>(new Set());
   const hasBarcodes = useMemo(() => items.some((item) => item.barcode), [items]);
@@ -221,6 +222,13 @@ export function ItemsPage() {
                           − Out
                         </button>
                         <button
+                          className="btn btn--sm btn--ghost btn--blue-text"
+                          onClick={() => setAdjustItem(item)}
+                          title="Set exact stock quantity"
+                        >
+                          Adjust
+                        </button>
+                        <button
                           className="btn btn--sm btn--ghost"
                           onClick={() => setBarcodeItem(item)}
                         >
@@ -304,6 +312,12 @@ export function ItemsPage() {
                         − Use / Deduct
                       </button>
                       <button
+                        className="btn btn--sm btn--ghost btn--blue-text item-card-btn"
+                        onClick={() => setAdjustItem(item)}
+                      >
+                        ≡ Set Quantity
+                      </button>
+                      <button
                         className="btn btn--sm btn--ghost item-card-btn"
                         onClick={() => setBarcodeItem(item)}
                       >
@@ -373,6 +387,25 @@ export function ItemsPage() {
             const name = stockOutItem.name;
             setStockOutItem(null);
             showToast(`Stock deducted from "${name}"`, "success");
+            void refreshSummary();
+          }}
+          onError={(msg) => showToast(msg, "error")}
+        />
+      )}
+
+      {adjustItem && (
+        <AdjustStockModal
+          item={adjustItem}
+          currentQty={summaryMap.get(adjustItem.id)?.totalQuantity ?? 0}
+          onClose={() => setAdjustItem(null)}
+          onSuccess={(fromQty, toQty) => {
+            const name = adjustItem.name;
+            const unit = adjustItem.unit;
+            setAdjustItem(null);
+            showToast(
+              `Stock adjusted from ${fromQty} to ${toQty} ${unit} — ${name}`,
+              "success",
+            );
             void refreshSummary();
           }}
           onError={(msg) => showToast(msg, "error")}
@@ -863,6 +896,151 @@ function StockOutModal({
           >
             {saving ? <span className="btn-spinner" /> : null}
             {saving ? "Deducting…" : "Deduct Stock"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function AdjustStockModal({
+  item,
+  currentQty,
+  onClose,
+  onSuccess,
+  onError,
+}: {
+  item: Item;
+  currentQty: number;
+  onClose: () => void;
+  onSuccess: (fromQty: number, toQty: number) => void;
+  onError: (msg: string) => void;
+}) {
+  const [newQtyStr, setNewQtyStr] = useState("");
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  const newQty = newQtyStr === "" ? null : parseFloat(newQtyStr);
+  const isValidQty = newQty !== null && Number.isFinite(newQty) && newQty >= 0;
+  const delta = isValidQty ? newQty! - currentQty : null;
+  const noChange = delta === 0;
+  const canSubmit = !saving && isValidQty && !noChange;
+
+  function deltaLabel() {
+    if (delta === null) return null;
+    if (delta === 0) return { text: "No change", cls: "adjust-preview--none" };
+    const sign = delta > 0 ? "+" : "";
+    const verb = delta > 0 ? "Add" : "Remove";
+    const abs = Math.abs(delta);
+    return {
+      text: `${verb} ${abs} ${item.unit} (${sign}${delta})`,
+      cls: delta > 0 ? "adjust-preview--add" : "adjust-preview--remove",
+    };
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!canSubmit || delta === null || newQty === null) return;
+    setSaving(true);
+    try {
+      const trimmedNote = note.trim();
+      const noteStr = trimmedNote
+        ? `Stock adjustment: ${trimmedNote}`
+        : "Stock adjustment";
+      if (delta > 0) {
+        await stockIn({ itemId: item.id, quantity: delta, note: noteStr });
+      } else {
+        await stockOut({
+          itemId: item.id,
+          quantity: -delta,
+          reason: "adjustment",
+          note: noteStr,
+        });
+      }
+      onSuccess(currentQty, newQty);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Adjustment failed");
+      setSaving(false);
+    }
+  }
+
+  const preview = deltaLabel();
+  const btnLabel = isValidQty && !noChange
+    ? `Set to ${newQty} ${item.unit}`
+    : "Set Quantity";
+
+  return (
+    <Modal title={`Adjust Stock — ${item.name}`} onClose={onClose}>
+      <form onSubmit={(e) => { void handleSubmit(e); }}>
+        {/* Current stock reference */}
+        <div className="adjust-current-stock">
+          <span className="adjust-current-label">Current stock</span>
+          <span className="adjust-current-value">
+            {currentQty} <span className="adjust-current-unit">{item.unit}</span>
+          </span>
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">New quantity ({item.unit}) *</label>
+          <input
+            ref={inputRef}
+            className="form-input"
+            type="number"
+            min={0}
+            step="any"
+            value={newQtyStr}
+            onChange={(e) => setNewQtyStr(e.target.value)}
+            placeholder={String(currentQty)}
+            required
+          />
+        </div>
+
+        {/* Difference preview */}
+        {preview && (
+          <div className={`adjust-preview ${preview.cls}`}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="adjust-preview-icon">
+              {delta! > 0 ? (
+                <>
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <polyline points="19 12 12 19 5 12" transform="rotate(180 12 12)" />
+                </>
+              ) : delta! < 0 ? (
+                <>
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <polyline points="19 12 12 19 5 12" />
+                </>
+              ) : (
+                <line x1="5" y1="12" x2="19" y2="12" />
+              )}
+            </svg>
+            {preview.text}
+          </div>
+        )}
+
+        <div className="form-group">
+          <label className="form-label">Note (optional)</label>
+          <input
+            className="form-input"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Reason for adjustment…"
+          />
+        </div>
+
+        <div className="modal-footer">
+          <button type="button" className="btn btn--ghost" onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            type="submit"
+            className="btn btn--primary"
+            disabled={!canSubmit}
+          >
+            {saving ? <span className="btn-spinner" /> : null}
+            {saving ? "Saving…" : btnLabel}
           </button>
         </div>
       </form>
