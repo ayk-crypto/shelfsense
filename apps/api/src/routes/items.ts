@@ -20,6 +20,16 @@ itemsRouter.post("/", asyncHandler(async (req, res) => {
     return res.status(400).json({ error: "Name and unit are required" });
   }
 
+  if (data.barcode) {
+    const duplicate = await findDuplicateBarcode(workspaceId, data.barcode);
+
+    if (duplicate) {
+      return res.status(400).json({
+        error: "Barcode already exists for another item.",
+      });
+    }
+  }
+
   const item = await prisma.item.create({
     data: {
       ...data,
@@ -78,6 +88,20 @@ itemsRouter.patch("/:id", asyncHandler(async (req, res) => {
     return res.status(400).json({ error: "Name and unit cannot be empty" });
   }
 
+  if (data.barcode) {
+    const duplicate = await findDuplicateBarcode(
+      workspaceId,
+      data.barcode,
+      req.params.id,
+    );
+
+    if (duplicate) {
+      return res.status(400).json({
+        error: "Barcode already exists for another item.",
+      });
+    }
+  }
+
   const result = await prisma.item.updateMany({
     where: { id: req.params.id, workspaceId },
     data,
@@ -114,6 +138,21 @@ itemsRouter.delete("/:id", asyncHandler(async (req, res) => {
 
 function getWorkspaceId(req: Express.Request) {
   return req.user?.workspaceId ?? null;
+}
+
+async function findDuplicateBarcode(
+  workspaceId: string,
+  barcode: string,
+  excludingItemId?: string,
+) {
+  return prisma.item.findFirst({
+    where: {
+      workspaceId,
+      barcode,
+      id: excludingItemId ? { not: excludingItemId } : undefined,
+    },
+    select: { id: true },
+  });
 }
 
 function parseItemInput(body: unknown) {

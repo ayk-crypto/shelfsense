@@ -72,6 +72,7 @@ model Item {
   stockMovements StockMovement[]
 
   @@index([workspaceId])
+  @@unique([workspaceId, barcode])
 }
 
 model StockBatch {
