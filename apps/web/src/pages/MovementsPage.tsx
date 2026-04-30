@@ -19,7 +19,15 @@ function wastageTotal(movements: StockMovement[]) {
   const wastageMvts = movements.filter((m) => m.type === "WASTAGE");
   const qty = wastageMvts.reduce((acc, m) => acc + m.quantity, 0);
   const value = wastageMvts.reduce((acc, m) => acc + m.quantity * (m.unitCost ?? 0), 0);
-  return { qty, value, count: wastageMvts.length };
+
+  const byItem = new Map<string, { name: string; qty: number }>();
+  for (const m of wastageMvts) {
+    const prev = byItem.get(m.item.id) ?? { name: m.item.name, qty: 0 };
+    byItem.set(m.item.id, { name: m.item.name, qty: prev.qty + m.quantity });
+  }
+  const topItem = [...byItem.values()].sort((a, b) => b.qty - a.qty)[0] ?? null;
+
+  return { qty, value, count: wastageMvts.length, topItem };
 }
 
 export function MovementsPage() {
@@ -63,8 +71,10 @@ export function MovementsPage() {
   }, [filters]);
 
   const isWastageOnly = filters.type === "WASTAGE";
-  const { qty: wQty, value: wValue, count: wCount } = wastageTotal(movements);
+  const { qty: wQty, value: wValue, count: wCount, topItem: wTopItem } = wastageTotal(movements);
   const showSummary = wCount > 0;
+  const wastagePercent =
+    movements.length > 0 ? Math.round((wCount / movements.length) * 100) : 0;
 
   function toggleWastageFilter() {
     setFilters((prev) =>
@@ -188,6 +198,23 @@ export function MovementsPage() {
               <span>
                 Est. value lost <strong>{formatCurrency(wValue)}</strong>
               </span>
+              {wTopItem && (
+                <>
+                  <span className="wastage-summary-sep">·</span>
+                  <span>
+                    Top wasted: <strong>{wTopItem.name}</strong>{" "}
+                    <span className="wastage-summary-muted">({formatNumber(wTopItem.qty)} units)</span>
+                  </span>
+                </>
+              )}
+              {!isWastageOnly && (
+                <>
+                  <span className="wastage-summary-sep">·</span>
+                  <span className="wastage-summary-pct">
+                    {wastagePercent}% of visible movements
+                  </span>
+                </>
+              )}
             </div>
           )}
           <MovementTable movements={movements} />

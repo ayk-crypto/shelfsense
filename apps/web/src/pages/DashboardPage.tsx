@@ -22,11 +22,36 @@ function toYMD(d: Date) {
   return d.toISOString().slice(0, 10);
 }
 
-function wastageValue(movements: StockMovement[]) {
-  return movements.reduce(
-    (acc, m) => acc + m.quantity * (m.unitCost ?? 0),
-    0,
-  );
+function sumWastageValue(movements: StockMovement[]) {
+  return movements.reduce((acc, m) => acc + m.quantity * (m.unitCost ?? 0), 0);
+}
+
+interface WastedItem {
+  itemId: string;
+  name: string;
+  qty: number;
+  value: number;
+}
+
+function topWastedItems(movements: StockMovement[], n: number): WastedItem[] {
+  const map = new Map<string, WastedItem>();
+  for (const m of movements) {
+    const prev = map.get(m.item.id) ?? { itemId: m.item.id, name: m.item.name, qty: 0, value: 0 };
+    map.set(m.item.id, {
+      ...prev,
+      qty: prev.qty + m.quantity,
+      value: prev.value + m.quantity * (m.unitCost ?? 0),
+    });
+  }
+  return [...map.values()].sort((a, b) => b.value - a.value).slice(0, n);
+}
+
+type Trend = "up" | "down" | "flat";
+
+function computeTrend(thisWeek: number, lastWeek: number): Trend {
+  if (thisWeek > lastWeek) return "up";
+  if (thisWeek < lastWeek) return "down";
+  return "flat";
 }
 
 const EMPTY_ALERTS: AlertsResponse = {
@@ -40,6 +65,8 @@ export function DashboardPage() {
   const [alerts, setAlerts] = useState<AlertsResponse>(EMPTY_ALERTS);
   const [wastageToday, setWastageToday] = useState(0);
   const [wastageWeek, setWastageWeek] = useState(0);
+  const [wastageLastWeek, setWastageLastWeek] = useState(0);
+  const [topItems, setTopItems] = useState<WastedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,22 +76,33 @@ export function DashboardPage() {
         const today = new Date();
         const todayStr = toYMD(today);
 
-        const weekStart = new Date(today);
-        weekStart.setDate(today.getDate() - ((today.getDay() + 6) % 7));
-        const weekStartStr = toYMD(weekStart);
+        const thisWeekStart = new Date(today);
+        thisWeekStart.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+        const thisWeekStartStr = toYMD(thisWeekStart);
 
-        const [summaryRes, alertsRes, wastageResToday, wastageResWeek] =
+        const lastWeekStart = new Date(thisWeekStart);
+        lastWeekStart.setDate(lastWeekStart.getDate() - 7);
+        const lastWeekStartStr = toYMD(lastWeekStart);
+
+        const lastWeekEnd = new Date(thisWeekStart);
+        lastWeekEnd.setDate(lastWeekEnd.getDate() - 1);
+        const lastWeekEndStr = toYMD(lastWeekEnd);
+
+        const [summaryRes, alertsRes, wastageResToday, wastageResWeek, wastageResLastWeek] =
           await Promise.all([
             getStockSummary(),
             getAlerts(),
             getStockMovements({ type: "WASTAGE", fromDate: todayStr, toDate: todayStr }),
-            getStockMovements({ type: "WASTAGE", fromDate: weekStartStr, toDate: todayStr }),
+            getStockMovements({ type: "WASTAGE", fromDate: thisWeekStartStr, toDate: todayStr }),
+            getStockMovements({ type: "WASTAGE", fromDate: lastWeekStartStr, toDate: lastWeekEndStr }),
           ]);
 
         setSummary(summaryRes.summary);
         setAlerts(alertsRes);
-        setWastageToday(wastageValue(wastageResToday.movements));
-        setWastageWeek(wastageValue(wastageResWeek.movements));
+        setWastageToday(sumWastageValue(wastageResToday.movements));
+        setWastageWeek(sumWastageValue(wastageResWeek.movements));
+        setWastageLastWeek(sumWastageValue(wastageResLastWeek.movements));
+        setTopItems(topWastedItems(wastageResWeek.movements, 3));
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load dashboard data");
       } finally {
@@ -104,6 +142,7 @@ export function DashboardPage() {
   const expiringSoonCount = alerts.expiringSoon.length;
   const expiredCount = alerts.expired.length;
   const totalAlertCount = lowStockCount + expiringSoonCount + expiredCount;
+  const trend = computeTrend(wastageWeek, wastageLastWeek);
 
   return (
     <div className="dashboard">
@@ -179,9 +218,34 @@ export function DashboardPage() {
             <span className="stat-sublabel">
               Today {formatCurrency(wastageToday)} · This week {formatCurrency(wastageWeek)}
             </span>
+            <WastageTrend trend={trend} thisWeek={wastageWeek} lastWeek={wastageLastWeek} />
           </div>
         </div>
       </div>
+
+      {topItems.length > 0 && (
+        <div className="wastage-top-section">
+          <h2 className="wastage-top-title">
+            <svg className="wastage-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+              <path d="M10 11v6" /><path d="M14 11v6" />
+              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+            </svg>
+            Top Wasted Items — This Week
+          </h2>
+          <div className="wastage-top-list">
+            {topItems.map((item, i) => (
+              <div key={item.itemId} className="wastage-top-row">
+                <span className="wastage-top-rank">#{i + 1}</span>
+                <span className="wastage-top-name">{item.name}</span>
+                <span className="wastage-top-qty">{formatNumber(item.qty)} units wasted</span>
+                <span className="wastage-top-value">{formatCurrency(item.value)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className={`alert-summary ${totalAlertCount > 0 ? "alert-summary--active" : ""}`}>
         <div>
@@ -278,4 +342,34 @@ export function DashboardPage() {
       </div>
     </div>
   );
+}
+
+function WastageTrend({
+  trend,
+  thisWeek,
+  lastWeek,
+}: {
+  trend: Trend;
+  thisWeek: number;
+  lastWeek: number;
+}) {
+  if (trend === "flat" && thisWeek === 0 && lastWeek === 0) return null;
+
+  const icon = trend === "up" ? "↑" : trend === "down" ? "↓" : "→";
+  const label =
+    trend === "up"
+      ? "Up vs last week"
+      : trend === "down"
+        ? "Down vs last week"
+        : "Same as last week";
+
+  return (
+    <span className={`wastage-trend wastage-trend--${trend}`}>
+      {icon} {label}
+    </span>
+  );
+}
+
+function formatNumber(value: number) {
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(value);
 }
