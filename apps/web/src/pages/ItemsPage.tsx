@@ -11,6 +11,29 @@ interface Toast {
 
 let toastSeq = 0;
 
+const UNIT_OPTIONS = [
+  "kg",
+  "g",
+  "liter",
+  "ml",
+  "pcs",
+  "pack",
+  "box",
+  "dozen",
+  "bottle",
+  "can",
+  "bag",
+];
+
+const CATEGORY_OPTIONS = [
+  "Raw Material",
+  "Beverage",
+  "Packaging",
+  "Cleaning",
+  "Finished Goods",
+  "Other",
+];
+
 export function ItemsPage() {
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,6 +103,7 @@ export function ItemsPage() {
             <thead>
               <tr>
                 <th>Name</th>
+                <th>Category</th>
                 <th>Unit</th>
                 <th className="text-right">Min Level</th>
                 <th>Tracks Expiry</th>
@@ -90,6 +114,7 @@ export function ItemsPage() {
               {items.map((item) => (
                 <tr key={item.id}>
                   <td className="td-name">{item.name}</td>
+                  <td className="td-unit">{item.category ?? "Other"}</td>
                   <td className="td-unit">{item.unit}</td>
                   <td className="text-right td-num">{item.minStockLevel}</td>
                   <td>
@@ -189,7 +214,8 @@ function AddItemModal({
 }) {
   const [form, setForm] = useState<CreateItemInput>({
     name: "",
-    unit: "",
+    unit: UNIT_OPTIONS[0],
+    category: CATEGORY_OPTIONS[0],
     minStockLevel: 0,
     trackExpiry: false,
   });
@@ -228,13 +254,32 @@ function AddItemModal({
         </div>
         <div className="form-group">
           <label className="form-label">Unit *</label>
-          <input
-            className="form-input"
+          <select
+            className="form-select"
             value={form.unit}
             onChange={(e) => setForm({ ...form, unit: e.target.value })}
-            placeholder="e.g. kg, pcs, liters"
             required
-          />
+          >
+            {UNIT_OPTIONS.map((unit) => (
+              <option key={unit} value={unit}>
+                {unit}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="form-group">
+          <label className="form-label">Category</label>
+          <select
+            className="form-select"
+            value={form.category ?? ""}
+            onChange={(e) => setForm({ ...form, category: e.target.value })}
+          >
+            {CATEGORY_OPTIONS.map((category) => (
+              <option key={category} value={category}>
+                {category}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="form-group">
           <label className="form-label">Min Stock Level</label>

@@ -61,6 +61,7 @@ model Item {
   sku            String?
   barcode        String?
   unit           String
+  category       String?
   minStockLevel  Float           @default(0)
   trackExpiry    Boolean         @default(false)
   workspaceId    String          @db.Uuid

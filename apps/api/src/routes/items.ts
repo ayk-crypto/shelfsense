@@ -122,6 +122,7 @@ function parseItemInput(body: unknown) {
     sku?: unknown;
     barcode?: unknown;
     unit?: unknown;
+    category?: unknown;
     minStockLevel?: unknown;
     trackExpiry?: unknown;
   };
@@ -131,6 +132,7 @@ function parseItemInput(body: unknown) {
     sku: parseNullableString(input.sku),
     barcode: parseNullableString(input.barcode),
     unit: parseOptionalString(input.unit),
+    category: parseNullableString(input.category),
     minStockLevel:
       typeof input.minStockLevel === "number" ? input.minStockLevel : undefined,
     trackExpiry:

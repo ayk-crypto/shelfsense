@@ -47,6 +47,7 @@ export interface Item {
   id: string;
   name: string;
   unit: string;
+  category: string | null;
   minStockLevel: number;
   trackExpiry: boolean;
   sku: string | null;
@@ -61,6 +62,7 @@ export interface ItemsResponse {
 export interface CreateItemInput {
   name: string;
   unit: string;
+  category?: string;
   minStockLevel: number;
   trackExpiry: boolean;
 }

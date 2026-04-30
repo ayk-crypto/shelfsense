@@ -24,6 +24,7 @@ const demoItems = [
   {
     name: "Chicken",
     unit: "kg",
+    category: "Raw Material",
     minStockLevel: 10,
     trackExpiry: true,
     batches: [
@@ -40,6 +41,7 @@ const demoItems = [
   {
     name: "Cooking Oil",
     unit: "liter",
+    category: "Raw Material",
     minStockLevel: 5,
     trackExpiry: true,
     batches: [
@@ -56,6 +58,7 @@ const demoItems = [
   {
     name: "Rice",
     unit: "kg",
+    category: "Raw Material",
     minStockLevel: 20,
     trackExpiry: false,
     batches: [
@@ -72,6 +75,7 @@ const demoItems = [
   {
     name: "Coke 1.5L",
     unit: "pcs",
+    category: "Beverage",
     minStockLevel: 12,
     trackExpiry: true,
     batches: [
@@ -88,6 +92,7 @@ const demoItems = [
   {
     name: "Flour",
     unit: "kg",
+    category: "Raw Material",
     minStockLevel: 15,
     trackExpiry: true,
     batches: [
@@ -165,6 +170,7 @@ async function main() {
         data: {
           name: demoItem.name,
           unit: demoItem.unit,
+          category: demoItem.category,
           minStockLevel: demoItem.minStockLevel,
           trackExpiry: demoItem.trackExpiry,
           workspaceId: workspace.id,
