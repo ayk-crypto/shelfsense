@@ -1,3 +1,4 @@
+import cors from "cors";
 import express from "express";
 import type { HealthResponse } from "@shelfsense/shared";
 import { env } from "./config/env.js";
@@ -9,6 +10,7 @@ import { workspaceRouter } from "./routes/workspace.js";
 
 const app = express();
 
+app.use(cors());
 app.use(express.json());
 
 app.get("/api/health", (_req, res) => {

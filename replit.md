@@ -33,7 +33,7 @@ This is an npm workspaces monorepo with three packages:
 - **API client** — `src/api/client.ts` fetch wrapper injects Bearer token automatically
 - **Auth** — JWT stored in `localStorage` under `shelfsense_token`; `AuthContext` provides `user`, `saveAuth`, `logout`
 - **Routing** — `ProtectedRoute` redirects unauthenticated users to `/login`; login redirects to `/dashboard`
-- **Env** — `apps/web/.env` sets `VITE_API_BASE_URL=http://localhost:3000`
+- **Env** — `apps/web/.env` sets `VITE_API_BASE_URL=/api` (proxied by Vite dev server to `http://localhost:3000`)
 - **Types** — `src/vite-env.d.ts` declares `ImportMeta.env` for TypeScript; shared Prisma types from `packages/shared`
 
 ### Demo account
