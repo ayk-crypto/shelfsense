@@ -44,13 +44,27 @@ stockRouter.post("/in", asyncHandler(async (req, res) => {
   }
 
   const result = await prisma.$transaction(async (tx) => {
+    const latestPricedBatch = input.unitCost === undefined
+      ? await tx.stockBatch.findFirst({
+          where: {
+            itemId,
+            workspaceId,
+            unitCost: { not: null },
+          },
+          orderBy: { createdAt: "desc" },
+          select: { unitCost: true },
+        })
+      : null;
+    // Quick stock-in actions do not send cost, so reuse the latest known cost to keep valuation stable.
+    const effectiveUnitCost = input.unitCost ?? latestPricedBatch?.unitCost ?? null;
+
     const batch = await tx.stockBatch.create({
       data: {
         itemId,
         workspaceId,
         quantity,
         remainingQuantity: quantity,
-        unitCost: input.unitCost,
+        unitCost: effectiveUnitCost,
         expiryDate,
         batchNo: input.batchNo,
         supplierName: input.supplierName,
@@ -64,7 +78,7 @@ stockRouter.post("/in", asyncHandler(async (req, res) => {
         batchId: batch.id,
         type: StockMovementType.STOCK_IN,
         quantity,
-        unitCost: input.unitCost,
+        unitCost: effectiveUnitCost,
         note: input.note,
       },
     });
