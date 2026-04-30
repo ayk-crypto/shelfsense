@@ -24,13 +24,18 @@ This is an npm workspaces monorepo with three packages:
 - Inventory item tracking (SKU, barcode, unit, min stock level, expiry tracking)
 - Stock batch management with expiry dates
 - Stock movement tracking (STOCK_IN, STOCK_OUT, WASTAGE, ADJUSTMENT)
+- Supplier contact management (name, phone, notes)
+- Barcode scanning via html5-qrcode (lazy-loaded, halves main bundle)
 
 ## Frontend Integration (`apps/web`)
 
 - **Login page** — email/password form with "Fill demo credentials" helper
 - **Dashboard page** — summary stat cards + expiring-soon inventory table
 - **Items page** (`/items`) — list all items; Add Item modal; Stock In / Stock Out modals per row; inline toast notifications
-- **App shell** — responsive layout with sidebar on desktop (≥768px), bottom nav on mobile; Dashboard + Items nav links
+- **Movements page** (`/movements`) — stock movement log with filters
+- **Suppliers page** (`/suppliers`) — supplier list with Add Supplier modal; tappable phone links; mobile card layout
+- **Alerts page** (`/alerts`) — low-stock and expiry alerts
+- **App shell** — responsive layout with sidebar on desktop (≥768px), bottom nav on mobile; Dashboard, Items, Movements, Suppliers, Alerts nav links
 - **API client** — `src/api/client.ts` fetch wrapper injects Bearer token automatically
 - **Auth** — JWT stored in `localStorage` under `shelfsense_token`; `AuthContext` provides `user`, `saveAuth`, `logout`
 - **Routing** — `ProtectedRoute` redirects unauthenticated users to `/login`; login redirects to `/dashboard`

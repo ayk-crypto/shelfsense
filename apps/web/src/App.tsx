@@ -6,6 +6,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { ItemsPage } from "./pages/ItemsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MovementsPage } from "./pages/MovementsPage";
+import { SuppliersPage } from "./pages/SuppliersPage";
 import "./App.css";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -41,6 +42,7 @@ export function App() {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/items" element={<ItemsPage />} />
             <Route path="/movements" element={<MovementsPage />} />
+            <Route path="/suppliers" element={<SuppliersPage />} />
             <Route path="/alerts" element={<AlertsPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

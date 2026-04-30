@@ -140,3 +140,21 @@ export interface AlertsResponse {
   expiringSoon: ExpiryAlert[];
   expired: ExpiryAlert[];
 }
+
+export interface Supplier {
+  id: string;
+  name: string;
+  phone: string | null;
+  notes: string | null;
+  createdAt: string;
+}
+
+export interface SuppliersResponse {
+  suppliers: Supplier[];
+}
+
+export interface CreateSupplierInput {
+  name: string;
+  phone?: string;
+  notes?: string;
+}
