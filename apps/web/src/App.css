@@ -1415,3 +1415,78 @@ body {
   background: var(--color-red-light);
   color: var(--color-red);
 }
+
+/* =============================================
+   Items Page — responsive table / cards
+   ============================================= */
+
+/* Desktop: show table, hide cards */
+.items-table-wrap { display: block; }
+.item-cards       { display: none; }
+
+/* Mobile: hide table, show cards */
+@media (max-width: 640px) {
+  .items-table-wrap { display: none; }
+  .item-cards       { display: flex; flex-direction: column; gap: 10px; }
+}
+
+/* Item card */
+.item-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: var(--shadow-sm);
+}
+
+.item-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.item-card-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--color-text);
+}
+
+.item-card-meta {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.item-card-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.item-card-stat-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-light);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.item-card-stat-value {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.item-card-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.item-card-btn {
+  flex: 1;
+  justify-content: center;
+}

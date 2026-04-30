@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createItem, getItems } from "../api/items";
-import { stockIn, stockOut } from "../api/stock";
-import type { CreateItemInput, Item } from "../types";
+import { getStockSummary, stockIn, stockOut } from "../api/stock";
+import type { CreateItemInput, Item, StockSummaryItem } from "../types";
 
 interface Toast {
   id: number;
@@ -12,30 +12,36 @@ interface Toast {
 let toastSeq = 0;
 
 const UNIT_OPTIONS = [
-  "kg",
-  "g",
-  "liter",
-  "ml",
-  "pcs",
-  "pack",
-  "box",
-  "dozen",
-  "bottle",
-  "can",
-  "bag",
+  "kg", "g", "liter", "ml", "pcs", "pack", "box", "dozen", "bottle", "can", "bag",
 ];
 
 const CATEGORY_OPTIONS = [
-  "Raw Material",
-  "Beverage",
-  "Packaging",
-  "Cleaning",
-  "Finished Goods",
-  "Other",
+  "Raw Material", "Beverage", "Packaging", "Cleaning", "Finished Goods", "Other",
 ];
+
+function formatCurrency(v: number) {
+  return new Intl.NumberFormat("en-PH", {
+    style: "currency", currency: "PHP", minimumFractionDigits: 0, maximumFractionDigits: 0,
+  }).format(v);
+}
+
+interface StatusInfo { label: string; variant: "green" | "orange" | "red" | "gray" }
+
+function getStatus(s: StockSummaryItem | undefined, trackExpiry: boolean): StatusInfo {
+  if (!s) return { label: "No data", variant: "gray" };
+  const now = Date.now();
+  if (trackExpiry && s.nearestExpiryDate) {
+    const exp = new Date(s.nearestExpiryDate).getTime();
+    if (exp < now) return { label: "Expired", variant: "red" };
+    if (exp <= now + 7 * 86_400_000) return { label: "Expiring", variant: "orange" };
+  }
+  if (s.isLowStock) return { label: "Low Stock", variant: "orange" };
+  return { label: "OK", variant: "green" };
+}
 
 export function ItemsPage() {
   const [items, setItems] = useState<Item[]>([]);
+  const [summaryMap, setSummaryMap] = useState<Map<string, StockSummaryItem>>(new Map());
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -50,10 +56,21 @@ export function ItemsPage() {
     setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 3500);
   }
 
-  async function loadItems() {
+  async function refreshSummary() {
     try {
-      const res = await getItems();
-      setItems(res.items);
+      const res = await getStockSummary();
+      const map = new Map(res.summary.map((s) => [s.itemId, s]));
+      setSummaryMap(map);
+    } catch {
+      /* non-blocking — keep showing stale data */
+    }
+  }
+
+  async function loadAll() {
+    try {
+      const [itemsRes, summaryRes] = await Promise.all([getItems(), getStockSummary()]);
+      setItems(itemsRes.items);
+      setSummaryMap(new Map(summaryRes.summary.map((s) => [s.itemId, s])));
       setFetchError(null);
     } catch (err) {
       setFetchError(err instanceof Error ? err.message : "Failed to load items");
@@ -62,7 +79,7 @@ export function ItemsPage() {
     }
   }
 
-  useEffect(() => { void loadItems(); }, []);
+  useEffect(() => { void loadAll(); }, []);
 
   if (loading) {
     return (
@@ -98,51 +115,106 @@ export function ItemsPage() {
           <p>No items yet. Add your first inventory item to get started.</p>
         </div>
       ) : (
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Category</th>
-                <th>Unit</th>
-                <th className="text-right">Min Level</th>
-                <th>Tracks Expiry</th>
-                <th className="text-right col-actions">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item) => (
-                <tr key={item.id}>
-                  <td className="td-name">{item.name}</td>
-                  <td className="td-unit">{item.category ?? "Other"}</td>
-                  <td className="td-unit">{item.unit}</td>
-                  <td className="text-right td-num">{item.minStockLevel}</td>
-                  <td>
-                    {item.trackExpiry ? (
-                      <span className="badge badge--blue">Yes</span>
-                    ) : (
-                      <span className="badge badge--gray">No</span>
-                    )}
-                  </td>
-                  <td className="td-actions">
+        <>
+          {/* ── Desktop table (hidden on mobile) ── */}
+          <div className="table-wrap items-table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Unit</th>
+                  <th className="text-right">In Stock</th>
+                  <th className="text-right">Value</th>
+                  <th>Status</th>
+                  <th className="text-right col-actions">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item) => {
+                  const s = summaryMap.get(item.id);
+                  const status = getStatus(s, item.trackExpiry);
+                  return (
+                    <tr key={item.id} className={s?.isLowStock ? "row--warn" : ""}>
+                      <td className="td-name">{item.name}</td>
+                      <td className="td-unit">{item.unit}</td>
+                      <td className="text-right td-num">
+                        {s !== undefined ? s.totalQuantity : "—"}
+                      </td>
+                      <td className="text-right td-num">
+                        {s !== undefined ? formatCurrency(s.totalValue) : "—"}
+                      </td>
+                      <td>
+                        <span className={`badge badge--${status.variant}`}>{status.label}</span>
+                      </td>
+                      <td className="td-actions">
+                        <button
+                          className="btn btn--sm btn--ghost btn--green-text"
+                          onClick={() => setStockInItem(item)}
+                        >
+                          + In
+                        </button>
+                        <button
+                          className="btn btn--sm btn--ghost btn--red-text"
+                          onClick={() => setStockOutItem(item)}
+                        >
+                          − Out
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* ── Mobile cards (hidden on desktop) ── */}
+          <div className="item-cards">
+            {items.map((item) => {
+              const s = summaryMap.get(item.id);
+              const status = getStatus(s, item.trackExpiry);
+              return (
+                <div key={item.id} className="item-card">
+                  <div className="item-card-header">
+                    <span className="item-card-name">{item.name}</span>
+                    <span className={`badge badge--${status.variant}`}>{status.label}</span>
+                  </div>
+                  <div className="item-card-meta">
+                    <span className="item-card-stat">
+                      <span className="item-card-stat-label">In Stock</span>
+                      <span className="item-card-stat-value">
+                        {s !== undefined ? `${s.totalQuantity} ${item.unit}` : "—"}
+                      </span>
+                    </span>
+                    <span className="item-card-stat">
+                      <span className="item-card-stat-label">Value</span>
+                      <span className="item-card-stat-value">
+                        {s !== undefined ? formatCurrency(s.totalValue) : "—"}
+                      </span>
+                    </span>
+                    <span className="item-card-stat">
+                      <span className="item-card-stat-label">Min Level</span>
+                      <span className="item-card-stat-value">{item.minStockLevel} {item.unit}</span>
+                    </span>
+                  </div>
+                  <div className="item-card-actions">
                     <button
-                      className="btn btn--sm btn--ghost btn--green-text"
+                      className="btn btn--sm btn--ghost btn--green-text item-card-btn"
                       onClick={() => setStockInItem(item)}
                     >
                       + Stock In
                     </button>
                     <button
-                      className="btn btn--sm btn--ghost btn--red-text"
+                      className="btn btn--sm btn--ghost btn--red-text item-card-btn"
                       onClick={() => setStockOutItem(item)}
                     >
                       − Use / Deduct
                     </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
 
       {addItemOpen && (
@@ -152,6 +224,7 @@ export function ItemsPage() {
             setItems((prev) => [item, ...prev]);
             setAddItemOpen(false);
             showToast(`"${item.name}" added successfully`, "success");
+            void refreshSummary();
           }}
           onError={(msg) => showToast(msg, "error")}
         />
@@ -162,8 +235,10 @@ export function ItemsPage() {
           item={stockInItem}
           onClose={() => setStockInItem(null)}
           onSuccess={() => {
-            showToast(`Stock added for "${stockInItem.name}"`, "success");
+            const name = stockInItem.name;
             setStockInItem(null);
+            showToast(`Stock added for "${name}"`, "success");
+            void refreshSummary();
           }}
           onError={(msg) => showToast(msg, "error")}
         />
@@ -174,8 +249,10 @@ export function ItemsPage() {
           item={stockOutItem}
           onClose={() => setStockOutItem(null)}
           onSuccess={() => {
-            showToast(`Stock deducted from "${stockOutItem.name}"`, "success");
+            const name = stockOutItem.name;
             setStockOutItem(null);
+            showToast(`Stock deducted from "${name}"`, "success");
+            void refreshSummary();
           }}
           onError={(msg) => showToast(msg, "error")}
         />
