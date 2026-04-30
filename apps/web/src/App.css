@@ -2665,3 +2665,123 @@ tr.row--wastage td:first-child {
     font-size: 13px;
   }
 }
+
+/* =============================================
+   Purchases — filters, clickable rows, detail modal
+   ============================================= */
+
+/* ── Filter bar ── */
+.purchase-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.purchase-filter-select {
+  min-width: 180px;
+  flex: 1 1 180px;
+}
+
+.purchase-filter-dates {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 2 1 260px;
+}
+
+.purchase-filter-date {
+  flex: 1 1 120px;
+  min-width: 0;
+}
+
+.purchase-filter-sep {
+  color: var(--color-text-muted);
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.purchase-filter-clear {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── Clickable table row ── */
+.tr--clickable {
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.tr--clickable:hover td {
+  background: var(--color-bg);
+}
+
+/* ── Clickable card ── */
+.purchase-card--clickable {
+  cursor: pointer;
+  transition: box-shadow 0.15s, transform 0.1s;
+}
+
+.purchase-card--clickable:hover {
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
+}
+
+.purchase-card--clickable:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* ── Purchase detail modal ── */
+.purchase-detail-meta-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+  padding: 16px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+}
+
+@media (max-width: 480px) {
+  .purchase-detail-meta-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.purchase-detail-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.purchase-detail-meta-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+}
+
+.purchase-detail-meta-value {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.purchase-detail-meta-value--amount {
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-primary);
+}
+
+.purchase-detail-lines-heading {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  margin: 0 0 10px;
+}

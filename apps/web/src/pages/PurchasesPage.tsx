@@ -28,12 +28,21 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
+/* ─────────────────────────────────────────────
+   Main page
+───────────────────────────────────────────── */
 export function PurchasesPage() {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [detailPurchase, setDetailPurchase] = useState<Purchase | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
+
+  // Filters
+  const [filterSupplier, setFilterSupplier] = useState("");
+  const [filterFrom, setFilterFrom] = useState("");
+  const [filterTo, setFilterTo] = useState("");
 
   function showToast(msg: string, type: "success" | "error") {
     const id = ++toastSeq;
@@ -54,6 +63,27 @@ export function PurchasesPage() {
   }
 
   useEffect(() => { void load(); }, []);
+
+  // Derive unique suppliers for filter dropdown
+  const supplierOptions = Array.from(
+    new Map(purchases.map((p) => [p.supplier.id, p.supplier])).values(),
+  ).sort((a, b) => a.name.localeCompare(b.name));
+
+  // Filtered list (client-side)
+  const filtered = purchases.filter((p) => {
+    if (filterSupplier && p.supplier.id !== filterSupplier) return false;
+    if (filterFrom) {
+      const pDate = p.date.slice(0, 10);
+      if (pDate < filterFrom) return false;
+    }
+    if (filterTo) {
+      const pDate = p.date.slice(0, 10);
+      if (pDate > filterTo) return false;
+    }
+    return true;
+  });
+
+  const hasFilters = filterSupplier || filterFrom || filterTo;
 
   if (loading) {
     return (
@@ -84,9 +114,58 @@ export function PurchasesPage() {
         </button>
       </div>
 
+      {/* ── Filters ── */}
+      {purchases.length > 0 && (
+        <div className="purchase-filters">
+          <select
+            className="form-input form-select purchase-filter-select"
+            value={filterSupplier}
+            onChange={(e) => setFilterSupplier(e.target.value)}
+          >
+            <option value="">All suppliers</option>
+            {supplierOptions.map((s) => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
+
+          <div className="purchase-filter-dates">
+            <input
+              type="date"
+              className="form-input purchase-filter-date"
+              value={filterFrom}
+              onChange={(e) => setFilterFrom(e.target.value)}
+              title="From date"
+              aria-label="From date"
+            />
+            <span className="purchase-filter-sep">–</span>
+            <input
+              type="date"
+              className="form-input purchase-filter-date"
+              value={filterTo}
+              onChange={(e) => setFilterTo(e.target.value)}
+              title="To date"
+              aria-label="To date"
+            />
+          </div>
+
+          {hasFilters && (
+            <button
+              className="btn btn--ghost btn--sm purchase-filter-clear"
+              onClick={() => { setFilterSupplier(""); setFilterFrom(""); setFilterTo(""); }}
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+
       {purchases.length === 0 ? (
         <div className="empty-state">
           <p>No purchases yet. Record your first purchase to track stock intake.</p>
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="empty-state">
+          <p>No purchases match the current filters.</p>
         </div>
       ) : (
         <>
@@ -102,8 +181,13 @@ export function PurchasesPage() {
                 </tr>
               </thead>
               <tbody>
-                {purchases.map((p) => (
-                  <tr key={p.id}>
+                {filtered.map((p) => (
+                  <tr
+                    key={p.id}
+                    className="tr--clickable"
+                    onClick={() => setDetailPurchase(p)}
+                    title="View details"
+                  >
                     <td className="td-expiry">{fmtDate(p.date)}</td>
                     <td className="td-name">{p.supplier.name}</td>
                     <td className="td-amount">{fmt(p.totalAmount)}</td>
@@ -116,8 +200,15 @@ export function PurchasesPage() {
 
           {/* ── Mobile cards ── */}
           <div className="purchase-cards">
-            {purchases.map((p) => (
-              <div key={p.id} className="purchase-card">
+            {filtered.map((p) => (
+              <div
+                key={p.id}
+                className="purchase-card purchase-card--clickable"
+                role="button"
+                tabIndex={0}
+                onClick={() => setDetailPurchase(p)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setDetailPurchase(p); }}
+              >
                 <div className="purchase-card-header">
                   <span className="purchase-card-supplier">{p.supplier.name}</span>
                   <span className="purchase-card-date">{fmtDate(p.date)}</span>
@@ -134,6 +225,7 @@ export function PurchasesPage() {
         </>
       )}
 
+      {/* ── Modals ── */}
       {addOpen && (
         <NewPurchaseModal
           onClose={() => setAddOpen(false)}
@@ -149,6 +241,14 @@ export function PurchasesPage() {
         />
       )}
 
+      {detailPurchase && (
+        <PurchaseDetailModal
+          purchase={detailPurchase}
+          onClose={() => setDetailPurchase(null)}
+        />
+      )}
+
+      {/* ── Toast stack ── */}
       <div className="toast-stack">
         {toasts.map((t) => (
           <div key={t.id} className={`toast toast--${t.type}`}>
@@ -166,6 +266,97 @@ export function PurchasesPage() {
             {t.msg}
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   Purchase Detail Modal
+───────────────────────────────────────────── */
+function PurchaseDetailModal({
+  purchase,
+  onClose,
+}: {
+  purchase: Purchase;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [onClose]);
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal modal--wide" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2 className="modal-title">Purchase Details</h2>
+          <button className="modal-close" onClick={onClose} aria-label="Close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="modal-body">
+          {/* ── Meta row ── */}
+          <div className="purchase-detail-meta-row">
+            <div className="purchase-detail-meta">
+              <span className="purchase-detail-meta-label">Date</span>
+              <span className="purchase-detail-meta-value">{fmtDate(purchase.date)}</span>
+            </div>
+            <div className="purchase-detail-meta">
+              <span className="purchase-detail-meta-label">Supplier</span>
+              <span className="purchase-detail-meta-value">{purchase.supplier.name}</span>
+            </div>
+            <div className="purchase-detail-meta">
+              <span className="purchase-detail-meta-label">Total Amount</span>
+              <span className="purchase-detail-meta-value purchase-detail-meta-value--amount">
+                {fmt(purchase.totalAmount)}
+              </span>
+            </div>
+          </div>
+
+          {/* ── Line items ── */}
+          <div className="purchase-detail-lines">
+            <p className="purchase-detail-lines-heading">Line Items</p>
+            <div className="table-wrap">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Item</th>
+                    <th className="th-right">Qty</th>
+                    <th className="th-right">Unit Cost</th>
+                    <th className="th-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {purchase.purchaseItems.map((li) => (
+                    <tr key={li.id}>
+                      <td className="td-name">
+                        {li.item.name}
+                        {li.item.unit && (
+                          <span className="td-unit"> {li.item.unit}</span>
+                        )}
+                      </td>
+                      <td className="td-amount">{li.quantity}</td>
+                      <td className="td-amount">{fmt(li.unitCost)}</td>
+                      <td className="td-amount">{fmt(li.total)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn btn--ghost" onClick={onClose}>Close</button>
+        </div>
       </div>
     </div>
   );
@@ -366,7 +557,6 @@ function NewPurchaseModal({
                   </button>
                 </div>
 
-                {/* Desktop column headers */}
                 <div className="purchase-line purchase-line--header">
                   <span>Item</span>
                   <span>Qty</span>
@@ -435,7 +625,6 @@ function NewPurchaseModal({
                   );
                 })}
 
-                {/* Grand total */}
                 <div className="purchase-grand-total">
                   <span className="purchase-grand-total-label">Grand Total</span>
                   <span className="purchase-grand-total-value">{fmt(grandTotal)}</span>
