@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import JsBarcode from "jsbarcode";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createItem, getItems } from "../api/items";
 import { getStockSummary, stockIn, stockOut } from "../api/stock";
 import type { CreateItemInput, Item, StockSummaryItem } from "../types";
@@ -44,7 +45,9 @@ export function ItemsPage() {
   const [addItemOpen, setAddItemOpen] = useState(false);
   const [stockInItem, setStockInItem] = useState<Item | null>(null);
   const [stockOutItem, setStockOutItem] = useState<Item | null>(null);
+  const [barcodeItem, setBarcodeItem] = useState<Item | null>(null);
   const [busy, setBusy] = useState<Set<string>>(new Set());
+  const hasBarcodes = useMemo(() => items.some((item) => item.barcode), [items]);
 
   function showToast(msg: string, type: "success" | "error") {
     const id = ++toastSeq;
@@ -136,6 +139,7 @@ export function ItemsPage() {
               <thead>
                 <tr>
                   <th>Name</th>
+                  {hasBarcodes && <th>Barcode</th>}
                   <th>Unit</th>
                   <th className="text-right">In Stock</th>
                   <th className="text-right">Value</th>
@@ -150,6 +154,9 @@ export function ItemsPage() {
                   return (
                     <tr key={item.id} className={s?.isLowStock ? "row--warn" : ""}>
                       <td className="td-name">{item.name}</td>
+                      {hasBarcodes && (
+                        <td className="td-barcode">{item.barcode ?? "-"}</td>
+                      )}
                       <td className="td-unit">{item.unit}</td>
                       <td className="text-right td-num">
                         {s !== undefined ? s.totalQuantity : "—"}
@@ -194,6 +201,12 @@ export function ItemsPage() {
                         >
                           − Out
                         </button>
+                        <button
+                          className="btn btn--sm btn--ghost"
+                          onClick={() => setBarcodeItem(item)}
+                        >
+                          Barcode
+                        </button>
                       </td>
                     </tr>
                   );
@@ -214,6 +227,12 @@ export function ItemsPage() {
                     <span className={`badge badge--${status.variant}`}>{status.label}</span>
                   </div>
                   <div className="item-card-meta">
+                    {item.barcode && (
+                      <span className="item-card-stat">
+                        <span className="item-card-stat-label">Barcode</span>
+                        <span className="item-card-stat-value">{item.barcode}</span>
+                      </span>
+                    )}
                     <span className="item-card-stat">
                       <span className="item-card-stat-label">In Stock</span>
                       <span className="item-card-stat-value">
@@ -265,6 +284,12 @@ export function ItemsPage() {
                       >
                         − Use / Deduct
                       </button>
+                      <button
+                        className="btn btn--sm btn--ghost item-card-btn"
+                        onClick={() => setBarcodeItem(item)}
+                      >
+                        Barcode
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -315,6 +340,15 @@ export function ItemsPage() {
         />
       )}
 
+      {barcodeItem && (
+        <BarcodeModal
+          item={barcodeItem}
+          onClose={() => setBarcodeItem(null)}
+          onCopy={() => showToast("Barcode copied", "success")}
+          onError={(msg) => showToast(msg, "error")}
+        />
+      )}
+
       <div className="toast-stack">
         {toasts.map((t) => (
           <div key={t.id} className={`toast toast--${t.type}`}>
@@ -350,6 +384,7 @@ function AddItemModal({
     name: "",
     unit: UNIT_OPTIONS[0],
     category: CATEGORY_OPTIONS[0],
+    barcode: "",
     minStockLevel: 0,
     trackExpiry: false,
   });
@@ -363,7 +398,10 @@ function AddItemModal({
     if (!form.name.trim() || !form.unit.trim()) return;
     setSaving(true);
     try {
-      const res = await createItem(form);
+      const res = await createItem({
+        ...form,
+        barcode: form.barcode?.trim() || undefined,
+      });
       onSuccess(res.item);
     } catch (err) {
       onError(err instanceof Error ? err.message : "Failed to create item");
@@ -425,6 +463,25 @@ function AddItemModal({
             onChange={(e) => setForm({ ...form, minStockLevel: Number(e.target.value) })}
           />
         </div>
+        <div className="form-group">
+          <label className="form-label">Barcode</label>
+          <div className="barcode-input-row">
+            <input
+              className="form-input"
+              value={form.barcode ?? ""}
+              onChange={(e) => setForm({ ...form, barcode: e.target.value })}
+              placeholder="Scan or enter barcode"
+            />
+            <button
+              type="button"
+              className="btn btn--ghost btn--sm"
+              disabled={Boolean(form.barcode?.trim())}
+              onClick={() => setForm({ ...form, barcode: generateBarcodeValue() })}
+            >
+              Auto-generate
+            </button>
+          </div>
+        </div>
         <div className="form-group form-group--inline">
           <input
             id="trackExpiry"
@@ -450,6 +507,107 @@ function AddItemModal({
           </button>
         </div>
       </form>
+    </Modal>
+  );
+}
+
+function BarcodeModal({
+  item,
+  onClose,
+  onCopy,
+  onError,
+}: {
+  item: Item;
+  onClose: () => void;
+  onCopy: () => void;
+  onError: (msg: string) => void;
+}) {
+  const barcode = item.barcode ?? generateStablePreviewBarcode(item.id);
+  const svgRef = useRef<SVGSVGElement>(null);
+
+  useEffect(() => {
+    if (!svgRef.current) return;
+
+    JsBarcode(svgRef.current, barcode, {
+      format: "CODE128",
+      width: 2,
+      height: 72,
+      displayValue: true,
+      fontSize: 14,
+      margin: 8,
+    });
+  }, [barcode]);
+
+  async function copyBarcode() {
+    try {
+      await navigator.clipboard.writeText(barcode);
+      onCopy();
+    } catch {
+      onError("Could not copy barcode");
+    }
+  }
+
+  function printLabel() {
+    const svgMarkup = svgRef.current?.outerHTML;
+    if (!svgMarkup) return;
+
+    const printWindow = window.open("", "_blank", "width=420,height=520");
+    if (!printWindow) {
+      onError("Could not open print window");
+      return;
+    }
+
+    printWindow.document.write(`
+      <!doctype html>
+      <html>
+        <head>
+          <title>${escapeHtml(item.name)} Label</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 24px; }
+            .label { border: 1px solid #111; width: 320px; padding: 16px; text-align: center; }
+            h1 { font-size: 18px; margin: 0 0 10px; }
+            p { font-size: 12px; margin: 8px 0 0; }
+            svg { max-width: 100%; }
+          </style>
+        </head>
+        <body>
+          <div class="label">
+            <h1>${escapeHtml(item.name)}</h1>
+            ${svgMarkup}
+            <p>${escapeHtml(barcode)}</p>
+          </div>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  }
+
+  return (
+    <Modal title="Barcode Label" onClose={onClose}>
+      <div className="barcode-modal">
+        <div>
+          <h3 className="barcode-item-name">{item.name}</h3>
+          <p className="barcode-value">{barcode}</p>
+        </div>
+        <div className="barcode-preview">
+          <svg ref={svgRef} />
+        </div>
+        {!item.barcode && (
+          <p className="barcode-hint">
+            Preview barcode only. Add a barcode to the item to save it permanently.
+          </p>
+        )}
+        <div className="modal-footer">
+          <button type="button" className="btn btn--ghost" onClick={() => { void copyBarcode(); }}>
+            Copy barcode
+          </button>
+          <button type="button" className="btn btn--primary" onClick={printLabel}>
+            Print label
+          </button>
+        </div>
+      </div>
     </Modal>
   );
 }
@@ -669,6 +827,25 @@ function StockOutModal({
       </form>
     </Modal>
   );
+}
+
+function generateBarcodeValue() {
+  const timestamp = Date.now().toString().slice(-8);
+  const random = Math.floor(Math.random() * 10_000).toString().padStart(4, "0");
+  return `SS${timestamp}${random}`;
+}
+
+function generateStablePreviewBarcode(itemId: string) {
+  return `SS${itemId.replace(/-/g, "").slice(0, 12).toUpperCase()}`;
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
 function Modal({

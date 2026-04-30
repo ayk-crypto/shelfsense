@@ -905,6 +905,13 @@ body {
   color: var(--color-text-muted);
 }
 
+.td-barcode {
+  color: var(--color-text-muted);
+  font-family: ui-monospace, "Cascadia Code", monospace;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
 .td-expiry {
   white-space: nowrap;
   color: var(--color-text-muted);
@@ -1356,8 +1363,18 @@ body {
   gap: 12px;
 }
 
+.barcode-input-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
 @media (max-width: 400px) {
   .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .barcode-input-row {
     grid-template-columns: 1fr;
   }
 }
@@ -1479,6 +1496,7 @@ body {
   font-size: 13.5px;
   font-weight: 600;
   color: var(--color-text);
+  word-break: break-word;
 }
 
 .item-card-actions {
@@ -1567,6 +1585,51 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* =============================================
+   Barcode
+   ============================================= */
+.barcode-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.barcode-item-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.barcode-value {
+  margin-top: 2px;
+  color: var(--color-text-muted);
+  font-family: ui-monospace, "Cascadia Code", monospace;
+  font-size: 13px;
+  word-break: break-word;
+}
+
+.barcode-preview {
+  display: flex;
+  justify-content: center;
+  padding: 14px;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  overflow-x: auto;
+}
+
+.barcode-preview svg {
+  max-width: 100%;
+}
+
+.barcode-hint {
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+  background: var(--color-gray-light);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
 }
 
 /* =============================================

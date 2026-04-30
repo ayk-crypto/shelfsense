@@ -63,6 +63,7 @@ export interface CreateItemInput {
   name: string;
   unit: string;
   category?: string;
+  barcode?: string;
   minStockLevel: number;
   trackExpiry: boolean;
 }
