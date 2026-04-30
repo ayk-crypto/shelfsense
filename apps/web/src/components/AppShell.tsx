@@ -38,6 +38,15 @@ export function AppShell() {
             </svg>
             Items
           </NavLink>
+          <NavLink to="/movements" className={({ isActive }) => `nav-item ${isActive ? "nav-item--active" : ""}`}>
+            <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M3 7h13" />
+              <path d="M13 4l3 3-3 3" />
+              <path d="M21 17H8" />
+              <path d="M11 14l-3 3 3 3" />
+            </svg>
+            Movements
+          </NavLink>
         </nav>
 
         <div className="sidebar-footer">
@@ -86,6 +95,15 @@ export function AppShell() {
             <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
           </svg>
           <span>Items</span>
+        </NavLink>
+        <NavLink to="/movements" className={({ isActive }) => `bottom-nav-item ${isActive ? "bottom-nav-item--active" : ""}`}>
+          <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M3 7h13" />
+            <path d="M13 4l3 3-3 3" />
+            <path d="M21 17H8" />
+            <path d="M11 14l-3 3 3 3" />
+          </svg>
+          <span>Moves</span>
         </NavLink>
         <button className="bottom-nav-item" onClick={handleLogout}>
           <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

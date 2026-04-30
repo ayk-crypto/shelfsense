@@ -1,5 +1,5 @@
 import { StockMovementType } from "../generated/prisma/enums.js";
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { prisma } from "../db/prisma.js";
 import { requireAuth } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -236,6 +236,65 @@ stockRouter.get("/summary", asyncHandler(async (req, res) => {
   return res.json({ summary });
 }));
 
+stockRouter.get("/movements", asyncHandler(async (req, res) => {
+  const workspaceId = getWorkspaceId(req);
+
+  if (!workspaceId) {
+    return res.status(403).json({ error: "Workspace access required" });
+  }
+
+  const filters = parseMovementFilters(req.query);
+
+  if (filters.type === "invalid") {
+    return res.status(400).json({ error: "Invalid movement type" });
+  }
+
+  if (filters.fromDate === "invalid" || filters.toDate === "invalid") {
+    return res.status(400).json({ error: "Date filters must be valid dates" });
+  }
+
+  if (filters.itemId) {
+    const item = await prisma.item.findFirst({
+      where: { id: filters.itemId, workspaceId },
+      select: { id: true },
+    });
+
+    if (!item) {
+      return res.status(404).json({ error: "Item not found" });
+    }
+  }
+
+  const movements = await prisma.stockMovement.findMany({
+    where: {
+      workspaceId,
+      itemId: filters.itemId,
+      type: filters.type,
+      createdAt: {
+        gte: filters.fromDate,
+        lte: filters.toDate,
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      type: true,
+      quantity: true,
+      unitCost: true,
+      reason: true,
+      note: true,
+      createdAt: true,
+      item: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+  });
+
+  return res.json({ movements });
+}));
+
 stockRouter.get("/batches", asyncHandler(async (req, res) => {
   const workspaceId = getWorkspaceId(req);
 
@@ -350,6 +409,35 @@ function parseStockOutInput(body: unknown) {
   };
 }
 
+type MovementTypeFilter = StockMovementType | "invalid" | undefined;
+
+function parseMovementFilters(query: Request["query"]) {
+  return {
+    itemId: parseOptionalString(query.itemId),
+    type: parseMovementType(query.type),
+    fromDate: parseOptionalDate(query.fromDate),
+    toDate: parseEndOfDayDate(query.toDate),
+  };
+}
+
+function parseMovementType(value: unknown): MovementTypeFilter {
+  if (typeof value !== "string" || !value.trim()) {
+    return undefined;
+  }
+
+  const type = value.trim();
+
+  if (!isStockMovementType(type)) {
+    return "invalid";
+  }
+
+  return type;
+}
+
+function isStockMovementType(value: string): value is StockMovementType {
+  return Object.values(StockMovementType).includes(value as StockMovementType);
+}
+
 function compareFifoBatches(
   first: { expiryDate: Date | null; createdAt: Date },
   second: { expiryDate: Date | null; createdAt: Date },
@@ -393,4 +481,14 @@ function parseOptionalDate(value: unknown) {
   const date = new Date(value);
 
   return Number.isNaN(date.getTime()) ? "invalid" : date;
+}
+
+function parseEndOfDayDate(value: unknown) {
+  const date = parseOptionalDate(value);
+
+  if (date instanceof Date && typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    date.setHours(23, 59, 59, 999);
+  }
+
+  return date;
 }

@@ -82,3 +82,34 @@ export interface StockOutInput {
   reason?: string;
   note?: string;
 }
+
+export type StockMovementType =
+  | "STOCK_IN"
+  | "STOCK_OUT"
+  | "WASTAGE"
+  | "ADJUSTMENT";
+
+export interface StockMovement {
+  id: string;
+  type: StockMovementType;
+  quantity: number;
+  unitCost: number | null;
+  reason: string | null;
+  note: string | null;
+  createdAt: string;
+  item: {
+    id: string;
+    name: string;
+  };
+}
+
+export interface StockMovementsResponse {
+  movements: StockMovement[];
+}
+
+export interface StockMovementFilters {
+  itemId?: string;
+  type?: StockMovementType;
+  fromDate?: string;
+  toDate?: string;
+}

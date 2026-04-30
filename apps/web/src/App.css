@@ -932,6 +932,122 @@ body {
 }
 
 /* =============================================
+   Movements Page
+   ============================================= */
+.movements-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.movement-filters {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  padding: 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+
+@media (min-width: 720px) {
+  .movement-filters {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-items: end;
+  }
+}
+
+.movement-filters .form-group {
+  margin-bottom: 0;
+}
+
+.movement-badge--stock_in {
+  background: var(--color-green-light);
+  color: var(--color-green);
+}
+
+.movement-badge--stock_out {
+  background: var(--color-blue-light);
+  color: var(--color-blue);
+}
+
+.movement-badge--wastage {
+  background: var(--color-red-light);
+  color: var(--color-red);
+}
+
+.movement-badge--adjustment {
+  background: var(--color-orange-light);
+  color: var(--color-orange);
+}
+
+.movement-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.movement-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 14px;
+  box-shadow: var(--shadow-sm);
+}
+
+.movement-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.movement-card-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.movement-card-date {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.movement-card-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
+}
+
+.movement-card-grid dt {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.movement-card-grid dd {
+  font-size: 13px;
+  color: var(--color-text);
+  word-break: break-word;
+}
+
+@media (max-width: 767px) {
+  .movements-table {
+    display: none;
+  }
+}
+
+@media (min-width: 768px) {
+  .movement-card-list {
+    display: none;
+  }
+}
+
+/* =============================================
    Modal
    ============================================= */
 .modal-overlay {
