@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getItems } from "../api/items";
 import { getStockMovements } from "../api/stock";
 import type { Item, StockMovement, StockMovementFilters, StockMovementType } from "../types";
+import { formatCurrency } from "../utils/currency";
 
 const MOVEMENT_TYPES: Array<{ value: StockMovementType; label: string }> = [
   { value: "STOCK_IN", label: "Stock In" },
@@ -13,6 +14,13 @@ const MOVEMENT_TYPES: Array<{ value: StockMovementType; label: string }> = [
 const MOVEMENT_LABELS = Object.fromEntries(
   MOVEMENT_TYPES.map((type) => [type.value, type.label]),
 ) as Record<StockMovementType, string>;
+
+function wastageTotal(movements: StockMovement[]) {
+  const wastageMvts = movements.filter((m) => m.type === "WASTAGE");
+  const qty = wastageMvts.reduce((acc, m) => acc + m.quantity, 0);
+  const value = wastageMvts.reduce((acc, m) => acc + m.quantity * (m.unitCost ?? 0), 0);
+  return { qty, value, count: wastageMvts.length };
+}
 
 export function MovementsPage() {
   const [items, setItems] = useState<Item[]>([]);
@@ -35,7 +43,6 @@ export function MovementsPage() {
         setItems([]);
       }
     }
-
     void loadItems();
   }, []);
 
@@ -52,9 +59,20 @@ export function MovementsPage() {
         setLoading(false);
       }
     }
-
     void loadMovements();
   }, [filters]);
+
+  const isWastageOnly = filters.type === "WASTAGE";
+  const { qty: wQty, value: wValue, count: wCount } = wastageTotal(movements);
+  const showSummary = wCount > 0;
+
+  function toggleWastageFilter() {
+    setFilters((prev) =>
+      prev.type === "WASTAGE"
+        ? { ...prev, type: undefined }
+        : { ...prev, type: "WASTAGE" },
+    );
+  }
 
   return (
     <div className="movements-page">
@@ -128,6 +146,17 @@ export function MovementsPage() {
             }
           />
         </label>
+
+        <div className="form-group form-group--align-end">
+          <button
+            className={`btn btn--sm ${isWastageOnly ? "btn--wastage-active" : "btn--wastage"}`}
+            onClick={toggleWastageFilter}
+            title="Show only wastage movements"
+          >
+            <WastageIcon />
+            {isWastageOnly ? "All types" : "Wastage only"}
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -145,6 +174,22 @@ export function MovementsPage() {
         </div>
       ) : (
         <>
+          {showSummary && (
+            <div className="wastage-summary">
+              <WastageIcon />
+              <span>
+                <strong>{wCount}</strong> wastage movement{wCount !== 1 ? "s" : ""}
+              </span>
+              <span className="wastage-summary-sep">·</span>
+              <span>
+                Total qty <strong>{formatNumber(wQty)}</strong>
+              </span>
+              <span className="wastage-summary-sep">·</span>
+              <span>
+                Est. value lost <strong>{formatCurrency(wValue)}</strong>
+              </span>
+            </div>
+          )}
           <MovementTable movements={movements} />
           <MovementCards movements={movements} />
         </>
@@ -170,7 +215,10 @@ function MovementTable({ movements }: { movements: StockMovement[] }) {
         </thead>
         <tbody>
           {movements.map((movement) => (
-            <tr key={movement.id}>
+            <tr
+              key={movement.id}
+              className={movement.type === "WASTAGE" ? "row--wastage" : ""}
+            >
               <td className="td-expiry">{formatDateTime(movement.createdAt)}</td>
               <td className="td-name">{movement.item.name}</td>
               <td>
@@ -192,7 +240,10 @@ function MovementCards({ movements }: { movements: StockMovement[] }) {
   return (
     <div className="movement-card-list">
       {movements.map((movement) => (
-        <article key={movement.id} className="movement-card">
+        <article
+          key={movement.id}
+          className={`movement-card ${movement.type === "WASTAGE" ? "movement-card--wastage" : ""}`}
+        >
           <div className="movement-card-head">
             <div>
               <h2 className="movement-card-title">{movement.item.name}</h2>
@@ -227,8 +278,30 @@ function MovementCards({ movements }: { movements: StockMovement[] }) {
 function MovementBadge({ type }: { type: StockMovementType }) {
   return (
     <span className={`badge movement-badge movement-badge--${type.toLowerCase()}`}>
+      {type === "WASTAGE" && <WastageIcon />}
       {MOVEMENT_LABELS[type]}
     </span>
+  );
+}
+
+function WastageIcon() {
+  return (
+    <svg
+      className="wastage-icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+    </svg>
   );
 }
 
@@ -244,11 +317,6 @@ function formatNumber(value: number) {
 }
 
 function formatMoney(value: number | null) {
-  if (value === null) {
-    return "-";
-  }
-
-  return new Intl.NumberFormat(undefined, {
-    maximumFractionDigits: 2,
-  }).format(value);
+  if (value === null) return "-";
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(value);
 }

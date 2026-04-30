@@ -1568,3 +1568,124 @@ body {
   flex-direction: column;
   gap: 8px;
 }
+
+/* =============================================
+   Wastage visibility
+   ============================================= */
+
+/* Dashboard — wastage stat card sublabel */
+.stat-sublabel {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+/* Movements table — wastage row highlight */
+tr.row--wastage {
+  background: rgba(220, 38, 38, 0.05);
+}
+
+tr.row--wastage td {
+  border-left: 0;
+}
+
+tr.row--wastage:first-child td:first-child {
+  border-left: 3px solid var(--color-red);
+}
+
+tr.row--wastage td:first-child {
+  border-left: 3px solid var(--color-red);
+}
+
+/* Movements cards — wastage card highlight */
+.movement-card--wastage {
+  border-left: 3px solid var(--color-red);
+  background: rgba(220, 38, 38, 0.04);
+}
+
+/* Wastage icon (trash SVG inline) */
+.wastage-icon {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  vertical-align: middle;
+  margin-right: 4px;
+  flex-shrink: 0;
+}
+
+/* Badge icon alignment */
+.movement-badge {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Wastage badge colour */
+.movement-badge--wastage {
+  background: rgba(220, 38, 38, 0.1);
+  color: var(--color-red);
+  border-color: rgba(220, 38, 38, 0.3);
+}
+
+/* Wastage summary bar */
+.wastage-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: rgba(220, 38, 38, 0.07);
+  border: 1px solid rgba(220, 38, 38, 0.2);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  font-size: 13.5px;
+  color: var(--color-red);
+  flex-wrap: wrap;
+}
+
+.wastage-summary-sep {
+  color: rgba(220, 38, 38, 0.4);
+}
+
+/* Quick wastage filter button */
+.btn--wastage {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid rgba(220, 38, 38, 0.4);
+  color: var(--color-red);
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.12s, border-color 0.12s;
+  white-space: nowrap;
+}
+
+.btn--wastage:hover {
+  background: rgba(220, 38, 38, 0.08);
+}
+
+.btn--wastage-active {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--color-red);
+  color: #fff;
+  background: var(--color-red);
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.btn--wastage-active:hover {
+  background: #b91c1c;
+  border-color: #b91c1c;
+}
+
+/* Align form-group filter button to bottom (matching input height) */
+.form-group--align-end {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}

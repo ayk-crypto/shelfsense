@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { getAlerts } from "../api/alerts";
-import { getStockSummary } from "../api/stock";
-import type { AlertsResponse, StockSummaryItem } from "../types";
+import { getStockMovements, getStockSummary } from "../api/stock";
+import type { AlertsResponse, StockMovement, StockSummaryItem } from "../types";
 import { formatCurrency } from "../utils/currency";
 
 function formatDate(dateStr: string | null) {
@@ -18,6 +18,17 @@ function daysUntil(dateStr: string) {
   return Math.ceil(diff / (1000 * 60 * 60 * 24));
 }
 
+function toYMD(d: Date) {
+  return d.toISOString().slice(0, 10);
+}
+
+function wastageValue(movements: StockMovement[]) {
+  return movements.reduce(
+    (acc, m) => acc + m.quantity * (m.unitCost ?? 0),
+    0,
+  );
+}
+
 const EMPTY_ALERTS: AlertsResponse = {
   lowStock: [],
   expiringSoon: [],
@@ -27,18 +38,33 @@ const EMPTY_ALERTS: AlertsResponse = {
 export function DashboardPage() {
   const [summary, setSummary] = useState<StockSummaryItem[]>([]);
   const [alerts, setAlerts] = useState<AlertsResponse>(EMPTY_ALERTS);
+  const [wastageToday, setWastageToday] = useState(0);
+  const [wastageWeek, setWastageWeek] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
       try {
-        const [summaryRes, alertsRes] = await Promise.all([
-          getStockSummary(),
-          getAlerts(),
-        ]);
+        const today = new Date();
+        const todayStr = toYMD(today);
+
+        const weekStart = new Date(today);
+        weekStart.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+        const weekStartStr = toYMD(weekStart);
+
+        const [summaryRes, alertsRes, wastageResToday, wastageResWeek] =
+          await Promise.all([
+            getStockSummary(),
+            getAlerts(),
+            getStockMovements({ type: "WASTAGE", fromDate: todayStr, toDate: todayStr }),
+            getStockMovements({ type: "WASTAGE", fromDate: weekStartStr, toDate: todayStr }),
+          ]);
+
         setSummary(summaryRes.summary);
         setAlerts(alertsRes);
+        setWastageToday(wastageValue(wastageResToday.movements));
+        setWastageWeek(wastageValue(wastageResWeek.movements));
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load dashboard data");
       } finally {
@@ -134,6 +160,25 @@ export function DashboardPage() {
           <div className="stat-body">
             <span className="stat-label">Expiring Soon</span>
             <span className="stat-value">{expiringSoonCount}</span>
+          </div>
+        </div>
+
+        <div className={`stat-card ${wastageWeek > 0 ? "stat-card--danger" : ""}`}>
+          <div className={`stat-icon ${wastageWeek > 0 ? "stat-icon--red" : "stat-icon--gray"}`}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+              <path d="M10 11v6" />
+              <path d="M14 11v6" />
+              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+            </svg>
+          </div>
+          <div className="stat-body">
+            <span className="stat-label">Wastage Value</span>
+            <span className="stat-value">{formatCurrency(wastageWeek)}</span>
+            <span className="stat-sublabel">
+              Today {formatCurrency(wastageToday)} · This week {formatCurrency(wastageWeek)}
+            </span>
           </div>
         </div>
       </div>
