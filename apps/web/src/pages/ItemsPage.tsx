@@ -1,10 +1,13 @@
 import JsBarcode from "jsbarcode";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { createItem, getItems } from "../api/items";
 import { getStockSummary, stockIn, stockOut } from "../api/stock";
 import type { CreateItemInput, Item, StockSummaryItem } from "../types";
 import { formatCurrency } from "../utils/currency";
-import { BarcodeScanner } from "../components/BarcodeScanner";
+
+const BarcodeScanner = lazy(() =>
+  import("../components/BarcodeScanner").then((m) => ({ default: m.BarcodeScanner })),
+);
 
 interface Toast {
   id: number;
@@ -331,19 +334,21 @@ export function ItemsPage() {
       )}
 
       {scannerOpen && (
-        <BarcodeScanner
-          items={items}
-          summaryMap={summaryMap}
-          onClose={() => {
-            setScannerOpen(false);
-            void refreshSummary();
-          }}
-          onCreateNew={(barcode) => {
-            setScannerOpen(false);
-            setScanPrefillBarcode(barcode);
-            setAddItemOpen(true);
-          }}
-        />
+        <Suspense fallback={<ScannerLoadingOverlay />}>
+          <BarcodeScanner
+            items={items}
+            summaryMap={summaryMap}
+            onClose={() => {
+              setScannerOpen(false);
+              void refreshSummary();
+            }}
+            onCreateNew={(barcode) => {
+              setScannerOpen(false);
+              setScanPrefillBarcode(barcode);
+              setAddItemOpen(true);
+            }}
+          />
+        </Suspense>
       )}
 
       {stockInItem && (
@@ -882,6 +887,17 @@ function escapeHtml(value: string) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+function ScannerLoadingOverlay() {
+  return (
+    <div className="scanner-overlay" aria-label="Loading scanner…" aria-busy="true">
+      <div className="scanner-loading">
+        <div className="spinner scanner-loading-spinner" />
+        <p className="scanner-loading-text">Loading scanner…</p>
+      </div>
+    </div>
+  );
 }
 
 function Modal({

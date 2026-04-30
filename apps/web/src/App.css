@@ -2260,3 +2260,24 @@ tr.row--wastage td:first-child {
   color: rgba(255,255,255,0.6) !important;
   border-color: rgba(255,255,255,0.2) !important;
 }
+
+/* Scanner lazy-load waiting state */
+.scanner-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 14px;
+}
+
+.scanner-loading-spinner {
+  border-color: rgba(255,255,255,0.15);
+  border-top-color: #fff;
+}
+
+.scanner-loading-text {
+  color: rgba(255,255,255,0.5);
+  font-size: 14px;
+  margin: 0;
+}
