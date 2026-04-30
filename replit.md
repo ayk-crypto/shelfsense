@@ -25,6 +25,21 @@ This is an npm workspaces monorepo with three packages:
 - Stock batch management with expiry dates
 - Stock movement tracking (STOCK_IN, STOCK_OUT, WASTAGE, ADJUSTMENT)
 
+## Frontend Integration (`apps/web`)
+
+- **Login page** — email/password form with "Fill demo credentials" helper
+- **Dashboard page** — summary stat cards + expiring-soon inventory table
+- **App shell** — responsive layout with sidebar on desktop (≥768px), bottom nav on mobile
+- **API client** — `src/api/client.ts` fetch wrapper injects Bearer token automatically
+- **Auth** — JWT stored in `localStorage` under `shelfsense_token`; `AuthContext` provides `user`, `saveAuth`, `logout`
+- **Routing** — `ProtectedRoute` redirects unauthenticated users to `/login`; login redirects to `/dashboard`
+- **Env** — `apps/web/.env` sets `VITE_API_BASE_URL=http://localhost:3000`
+- **Types** — `src/vite-env.d.ts` declares `ImportMeta.env` for TypeScript; shared Prisma types from `packages/shared`
+
+### Demo account
+- Email: `demo@shelfsense.local`
+- Password: `demo123456`
+
 ## Workflows
 
 - **Start application** — `npm run dev:web` on port 5000 (webview)
