@@ -1,0 +1,18 @@
+{
+  "name": "shelfsense",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev --workspace @shelfsense/web",
+    "dev:api": "npm run dev --workspace @shelfsense/api",
+    "dev": "concurrently \"npm run dev:web\" \"npm run dev:api\"",
+    "build": "npm run build --workspace @shelfsense/shared && npm run build --workspace @shelfsense/api && npm run build --workspace @shelfsense/web"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
