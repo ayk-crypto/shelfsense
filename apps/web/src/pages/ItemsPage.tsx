@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createItem, getItems } from "../api/items";
 import { getStockSummary, stockIn, stockOut } from "../api/stock";
 import type { CreateItemInput, Item, StockSummaryItem } from "../types";
+import { formatCurrency } from "../utils/currency";
 
 interface Toast {
   id: number;
@@ -18,12 +19,6 @@ const UNIT_OPTIONS = [
 const CATEGORY_OPTIONS = [
   "Raw Material", "Beverage", "Packaging", "Cleaning", "Finished Goods", "Other",
 ];
-
-function formatCurrency(v: number) {
-  return new Intl.NumberFormat("en-PH", {
-    style: "currency", currency: "PHP", minimumFractionDigits: 0, maximumFractionDigits: 0,
-  }).format(v);
-}
 
 interface StatusInfo { label: string; variant: "green" | "orange" | "red" | "gray" }
 

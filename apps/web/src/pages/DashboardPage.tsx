@@ -2,14 +2,7 @@ import { useEffect, useState } from "react";
 import { getAlerts } from "../api/alerts";
 import { getStockSummary } from "../api/stock";
 import type { AlertsResponse, StockSummaryItem } from "../types";
-
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat("en-PH", {
-    style: "currency",
-    currency: "PHP",
-    minimumFractionDigits: 2,
-  }).format(value);
-}
+import { formatCurrency } from "../utils/currency";
 
 function formatDate(dateStr: string | null) {
   if (!dateStr) return "—";
