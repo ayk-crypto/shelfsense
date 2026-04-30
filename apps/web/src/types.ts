@@ -42,3 +42,41 @@ export interface ExpiringBatch {
 export interface ExpiringSoonResponse {
   batches: ExpiringBatch[];
 }
+
+export interface Item {
+  id: string;
+  name: string;
+  unit: string;
+  minStockLevel: number;
+  trackExpiry: boolean;
+  sku: string | null;
+  barcode: string | null;
+  createdAt: string;
+}
+
+export interface ItemsResponse {
+  items: Item[];
+}
+
+export interface CreateItemInput {
+  name: string;
+  unit: string;
+  minStockLevel: number;
+  trackExpiry: boolean;
+}
+
+export interface StockInInput {
+  itemId: string;
+  quantity: number;
+  unitCost?: number;
+  expiryDate?: string;
+  supplierName?: string;
+  note?: string;
+}
+
+export interface StockOutInput {
+  itemId: string;
+  quantity: number;
+  reason?: string;
+  note?: string;
+}

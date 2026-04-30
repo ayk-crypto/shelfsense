@@ -29,7 +29,8 @@ This is an npm workspaces monorepo with three packages:
 
 - **Login page** — email/password form with "Fill demo credentials" helper
 - **Dashboard page** — summary stat cards + expiring-soon inventory table
-- **App shell** — responsive layout with sidebar on desktop (≥768px), bottom nav on mobile
+- **Items page** (`/items`) — list all items; Add Item modal; Stock In / Stock Out modals per row; inline toast notifications
+- **App shell** — responsive layout with sidebar on desktop (≥768px), bottom nav on mobile; Dashboard + Items nav links
 - **API client** — `src/api/client.ts` fetch wrapper injects Bearer token automatically
 - **Auth** — JWT stored in `localStorage` under `shelfsense_token`; `AuthContext` provides `user`, `saveAuth`, `logout`
 - **Routing** — `ProtectedRoute` redirects unauthenticated users to `/login`; login redirects to `/dashboard`

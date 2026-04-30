@@ -2,6 +2,7 @@ import { Navigate, Route, BrowserRouter as Router, Routes } from "react-router-d
 import { AppShell } from "./components/AppShell";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { DashboardPage } from "./pages/DashboardPage";
+import { ItemsPage } from "./pages/ItemsPage";
 import { LoginPage } from "./pages/LoginPage";
 import "./App.css";
 
@@ -36,6 +37,7 @@ export function App() {
             }
           >
             <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/items" element={<ItemsPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
