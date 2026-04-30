@@ -25,6 +25,7 @@ This is an npm workspaces monorepo with three packages:
 - Stock batch management with expiry dates
 - Stock movement tracking (STOCK_IN, STOCK_OUT, WASTAGE, ADJUSTMENT)
 - Supplier contact management (name, phone, notes)
+- Purchase recording with multi-line items (auto-increments stock via STOCK_IN movements)
 - Barcode scanning via html5-qrcode (lazy-loaded, halves main bundle)
 
 ## Frontend Integration (`apps/web`)
@@ -34,6 +35,7 @@ This is an npm workspaces monorepo with three packages:
 - **Items page** (`/items`) — list all items; Add Item modal; Stock In / Stock Out modals per row; inline toast notifications
 - **Movements page** (`/movements`) — stock movement log with filters
 - **Suppliers page** (`/suppliers`) — supplier list with Add Supplier modal; tappable phone links; mobile card layout
+- **Purchases page** (`/purchases`) — purchase history table; New Purchase modal with supplier dropdown, purchase date, multi-line items (item+qty+unit cost), auto-calculated line totals and grand total; success toast on submit; refreshes list after creation
 - **Alerts page** (`/alerts`) — low-stock and expiry alerts
 - **App shell** — responsive layout with sidebar on desktop (≥768px), bottom nav on mobile; Dashboard, Items, Movements, Suppliers, Alerts nav links
 - **API client** — `src/api/client.ts` fetch wrapper injects Bearer token automatically

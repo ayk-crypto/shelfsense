@@ -158,3 +158,56 @@ export interface CreateSupplierInput {
   phone?: string;
   notes?: string;
 }
+
+export interface PurchaseItemLine {
+  id: string;
+  purchaseId: string;
+  itemId: string;
+  quantity: number;
+  unitCost: number;
+  total: number;
+  item: {
+    id: string;
+    name: string;
+    unit: string;
+  };
+}
+
+export interface Purchase {
+  id: string;
+  supplierId: string;
+  date: string;
+  totalAmount: number;
+  createdAt: string;
+  supplier: {
+    id: string;
+    name: string;
+  };
+  purchaseItems: PurchaseItemLine[];
+}
+
+export interface PurchasesResponse {
+  purchases: Purchase[];
+}
+
+export interface CreatePurchaseLineInput {
+  itemId: string;
+  quantity: number;
+  unitCost: number;
+}
+
+export interface CreatePurchaseInput {
+  supplierId: string;
+  date?: string;
+  items: CreatePurchaseLineInput[];
+}
+
+export interface CreatePurchaseResponse {
+  purchase: {
+    id: string;
+    supplierId: string;
+    date: string;
+    totalAmount: number;
+    createdAt: string;
+  };
+}
