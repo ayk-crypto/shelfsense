@@ -1544,6 +1544,28 @@ body {
   width: 220px;
 }
 
+.select-col {
+  width: 42px;
+  text-align: center;
+}
+
+.select-col input,
+.item-card-title input,
+.bulk-select-all input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+.row--selected td {
+  background: var(--color-primary-light);
+}
+
+.row--selected:hover td {
+  background: #e0e7ff;
+}
+
 .td-actions {
   display: flex;
   gap: 6px;
@@ -1874,6 +1896,7 @@ body {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+  flex-wrap: wrap;
   padding-top: 16px;
   margin-top: 4px;
   border-top: 1px solid var(--color-border-light);
@@ -2039,6 +2062,11 @@ body {
   box-shadow: var(--shadow-sm);
 }
 
+.item-card--selected {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+}
+
 .item-card-header {
   display: flex;
   align-items: center;
@@ -2046,10 +2074,18 @@ body {
   gap: 8px;
 }
 
+.item-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
 .item-card-name {
   font-weight: 600;
   font-size: 14px;
   color: var(--color-text);
+  overflow-wrap: anywhere;
 }
 
 .item-card-meta {
@@ -2168,6 +2204,198 @@ body {
 }
 
 /* =============================================
+   Bulk item actions
+   ============================================= */
+.selection-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin: 8px 0 12px;
+}
+
+.bulk-actions-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 12px 0 16px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.bulk-actions-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.bulk-actions-summary strong {
+  color: var(--color-text);
+  font-size: 14px;
+}
+
+.bulk-select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bulk-actions-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.bulk-action-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 230px;
+  min-width: 0;
+}
+
+.bulk-select {
+  min-width: 118px;
+}
+
+.bulk-action-group .btn {
+  flex-shrink: 0;
+}
+
+.bulk-progress {
+  color: var(--color-text-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .bulk-actions-controls,
+  .bulk-action-group {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .bulk-actions-controls .btn,
+  .bulk-action-group .btn {
+    width: 100%;
+  }
+}
+
+/* =============================================
+   Item import
+   ============================================= */
+.import-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.import-guidance {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.import-guidance strong {
+  color: var(--color-text);
+  font-weight: 700;
+}
+
+.import-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.import-file-input {
+  display: none;
+}
+
+.import-file-name,
+.import-status {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.import-file-name {
+  font-family: ui-monospace, "Cascadia Code", monospace;
+  word-break: break-all;
+}
+
+.import-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: var(--color-text-muted);
+  font-size: 12.5px;
+}
+
+.import-summary span,
+.import-summary strong {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--color-gray-light);
+  color: var(--color-text-muted);
+  font-weight: 700;
+}
+
+.import-summary strong {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.import-preview-wrap {
+  max-height: 280px;
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.import-preview-table {
+  min-width: 860px;
+  font-size: 12.5px;
+}
+
+.import-preview-table th,
+.import-preview-table td {
+  padding: 8px 10px;
+}
+
+.import-row-errors {
+  display: inline-block;
+  max-width: 240px;
+  color: var(--color-red);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+@media (max-width: 520px) {
+  .import-actions .btn {
+    width: 100%;
+  }
+}
+
+/* =============================================
    Barcode
    ============================================= */
 .barcode-modal {
@@ -2190,18 +2418,129 @@ body {
   word-break: break-word;
 }
 
+.barcode-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.barcode-controls .form-group {
+  margin-bottom: 0;
+}
+
+.barcode-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+}
+
+.barcode-preview-header strong {
+  color: var(--color-text);
+  font-family: ui-monospace, "Cascadia Code", monospace;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .barcode-preview {
   display: flex;
   justify-content: center;
-  padding: 14px;
+  padding: 18px 14px;
   border: 1px dashed var(--color-border);
   border-radius: var(--radius-sm);
-  background: #fff;
+  background:
+    linear-gradient(45deg, #f8fafc 25%, transparent 25%),
+    linear-gradient(-45deg, #f8fafc 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #f8fafc 75%),
+    linear-gradient(-45deg, transparent 75%, #f8fafc 75%);
+  background-color: #fff;
+  background-position: 0 0, 0 6px, 6px -6px, -6px 0;
+  background-size: 12px 12px;
   overflow-x: auto;
 }
 
 .barcode-preview svg {
   max-width: 100%;
+}
+
+.barcode-label {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.2mm;
+  padding: 2mm 2.5mm;
+  overflow: hidden;
+  border: 1px solid #111827;
+  background: #fff;
+  color: #111827;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.12);
+  text-align: center;
+}
+
+.barcode-label-name,
+.barcode-label-details {
+  width: 100%;
+  margin: 0;
+  line-height: 1.05;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.barcode-label-name {
+  font-weight: 800;
+  color: #111827;
+}
+
+.barcode-label-details {
+  color: #334155;
+}
+
+.barcode-label--small .barcode-label-name {
+  font-size: 8.5px;
+}
+
+.barcode-label--medium .barcode-label-name {
+  font-size: 10.5px;
+}
+
+.barcode-label--large .barcode-label-name {
+  font-size: 12.5px;
+}
+
+.barcode-label--small .barcode-label-details {
+  font-size: 7.5px;
+}
+
+.barcode-label--medium .barcode-label-details {
+  font-size: 8.5px;
+}
+
+.barcode-label--large .barcode-label-details {
+  font-size: 10px;
+}
+
+.barcode-label-svg-wrap {
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.barcode-label-svg-wrap svg {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  height: auto;
 }
 
 .barcode-hint {
@@ -2210,6 +2549,16 @@ body {
   background: var(--color-gray-light);
   border-radius: var(--radius-sm);
   padding: 8px 10px;
+}
+
+@media (max-width: 520px) {
+  .barcode-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .barcode-preview {
+    justify-content: flex-start;
+  }
 }
 
 /* =============================================
@@ -2448,6 +2797,7 @@ tr.row--wastage td:first-child {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
   flex-shrink: 0;
 }
 

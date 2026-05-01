@@ -8,3 +8,10 @@ export async function getItems(): Promise<ItemsResponse> {
 export async function createItem(data: CreateItemInput): Promise<{ item: Item }> {
   return apiClient.post<{ item: Item }>("/items", data, true);
 }
+
+export async function updateItem(
+  id: string,
+  data: Partial<CreateItemInput>,
+): Promise<{ item: Item }> {
+  return apiClient.patch<{ item: Item }>(`/items/${id}`, data, true);
+}

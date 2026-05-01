@@ -1,5 +1,7 @@
 import cors from "cors";
 import express from "express";
+import rateLimit from "express-rate-limit";
+import helmet from "helmet";
 import type { HealthResponse } from "@shelfsense/shared";
 import { env } from "./config/env.js";
 import { errorHandler } from "./middleware/error-handler.js";
@@ -16,8 +18,56 @@ import { workspaceRouter } from "./routes/workspace.js";
 
 const app = express();
 
-app.use(cors());
-app.use(express.json());
+class ForbiddenOriginError extends Error {
+  status = 403;
+
+  constructor(origin: string) {
+    super(`CORS origin is not allowed: ${origin}`);
+  }
+}
+
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+  }),
+);
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin || env.corsAllowedOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new ForbiddenOriginError(origin));
+    },
+  }),
+);
+
+app.use(
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 300,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    message: { error: "Too many requests. Please try again later." },
+  }),
+);
+
+app.use(
+  "/auth",
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 20,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    message: { error: "Too many authentication attempts. Please try again later." },
+  }),
+);
+
+app.use(express.json({ limit: "1mb" }));
 
 app.get("/api/health", (_req, res) => {
   const response: HealthResponse = { status: "ok" };
@@ -34,6 +84,9 @@ app.use("/audit-logs", auditLogsRouter);
 app.use("/suppliers", suppliersRouter);
 app.use("/purchases", purchasesRouter);
 app.use("/team", teamRouter);
+app.use((_req, res) => {
+  res.status(404).json({ error: "Route not found" });
+});
 app.use(errorHandler);
 
 app.listen(env.port, () => {

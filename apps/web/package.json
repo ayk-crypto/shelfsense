@@ -14,7 +14,8 @@
     "jsbarcode": "^3.12.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-router-dom": "^7.14.2"
+    "react-router-dom": "^7.14.2",
+    "read-excel-file": "^9.0.7"
   },
   "devDependencies": {
     "@types/jsbarcode": "^3.11.4",

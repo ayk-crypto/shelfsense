@@ -1,6 +1,6 @@
 import JsBarcode from "jsbarcode";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { createItem, getItems } from "../api/items";
+import { createItem, getItems, updateItem } from "../api/items";
 import { getStockMovements, getStockSummary, stockIn, stockOut, stockTransfer } from "../api/stock";
 import { useAuth } from "../context/AuthContext";
 import { useLocation } from "../context/LocationContext";
@@ -36,6 +36,46 @@ const CATEGORY_OPTIONS = [
 ];
 
 interface StatusInfo { label: string; variant: "green" | "orange" | "red" | "gray" }
+
+type BarcodeLabelPresetId = "small" | "medium" | "large";
+type BarcodeLabelTemplateId = "barcode-only" | "name" | "name-details";
+
+const BARCODE_LABEL_PRESET_STORAGE_KEY = "shelfsense.barcodeLabelPreset";
+const BARCODE_LABEL_TEMPLATE_STORAGE_KEY = "shelfsense.barcodeLabelTemplate";
+
+const BARCODE_LABEL_PRESETS: Record<
+  BarcodeLabelPresetId,
+  { label: string; widthMm: number; heightMm: number; barcodeHeight: number; barWidth: number }
+> = {
+  small: { label: "Small", widthMm: 40, heightMm: 20, barcodeHeight: 34, barWidth: 1.05 },
+  medium: { label: "Medium", widthMm: 50, heightMm: 30, barcodeHeight: 48, barWidth: 1.35 },
+  large: { label: "Large", widthMm: 70, heightMm: 40, barcodeHeight: 62, barWidth: 1.7 },
+};
+
+const BARCODE_LABEL_TEMPLATES: Array<{ id: BarcodeLabelTemplateId; label: string }> = [
+  { id: "barcode-only", label: "Barcode Only" },
+  { id: "name", label: "Barcode + Item Name" },
+  { id: "name-details", label: "Barcode + Item Name + SKU/Unit" },
+];
+
+interface ImportItemRow {
+  rowNumber: number;
+  name: string;
+  unit: string;
+  category: string;
+  sku: string;
+  barcode: string;
+  minStockLevel: number;
+  trackExpiry: boolean;
+  errors: string[];
+  status: "pending" | "imported" | "failed";
+}
+
+interface BulkProgress {
+  updated: number;
+  total: number;
+  failed: number;
+}
 
 function getStatus(
   s: StockSummaryItem | undefined,
@@ -74,12 +114,30 @@ export function ItemsPage() {
   const [adjustItem, setAdjustItem] = useState<Item | null>(null);
   const [transferItem, setTransferItem] = useState<Item | null>(null);
   const [barcodeItem, setBarcodeItem] = useState<Item | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(() => new Set());
+  const [bulkCategory, setBulkCategory] = useState(CATEGORY_OPTIONS[0]);
+  const [bulkUnit, setBulkUnit] = useState(UNIT_OPTIONS[0]);
+  const [bulkProgress, setBulkProgress] = useState<BulkProgress | null>(null);
+  const [bulkSaving, setBulkSaving] = useState(false);
   const [busy, setBusy] = useState<Set<string>>(new Set());
   const hasBarcodes = useMemo(() => items.some((item) => item.barcode), [items]);
+  const visibleItemIds = useMemo(() => items.map((item) => item.id), [items]);
+  const selectedCount = selectedItemIds.size;
+  const allVisibleSelected =
+    visibleItemIds.length > 0 && visibleItemIds.every((id) => selectedItemIds.has(id));
   const usageMap = useMemo(
     () => new Map(getUsageInsights(usageMovements).map((usage) => [usage.itemId, usage])),
     [usageMovements],
   );
+
+  useEffect(() => {
+    setSelectedItemIds((prev) => {
+      const visible = new Set(visibleItemIds);
+      const next = new Set([...prev].filter((id) => visible.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [visibleItemIds]);
 
   function showToast(msg: string, type: "success" | "error") {
     const id = ++toastSeq;
@@ -152,6 +210,70 @@ export function ItemsPage() {
 
   useEffect(() => { void loadAll(); }, [canManageStock, activeLocationId]);
 
+  function toggleItemSelection(itemId: string) {
+    setSelectedItemIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) {
+        next.delete(itemId);
+      } else {
+        next.add(itemId);
+      }
+      return next;
+    });
+  }
+
+  function toggleSelectAllVisible() {
+    setSelectedItemIds((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) {
+        visibleItemIds.forEach((id) => next.delete(id));
+      } else {
+        visibleItemIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  }
+
+  function clearSelection() {
+    setSelectedItemIds(new Set());
+    setBulkProgress(null);
+  }
+
+  async function applyBulkUpdate(label: string, patch: Partial<CreateItemInput>) {
+    const selectedIds = visibleItemIds.filter((id) => selectedItemIds.has(id));
+    if (selectedIds.length === 0) return;
+
+    const confirmed = window.confirm(`Apply "${label}" to ${selectedIds.length} selected item${selectedIds.length === 1 ? "" : "s"}?`);
+    if (!confirmed) return;
+
+    setBulkSaving(true);
+    setBulkProgress({ updated: 0, total: selectedIds.length, failed: 0 });
+
+    let updated = 0;
+    let failed = 0;
+
+    for (const id of selectedIds) {
+      try {
+        await updateItem(id, patch);
+        updated += 1;
+      } catch {
+        failed += 1;
+      }
+
+      setBulkProgress({ updated, total: selectedIds.length, failed });
+    }
+
+    setBulkSaving(false);
+    await loadAll();
+
+    if (failed === 0) {
+      setSelectedItemIds(new Set());
+      showToast(`Updated ${updated} item${updated === 1 ? "" : "s"}`, "success");
+    } else {
+      showToast(`Updated ${updated} of ${selectedIds.length}; ${failed} failed`, "error");
+    }
+  }
+
   if (loading) {
     return (
       <div className="page-loading">
@@ -189,12 +311,50 @@ export function ItemsPage() {
             Scan
           </button>
           {canManageStock && (
-            <button className="btn btn--primary" onClick={() => { setScanPrefillBarcode(undefined); setAddItemOpen(true); }}>
-              + Add Item
-            </button>
+            <>
+              <button className="btn btn--secondary" onClick={() => setImportOpen(true)}>
+                Import Items
+              </button>
+              <button className="btn btn--primary" onClick={() => { setScanPrefillBarcode(undefined); setAddItemOpen(true); }}>
+                + Add Item
+              </button>
+            </>
           )}
         </div>
       </div>
+
+      {canManageStock && selectedCount > 0 && (
+        <BulkItemsBar
+          selectedCount={selectedCount}
+          allVisibleSelected={allVisibleSelected}
+          bulkCategory={bulkCategory}
+          bulkUnit={bulkUnit}
+          progress={bulkProgress}
+          saving={bulkSaving}
+          onToggleAllVisible={toggleSelectAllVisible}
+          onClear={clearSelection}
+          onCategoryChange={setBulkCategory}
+          onUnitChange={setBulkUnit}
+          onApplyCategory={() => { void applyBulkUpdate(`Update category to ${bulkCategory}`, { category: bulkCategory }); }}
+          onApplyUnit={() => { void applyBulkUpdate(`Update unit to ${bulkUnit}`, { unit: bulkUnit }); }}
+          onEnableExpiry={() => { void applyBulkUpdate("Enable expiry tracking", { trackExpiry: true }); }}
+          onDisableExpiry={() => { void applyBulkUpdate("Disable expiry tracking", { trackExpiry: false }); }}
+        />
+      )}
+
+      {canManageStock && items.length > 0 && selectedCount === 0 && (
+        <div className="selection-toolbar">
+          <label className="bulk-select-all">
+            <input
+              type="checkbox"
+              checked={allVisibleSelected}
+              disabled={bulkSaving}
+              onChange={toggleSelectAllVisible}
+            />
+            Select all visible
+          </label>
+        </div>
+      )}
 
       {items.length === 0 ? (
         <div className="empty-state">
@@ -207,6 +367,17 @@ export function ItemsPage() {
             <table className="table">
               <thead>
                 <tr>
+                  {canManageStock && (
+                    <th className="select-col">
+                      <input
+                        type="checkbox"
+                        checked={allVisibleSelected}
+                        disabled={bulkSaving || visibleItemIds.length === 0}
+                        onChange={toggleSelectAllVisible}
+                        aria-label="Select all visible items"
+                      />
+                    </th>
+                  )}
                   <th>Name</th>
                   {hasBarcodes && <th>Barcode</th>}
                   <th>Unit</th>
@@ -224,8 +395,20 @@ export function ItemsPage() {
                     ? getEstimatedDaysRemaining(s.totalQuantity, usage.averageDailyUsage)
                     : null;
                   const status = getStatus(s, item.trackExpiry, settings.expiryAlertDays);
+                  const selected = selectedItemIds.has(item.id);
                   return (
-                    <tr key={item.id} className={s?.isLowStock ? "row--warn" : ""}>
+                    <tr key={item.id} className={`${s?.isLowStock ? "row--warn" : ""} ${selected ? "row--selected" : ""}`}>
+                      {canManageStock && (
+                        <td className="select-col">
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            disabled={bulkSaving}
+                            onChange={() => toggleItemSelection(item.id)}
+                            aria-label={`Select ${item.name}`}
+                          />
+                        </td>
+                      )}
                       <td className="td-name">
                         {item.name}
                         {s?.isLowStock && (
@@ -339,10 +522,22 @@ export function ItemsPage() {
                 ? getEstimatedDaysRemaining(s.totalQuantity, usage.averageDailyUsage)
                 : null;
               const status = getStatus(s, item.trackExpiry, settings.expiryAlertDays);
+              const selected = selectedItemIds.has(item.id);
               return (
-                <div key={item.id} className="item-card">
+                <div key={item.id} className={`item-card ${selected ? "item-card--selected" : ""}`}>
                   <div className="item-card-header">
-                    <span className="item-card-name">{item.name}</span>
+                    <div className="item-card-title">
+                      {canManageStock && (
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          disabled={bulkSaving}
+                          onChange={() => toggleItemSelection(item.id)}
+                          aria-label={`Select ${item.name}`}
+                        />
+                      )}
+                      <span className="item-card-name">{item.name}</span>
+                    </div>
                     <span className={`badge badge--${status.variant}`}>{status.label}</span>
                   </div>
                   <div className="item-card-meta">
@@ -472,6 +667,18 @@ export function ItemsPage() {
         />
       )}
 
+      {importOpen && (
+        <ImportItemsModal
+          existingItems={items}
+          onClose={() => setImportOpen(false)}
+          onSuccess={(importedCount) => {
+            showToast(`Imported ${importedCount} item${importedCount === 1 ? "" : "s"}`, "success");
+            void loadAll();
+          }}
+          onError={(msg) => showToast(msg, "error")}
+        />
+      )}
+
       {scannerOpen && (
         <Suspense fallback={<ScannerLoadingOverlay />}>
           <BarcodeScanner
@@ -579,6 +786,112 @@ export function ItemsPage() {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function BulkItemsBar({
+  selectedCount,
+  allVisibleSelected,
+  bulkCategory,
+  bulkUnit,
+  progress,
+  saving,
+  onToggleAllVisible,
+  onClear,
+  onCategoryChange,
+  onUnitChange,
+  onApplyCategory,
+  onApplyUnit,
+  onEnableExpiry,
+  onDisableExpiry,
+}: {
+  selectedCount: number;
+  allVisibleSelected: boolean;
+  bulkCategory: string;
+  bulkUnit: string;
+  progress: BulkProgress | null;
+  saving: boolean;
+  onToggleAllVisible: () => void;
+  onClear: () => void;
+  onCategoryChange: (value: string) => void;
+  onUnitChange: (value: string) => void;
+  onApplyCategory: () => void;
+  onApplyUnit: () => void;
+  onEnableExpiry: () => void;
+  onDisableExpiry: () => void;
+}) {
+  return (
+    <div className="bulk-actions-bar" aria-live="polite">
+      <div className="bulk-actions-summary">
+        <strong>{selectedCount} selected</strong>
+        <label className="bulk-select-all">
+          <input
+            type="checkbox"
+            checked={allVisibleSelected}
+            disabled={saving}
+            onChange={onToggleAllVisible}
+          />
+          Select all visible
+        </label>
+      </div>
+
+      <div className="bulk-actions-controls">
+        <div className="bulk-action-group">
+          <select
+            className="form-select bulk-select"
+            value={bulkCategory}
+            onChange={(e) => onCategoryChange(e.target.value)}
+            disabled={saving}
+            aria-label="Bulk category"
+          >
+            {CATEGORY_OPTIONS.map((category) => (
+              <option key={category} value={category}>
+                {category}
+              </option>
+            ))}
+          </select>
+          <button type="button" className="btn btn--sm btn--ghost" disabled={saving} onClick={onApplyCategory}>
+            Update category
+          </button>
+        </div>
+
+        <div className="bulk-action-group">
+          <select
+            className="form-select bulk-select"
+            value={bulkUnit}
+            onChange={(e) => onUnitChange(e.target.value)}
+            disabled={saving}
+            aria-label="Bulk unit"
+          >
+            {UNIT_OPTIONS.map((unit) => (
+              <option key={unit} value={unit}>
+                {unit}
+              </option>
+            ))}
+          </select>
+          <button type="button" className="btn btn--sm btn--ghost" disabled={saving} onClick={onApplyUnit}>
+            Update unit
+          </button>
+        </div>
+
+        <button type="button" className="btn btn--sm btn--ghost" disabled={saving} onClick={onEnableExpiry}>
+          Enable expiry
+        </button>
+        <button type="button" className="btn btn--sm btn--ghost" disabled={saving} onClick={onDisableExpiry}>
+          Disable expiry
+        </button>
+        <button type="button" className="btn btn--sm btn--secondary" disabled={saving} onClick={onClear}>
+          Clear
+        </button>
+      </div>
+
+      {progress && (
+        <div className="bulk-progress">
+          Updated {progress.updated} of {progress.total}
+          {progress.failed > 0 ? ` · ${progress.failed} failed` : ""}
+        </div>
+      )}
     </div>
   );
 }
@@ -725,6 +1038,224 @@ function AddItemModal({
   );
 }
 
+function ImportItemsModal({
+  existingItems,
+  onClose,
+  onSuccess,
+  onError,
+}: {
+  existingItems: Item[];
+  onClose: () => void;
+  onSuccess: (importedCount: number) => void;
+  onError: (msg: string) => void;
+}) {
+  const [fileName, setFileName] = useState("");
+  const [rows, setRows] = useState<ImportItemRow[]>([]);
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [parsing, setParsing] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importedCount, setImportedCount] = useState(0);
+  const [apiFailedCount, setApiFailedCount] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const importableRows = rows.filter((row) => row.status !== "pending" || row.errors.length === 0);
+  const pendingValidRows = rows.filter((row) => row.status === "pending" && row.errors.length === 0);
+  const invalidCount = rows.length - importableRows.length;
+  const failedRowsCount = invalidCount + apiFailedCount;
+  const canImport = !parsing && !importing && pendingValidRows.length > 0;
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setFileName(file.name);
+    setRows([]);
+    setParseError(null);
+    setImportedCount(0);
+    setApiFailedCount(0);
+    setParsing(true);
+
+    try {
+      if (!isSupportedImportFile(file.name)) {
+        throw new Error("Please choose a .csv or .xlsx file.");
+      }
+
+      const parsedRows = await parseImportFile(file);
+      setRows(validateImportRows(parsedRows, existingItems));
+    } catch (err) {
+      setParseError(err instanceof Error ? err.message : "Could not parse import file");
+    } finally {
+      setParsing(false);
+    }
+  }
+
+  async function handleImport() {
+    const pendingRows = rows.filter((row) => row.errors.length === 0 && row.status === "pending");
+    if (pendingRows.length === 0) return;
+
+    setImporting(true);
+    setImportedCount(0);
+    setApiFailedCount(0);
+
+    let imported = 0;
+    let failed = 0;
+
+    for (const row of pendingRows) {
+      try {
+        await createItem({
+          name: row.name,
+          unit: row.unit,
+          category: row.category || undefined,
+          sku: row.sku || undefined,
+          barcode: row.barcode || undefined,
+          minStockLevel: row.minStockLevel,
+          trackExpiry: row.trackExpiry,
+        });
+
+        imported += 1;
+        setImportedCount(imported);
+        setRows((prev) => prev.map((candidate) => (
+          candidate.rowNumber === row.rowNumber
+            ? { ...candidate, status: "imported" }
+            : candidate
+        )));
+      } catch (err) {
+        failed += 1;
+        setApiFailedCount(failed);
+        const message = err instanceof Error ? err.message : "Import failed";
+        setRows((prev) => prev.map((candidate) => (
+          candidate.rowNumber === row.rowNumber
+            ? { ...candidate, status: "failed", errors: [...candidate.errors, message] }
+            : candidate
+        )));
+      }
+    }
+
+    setImporting(false);
+    if (imported > 0) onSuccess(imported);
+    if (failed > 0) onError(`${failed} row${failed === 1 ? "" : "s"} failed to import.`);
+  }
+
+  function downloadSampleTemplate() {
+    const headers = ["name", "unit", "category", "sku", "barcode", "minStockLevel", "trackExpiry"];
+    const sampleRows = [
+      ["Chicken Breast", "kg", "Raw Material", "CHK-BRST", "SS100000001", "10", "yes"],
+      ["Paper Cups", "pack", "Packaging", "CUP-250", "", "5", "no"],
+    ];
+    const csv = [headers, ...sampleRows].map((row) => row.map(escapeCsvCell).join(",")).join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "shelfsense-items-import-template.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  return (
+    <Modal title="Import Items" onClose={onClose}>
+      <div className="import-modal">
+        <div className="import-guidance">
+          <p>
+            Upload a CSV or Excel file with columns:
+            {" "}
+            <strong>name</strong>, <strong>unit</strong>, category, sku, barcode, minStockLevel, trackExpiry.
+          </p>
+          <p>
+            Required: name and unit. Units must be one of: {UNIT_OPTIONS.join(", ")}.
+            trackExpiry accepts true/false, yes/no, or 1/0.
+          </p>
+        </div>
+
+        <div className="import-actions">
+          <input
+            ref={fileInputRef}
+            className="import-file-input"
+            type="file"
+            accept=".csv,.xlsx"
+            onChange={(e) => { void handleFileChange(e); }}
+          />
+          <button type="button" className="btn btn--ghost" onClick={() => fileInputRef.current?.click()}>
+            Choose file
+          </button>
+          <button type="button" className="btn btn--secondary" onClick={downloadSampleTemplate}>
+            Download sample template
+          </button>
+        </div>
+
+        {fileName && <p className="import-file-name">{fileName}</p>}
+        {parsing && <p className="import-status">Parsing file...</p>}
+        {parseError && <div className="alert alert--error">{parseError}</div>}
+
+        {rows.length > 0 && (
+          <>
+            <div className="import-summary">
+              <span>{rows.length} rows parsed</span>
+              <span>{importableRows.length} valid</span>
+              <span>{failedRowsCount} failed rows</span>
+              {importing || importedCount > 0 ? (
+                <strong>Imported {importedCount} of {importableRows.length}</strong>
+              ) : null}
+            </div>
+
+            <div className="import-preview-wrap">
+              <table className="table import-preview-table">
+                <thead>
+                  <tr>
+                    <th>Row</th>
+                    <th>Name</th>
+                    <th>Unit</th>
+                    <th>Category</th>
+                    <th>SKU</th>
+                    <th>Barcode</th>
+                    <th className="text-right">Min</th>
+                    <th>Expiry</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr key={row.rowNumber} className={row.errors.length > 0 ? "row--warn" : ""}>
+                      <td>{row.rowNumber}</td>
+                      <td>{row.name || "-"}</td>
+                      <td>{row.unit || "-"}</td>
+                      <td>{row.category || "-"}</td>
+                      <td>{row.sku || "-"}</td>
+                      <td>{row.barcode || "-"}</td>
+                      <td className="text-right">{row.minStockLevel}</td>
+                      <td>{row.trackExpiry ? "Yes" : "No"}</td>
+                      <td>
+                        {row.errors.length > 0 ? (
+                          <span className="import-row-errors">{row.errors.join("; ")}</span>
+                        ) : row.status === "imported" ? (
+                          <span className="badge badge--green">Imported</span>
+                        ) : row.status === "failed" ? (
+                          <span className="badge badge--red">Failed</span>
+                        ) : (
+                          <span className="badge badge--gray">Ready</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+
+        <div className="modal-footer">
+          <button type="button" className="btn btn--ghost" onClick={onClose} disabled={importing}>
+            Close
+          </button>
+          <button type="button" className="btn btn--primary" onClick={() => { void handleImport(); }} disabled={!canImport}>
+            {importing ? <span className="btn-spinner" /> : null}
+            {importing ? "Importing..." : `Import ${pendingValidRows.length} valid rows`}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 function BarcodeModal({
   item,
   onClose,
@@ -738,19 +1269,50 @@ function BarcodeModal({
 }) {
   const barcode = item.barcode ?? generateStablePreviewBarcode(item.id);
   const svgRef = useRef<SVGSVGElement>(null);
+  const [presetId, setPresetId] = useState<BarcodeLabelPresetId>(() =>
+    readStoredOption(
+      BARCODE_LABEL_PRESET_STORAGE_KEY,
+      Object.keys(BARCODE_LABEL_PRESETS) as BarcodeLabelPresetId[],
+      "medium",
+    ),
+  );
+  const [templateId, setTemplateId] = useState<BarcodeLabelTemplateId>(() =>
+    readStoredOption(
+      BARCODE_LABEL_TEMPLATE_STORAGE_KEY,
+      BARCODE_LABEL_TEMPLATES.map((template) => template.id),
+      "name",
+    ),
+  );
+  const preset = BARCODE_LABEL_PRESETS[presetId];
+  const dimensions = `${preset.widthMm}mm × ${preset.heightMm}mm`;
+  const showItemName = templateId === "name" || templateId === "name-details";
+  const detailText = useMemo(() => {
+    const parts = [];
+    if (item.sku) parts.push(`SKU: ${item.sku}`);
+    if (item.unit) parts.push(`Unit: ${item.unit}`);
+    return parts.join(" · ");
+  }, [item.sku, item.unit]);
+  const showDetails = templateId === "name-details" && detailText !== "";
 
   useEffect(() => {
     if (!svgRef.current) return;
 
     JsBarcode(svgRef.current, barcode, {
       format: "CODE128",
-      width: 2,
-      height: 72,
-      displayValue: true,
-      fontSize: 14,
-      margin: 8,
+      width: preset.barWidth,
+      height: preset.barcodeHeight,
+      displayValue: false,
+      margin: 0,
     });
-  }, [barcode]);
+  }, [barcode, preset.barWidth, preset.barcodeHeight]);
+
+  useEffect(() => {
+    storeOption(BARCODE_LABEL_PRESET_STORAGE_KEY, presetId);
+  }, [presetId]);
+
+  useEffect(() => {
+    storeOption(BARCODE_LABEL_TEMPLATE_STORAGE_KEY, templateId);
+  }, [templateId]);
 
   async function copyBarcode() {
     try {
@@ -777,18 +1339,92 @@ function BarcodeModal({
         <head>
           <title>${escapeHtml(item.name)} Label</title>
           <style>
-            body { font-family: Arial, sans-serif; padding: 24px; }
-            .label { border: 1px solid #111; width: 320px; padding: 16px; text-align: center; }
-            h1 { font-size: 18px; margin: 0 0 10px; }
-            p { font-size: 12px; margin: 8px 0 0; }
-            svg { max-width: 100%; }
+            * { box-sizing: border-box; }
+            html, body {
+              width: ${preset.widthMm}mm;
+              min-height: ${preset.heightMm}mm;
+              margin: 0;
+              padding: 0;
+              background: #fff;
+              font-family: Arial, sans-serif;
+            }
+            body {
+              display: flex;
+              align-items: flex-start;
+              justify-content: flex-start;
+            }
+            .label {
+              width: ${preset.widthMm}mm;
+              height: ${preset.heightMm}mm;
+              padding: 2mm 2.5mm;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: center;
+              gap: 1.2mm;
+              overflow: hidden;
+              text-align: center;
+              color: #111;
+              break-inside: avoid;
+              page-break-inside: avoid;
+            }
+            .name {
+              max-width: 100%;
+              margin: 0;
+              font-size: ${presetId === "small" ? "6.5pt" : presetId === "medium" ? "8pt" : "9.5pt"};
+              font-weight: 700;
+              line-height: 1.05;
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
+            }
+            .details {
+              max-width: 100%;
+              margin: 0;
+              font-size: ${presetId === "small" ? "5.5pt" : presetId === "medium" ? "6.5pt" : "7.5pt"};
+              line-height: 1;
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
+            }
+            .barcode {
+              width: 100%;
+              flex: 1 1 auto;
+              min-height: 0;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              overflow: hidden;
+            }
+            svg {
+              display: block;
+              max-width: 100%;
+              max-height: 100%;
+            }
+            @page {
+              size: ${preset.widthMm}mm ${preset.heightMm}mm;
+              margin: 0;
+            }
+            @media print {
+              html, body {
+                width: ${preset.widthMm}mm;
+                height: ${preset.heightMm}mm;
+              }
+              body {
+                print-color-adjust: exact;
+                -webkit-print-color-adjust: exact;
+              }
+              .label {
+                border: 0;
+              }
+            }
           </style>
         </head>
         <body>
           <div class="label">
-            <h1>${escapeHtml(item.name)}</h1>
-            ${svgMarkup}
-            <p>${escapeHtml(barcode)}</p>
+            ${showItemName ? `<h1 class="name">${escapeHtml(item.name)}</h1>` : ""}
+            <div class="barcode">${svgMarkup}</div>
+            ${showDetails ? `<p class="details">${escapeHtml(detailText)}</p>` : ""}
           </div>
         </body>
       </html>
@@ -805,9 +1441,55 @@ function BarcodeModal({
           <h3 className="barcode-item-name">{item.name}</h3>
           <p className="barcode-value">{barcode}</p>
         </div>
-        <div className="barcode-preview">
-          <svg ref={svgRef} />
+
+        <div className="barcode-controls">
+          <label className="form-group">
+            <span className="form-label">Label size</span>
+            <select
+              className="form-select"
+              value={presetId}
+              onChange={(e) => setPresetId(e.target.value as BarcodeLabelPresetId)}
+            >
+              <option value="small">Small: 40mm x 20mm</option>
+              <option value="medium">Medium: 50mm x 30mm</option>
+              <option value="large">Large: 70mm x 40mm</option>
+            </select>
+          </label>
+          <label className="form-group">
+            <span className="form-label">Template</span>
+            <select
+              className="form-select"
+              value={templateId}
+              onChange={(e) => setTemplateId(e.target.value as BarcodeLabelTemplateId)}
+            >
+              {BARCODE_LABEL_TEMPLATES.map((template) => (
+                <option key={template.id} value={template.id}>
+                  {template.label}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
+
+        <div>
+          <div className="barcode-preview-header">
+            <span>Label preview</span>
+            <strong>{dimensions}</strong>
+          </div>
+          <div className="barcode-preview">
+            <div
+              className={`barcode-label barcode-label--${presetId}`}
+              style={{ width: `${preset.widthMm}mm`, height: `${preset.heightMm}mm` }}
+            >
+              {showItemName && <p className="barcode-label-name">{item.name}</p>}
+              <div className="barcode-label-svg-wrap">
+                <svg ref={svgRef} />
+              </div>
+              {showDetails && <p className="barcode-label-details">{detailText}</p>}
+            </div>
+          </div>
+        </div>
+
         {!item.barcode && (
           <p className="barcode-hint">
             Preview barcode only. Add a barcode to the item to save it permanently.
@@ -1324,6 +2006,209 @@ function TransferStockModal({
   );
 }
 
+function isSupportedImportFile(fileName: string) {
+  const lower = fileName.toLowerCase();
+  return lower.endsWith(".csv") || lower.endsWith(".xlsx");
+}
+
+async function parseImportFile(file: File) {
+  if (file.name.toLowerCase().endsWith(".csv")) {
+    return tableRowsToRecords(parseCsvRows(await file.text()));
+  }
+
+  const readXlsxFile = (await import("read-excel-file/browser")).default;
+  const sheets = await readXlsxFile(file);
+  const firstSheet = sheets[0];
+
+  if (!firstSheet) {
+    throw new Error("The selected file does not contain a worksheet.");
+  }
+
+  return tableRowsToRecords(firstSheet.data);
+}
+
+function tableRowsToRecords(rows: unknown[][]) {
+  const [headerRow, ...dataRows] = rows;
+
+  if (!headerRow) {
+    throw new Error("The selected file is empty.");
+  }
+
+  const headers = headerRow.map((cell) => parseImportString(cell));
+
+  if (!headers.some(Boolean)) {
+    throw new Error("The selected file must include a header row.");
+  }
+
+  return dataRows
+    .filter((row) => row.some((cell) => parseImportString(cell) !== ""))
+    .map((row) => {
+      const record: Record<string, unknown> = {};
+      headers.forEach((header, index) => {
+        if (header) record[header] = row[index] ?? "";
+      });
+      return record;
+    });
+}
+
+function parseCsvRows(text: string) {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = "";
+  let inQuotes = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    const next = text[index + 1];
+
+    if (char === '"' && inQuotes && next === '"') {
+      cell += '"';
+      index += 1;
+      continue;
+    }
+
+    if (char === '"') {
+      inQuotes = !inQuotes;
+      continue;
+    }
+
+    if (char === "," && !inQuotes) {
+      row.push(cell);
+      cell = "";
+      continue;
+    }
+
+    if ((char === "\n" || char === "\r") && !inQuotes) {
+      if (char === "\r" && next === "\n") index += 1;
+      row.push(cell);
+      rows.push(row);
+      row = [];
+      cell = "";
+      continue;
+    }
+
+    cell += char;
+  }
+
+  row.push(cell);
+  rows.push(row);
+  return rows.filter((candidate) => candidate.some((value) => value.trim() !== ""));
+}
+
+function validateImportRows(records: Array<Record<string, unknown>>, existingItems: Item[]) {
+  const existingBarcodes = new Set(
+    existingItems
+      .map((item) => normalizeBarcode(item.barcode ?? ""))
+      .filter(Boolean),
+  );
+  const fileBarcodeCounts = new Map<string, number>();
+
+  const rows = records.map((record, index) => {
+    const normalized = normalizeImportRecord(record);
+    const barcodeKey = normalizeBarcode(normalized.barcode);
+    if (barcodeKey) {
+      fileBarcodeCounts.set(barcodeKey, (fileBarcodeCounts.get(barcodeKey) ?? 0) + 1);
+    }
+
+    return {
+      rowNumber: index + 2,
+      ...normalized,
+      errors: normalized.errors,
+      status: "pending" as const,
+    };
+  });
+
+  return rows.map((row) => {
+    const errors: string[] = [...row.errors];
+    const barcodeKey = normalizeBarcode(row.barcode);
+
+    if (!row.name) errors.push("Name is required");
+    if (!row.unit) errors.push("Unit is required");
+    if (row.unit && !UNIT_OPTIONS.includes(row.unit)) {
+      errors.push(`Unit must be one of: ${UNIT_OPTIONS.join(", ")}`);
+    }
+    if (barcodeKey && existingBarcodes.has(barcodeKey)) {
+      errors.push("Barcode already exists");
+    }
+    if (barcodeKey && (fileBarcodeCounts.get(barcodeKey) ?? 0) > 1) {
+      errors.push("Duplicate barcode in file");
+    }
+    if (!Number.isFinite(row.minStockLevel) || row.minStockLevel < 0) {
+      errors.push("Min stock level must be zero or greater");
+    }
+
+    return { ...row, errors };
+  });
+}
+
+function normalizeImportRecord(record: Record<string, unknown>) {
+  const values = new Map<string, unknown>();
+
+  for (const [key, value] of Object.entries(record)) {
+    values.set(normalizeColumnName(key), value);
+  }
+
+  const rawUnit = parseImportString(values.get("unit"));
+  const unit = normalizeUnit(rawUnit);
+  const minStockLevelResult = parseOptionalNumber(values.get("minstocklevel"));
+  const trackExpiryResult = parseOptionalBoolean(values.get("trackexpiry"));
+
+  return {
+    name: parseImportString(values.get("name")),
+    unit,
+    category: parseImportString(values.get("category")),
+    sku: parseImportString(values.get("sku")),
+    barcode: parseImportString(values.get("barcode")),
+    minStockLevel: minStockLevelResult.value,
+    trackExpiry: trackExpiryResult.value,
+    errors: [
+      ...minStockLevelResult.errors,
+      ...trackExpiryResult.errors,
+    ],
+  };
+}
+
+function normalizeColumnName(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function parseImportString(value: unknown) {
+  if (value === null || value === undefined) return "";
+  return String(value).trim();
+}
+
+function normalizeUnit(value: string) {
+  const trimmed = value.trim();
+  const lower = trimmed.toLowerCase();
+  return UNIT_OPTIONS.find((unit) => unit.toLowerCase() === lower) ?? trimmed;
+}
+
+function normalizeBarcode(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function parseOptionalNumber(value: unknown) {
+  const raw = parseImportString(value);
+  if (!raw) return { value: 0, errors: [] };
+
+  const parsed = Number(raw);
+  return Number.isFinite(parsed)
+    ? { value: parsed, errors: [] }
+    : { value: 0, errors: ["Min stock level must be a number"] };
+}
+
+function parseOptionalBoolean(value: unknown) {
+  const raw = parseImportString(value).toLowerCase();
+  if (!raw) return { value: false, errors: [] };
+  if (["true", "yes", "1"].includes(raw)) return { value: true, errors: [] };
+  if (["false", "no", "0"].includes(raw)) return { value: false, errors: [] };
+  return { value: false, errors: ["trackExpiry must be true/false, yes/no, or 1/0"] };
+}
+
+function escapeCsvCell(value: string) {
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
 function generateBarcodeValue() {
   const timestamp = Date.now().toString().slice(-8);
   const random = Math.floor(Math.random() * 10_000).toString().padStart(4, "0");
@@ -1341,6 +2226,23 @@ function escapeHtml(value: string) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+function readStoredOption<T extends string>(key: string, allowed: T[], fallback: T) {
+  try {
+    const stored = localStorage.getItem(key);
+    return stored && allowed.includes(stored as T) ? (stored as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function storeOption(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* localStorage may be unavailable in private or restricted browser modes */
+  }
 }
 
 function formatNumber(value: number) {
