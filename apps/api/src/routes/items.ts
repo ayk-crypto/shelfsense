@@ -1,13 +1,14 @@
 import { Router } from "express";
+import { Role } from "../generated/prisma/enums.js";
 import { prisma } from "../db/prisma.js";
-import { requireAuth } from "../middleware/auth.js";
+import { requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async-handler.js";
 
 export const itemsRouter = Router();
 
 itemsRouter.use(requireAuth);
 
-itemsRouter.post("/", asyncHandler(async (req, res) => {
+itemsRouter.post("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
   const workspaceId = getWorkspaceId(req);
 
   if (!workspaceId) {
@@ -42,7 +43,7 @@ itemsRouter.post("/", asyncHandler(async (req, res) => {
   return res.status(201).json({ item });
 }));
 
-itemsRouter.get("/", asyncHandler(async (req, res) => {
+itemsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), asyncHandler(async (req, res) => {
   const workspaceId = getWorkspaceId(req);
 
   if (!workspaceId) {
@@ -57,7 +58,7 @@ itemsRouter.get("/", asyncHandler(async (req, res) => {
   return res.json({ items });
 }));
 
-itemsRouter.get("/:id", asyncHandler(async (req, res) => {
+itemsRouter.get("/:id", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), asyncHandler(async (req, res) => {
   const workspaceId = getWorkspaceId(req);
 
   if (!workspaceId) {
@@ -75,7 +76,7 @@ itemsRouter.get("/:id", asyncHandler(async (req, res) => {
   return res.json({ item });
 }));
 
-itemsRouter.patch("/:id", asyncHandler(async (req, res) => {
+itemsRouter.patch("/:id", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
   const workspaceId = getWorkspaceId(req);
 
   if (!workspaceId) {
@@ -118,7 +119,7 @@ itemsRouter.patch("/:id", asyncHandler(async (req, res) => {
   return res.json({ item });
 }));
 
-itemsRouter.delete("/:id", asyncHandler(async (req, res) => {
+itemsRouter.delete("/:id", requireRole([Role.OWNER]), asyncHandler(async (req, res) => {
   const workspaceId = getWorkspaceId(req);
 
   if (!workspaceId) {

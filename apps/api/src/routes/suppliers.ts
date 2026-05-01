@@ -1,13 +1,14 @@
 import { Router } from "express";
+import { Role } from "../generated/prisma/enums.js";
 import { prisma } from "../db/prisma.js";
-import { requireAuth } from "../middleware/auth.js";
+import { requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async-handler.js";
 
 export const suppliersRouter = Router();
 
 suppliersRouter.use(requireAuth);
 
-suppliersRouter.post("/", asyncHandler(async (req, res) => {
+suppliersRouter.post("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
   const workspaceId = getWorkspaceId(req);
 
   if (!workspaceId) {
@@ -32,7 +33,7 @@ suppliersRouter.post("/", asyncHandler(async (req, res) => {
   return res.status(201).json({ supplier });
 }));
 
-suppliersRouter.get("/", asyncHandler(async (req, res) => {
+suppliersRouter.get("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
   const workspaceId = getWorkspaceId(req);
 
   if (!workspaceId) {

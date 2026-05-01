@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { env } from "../config/env.js";
 import { prisma } from "../db/prisma.js";
+import { requireAuth } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async-handler.js";
 
 export const authRouter = Router();
@@ -60,6 +61,13 @@ authRouter.post("/login", asyncHandler(async (req, res) => {
 
   const user = await prisma.user.findUnique({
     where: { email: trimmedEmail },
+    include: {
+      memberships: {
+        orderBy: { createdAt: "asc" },
+        select: { workspaceId: true, role: true },
+        take: 1,
+      },
+    },
   });
 
   if (!user) {
@@ -72,16 +80,24 @@ authRouter.post("/login", asyncHandler(async (req, res) => {
     return res.status(401).json({ error: "Invalid email or password" });
   }
 
+  const membership = user.memberships[0];
+
   return res.json({
     user: {
       id: user.id,
       name: user.name,
       email: user.email,
       createdAt: user.createdAt,
+      workspaceId: membership?.workspaceId ?? null,
+      role: membership?.role ?? null,
     },
     token: signToken(user.id),
   });
 }));
+
+authRouter.get("/me", requireAuth, (req, res) => {
+  return res.json({ user: req.user });
+});
 
 function signToken(userId: string) {
   return jwt.sign({ userId }, env.jwtSecret, { expiresIn: "7d" });

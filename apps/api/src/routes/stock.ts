@@ -1,14 +1,14 @@
-import { StockMovementType } from "../generated/prisma/enums.js";
+import { Role, StockMovementType } from "../generated/prisma/enums.js";
 import { Router, type Request } from "express";
 import { prisma } from "../db/prisma.js";
-import { requireAuth } from "../middleware/auth.js";
+import { requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async-handler.js";
 
 export const stockRouter = Router();
 
 stockRouter.use(requireAuth);
 
-stockRouter.post("/in", asyncHandler(async (req, res) => {
+stockRouter.post("/in", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
   const workspaceId = getWorkspaceId(req);
 
   if (!workspaceId) {
@@ -89,7 +89,7 @@ stockRouter.post("/in", asyncHandler(async (req, res) => {
   return res.status(201).json(result);
 }));
 
-stockRouter.post("/out", asyncHandler(async (req, res) => {
+stockRouter.post("/out", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), asyncHandler(async (req, res) => {
   const workspaceId = getWorkspaceId(req);
 
   if (!workspaceId) {
@@ -192,7 +192,7 @@ stockRouter.post("/out", asyncHandler(async (req, res) => {
   }
 }));
 
-stockRouter.get("/summary", asyncHandler(async (req, res) => {
+stockRouter.get("/summary", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), asyncHandler(async (req, res) => {
   const workspaceId = getWorkspaceId(req);
 
   if (!workspaceId) {
@@ -250,7 +250,7 @@ stockRouter.get("/summary", asyncHandler(async (req, res) => {
   return res.json({ summary });
 }));
 
-stockRouter.get("/movements", asyncHandler(async (req, res) => {
+stockRouter.get("/movements", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
   const workspaceId = getWorkspaceId(req);
 
   if (!workspaceId) {
@@ -309,7 +309,7 @@ stockRouter.get("/movements", asyncHandler(async (req, res) => {
   return res.json({ movements });
 }));
 
-stockRouter.get("/batches", asyncHandler(async (req, res) => {
+stockRouter.get("/batches", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
   const workspaceId = getWorkspaceId(req);
 
   if (!workspaceId) {
@@ -340,7 +340,7 @@ stockRouter.get("/batches", asyncHandler(async (req, res) => {
   return res.json({ batches });
 }));
 
-stockRouter.get("/expiring-soon", asyncHandler(async (req, res) => {
+stockRouter.get("/expiring-soon", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
   const workspaceId = getWorkspaceId(req);
 
   if (!workspaceId) {

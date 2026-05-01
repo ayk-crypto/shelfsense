@@ -18,6 +18,12 @@ const demoUser = {
   password: "demo123456",
 };
 
+const demoOperatorUser = {
+  name: "Demo Operator",
+  email: "operator@shelfsense.local",
+  password: "demo123456",
+};
+
 const demoWorkspaceName = "ShelfSense Demo Workspace";
 
 const demoItems = [
@@ -110,6 +116,7 @@ const demoItems = [
 
 async function main() {
   const hashedPassword = await bcrypt.hash(demoUser.password, 12);
+  const hashedOperatorPassword = await bcrypt.hash(demoOperatorUser.password, 12);
 
   await prisma.$transaction(async (tx) => {
     const user = await tx.user.upsert({
@@ -122,6 +129,19 @@ async function main() {
         name: demoUser.name,
         email: demoUser.email,
         password: hashedPassword,
+      },
+    });
+
+    const operatorUser = await tx.user.upsert({
+      where: { email: demoOperatorUser.email },
+      update: {
+        name: demoOperatorUser.name,
+        password: hashedOperatorPassword,
+      },
+      create: {
+        name: demoOperatorUser.name,
+        email: demoOperatorUser.email,
+        password: hashedOperatorPassword,
       },
     });
 
@@ -157,10 +177,16 @@ async function main() {
         name: demoWorkspaceName,
         ownerId: user.id,
         memberships: {
-          create: {
-            userId: user.id,
-            role: Role.OWNER,
-          },
+          create: [
+            {
+              userId: user.id,
+              role: Role.OWNER,
+            },
+            {
+              userId: operatorUser.id,
+              role: Role.OPERATOR,
+            },
+          ],
         },
       },
     });
@@ -211,6 +237,8 @@ async function main() {
   console.log("Demo seed complete.");
   console.log(`Email: ${demoUser.email}`);
   console.log(`Password: ${demoUser.password}`);
+  console.log(`Operator Email: ${demoOperatorUser.email}`);
+  console.log(`Operator Password: ${demoOperatorUser.password}`);
 }
 
 main()

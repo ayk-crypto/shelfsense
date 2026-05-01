@@ -1,14 +1,14 @@
-import { StockMovementType } from "../generated/prisma/enums.js";
+import { Role, StockMovementType } from "../generated/prisma/enums.js";
 import { Router } from "express";
 import { prisma } from "../db/prisma.js";
-import { requireAuth } from "../middleware/auth.js";
+import { requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async-handler.js";
 
 export const purchasesRouter = Router();
 
 purchasesRouter.use(requireAuth);
 
-purchasesRouter.post("/", asyncHandler(async (req, res) => {
+purchasesRouter.post("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
   const workspaceId = getWorkspaceId(req);
 
   if (!workspaceId) {
@@ -145,7 +145,7 @@ purchasesRouter.post("/", asyncHandler(async (req, res) => {
   return res.status(201).json(result);
 }));
 
-purchasesRouter.get("/", asyncHandler(async (req, res) => {
+purchasesRouter.get("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
   const workspaceId = getWorkspaceId(req);
 
   if (!workspaceId) {

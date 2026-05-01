@@ -7,9 +7,15 @@ export function AppShell() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [alertCount, setAlertCount] = useState(0);
+  const canAccessManagement = user?.role === "OWNER" || user?.role === "MANAGER";
 
   useEffect(() => {
     async function loadAlertCount() {
+      if (!canAccessManagement) {
+        setAlertCount(0);
+        return;
+      }
+
       try {
         const alerts = await getAlerts();
         setAlertCount(
@@ -21,7 +27,7 @@ export function AppShell() {
     }
 
     void loadAlertCount();
-  }, []);
+  }, [canAccessManagement]);
 
   function handleLogout() {
     logout();
@@ -65,34 +71,47 @@ export function AppShell() {
             </svg>
             Movements
           </NavLink>
-          <NavLink to="/suppliers" className={({ isActive }) => `nav-item ${isActive ? "nav-item--active" : ""}`}>
-            <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-              <circle cx="9" cy="7" r="4" />
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-            </svg>
-            Suppliers
-          </NavLink>
-          <NavLink to="/purchases" className={({ isActive }) => `nav-item ${isActive ? "nav-item--active" : ""}`}>
-            <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-              <line x1="16" y1="13" x2="8" y2="13" />
-              <line x1="16" y1="17" x2="8" y2="17" />
-              <line x1="10" y1="9" x2="8" y2="9" />
-            </svg>
-            Purchases
-          </NavLink>
-          <NavLink to="/alerts" className={({ isActive }) => `nav-item ${isActive ? "nav-item--active" : ""}`}>
-            <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-              <line x1="12" y1="9" x2="12" y2="13" />
-              <line x1="12" y1="17" x2="12.01" y2="17" />
-            </svg>
-            <span className="nav-label">Alerts</span>
-            {alertCount > 0 && <span className="nav-badge">{alertCount}</span>}
-          </NavLink>
+          {canAccessManagement && (
+            <>
+              <NavLink to="/suppliers" className={({ isActive }) => `nav-item ${isActive ? "nav-item--active" : ""}`}>
+                <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+                Suppliers
+              </NavLink>
+              <NavLink to="/purchases" className={({ isActive }) => `nav-item ${isActive ? "nav-item--active" : ""}`}>
+                <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="16" y1="13" x2="8" y2="13" />
+                  <line x1="16" y1="17" x2="8" y2="17" />
+                  <line x1="10" y1="9" x2="8" y2="9" />
+                </svg>
+                Purchases
+              </NavLink>
+              <NavLink to="/reports" className={({ isActive }) => `nav-item ${isActive ? "nav-item--active" : ""}`}>
+                <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M4 4h16v16H4z" />
+                  <path d="M8 9h8" />
+                  <path d="M8 13h8" />
+                  <path d="M8 17h5" />
+                </svg>
+                Reports
+              </NavLink>
+              <NavLink to="/alerts" className={({ isActive }) => `nav-item ${isActive ? "nav-item--active" : ""}`}>
+                <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                  <line x1="12" y1="9" x2="12" y2="13" />
+                  <line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+                <span className="nav-label">Alerts</span>
+                {alertCount > 0 && <span className="nav-badge">{alertCount}</span>}
+              </NavLink>
+            </>
+          )}
         </nav>
 
         <div className="sidebar-footer">
@@ -151,36 +170,49 @@ export function AppShell() {
           </svg>
           <span>Moves</span>
         </NavLink>
-        <NavLink to="/suppliers" className={({ isActive }) => `bottom-nav-item ${isActive ? "bottom-nav-item--active" : ""}`}>
-          <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-            <circle cx="9" cy="7" r="4" />
-            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-          </svg>
-          <span>Suppliers</span>
-        </NavLink>
-        <NavLink to="/purchases" className={({ isActive }) => `bottom-nav-item ${isActive ? "bottom-nav-item--active" : ""}`}>
-          <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-            <line x1="16" y1="13" x2="8" y2="13" />
-            <line x1="16" y1="17" x2="8" y2="17" />
-            <line x1="10" y1="9" x2="8" y2="9" />
-          </svg>
-          <span>Purchases</span>
-        </NavLink>
-        <NavLink to="/alerts" className={({ isActive }) => `bottom-nav-item ${isActive ? "bottom-nav-item--active" : ""}`}>
-          <span className="bottom-nav-icon-wrap">
-            <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-              <line x1="12" y1="9" x2="12" y2="13" />
-              <line x1="12" y1="17" x2="12.01" y2="17" />
-            </svg>
-            {alertCount > 0 && <span className="bottom-nav-badge">{alertCount}</span>}
-          </span>
-          <span>Alerts</span>
-        </NavLink>
+        {canAccessManagement && (
+          <>
+            <NavLink to="/suppliers" className={({ isActive }) => `bottom-nav-item ${isActive ? "bottom-nav-item--active" : ""}`}>
+              <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+              <span>Suppliers</span>
+            </NavLink>
+            <NavLink to="/purchases" className={({ isActive }) => `bottom-nav-item ${isActive ? "bottom-nav-item--active" : ""}`}>
+              <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+                <line x1="10" y1="9" x2="8" y2="9" />
+              </svg>
+              <span>Purchases</span>
+            </NavLink>
+            <NavLink to="/reports" className={({ isActive }) => `bottom-nav-item ${isActive ? "bottom-nav-item--active" : ""}`}>
+              <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M4 4h16v16H4z" />
+                <path d="M8 9h8" />
+                <path d="M8 13h8" />
+                <path d="M8 17h5" />
+              </svg>
+              <span>Reports</span>
+            </NavLink>
+            <NavLink to="/alerts" className={({ isActive }) => `bottom-nav-item ${isActive ? "bottom-nav-item--active" : ""}`}>
+              <span className="bottom-nav-icon-wrap">
+                <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                  <line x1="12" y1="9" x2="12" y2="13" />
+                  <line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+                {alertCount > 0 && <span className="bottom-nav-badge">{alertCount}</span>}
+              </span>
+              <span>Alerts</span>
+            </NavLink>
+          </>
+        )}
         <button className="bottom-nav-item" onClick={handleLogout}>
           <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />

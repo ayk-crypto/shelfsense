@@ -1,9 +1,17 @@
 import JsBarcode from "jsbarcode";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { createItem, getItems } from "../api/items";
-import { getStockSummary, stockIn, stockOut } from "../api/stock";
-import type { CreateItemInput, Item, StockSummaryItem } from "../types";
+import { getStockMovements, getStockSummary, stockIn, stockOut } from "../api/stock";
+import { useAuth } from "../context/AuthContext";
+import type { CreateItemInput, Item, StockMovement, StockSummaryItem } from "../types";
 import { formatCurrency } from "../utils/currency";
+import { getSuggestedReorderQuantity } from "../utils/reorder";
+import {
+  getEstimatedDaysRemaining,
+  getForecastTone,
+  getLastSevenDaysRange,
+  getUsageInsights,
+} from "../utils/usage";
 
 const BarcodeScanner = lazy(() =>
   import("../components/BarcodeScanner").then((m) => ({ default: m.BarcodeScanner })),
@@ -40,8 +48,11 @@ function getStatus(s: StockSummaryItem | undefined, trackExpiry: boolean): Statu
 }
 
 export function ItemsPage() {
+  const { user } = useAuth();
+  const canManageStock = user?.role === "OWNER" || user?.role === "MANAGER";
   const [items, setItems] = useState<Item[]>([]);
   const [summaryMap, setSummaryMap] = useState<Map<string, StockSummaryItem>>(new Map());
+  const [usageMovements, setUsageMovements] = useState<StockMovement[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -55,6 +66,10 @@ export function ItemsPage() {
   const [barcodeItem, setBarcodeItem] = useState<Item | null>(null);
   const [busy, setBusy] = useState<Set<string>>(new Set());
   const hasBarcodes = useMemo(() => items.some((item) => item.barcode), [items]);
+  const usageMap = useMemo(
+    () => new Map(getUsageInsights(usageMovements).map((usage) => [usage.itemId, usage])),
+    [usageMovements],
+  );
 
   function showToast(msg: string, type: "success" | "error") {
     const id = ++toastSeq;
@@ -73,6 +88,7 @@ export function ItemsPage() {
       const sign = delta > 0 ? "+" : "";
       showToast(`${sign}${delta} ${item.unit} — ${item.name}`, "success");
       void refreshSummary();
+      if (delta < 0) void refreshUsageInsights();
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Action failed", "error");
     } finally {
@@ -90,11 +106,32 @@ export function ItemsPage() {
     }
   }
 
+  async function refreshUsageInsights() {
+    if (!canManageStock) return;
+
+    try {
+      const res = await getStockMovements({
+        type: "STOCK_OUT",
+        ...getLastSevenDaysRange(),
+      });
+      setUsageMovements(res.movements);
+    } catch {
+      /* non-blocking - keep showing stale usage insights */
+    }
+  }
+
   async function loadAll() {
     try {
-      const [itemsRes, summaryRes] = await Promise.all([getItems(), getStockSummary()]);
+      const [itemsRes, summaryRes, usageRes] = await Promise.all([
+        getItems(),
+        getStockSummary(),
+        canManageStock
+          ? getStockMovements({ type: "STOCK_OUT", ...getLastSevenDaysRange() })
+          : Promise.resolve({ movements: [] }),
+      ]);
       setItems(itemsRes.items);
       setSummaryMap(new Map(summaryRes.summary.map((s) => [s.itemId, s])));
+      setUsageMovements(usageRes.movements);
       setFetchError(null);
     } catch (err) {
       setFetchError(err instanceof Error ? err.message : "Failed to load items");
@@ -103,7 +140,7 @@ export function ItemsPage() {
     }
   }
 
-  useEffect(() => { void loadAll(); }, []);
+  useEffect(() => { void loadAll(); }, [canManageStock]);
 
   if (loading) {
     return (
@@ -141,9 +178,11 @@ export function ItemsPage() {
             </svg>
             Scan
           </button>
-          <button className="btn btn--primary" onClick={() => { setScanPrefillBarcode(undefined); setAddItemOpen(true); }}>
-            + Add Item
-          </button>
+          {canManageStock && (
+            <button className="btn btn--primary" onClick={() => { setScanPrefillBarcode(undefined); setAddItemOpen(true); }}>
+              + Add Item
+            </button>
+          )}
         </div>
       </div>
 
@@ -170,10 +209,33 @@ export function ItemsPage() {
               <tbody>
                 {items.map((item) => {
                   const s = summaryMap.get(item.id);
+                  const usage = usageMap.get(item.id);
+                  const estimatedDaysRemaining = s && usage && usage.averageDailyUsage > 0
+                    ? getEstimatedDaysRemaining(s.totalQuantity, usage.averageDailyUsage)
+                    : null;
                   const status = getStatus(s, item.trackExpiry);
                   return (
                     <tr key={item.id} className={s?.isLowStock ? "row--warn" : ""}>
-                      <td className="td-name">{item.name}</td>
+                      <td className="td-name">
+                        {item.name}
+                        {s?.isLowStock && (
+                          <span className="reorder-hint">
+                            Suggested reorder:{" "}
+                            {formatNumber(getSuggestedReorderQuantity(s.totalQuantity, s.minStockLevel))} {item.unit}
+                          </span>
+                        )}
+                        {usage && (
+                          <span className="usage-hint">
+                            7-day usage: {formatNumber(usage.totalQuantity)} {item.unit} · Avg/day:{" "}
+                            {formatNumber(usage.averageDailyUsage)} {item.unit}
+                          </span>
+                        )}
+                        {estimatedDaysRemaining !== null && (
+                          <span className={`forecast-hint forecast-hint--${getForecastTone(estimatedDaysRemaining)}`}>
+                            Est. remaining: {formatNumber(estimatedDaysRemaining)} days
+                          </span>
+                        )}
+                      </td>
                       {hasBarcodes && (
                         <td className="td-barcode">{item.barcode ?? "-"}</td>
                       )}
@@ -189,7 +251,7 @@ export function ItemsPage() {
                       </td>
                       <td className="td-actions">
                         <span className="quick-btns">
-                          {([1, 5] as const).map((n) => (
+                          {canManageStock && ([1, 5] as const).map((n) => (
                             <button
                               key={`+${n}`}
                               className="btn btn--xs btn--quick btn--quick-in"
@@ -209,25 +271,29 @@ export function ItemsPage() {
                           ))}
                         </span>
                         <span className="actions-divider" />
-                        <button
-                          className="btn btn--sm btn--ghost btn--green-text"
-                          onClick={() => setStockInItem(item)}
-                        >
-                          + In
-                        </button>
+                        {canManageStock && (
+                          <button
+                            className="btn btn--sm btn--ghost btn--green-text"
+                            onClick={() => setStockInItem(item)}
+                          >
+                            + In
+                          </button>
+                        )}
                         <button
                           className="btn btn--sm btn--ghost btn--red-text"
                           onClick={() => setStockOutItem(item)}
                         >
                           − Out
                         </button>
-                        <button
-                          className="btn btn--sm btn--ghost btn--blue-text"
-                          onClick={() => setAdjustItem(item)}
-                          title="Set exact stock quantity"
-                        >
-                          Adjust
-                        </button>
+                        {canManageStock && (
+                          <button
+                            className="btn btn--sm btn--ghost btn--blue-text"
+                            onClick={() => setAdjustItem(item)}
+                            title="Set exact stock quantity"
+                          >
+                            Adjust
+                          </button>
+                        )}
                         <button
                           className="btn btn--sm btn--ghost"
                           onClick={() => setBarcodeItem(item)}
@@ -246,6 +312,10 @@ export function ItemsPage() {
           <div className="item-cards">
             {items.map((item) => {
               const s = summaryMap.get(item.id);
+              const usage = usageMap.get(item.id);
+              const estimatedDaysRemaining = s && usage && usage.averageDailyUsage > 0
+                ? getEstimatedDaysRemaining(s.totalQuantity, usage.averageDailyUsage)
+                : null;
               const status = getStatus(s, item.trackExpiry);
               return (
                 <div key={item.id} className="item-card">
@@ -277,9 +347,26 @@ export function ItemsPage() {
                       <span className="item-card-stat-value">{item.minStockLevel} {item.unit}</span>
                     </span>
                   </div>
+                  {s?.isLowStock && (
+                    <p className="reorder-hint reorder-hint--card">
+                      Suggested reorder:{" "}
+                      {formatNumber(getSuggestedReorderQuantity(s.totalQuantity, s.minStockLevel))} {item.unit}
+                    </p>
+                  )}
+                  {usage && (
+                    <p className="usage-hint usage-hint--card">
+                      7-day usage: {formatNumber(usage.totalQuantity)} {item.unit} · Avg/day:{" "}
+                      {formatNumber(usage.averageDailyUsage)} {item.unit}
+                    </p>
+                  )}
+                  {estimatedDaysRemaining !== null && (
+                    <p className={`forecast-hint forecast-hint--card forecast-hint--${getForecastTone(estimatedDaysRemaining)}`}>
+                      Est. remaining: {formatNumber(estimatedDaysRemaining)} days
+                    </p>
+                  )}
                   <div className="item-card-actions">
                     <div className="quick-btns quick-btns--card">
-                      {([1, 5] as const).map((n) => (
+                      {canManageStock && ([1, 5] as const).map((n) => (
                         <button
                           key={`+${n}`}
                           className="btn btn--xs btn--quick btn--quick-in"
@@ -299,24 +386,28 @@ export function ItemsPage() {
                       ))}
                     </div>
                     <div className="item-card-modal-actions">
-                      <button
-                        className="btn btn--sm btn--ghost btn--green-text item-card-btn"
-                        onClick={() => setStockInItem(item)}
-                      >
-                        + Stock In
-                      </button>
+                      {canManageStock && (
+                        <button
+                          className="btn btn--sm btn--ghost btn--green-text item-card-btn"
+                          onClick={() => setStockInItem(item)}
+                        >
+                          + Stock In
+                        </button>
+                      )}
                       <button
                         className="btn btn--sm btn--ghost btn--red-text item-card-btn"
                         onClick={() => setStockOutItem(item)}
                       >
                         − Use / Deduct
                       </button>
-                      <button
-                        className="btn btn--sm btn--ghost btn--blue-text item-card-btn"
-                        onClick={() => setAdjustItem(item)}
-                      >
+                      {canManageStock && (
+                        <button
+                          className="btn btn--sm btn--ghost btn--blue-text item-card-btn"
+                          onClick={() => setAdjustItem(item)}
+                        >
                         ≡ Set Quantity
-                      </button>
+                        </button>
+                      )}
                       <button
                         className="btn btn--sm btn--ghost item-card-btn"
                         onClick={() => setBarcodeItem(item)}
@@ -352,6 +443,7 @@ export function ItemsPage() {
           <BarcodeScanner
             items={items}
             summaryMap={summaryMap}
+            canManageStock={canManageStock}
             onClose={() => {
               setScannerOpen(false);
               void refreshSummary();
@@ -388,6 +480,7 @@ export function ItemsPage() {
             setStockOutItem(null);
             showToast(`Stock deducted from "${name}"`, "success");
             void refreshSummary();
+            void refreshUsageInsights();
           }}
           onError={(msg) => showToast(msg, "error")}
         />
@@ -399,14 +492,10 @@ export function ItemsPage() {
           currentQty={summaryMap.get(adjustItem.id)?.totalQuantity ?? 0}
           onClose={() => setAdjustItem(null)}
           onSuccess={(fromQty, toQty) => {
-            const name = adjustItem.name;
-            const unit = adjustItem.unit;
             setAdjustItem(null);
-            showToast(
-              `Stock adjusted from ${fromQty} to ${toQty} ${unit} — ${name}`,
-              "success",
-            );
+            showToast(`Stock adjusted from ${fromQty} to ${toQty}`, "success");
             void refreshSummary();
+            if (toQty < fromQty) void refreshUsageInsights();
           }}
           onError={(msg) => showToast(msg, "error")}
         />
@@ -932,11 +1021,9 @@ function AdjustStockModal({
   function deltaLabel() {
     if (delta === null) return null;
     if (delta === 0) return { text: "No change", cls: "adjust-preview--none" };
-    const sign = delta > 0 ? "+" : "";
-    const verb = delta > 0 ? "Add" : "Remove";
     const abs = Math.abs(delta);
     return {
-      text: `${verb} ${abs} ${item.unit} (${sign}${delta})`,
+      text: delta > 0 ? `+${abs} will be added` : `${abs} will be deducted`,
       cls: delta > 0 ? "adjust-preview--add" : "adjust-preview--remove",
     };
   }
@@ -956,7 +1043,7 @@ function AdjustStockModal({
         await stockOut({
           itemId: item.id,
           quantity: -delta,
-          reason: "adjustment",
+          reason: "manual_adjustment",
           note: noteStr,
         });
       }
@@ -1065,6 +1152,10 @@ function escapeHtml(value: string) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+function formatNumber(value: number) {
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(value);
 }
 
 function ScannerLoadingOverlay() {

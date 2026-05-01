@@ -9,6 +9,7 @@ type Phase = "scanning" | "found" | "notFound" | "error";
 interface Props {
   items: Item[];
   summaryMap: Map<string, StockSummaryItem>;
+  canManageStock: boolean;
   onClose: () => void;
   onCreateNew: (barcode: string) => void;
 }
@@ -19,7 +20,7 @@ function formatQty(n: number) {
   return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(n);
 }
 
-export function BarcodeScanner({ items, summaryMap, onClose, onCreateNew }: Props) {
+export function BarcodeScanner({ items, summaryMap, canManageStock, onClose, onCreateNew }: Props) {
   const [phase, setPhase] = useState<Phase>("scanning");
   const [foundItem, setFoundItem] = useState<Item | null>(null);
   const [scannedCode, setScannedCode] = useState("");
@@ -125,6 +126,10 @@ export function BarcodeScanner({ items, summaryMap, onClose, onCreateNew }: Prop
     setAdjustBusy(true);
     try {
       if (delta > 0) {
+        if (!canManageStock) {
+          showFeedback("You do not have permission to perform this action.", false);
+          return;
+        }
         await stockIn({ itemId: foundItem.id, quantity: delta, note: "Scanner quick adjust" });
       } else {
         await stockOut({
@@ -242,19 +247,21 @@ export function BarcodeScanner({ items, summaryMap, onClose, onCreateNew }: Prop
               )}
 
               <div className="scanner-quick-actions">
-                <div className="scanner-quick-group">
-                  <span className="scanner-quick-label">Add stock</span>
-                  <div className="scanner-quick-row">
-                    {[1, 5].map((n) => (
-                      <button
-                        key={`+${n}`}
-                        className="btn btn--quick-in scanner-quick-btn"
-                        disabled={adjustBusy}
-                        onClick={() => { void handleAdjust(n); }}
-                      >+{n}</button>
-                    ))}
+                {canManageStock && (
+                  <div className="scanner-quick-group">
+                    <span className="scanner-quick-label">Add stock</span>
+                    <div className="scanner-quick-row">
+                      {[1, 5].map((n) => (
+                        <button
+                          key={`+${n}`}
+                          className="btn btn--quick-in scanner-quick-btn"
+                          disabled={adjustBusy}
+                          onClick={() => { void handleAdjust(n); }}
+                        >+{n}</button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
                 <div className="scanner-quick-group">
                   <span className="scanner-quick-label">Deduct stock</span>
                   <div className="scanner-quick-row">
@@ -297,12 +304,14 @@ export function BarcodeScanner({ items, summaryMap, onClose, onCreateNew }: Prop
                 <button className="btn btn--ghost btn--sm" onClick={() => { void rescan(); }}>
                   Scan again
                 </button>
-                <button
-                  className="btn btn--primary btn--sm"
-                  onClick={() => { onCreateNew(scannedCode); }}
-                >
-                  + Add new item
-                </button>
+                {canManageStock && (
+                  <button
+                    className="btn btn--primary btn--sm"
+                    onClick={() => { onCreateNew(scannedCode); }}
+                  >
+                    + Add new item
+                  </button>
+                )}
               </div>
             </div>
           )}

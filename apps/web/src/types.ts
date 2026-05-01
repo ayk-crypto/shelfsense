@@ -1,8 +1,12 @@
+export type Role = "OWNER" | "MANAGER" | "OPERATOR";
+
 export interface User {
   id: string;
   name: string;
   email: string;
   createdAt: string;
+  workspaceId?: string | null;
+  role?: Role | null;
 }
 
 export interface LoginResponse {

@@ -1,8 +1,16 @@
 import { useEffect, useState } from "react";
 import { getAlerts } from "../api/alerts";
 import { getStockMovements, getStockSummary } from "../api/stock";
+import { useAuth } from "../context/AuthContext";
 import type { AlertsResponse, StockMovement, StockSummaryItem } from "../types";
 import { formatCurrency } from "../utils/currency";
+import { getSuggestedReorderQuantity } from "../utils/reorder";
+import {
+  getForecastTone,
+  getLastSevenDaysRange,
+  getStockForecast,
+  getUsageInsights,
+} from "../utils/usage";
 
 function formatDate(dateStr: string | null) {
   if (!dateStr) return "—";
@@ -61,18 +69,33 @@ const EMPTY_ALERTS: AlertsResponse = {
 };
 
 export function DashboardPage() {
+  const { user } = useAuth();
+  const canAccessManagement = user?.role === "OWNER" || user?.role === "MANAGER";
   const [summary, setSummary] = useState<StockSummaryItem[]>([]);
   const [alerts, setAlerts] = useState<AlertsResponse>(EMPTY_ALERTS);
   const [wastageToday, setWastageToday] = useState(0);
   const [wastageWeek, setWastageWeek] = useState(0);
   const [wastageLastWeek, setWastageLastWeek] = useState(0);
   const [topItems, setTopItems] = useState<WastedItem[]>([]);
+  const [usageMovements, setUsageMovements] = useState<StockMovement[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
       try {
+        if (!canAccessManagement) {
+          const summaryRes = await getStockSummary();
+          setSummary(summaryRes.summary);
+          setAlerts(EMPTY_ALERTS);
+          setWastageToday(0);
+          setWastageWeek(0);
+          setWastageLastWeek(0);
+          setTopItems([]);
+          setUsageMovements([]);
+          return;
+        }
+
         const today = new Date();
         const todayStr = toYMD(today);
 
@@ -87,14 +110,23 @@ export function DashboardPage() {
         const lastWeekEnd = new Date(thisWeekStart);
         lastWeekEnd.setDate(lastWeekEnd.getDate() - 1);
         const lastWeekEndStr = toYMD(lastWeekEnd);
+        const usageRange = getLastSevenDaysRange();
 
-        const [summaryRes, alertsRes, wastageResToday, wastageResWeek, wastageResLastWeek] =
+        const [
+          summaryRes,
+          alertsRes,
+          wastageResToday,
+          wastageResWeek,
+          wastageResLastWeek,
+          usageRes,
+        ] =
           await Promise.all([
             getStockSummary(),
             getAlerts(),
             getStockMovements({ type: "WASTAGE", fromDate: todayStr, toDate: todayStr }),
             getStockMovements({ type: "WASTAGE", fromDate: thisWeekStartStr, toDate: todayStr }),
             getStockMovements({ type: "WASTAGE", fromDate: lastWeekStartStr, toDate: lastWeekEndStr }),
+            getStockMovements({ type: "STOCK_OUT", ...usageRange }),
           ]);
 
         setSummary(summaryRes.summary);
@@ -103,6 +135,7 @@ export function DashboardPage() {
         setWastageWeek(sumWastageValue(wastageResWeek.movements));
         setWastageLastWeek(sumWastageValue(wastageResLastWeek.movements));
         setTopItems(topWastedItems(wastageResWeek.movements, 3));
+        setUsageMovements(usageRes.movements);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load dashboard data");
       } finally {
@@ -110,7 +143,7 @@ export function DashboardPage() {
       }
     }
     void load();
-  }, []);
+  }, [canAccessManagement]);
 
   if (loading) {
     return (
@@ -143,6 +176,17 @@ export function DashboardPage() {
   const expiredCount = alerts.expired.length;
   const totalAlertCount = lowStockCount + expiringSoonCount + expiredCount;
   const trend = computeTrend(wastageWeek, wastageLastWeek);
+  const summaryByItemId = new Map(summary.map((item) => [item.itemId, item]));
+  const lowStockIds = new Set(alerts.lowStock.map((item) => item.itemId));
+  const reorderSuggestions = summary
+    .filter((item) => item.totalQuantity <= item.minStockLevel || lowStockIds.has(item.itemId))
+    .map((item) => ({
+      ...item,
+      suggestedQuantity: getSuggestedReorderQuantity(item.totalQuantity, item.minStockLevel),
+    }));
+  const usageInsights = getUsageInsights(usageMovements);
+  const topUsageInsights = usageInsights.slice(0, 5);
+  const stockForecast = getStockForecast(summary, usageInsights).slice(0, 5);
 
   return (
     <div className="dashboard">
@@ -223,7 +267,7 @@ export function DashboardPage() {
         </div>
       </div>
 
-      {topItems.length > 0 && (
+      {canAccessManagement && topItems.length > 0 && (
         <div className="wastage-top-section">
           <h2 className="wastage-top-title">
             <svg className="wastage-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -247,23 +291,152 @@ export function DashboardPage() {
         </div>
       )}
 
-      <div className={`alert-summary ${totalAlertCount > 0 ? "alert-summary--active" : ""}`}>
-        <div>
-          <h2 className="alert-summary-title">Alert Summary</h2>
-          <p className="alert-summary-copy">
-            {totalAlertCount === 0
-              ? "Everything looks clear right now."
-              : `${totalAlertCount} items or batches need attention.`}
-          </p>
+      {canAccessManagement && (
+        <div className={`alert-summary ${totalAlertCount > 0 ? "alert-summary--active" : ""}`}>
+          <div>
+            <h2 className="alert-summary-title">Alert Summary</h2>
+            <p className="alert-summary-copy">
+              {totalAlertCount === 0
+                ? "Everything looks clear right now."
+                : `${totalAlertCount} items or batches need attention.`}
+            </p>
+          </div>
+          <div className="alert-summary-counts">
+            <span className="badge badge--yellow">{lowStockCount} low</span>
+            <span className="badge badge--orange">{expiringSoonCount} soon</span>
+            <span className="badge badge--red">{expiredCount} expired</span>
+          </div>
         </div>
-        <div className="alert-summary-counts">
-          <span className="badge badge--yellow">{lowStockCount} low</span>
-          <span className="badge badge--orange">{expiringSoonCount} soon</span>
-          <span className="badge badge--red">{expiredCount} expired</span>
+      )}
+
+      <div className="section reorder-section">
+        <div className="section-header">
+          <h2 className="section-title">Reorder Suggestions</h2>
         </div>
+
+        {reorderSuggestions.length === 0 ? (
+          <div className="empty-state empty-state--compact">
+            No reorder suggestions right now.
+          </div>
+        ) : (
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th className="text-right">Current Stock</th>
+                  <th className="text-right">Minimum Level</th>
+                  <th className="text-right">Suggested Order</th>
+                  <th>Unit</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reorderSuggestions.map((item) => (
+                  <tr key={item.itemId} className="row--warn">
+                    <td className="td-name">{item.itemName}</td>
+                    <td className="text-right td-num">{formatNumber(item.totalQuantity)}</td>
+                    <td className="text-right td-num">{formatNumber(item.minStockLevel)}</td>
+                    <td className="text-right td-num">
+                      <strong>{formatNumber(item.suggestedQuantity)}</strong>
+                    </td>
+                    <td className="td-unit">{item.unit}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
-      {expiringSoonCount > 0 && (
+      {canAccessManagement && (
+      <div className="section usage-section">
+        <div className="section-header">
+          <h2 className="section-title">Usage Insights</h2>
+        </div>
+
+        {topUsageInsights.length === 0 ? (
+          <div className="empty-state empty-state--compact">
+            No usage insights for the last 7 days.
+          </div>
+        ) : (
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th className="text-right">Total Used</th>
+                  <th>Unit</th>
+                  <th className="text-right">Estimated Value</th>
+                  <th className="text-right">Avg/day</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topUsageInsights.map((item) => {
+                  const unit = summaryByItemId.get(item.itemId)?.unit ?? "units";
+                  return (
+                    <tr key={item.itemId}>
+                      <td className="td-name">{item.itemName}</td>
+                      <td className="text-right td-num">{formatNumber(item.totalQuantity)}</td>
+                      <td className="td-unit">{unit}</td>
+                      <td className="text-right td-num">{formatCurrency(item.estimatedValue)}</td>
+                      <td className="text-right td-num">
+                        {formatNumber(item.averageDailyUsage)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+      )}
+
+      {canAccessManagement && (
+      <div className="section forecast-section">
+        <div className="section-header">
+          <h2 className="section-title">Stock Forecast</h2>
+        </div>
+
+        {stockForecast.length === 0 ? (
+          <div className="empty-state empty-state--compact">
+            No stock forecast available yet.
+          </div>
+        ) : (
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th className="text-right">Current Stock</th>
+                  <th className="text-right">Avg/day Usage</th>
+                  <th className="text-right">Est. Days Remaining</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stockForecast.map((item) => (
+                  <tr
+                    key={item.itemId}
+                    className={`forecast-row forecast-row--${getForecastTone(item.estimatedDaysRemaining)}`}
+                  >
+                    <td className="td-name">{item.itemName}</td>
+                    <td className="text-right td-num">{formatNumber(item.currentQuantity)}</td>
+                    <td className="text-right td-num">{formatNumber(item.averageDailyUsage)}</td>
+                    <td className="text-right td-num">
+                      <span className={`forecast-pill forecast-pill--${getForecastTone(item.estimatedDaysRemaining)}`}>
+                        {formatNumber(item.estimatedDaysRemaining)}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+      )}
+
+      {canAccessManagement && expiringSoonCount > 0 && (
         <div className="section">
           <div className="section-header">
             <h2 className="section-title">

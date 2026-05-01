@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getAlerts } from "../api/alerts";
 import type { AlertsResponse, ExpiryAlert, LowStockAlert } from "../types";
+import { getSuggestedReorderQuantity } from "../utils/reorder";
 
 const EMPTY_ALERTS: AlertsResponse = {
   lowStock: [],
@@ -102,6 +103,12 @@ function LowStockSection({ items }: { items: LowStockAlert[] }) {
                 <span>Min level</span>
                 <strong>
                   {formatNumber(item.minStockLevel)} {item.unit}
+                </strong>
+              </div>
+              <div className="alert-card-stat">
+                <span>Suggested order</span>
+                <strong>
+                  {formatNumber(getSuggestedReorderQuantity(item.quantity, item.minStockLevel))} {item.unit}
                 </strong>
               </div>
             </article>

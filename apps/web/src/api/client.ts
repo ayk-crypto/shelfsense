@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
+const API_BASE = import.meta.env.VITE_API_BASE_URL?.trim() || "/api";
 
 function getToken(): string | null {
   return localStorage.getItem("shelfsense_token");
@@ -33,7 +33,11 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   const data = await res.json();
 
   if (!res.ok) {
-    throw new Error((data as { error?: string }).error ?? "Request failed");
+    throw new Error(
+      (data as { error?: string; message?: string }).error ??
+        (data as { error?: string; message?: string }).message ??
+        "Request failed",
+    );
   }
 
   return data as T;
