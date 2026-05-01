@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getAlerts } from "../api/alerts";
+import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
 import type { AlertsResponse, ExpiryAlert, LowStockAlert } from "../types";
 import { getSuggestedReorderQuantity } from "../utils/reorder";
 
@@ -10,6 +11,7 @@ const EMPTY_ALERTS: AlertsResponse = {
 };
 
 export function AlertsPage() {
+  const { settings } = useWorkspaceSettings();
   const [alerts, setAlerts] = useState<AlertsResponse>(EMPTY_ALERTS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,11 +63,11 @@ export function AlertsPage() {
         </p>
       </div>
 
-      <LowStockSection items={alerts.lowStock} />
+      <LowStockSection items={alerts.lowStock} multiplier={settings.lowStockMultiplier} />
       <ExpirySection
         title="Expiring Soon"
         tone="orange"
-        emptyText="No batches expiring in the next 7 days."
+        emptyText={`No batches expiring in the next ${settings.expiryAlertDays} days.`}
         batches={alerts.expiringSoon}
       />
       <ExpirySection
@@ -78,7 +80,13 @@ export function AlertsPage() {
   );
 }
 
-function LowStockSection({ items }: { items: LowStockAlert[] }) {
+function LowStockSection({
+  items,
+  multiplier,
+}: {
+  items: LowStockAlert[];
+  multiplier: number;
+}) {
   return (
     <section className="section alert-section alert-section--yellow">
       <div className="section-header">
@@ -108,7 +116,7 @@ function LowStockSection({ items }: { items: LowStockAlert[] }) {
               <div className="alert-card-stat">
                 <span>Suggested order</span>
                 <strong>
-                  {formatNumber(getSuggestedReorderQuantity(item.quantity, item.minStockLevel))} {item.unit}
+                  {formatNumber(getSuggestedReorderQuantity(item.quantity, item.minStockLevel, multiplier))} {item.unit}
                 </strong>
               </div>
             </article>

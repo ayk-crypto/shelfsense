@@ -348,8 +348,12 @@ stockRouter.get("/expiring-soon", requireRole([Role.OWNER, Role.MANAGER]), async
   }
 
   const now = new Date();
-  const sevenDaysFromNow = new Date(now);
-  sevenDaysFromNow.setDate(now.getDate() + 7);
+  const workspace = await prisma.workspace.findUnique({
+    where: { id: workspaceId },
+    select: { expiryAlertDays: true },
+  });
+  const expiryAlertUntil = new Date(now);
+  expiryAlertUntil.setDate(now.getDate() + getExpiryAlertDays(workspace?.expiryAlertDays));
 
   const batches = await prisma.stockBatch.findMany({
     where: {
@@ -357,7 +361,7 @@ stockRouter.get("/expiring-soon", requireRole([Role.OWNER, Role.MANAGER]), async
       remainingQuantity: { gt: 0 },
       expiryDate: {
         gte: now,
-        lte: sevenDaysFromNow,
+        lte: expiryAlertUntil,
       },
     },
     orderBy: { expiryDate: "asc" },
@@ -383,6 +387,10 @@ stockRouter.get("/expiring-soon", requireRole([Role.OWNER, Role.MANAGER]), async
 
 function getWorkspaceId(req: Express.Request) {
   return req.user?.workspaceId ?? null;
+}
+
+function getExpiryAlertDays(value: number | null | undefined) {
+  return typeof value === "number" && value >= 0 ? value : 7;
 }
 
 function parseStockInInput(body: unknown) {

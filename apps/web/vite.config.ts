@@ -39,6 +39,10 @@ export default defineConfig({
         target: apiProxyTarget,
         changeOrigin: true,
       },
+      "/team": {
+        target: apiProxyTarget,
+        changeOrigin: true,
+      },
       "/workspace": {
         target: apiProxyTarget,
         changeOrigin: true,

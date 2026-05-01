@@ -3,6 +3,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { createItem, getItems } from "../api/items";
 import { getStockMovements, getStockSummary, stockIn, stockOut } from "../api/stock";
 import { useAuth } from "../context/AuthContext";
+import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
 import type { CreateItemInput, Item, StockMovement, StockSummaryItem } from "../types";
 import { formatCurrency } from "../utils/currency";
 import { getSuggestedReorderQuantity } from "../utils/reorder";
@@ -35,13 +36,17 @@ const CATEGORY_OPTIONS = [
 
 interface StatusInfo { label: string; variant: "green" | "orange" | "red" | "gray" }
 
-function getStatus(s: StockSummaryItem | undefined, trackExpiry: boolean): StatusInfo {
+function getStatus(
+  s: StockSummaryItem | undefined,
+  trackExpiry: boolean,
+  expiryAlertDays: number,
+): StatusInfo {
   if (!s) return { label: "No data", variant: "gray" };
   const now = Date.now();
   if (trackExpiry && s.nearestExpiryDate) {
     const exp = new Date(s.nearestExpiryDate).getTime();
     if (exp < now) return { label: "Expired", variant: "red" };
-    if (exp <= now + 7 * 86_400_000) return { label: "Expiring", variant: "orange" };
+    if (exp <= now + expiryAlertDays * 86_400_000) return { label: "Expiring", variant: "orange" };
   }
   if (s.isLowStock) return { label: "Low Stock", variant: "orange" };
   return { label: "OK", variant: "green" };
@@ -49,7 +54,9 @@ function getStatus(s: StockSummaryItem | undefined, trackExpiry: boolean): Statu
 
 export function ItemsPage() {
   const { user } = useAuth();
+  const { settings } = useWorkspaceSettings();
   const canManageStock = user?.role === "OWNER" || user?.role === "MANAGER";
+  const currency = settings.currency;
   const [items, setItems] = useState<Item[]>([]);
   const [summaryMap, setSummaryMap] = useState<Map<string, StockSummaryItem>>(new Map());
   const [usageMovements, setUsageMovements] = useState<StockMovement[]>([]);
@@ -213,7 +220,7 @@ export function ItemsPage() {
                   const estimatedDaysRemaining = s && usage && usage.averageDailyUsage > 0
                     ? getEstimatedDaysRemaining(s.totalQuantity, usage.averageDailyUsage)
                     : null;
-                  const status = getStatus(s, item.trackExpiry);
+                  const status = getStatus(s, item.trackExpiry, settings.expiryAlertDays);
                   return (
                     <tr key={item.id} className={s?.isLowStock ? "row--warn" : ""}>
                       <td className="td-name">
@@ -221,7 +228,11 @@ export function ItemsPage() {
                         {s?.isLowStock && (
                           <span className="reorder-hint">
                             Suggested reorder:{" "}
-                            {formatNumber(getSuggestedReorderQuantity(s.totalQuantity, s.minStockLevel))} {item.unit}
+                            {formatNumber(getSuggestedReorderQuantity(
+                              s.totalQuantity,
+                              s.minStockLevel,
+                              settings.lowStockMultiplier,
+                            ))} {item.unit}
                           </span>
                         )}
                         {usage && (
@@ -244,7 +255,7 @@ export function ItemsPage() {
                         {s !== undefined ? s.totalQuantity : "—"}
                       </td>
                       <td className="text-right td-num">
-                        {s !== undefined ? formatCurrency(s.totalValue) : "—"}
+                        {s !== undefined ? formatCurrency(s.totalValue, currency) : "—"}
                       </td>
                       <td>
                         <span className={`badge badge--${status.variant}`}>{status.label}</span>
@@ -316,7 +327,7 @@ export function ItemsPage() {
               const estimatedDaysRemaining = s && usage && usage.averageDailyUsage > 0
                 ? getEstimatedDaysRemaining(s.totalQuantity, usage.averageDailyUsage)
                 : null;
-              const status = getStatus(s, item.trackExpiry);
+              const status = getStatus(s, item.trackExpiry, settings.expiryAlertDays);
               return (
                 <div key={item.id} className="item-card">
                   <div className="item-card-header">
@@ -339,7 +350,7 @@ export function ItemsPage() {
                     <span className="item-card-stat">
                       <span className="item-card-stat-label">Value</span>
                       <span className="item-card-stat-value">
-                        {s !== undefined ? formatCurrency(s.totalValue) : "—"}
+                        {s !== undefined ? formatCurrency(s.totalValue, currency) : "—"}
                       </span>
                     </span>
                     <span className="item-card-stat">
@@ -350,7 +361,11 @@ export function ItemsPage() {
                   {s?.isLowStock && (
                     <p className="reorder-hint reorder-hint--card">
                       Suggested reorder:{" "}
-                      {formatNumber(getSuggestedReorderQuantity(s.totalQuantity, s.minStockLevel))} {item.unit}
+                      {formatNumber(getSuggestedReorderQuantity(
+                        s.totalQuantity,
+                        s.minStockLevel,
+                        settings.lowStockMultiplier,
+                      ))} {item.unit}
                     </p>
                   )}
                   {usage && (
@@ -443,6 +458,7 @@ export function ItemsPage() {
           <BarcodeScanner
             items={items}
             summaryMap={summaryMap}
+            currency={currency}
             canManageStock={canManageStock}
             onClose={() => {
               setScannerOpen(false);

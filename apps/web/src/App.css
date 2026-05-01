@@ -965,6 +965,124 @@ body {
   padding: 9px 12px;
 }
 
+/* =============================================
+   Team Page
+   ============================================= */
+.team-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 900px;
+}
+
+.team-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.team-list {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.team-member-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.team-member-card:last-child {
+  border-bottom: none;
+}
+
+.team-member-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.team-member-email {
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  word-break: break-word;
+}
+
+.team-member-meta {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.team-member-date {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.team-role-badge--owner {
+  background: var(--color-blue-light);
+  color: var(--color-blue);
+}
+
+.team-role-badge--manager {
+  background: var(--color-green-light);
+  color: var(--color-green);
+}
+
+.team-role-badge--operator {
+  background: var(--color-gray-light);
+  color: var(--color-gray);
+}
+
+/* =============================================
+   Settings Page
+   ============================================= */
+.settings-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 720px;
+}
+
+.settings-panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: 18px;
+}
+
+.settings-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+
+@media (max-width: 520px) {
+  .team-member-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .team-member-meta {
+    align-items: flex-start;
+  }
+}
+
 .reorder-hint {
   display: block;
   margin-top: 3px;

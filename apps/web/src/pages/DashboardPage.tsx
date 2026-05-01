@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { getAlerts } from "../api/alerts";
 import { getStockMovements, getStockSummary } from "../api/stock";
 import { useAuth } from "../context/AuthContext";
+import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
 import type { AlertsResponse, StockMovement, StockSummaryItem } from "../types";
 import { formatCurrency } from "../utils/currency";
 import { getSuggestedReorderQuantity } from "../utils/reorder";
@@ -70,7 +71,9 @@ const EMPTY_ALERTS: AlertsResponse = {
 
 export function DashboardPage() {
   const { user } = useAuth();
+  const { settings } = useWorkspaceSettings();
   const canAccessManagement = user?.role === "OWNER" || user?.role === "MANAGER";
+  const currency = settings.currency;
   const [summary, setSummary] = useState<StockSummaryItem[]>([]);
   const [alerts, setAlerts] = useState<AlertsResponse>(EMPTY_ALERTS);
   const [wastageToday, setWastageToday] = useState(0);
@@ -182,7 +185,11 @@ export function DashboardPage() {
     .filter((item) => item.totalQuantity <= item.minStockLevel || lowStockIds.has(item.itemId))
     .map((item) => ({
       ...item,
-      suggestedQuantity: getSuggestedReorderQuantity(item.totalQuantity, item.minStockLevel),
+      suggestedQuantity: getSuggestedReorderQuantity(
+        item.totalQuantity,
+        item.minStockLevel,
+        settings.lowStockMultiplier,
+      ),
     }));
   const usageInsights = getUsageInsights(usageMovements);
   const topUsageInsights = usageInsights.slice(0, 5);
@@ -205,7 +212,7 @@ export function DashboardPage() {
           </div>
           <div className="stat-body">
             <span className="stat-label">Total Inventory Value</span>
-            <span className="stat-value">{formatCurrency(totalValue)}</span>
+            <span className="stat-value">{formatCurrency(totalValue, currency)}</span>
           </div>
         </div>
 
@@ -258,9 +265,9 @@ export function DashboardPage() {
           </div>
           <div className="stat-body">
             <span className="stat-label">Wastage Value</span>
-            <span className="stat-value">{formatCurrency(wastageWeek)}</span>
+            <span className="stat-value">{formatCurrency(wastageWeek, currency)}</span>
             <span className="stat-sublabel">
-              Today {formatCurrency(wastageToday)} · This week {formatCurrency(wastageWeek)}
+              Today {formatCurrency(wastageToday, currency)} · This week {formatCurrency(wastageWeek, currency)}
             </span>
             <WastageTrend trend={trend} thisWeek={wastageWeek} lastWeek={wastageLastWeek} />
           </div>
@@ -284,7 +291,7 @@ export function DashboardPage() {
                 <span className="wastage-top-rank">#{i + 1}</span>
                 <span className="wastage-top-name">{item.name}</span>
                 <span className="wastage-top-qty">{formatNumber(item.qty)} units wasted</span>
-                <span className="wastage-top-value">{formatCurrency(item.value)}</span>
+                <span className="wastage-top-value">{formatCurrency(item.value, currency)}</span>
               </div>
             ))}
           </div>
@@ -378,7 +385,7 @@ export function DashboardPage() {
                       <td className="td-name">{item.itemName}</td>
                       <td className="text-right td-num">{formatNumber(item.totalQuantity)}</td>
                       <td className="td-unit">{unit}</td>
-                      <td className="text-right td-num">{formatCurrency(item.estimatedValue)}</td>
+                      <td className="text-right td-num">{formatCurrency(item.estimatedValue, currency)}</td>
                       <td className="text-right td-num">
                         {formatNumber(item.averageDailyUsage)}
                       </td>
@@ -440,7 +447,7 @@ export function DashboardPage() {
         <div className="section">
           <div className="section-header">
             <h2 className="section-title">
-              <span className="badge badge--red">Expiring within 7 days</span>
+              <span className="badge badge--red">Expiring within {settings.expiryAlertDays} days</span>
             </h2>
           </div>
           <div className="expiry-list">
@@ -504,7 +511,7 @@ export function DashboardPage() {
                         <span className="badge badge--green">OK</span>
                       )}
                     </td>
-                    <td className="text-right td-num">{formatCurrency(item.totalValue)}</td>
+                    <td className="text-right td-num">{formatCurrency(item.totalValue, currency)}</td>
                     <td className="td-expiry">{formatDate(item.nearestExpiryDate)}</td>
                   </tr>
                 ))}

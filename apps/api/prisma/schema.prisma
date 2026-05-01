@@ -33,6 +33,9 @@ model User {
 model Workspace {
   id             String          @id @default(uuid()) @db.Uuid
   name           String
+  currency       String          @default("PKR")
+  lowStockMultiplier Float       @default(2)
+  expiryAlertDays Int            @default(7)
   ownerId        String          @db.Uuid
   createdAt      DateTime        @default(now())
   owner          User            @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)

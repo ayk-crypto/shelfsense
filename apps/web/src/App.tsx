@@ -1,6 +1,7 @@
 import { Navigate, Route, BrowserRouter as Router, Routes } from "react-router-dom";
 import { AppShell } from "./components/AppShell";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { WorkspaceSettingsProvider } from "./context/WorkspaceSettingsContext";
 import { AlertsPage } from "./pages/AlertsPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ItemsPage } from "./pages/ItemsPage";
@@ -8,7 +9,9 @@ import { LoginPage } from "./pages/LoginPage";
 import { MovementsPage } from "./pages/MovementsPage";
 import { PurchasesPage } from "./pages/PurchasesPage";
 import { ReportsPage } from "./pages/ReportsPage";
+import { SettingsPage } from "./pages/SettingsPage";
 import { SuppliersPage } from "./pages/SuppliersPage";
+import { TeamPage } from "./pages/TeamPage";
 import type { Role } from "./types";
 import "./App.css";
 
@@ -64,7 +67,9 @@ export function App() {
           <Route
             element={
               <ProtectedRoute>
-                <AppShell />
+                <WorkspaceSettingsProvider>
+                  <AppShell />
+                </WorkspaceSettingsProvider>
               </ProtectedRoute>
             }
           >
@@ -86,6 +91,14 @@ export function App() {
             <Route
               path="/alerts"
               element={<RoleRoute allowedRoles={["OWNER", "MANAGER"]}><AlertsPage /></RoleRoute>}
+            />
+            <Route
+              path="/team"
+              element={<RoleRoute allowedRoles={["OWNER"]}><TeamPage /></RoleRoute>}
+            />
+            <Route
+              path="/settings"
+              element={<RoleRoute allowedRoles={["OWNER"]}><SettingsPage /></RoleRoute>}
             />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

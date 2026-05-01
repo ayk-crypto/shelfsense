@@ -9,6 +9,7 @@ import { itemsRouter } from "./routes/items.js";
 import { purchasesRouter } from "./routes/purchases.js";
 import { stockRouter } from "./routes/stock.js";
 import { suppliersRouter } from "./routes/suppliers.js";
+import { teamRouter } from "./routes/team.js";
 import { workspaceRouter } from "./routes/workspace.js";
 
 const app = express();
@@ -28,6 +29,7 @@ app.use("/stock", stockRouter);
 app.use("/alerts", alertsRouter);
 app.use("/suppliers", suppliersRouter);
 app.use("/purchases", purchasesRouter);
+app.use("/team", teamRouter);
 app.use(errorHandler);
 
 app.listen(env.port, () => {

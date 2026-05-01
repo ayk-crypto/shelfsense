@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { getItems } from "../api/items";
 import { getStockMovements } from "../api/stock";
+import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
 import type { Item, StockMovement, StockMovementFilters, StockMovementType } from "../types";
 import { formatCurrency } from "../utils/currency";
 
@@ -31,6 +32,7 @@ function wastageTotal(movements: StockMovement[]) {
 }
 
 export function MovementsPage() {
+  const { settings } = useWorkspaceSettings();
   const [items, setItems] = useState<Item[]>([]);
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [filters, setFilters] = useState<StockMovementFilters>({});
@@ -196,7 +198,7 @@ export function MovementsPage() {
               </span>
               <span className="wastage-summary-sep">·</span>
               <span>
-                Est. value lost <strong>{formatCurrency(wValue)}</strong>
+                Est. value lost <strong>{formatCurrency(wValue, settings.currency)}</strong>
               </span>
               {wTopItem && (
                 <>

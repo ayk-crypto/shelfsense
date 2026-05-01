@@ -14,6 +14,48 @@ export interface LoginResponse {
   token: string;
 }
 
+export interface TeamMember {
+  userId: string;
+  name: string;
+  email: string;
+  role: Role;
+  createdAt: string;
+}
+
+export interface TeamResponse {
+  members: TeamMember[];
+}
+
+export interface CreateTeamUserInput {
+  name: string;
+  email: string;
+  password: string;
+  role: "MANAGER" | "OPERATOR";
+}
+
+export interface CreateTeamUserResponse {
+  user: TeamMember;
+}
+
+export interface WorkspaceSettings {
+  id: string;
+  name: string;
+  currency: string;
+  lowStockMultiplier: number;
+  expiryAlertDays: number;
+}
+
+export interface WorkspaceSettingsResponse {
+  settings: WorkspaceSettings;
+}
+
+export interface UpdateWorkspaceSettingsInput {
+  name?: string;
+  currency?: string;
+  lowStockMultiplier?: number;
+  expiryAlertDays?: number;
+}
+
 export interface StockSummaryItem {
   itemId: string;
   itemName: string;

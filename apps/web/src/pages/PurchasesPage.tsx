@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { getItems } from "../api/items";
 import { createPurchase, getPurchases } from "../api/purchases";
 import { getSuppliers } from "../api/suppliers";
+import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
 import type { CreatePurchaseInput, Item, Purchase, Supplier } from "../types";
+import { formatCurrency } from "../utils/currency";
 
 interface Toast {
   id: number;
@@ -12,8 +14,8 @@ interface Toast {
 
 let toastSeq = 0;
 
-function fmt(n: number) {
-  return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function fmt(n: number, currency: string) {
+  return formatCurrency(n, currency);
 }
 
 function fmtDate(dateStr: string) {
@@ -32,6 +34,8 @@ function todayISO() {
    Main page
 ───────────────────────────────────────────── */
 export function PurchasesPage() {
+  const { settings } = useWorkspaceSettings();
+  const currency = settings.currency;
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -190,7 +194,7 @@ export function PurchasesPage() {
                   >
                     <td className="td-expiry">{fmtDate(p.date)}</td>
                     <td className="td-name">{p.supplier.name}</td>
-                    <td className="td-amount">{fmt(p.totalAmount)}</td>
+                    <td className="td-amount">{fmt(p.totalAmount, currency)}</td>
                     <td className="td-count">{p.purchaseItems.length}</td>
                   </tr>
                 ))}
@@ -214,7 +218,7 @@ export function PurchasesPage() {
                   <span className="purchase-card-date">{fmtDate(p.date)}</span>
                 </div>
                 <div className="purchase-card-meta">
-                  <span className="purchase-card-amount">{fmt(p.totalAmount)}</span>
+                  <span className="purchase-card-amount">{fmt(p.totalAmount, currency)}</span>
                   <span className="purchase-card-lines">
                     {p.purchaseItems.length} {p.purchaseItems.length === 1 ? "line" : "lines"}
                   </span>
@@ -228,12 +232,13 @@ export function PurchasesPage() {
       {/* ── Modals ── */}
       {addOpen && (
         <NewPurchaseModal
+          currency={currency}
           onClose={() => setAddOpen(false)}
           onSuccess={(totalAmount, supplierName) => {
             setAddOpen(false);
             void load();
             showToast(
-              `Purchase of ${fmt(totalAmount)} from "${supplierName}" recorded`,
+              `Purchase of ${fmt(totalAmount, currency)} from "${supplierName}" recorded`,
               "success",
             );
           }}
@@ -244,6 +249,7 @@ export function PurchasesPage() {
       {detailPurchase && (
         <PurchaseDetailModal
           purchase={detailPurchase}
+          currency={currency}
           onClose={() => setDetailPurchase(null)}
         />
       )}
@@ -276,9 +282,11 @@ export function PurchasesPage() {
 ───────────────────────────────────────────── */
 function PurchaseDetailModal({
   purchase,
+  currency,
   onClose,
 }: {
   purchase: Purchase;
+  currency: string;
   onClose: () => void;
 }) {
   useEffect(() => {
@@ -316,7 +324,7 @@ function PurchaseDetailModal({
             <div className="purchase-detail-meta">
               <span className="purchase-detail-meta-label">Total Amount</span>
               <span className="purchase-detail-meta-value purchase-detail-meta-value--amount">
-                {fmt(purchase.totalAmount)}
+                {fmt(purchase.totalAmount, currency)}
               </span>
             </div>
           </div>
@@ -344,8 +352,8 @@ function PurchaseDetailModal({
                         )}
                       </td>
                       <td className="td-amount">{li.quantity}</td>
-                      <td className="td-amount">{fmt(li.unitCost)}</td>
-                      <td className="td-amount">{fmt(li.total)}</td>
+                      <td className="td-amount">{fmt(li.unitCost, currency)}</td>
+                      <td className="td-amount">{fmt(li.total, currency)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -379,10 +387,12 @@ function newLine(): PurchaseLine {
 }
 
 function NewPurchaseModal({
+  currency,
   onClose,
   onSuccess,
   onError,
 }: {
+  currency: string;
   onClose: () => void;
   onSuccess: (totalAmount: number, supplierName: string) => void;
   onError: (msg: string) => void;
@@ -606,7 +616,7 @@ function NewPurchaseModal({
                         />
                       </div>
                       <div className="purchase-line-total">
-                        {t !== null ? fmt(t) : <span className="text-muted">—</span>}
+                        {t !== null ? fmt(t, currency) : <span className="text-muted">—</span>}
                       </div>
                       <button
                         type="button"
@@ -627,7 +637,7 @@ function NewPurchaseModal({
 
                 <div className="purchase-grand-total">
                   <span className="purchase-grand-total-label">Grand Total</span>
-                  <span className="purchase-grand-total-value">{fmt(grandTotal)}</span>
+                  <span className="purchase-grand-total-value">{fmt(grandTotal, currency)}</span>
                 </div>
               </div>
             </form>

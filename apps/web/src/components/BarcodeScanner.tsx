@@ -9,6 +9,7 @@ type Phase = "scanning" | "found" | "notFound" | "error";
 interface Props {
   items: Item[];
   summaryMap: Map<string, StockSummaryItem>;
+  currency: string;
   canManageStock: boolean;
   onClose: () => void;
   onCreateNew: (barcode: string) => void;
@@ -20,7 +21,14 @@ function formatQty(n: number) {
   return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(n);
 }
 
-export function BarcodeScanner({ items, summaryMap, canManageStock, onClose, onCreateNew }: Props) {
+export function BarcodeScanner({
+  items,
+  summaryMap,
+  currency,
+  canManageStock,
+  onClose,
+  onCreateNew,
+}: Props) {
   const [phase, setPhase] = useState<Phase>("scanning");
   const [foundItem, setFoundItem] = useState<Item | null>(null);
   const [scannedCode, setScannedCode] = useState("");
@@ -235,7 +243,7 @@ export function BarcodeScanner({ items, summaryMap, canManageStock, onClose, onC
               {summary && (
                 <p className="scanner-found-stock">
                   {formatQty(summary.totalQuantity)} {foundItem.unit} in stock
-                  {summary.totalValue > 0 && ` · ${formatCurrency(summary.totalValue)}`}
+                  {summary.totalValue > 0 && ` · ${formatCurrency(summary.totalValue, currency)}`}
                 </p>
               )}
               <p className="scanner-found-code">{scannedCode}</p>
