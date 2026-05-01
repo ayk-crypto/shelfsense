@@ -2,13 +2,16 @@ import { useEffect, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { getAlerts } from "../api/alerts";
 import { useAuth } from "../context/AuthContext";
+import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
 
 export function AppShell() {
   const { user, logout } = useAuth();
+  const { settings, loading: workspaceLoading } = useWorkspaceSettings();
   const navigate = useNavigate();
   const [alertCount, setAlertCount] = useState(0);
   const canAccessManagement = user?.role === "OWNER" || user?.role === "MANAGER";
   const canManageTeam = user?.role === "OWNER";
+  const workspaceName = settings.name.trim() || "ShelfSense";
 
   useEffect(() => {
     async function loadAlertCount() {
@@ -41,7 +44,12 @@ export function AppShell() {
         <div className="sidebar-header">
           <div className="sidebar-logo">
             <span className="logo-icon">📦</span>
-            <span className="logo-text">ShelfSense</span>
+            <span className="logo-text">
+              <span className={`logo-name ${workspaceLoading ? "logo-name--loading" : ""}`}>
+                {workspaceName}
+              </span>
+              <span className="logo-powered">Powered by ShelfSense</span>
+            </span>
           </div>
         </div>
 
@@ -155,7 +163,14 @@ export function AppShell() {
 
       <div className="shell-body">
         <header className="topbar">
-          <div className="topbar-title">ShelfSense</div>
+          <div className="topbar-title">
+            <span className="topbar-brand-text">
+              <span className={`topbar-brand-name ${workspaceLoading ? "topbar-brand-name--loading" : ""}`}>
+                {workspaceName}
+              </span>
+              <span className="topbar-brand-powered">Powered by ShelfSense</span>
+            </span>
+          </div>
           <div className="topbar-user">
             <div className="user-avatar user-avatar--sm">{user?.name?.[0]?.toUpperCase() ?? "U"}</div>
           </div>

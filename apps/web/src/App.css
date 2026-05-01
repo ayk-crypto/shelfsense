@@ -98,10 +98,34 @@ body {
 }
 
 .logo-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.logo-name,
+.topbar-brand-name {
   font-size: 16px;
-  font-weight: 700;
+  font-weight: 750;
   color: var(--color-text);
-  letter-spacing: -0.3px;
+  letter-spacing: -0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.logo-powered,
+.topbar-brand-powered {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  letter-spacing: 0;
+}
+
+.logo-name--loading,
+.topbar-brand-name--loading {
+  color: var(--color-text);
 }
 
 .sidebar-nav {
@@ -273,17 +297,30 @@ body {
 }
 
 .topbar-title {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--color-text);
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
 .topbar-title::before {
   content: "📦";
   font-size: 18px;
+}
+
+.topbar-title::before {
+  flex-shrink: 0;
+}
+
+.topbar-brand-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.15;
+}
+
+.topbar-brand-name {
+  max-width: 58vw;
 }
 
 /* Page content */

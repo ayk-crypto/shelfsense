@@ -74,6 +74,7 @@ export function DashboardPage() {
   const { settings } = useWorkspaceSettings();
   const canAccessManagement = user?.role === "OWNER" || user?.role === "MANAGER";
   const currency = settings.currency;
+  const workspaceName = settings.name.trim() || "ShelfSense";
   const [summary, setSummary] = useState<StockSummaryItem[]>([]);
   const [alerts, setAlerts] = useState<AlertsResponse>(EMPTY_ALERTS);
   const [wastageToday, setWastageToday] = useState(0);
@@ -199,7 +200,7 @@ export function DashboardPage() {
     <div className="dashboard">
       <div className="page-header">
         <h1 className="page-title">Dashboard</h1>
-        <p className="page-subtitle">Your inventory at a glance</p>
+        <p className="page-subtitle">{workspaceName} inventory at a glance</p>
       </div>
 
       <div className="stat-grid">
