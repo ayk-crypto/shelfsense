@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getPurchases } from "../api/purchases";
 import { getStockMovements, getStockSummary } from "../api/stock";
+import { useLocation } from "../context/LocationContext";
 import type { Purchase, StockMovement, StockSummaryItem } from "../types";
 
 interface ReportsData {
@@ -16,6 +17,7 @@ const EMPTY_REPORTS: ReportsData = {
 };
 
 export function ReportsPage() {
+  const { activeLocationId } = useLocation();
   const [data, setData] = useState<ReportsData>(EMPTY_REPORTS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +45,7 @@ export function ReportsPage() {
     }
 
     void loadReports();
-  }, []);
+  }, [activeLocationId]);
 
   if (loading) {
     return (

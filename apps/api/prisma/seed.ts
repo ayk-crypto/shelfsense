@@ -191,6 +191,13 @@ async function main() {
       },
     });
 
+    const location = await tx.location.create({
+      data: {
+        name: "Main Branch",
+        workspaceId: workspace.id,
+      },
+    });
+
     for (const demoItem of demoItems) {
       const item = await tx.item.create({
         data: {
@@ -208,6 +215,7 @@ async function main() {
           data: {
             itemId: item.id,
             workspaceId: workspace.id,
+            locationId: location.id,
             quantity: demoBatch.quantity,
             remainingQuantity: demoBatch.remainingQuantity,
             unitCost: demoBatch.unitCost,
@@ -222,6 +230,7 @@ async function main() {
         await tx.stockMovement.create({
           data: {
             workspaceId: workspace.id,
+            locationId: location.id,
             itemId: item.id,
             batchId: batch.id,
             type: StockMovementType.STOCK_IN,

@@ -3,6 +3,8 @@ import { Router, type Request } from "express";
 import { prisma } from "../db/prisma.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async-handler.js";
+import { logAction } from "../utils/audit-log.js";
+import { getActiveLocationId } from "../utils/locations.js";
 
 export const stockRouter = Router();
 
@@ -14,6 +16,7 @@ stockRouter.post("/in", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(as
   if (!workspaceId) {
     return res.status(403).json({ error: "Workspace access required" });
   }
+  const locationId = await getActiveLocationId(req, workspaceId);
 
   const input = parseStockInInput(req.body);
 
@@ -36,7 +39,7 @@ stockRouter.post("/in", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(as
 
   const item = await prisma.item.findFirst({
     where: { id: itemId, workspaceId },
-    select: { id: true },
+    select: { id: true, name: true, unit: true },
   });
 
   if (!item) {
@@ -49,6 +52,7 @@ stockRouter.post("/in", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(as
           where: {
             itemId,
             workspaceId,
+            locationId,
             unitCost: { not: null },
           },
           orderBy: { createdAt: "desc" },
@@ -62,6 +66,7 @@ stockRouter.post("/in", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(as
       data: {
         itemId,
         workspaceId,
+        locationId,
         quantity,
         remainingQuantity: quantity,
         unitCost: effectiveUnitCost,
@@ -74,6 +79,7 @@ stockRouter.post("/in", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(as
     const movement = await tx.stockMovement.create({
       data: {
         workspaceId,
+        locationId,
         itemId,
         batchId: batch.id,
         type: StockMovementType.STOCK_IN,
@@ -86,6 +92,21 @@ stockRouter.post("/in", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(as
     return { batch, movement };
   });
 
+  await logAction({
+    userId: req.user!.userId,
+    workspaceId,
+    action: "STOCK_IN",
+    entity: "Stock",
+    entityId: itemId,
+    meta: {
+      itemName: item.name,
+      unit: item.unit,
+      quantity,
+      locationId,
+      note: input.note,
+    },
+  });
+
   return res.status(201).json(result);
 }));
 
@@ -95,6 +116,7 @@ stockRouter.post("/out", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]),
   if (!workspaceId) {
     return res.status(403).json({ error: "Workspace access required" });
   }
+  const locationId = await getActiveLocationId(req, workspaceId);
 
   const input = parseStockOutInput(req.body);
 
@@ -111,7 +133,7 @@ stockRouter.post("/out", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]),
 
   const item = await prisma.item.findFirst({
     where: { id: itemId, workspaceId },
-    select: { id: true, name: true },
+    select: { id: true, name: true, unit: true },
   });
 
   if (!item) {
@@ -124,6 +146,7 @@ stockRouter.post("/out", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]),
         where: {
           itemId,
           workspaceId,
+          locationId,
           remainingQuantity: { gt: 0 },
         },
         select: {
@@ -157,7 +180,7 @@ stockRouter.post("/out", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]),
         quantityToDeduct -= deductedQuantity;
 
         await tx.stockBatch.updateMany({
-          where: { id: batch.id, workspaceId },
+          where: { id: batch.id, workspaceId, locationId },
           data: {
             remainingQuantity: batch.remainingQuantity - deductedQuantity,
           },
@@ -166,6 +189,7 @@ stockRouter.post("/out", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]),
         const movement = await tx.stockMovement.create({
           data: {
             workspaceId,
+            locationId,
             itemId,
             batchId: batch.id,
             type: StockMovementType.STOCK_OUT,
@@ -180,6 +204,201 @@ stockRouter.post("/out", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]),
       }
 
       return { movements };
+    });
+
+    await logAction({
+      userId: req.user!.userId,
+      workspaceId,
+      action: "STOCK_OUT",
+      entity: "Stock",
+      entityId: itemId,
+      meta: {
+        itemName: item.name,
+        unit: item.unit,
+        quantity,
+        locationId,
+        reason: input.reason,
+        note: input.note,
+      },
+    });
+
+    return res.status(201).json(result);
+  } catch (error) {
+    if (error instanceof InsufficientStockError) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    throw error;
+  }
+}));
+
+stockRouter.post("/transfer", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
+  const workspaceId = getWorkspaceId(req);
+
+  if (!workspaceId) {
+    return res.status(403).json({ error: "Workspace access required" });
+  }
+
+  const input = parseStockTransferInput(req.body);
+
+  if (
+    !input.itemId ||
+    !input.fromLocationId ||
+    !input.toLocationId ||
+    input.quantity === undefined
+  ) {
+    return res.status(400).json({ error: "Item, locations, and quantity are required" });
+  }
+
+  if (input.fromLocationId === input.toLocationId) {
+    return res.status(400).json({ error: "Source and destination locations must be different" });
+  }
+
+  if (input.quantity <= 0) {
+    return res.status(400).json({ error: "Quantity must be greater than zero" });
+  }
+
+  const itemId = input.itemId;
+  const fromLocationId = input.fromLocationId;
+  const toLocationId = input.toLocationId;
+  const quantity = input.quantity;
+
+  const [item, locations] = await Promise.all([
+    prisma.item.findFirst({
+      where: { id: itemId, workspaceId },
+      select: { id: true, name: true, unit: true },
+    }),
+    prisma.location.findMany({
+      where: {
+        workspaceId,
+        id: { in: [fromLocationId, toLocationId] },
+      },
+      select: { id: true, name: true },
+    }),
+  ]);
+
+  if (!item) {
+    return res.status(404).json({ error: "Item not found" });
+  }
+
+  if (locations.length !== 2) {
+    return res.status(400).json({ error: "Both locations must belong to this workspace" });
+  }
+
+  const toLocation = locations.find((location) => location.id === toLocationId)!;
+  const fromLocation = locations.find((location) => location.id === fromLocationId)!;
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const batches = await tx.stockBatch.findMany({
+        where: {
+          itemId,
+          workspaceId,
+          locationId: fromLocationId,
+          remainingQuantity: { gt: 0 },
+        },
+        select: {
+          id: true,
+          remainingQuantity: true,
+          unitCost: true,
+          expiryDate: true,
+          batchNo: true,
+          supplierName: true,
+          createdAt: true,
+        },
+      });
+
+      const availableQuantity = batches.reduce(
+        (total, batch) => total + batch.remainingQuantity,
+        0,
+      );
+
+      if (availableQuantity < quantity) {
+        throw new InsufficientStockError(item.name, quantity, availableQuantity);
+      }
+
+      const sortedBatches = batches.sort(compareFifoBatches);
+      let quantityToTransfer = quantity;
+      const movements = [];
+
+      for (const batch of sortedBatches) {
+        if (quantityToTransfer <= 0) {
+          break;
+        }
+
+        const transferredQuantity = Math.min(batch.remainingQuantity, quantityToTransfer);
+        quantityToTransfer -= transferredQuantity;
+
+        await tx.stockBatch.updateMany({
+          where: { id: batch.id, workspaceId, locationId: fromLocationId },
+          data: {
+            remainingQuantity: batch.remainingQuantity - transferredQuantity,
+          },
+        });
+
+        const transferOut = await tx.stockMovement.create({
+          data: {
+            workspaceId,
+            locationId: fromLocationId,
+            itemId,
+            batchId: batch.id,
+            type: StockMovementType.TRANSFER_OUT,
+            quantity: transferredQuantity,
+            unitCost: batch.unitCost,
+            reason: "transfer",
+            note: `Transferred to ${toLocation.name}`,
+          },
+        });
+
+        const destinationBatch = await tx.stockBatch.create({
+          data: {
+            itemId,
+            workspaceId,
+            locationId: toLocationId,
+            quantity: transferredQuantity,
+            remainingQuantity: transferredQuantity,
+            unitCost: batch.unitCost,
+            expiryDate: batch.expiryDate,
+            batchNo: batch.batchNo,
+            supplierName: batch.supplierName,
+          },
+        });
+
+        const transferIn = await tx.stockMovement.create({
+          data: {
+            workspaceId,
+            locationId: toLocationId,
+            itemId,
+            batchId: destinationBatch.id,
+            type: StockMovementType.TRANSFER_IN,
+            quantity: transferredQuantity,
+            unitCost: batch.unitCost,
+            reason: "transfer",
+            note: "Transferred from another location",
+          },
+        });
+
+        movements.push(transferOut, transferIn);
+      }
+
+      return { movements };
+    });
+
+    await logAction({
+      userId: req.user!.userId,
+      workspaceId,
+      action: "TRANSFER",
+      entity: "Stock",
+      entityId: itemId,
+      meta: {
+        itemName: item.name,
+        unit: item.unit,
+        quantity,
+        fromLocationId,
+        fromLocationName: fromLocation.name,
+        toLocationId,
+        toLocationName: toLocation.name,
+      },
     });
 
     return res.status(201).json(result);
@@ -198,6 +417,7 @@ stockRouter.get("/summary", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR
   if (!workspaceId) {
     return res.status(403).json({ error: "Workspace access required" });
   }
+  const locationId = await getActiveLocationId(req, workspaceId);
 
   const items = await prisma.item.findMany({
     where: { workspaceId },
@@ -210,6 +430,7 @@ stockRouter.get("/summary", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR
       stockBatches: {
         where: {
           workspaceId,
+          locationId,
           remainingQuantity: { gt: 0 },
         },
         select: {
@@ -256,6 +477,7 @@ stockRouter.get("/movements", requireRole([Role.OWNER, Role.MANAGER]), asyncHand
   if (!workspaceId) {
     return res.status(403).json({ error: "Workspace access required" });
   }
+  const locationId = await getActiveLocationId(req, workspaceId);
 
   const filters = parseMovementFilters(req.query);
 
@@ -281,6 +503,7 @@ stockRouter.get("/movements", requireRole([Role.OWNER, Role.MANAGER]), asyncHand
   const movements = await prisma.stockMovement.findMany({
     where: {
       workspaceId,
+      locationId,
       itemId: filters.itemId,
       type: filters.type,
       createdAt: {
@@ -315,9 +538,10 @@ stockRouter.get("/batches", requireRole([Role.OWNER, Role.MANAGER]), asyncHandle
   if (!workspaceId) {
     return res.status(403).json({ error: "Workspace access required" });
   }
+  const locationId = await getActiveLocationId(req, workspaceId);
 
   const batches = await prisma.stockBatch.findMany({
-    where: { workspaceId },
+    where: { workspaceId, locationId },
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
@@ -346,6 +570,7 @@ stockRouter.get("/expiring-soon", requireRole([Role.OWNER, Role.MANAGER]), async
   if (!workspaceId) {
     return res.status(403).json({ error: "Workspace access required" });
   }
+  const locationId = await getActiveLocationId(req, workspaceId);
 
   const now = new Date();
   const workspace = await prisma.workspace.findUnique({
@@ -358,6 +583,7 @@ stockRouter.get("/expiring-soon", requireRole([Role.OWNER, Role.MANAGER]), async
   const batches = await prisma.stockBatch.findMany({
     where: {
       workspaceId,
+      locationId,
       remainingQuantity: { gt: 0 },
       expiryDate: {
         gte: now,
@@ -428,6 +654,22 @@ function parseStockOutInput(body: unknown) {
     quantity: parseOptionalNumber(input.quantity),
     reason: parseNullableString(input.reason),
     note: parseNullableString(input.note),
+  };
+}
+
+function parseStockTransferInput(body: unknown) {
+  const input = body as {
+    itemId?: unknown;
+    fromLocationId?: unknown;
+    toLocationId?: unknown;
+    quantity?: unknown;
+  };
+
+  return {
+    itemId: parseOptionalString(input.itemId),
+    fromLocationId: parseOptionalString(input.fromLocationId),
+    toLocationId: parseOptionalString(input.toLocationId),
+    quantity: parseOptionalNumber(input.quantity),
   };
 }
 

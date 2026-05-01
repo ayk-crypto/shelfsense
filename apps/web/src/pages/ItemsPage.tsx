@@ -1,10 +1,11 @@
 import JsBarcode from "jsbarcode";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { createItem, getItems } from "../api/items";
-import { getStockMovements, getStockSummary, stockIn, stockOut } from "../api/stock";
+import { getStockMovements, getStockSummary, stockIn, stockOut, stockTransfer } from "../api/stock";
 import { useAuth } from "../context/AuthContext";
+import { useLocation } from "../context/LocationContext";
 import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
-import type { CreateItemInput, Item, StockMovement, StockSummaryItem } from "../types";
+import type { CreateItemInput, Item, Location, StockMovement, StockSummaryItem } from "../types";
 import { formatCurrency } from "../utils/currency";
 import { getSuggestedReorderQuantity } from "../utils/reorder";
 import {
@@ -54,6 +55,7 @@ function getStatus(
 
 export function ItemsPage() {
   const { user } = useAuth();
+  const { activeLocationId, locations } = useLocation();
   const { settings } = useWorkspaceSettings();
   const canManageStock = user?.role === "OWNER" || user?.role === "MANAGER";
   const currency = settings.currency;
@@ -70,6 +72,7 @@ export function ItemsPage() {
   const [stockInItem, setStockInItem] = useState<Item | null>(null);
   const [stockOutItem, setStockOutItem] = useState<Item | null>(null);
   const [adjustItem, setAdjustItem] = useState<Item | null>(null);
+  const [transferItem, setTransferItem] = useState<Item | null>(null);
   const [barcodeItem, setBarcodeItem] = useState<Item | null>(null);
   const [busy, setBusy] = useState<Set<string>>(new Set());
   const hasBarcodes = useMemo(() => items.some((item) => item.barcode), [items]);
@@ -147,7 +150,7 @@ export function ItemsPage() {
     }
   }
 
-  useEffect(() => { void loadAll(); }, [canManageStock]);
+  useEffect(() => { void loadAll(); }, [canManageStock, activeLocationId]);
 
   if (loading) {
     return (
@@ -305,6 +308,14 @@ export function ItemsPage() {
                             Adjust
                           </button>
                         )}
+                        {canManageStock && locations.length > 1 && (
+                          <button
+                            className="btn btn--sm btn--ghost"
+                            onClick={() => setTransferItem(item)}
+                          >
+                            Transfer
+                          </button>
+                        )}
                         <button
                           className="btn btn--sm btn--ghost"
                           onClick={() => setBarcodeItem(item)}
@@ -423,6 +434,14 @@ export function ItemsPage() {
                         ≡ Set Quantity
                         </button>
                       )}
+                      {canManageStock && locations.length > 1 && (
+                        <button
+                          className="btn btn--sm btn--ghost item-card-btn"
+                          onClick={() => setTransferItem(item)}
+                        >
+                          Transfer
+                        </button>
+                      )}
                       <button
                         className="btn btn--sm btn--ghost item-card-btn"
                         onClick={() => setBarcodeItem(item)}
@@ -512,6 +531,22 @@ export function ItemsPage() {
             showToast(`Stock adjusted from ${fromQty} to ${toQty}`, "success");
             void refreshSummary();
             if (toQty < fromQty) void refreshUsageInsights();
+          }}
+          onError={(msg) => showToast(msg, "error")}
+        />
+      )}
+
+      {transferItem && (
+        <TransferStockModal
+          item={transferItem}
+          locations={locations}
+          activeLocationId={activeLocationId}
+          currentQty={summaryMap.get(transferItem.id)?.totalQuantity ?? 0}
+          onClose={() => setTransferItem(null)}
+          onSuccess={(quantity, toLocationName) => {
+            setTransferItem(null);
+            showToast(`Transferred ${formatNumber(quantity)} ${transferItem.unit} to ${toLocationName}`, "success");
+            void refreshSummary();
           }}
           onError={(msg) => showToast(msg, "error")}
         />
@@ -1144,6 +1179,144 @@ function AdjustStockModal({
           >
             {saving ? <span className="btn-spinner" /> : null}
             {saving ? "Saving…" : btnLabel}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function TransferStockModal({
+  item,
+  locations,
+  activeLocationId,
+  currentQty,
+  onClose,
+  onSuccess,
+  onError,
+}: {
+  item: Item;
+  locations: Location[];
+  activeLocationId: string;
+  currentQty: number;
+  onClose: () => void;
+  onSuccess: (quantity: number, toLocationName: string) => void;
+  onError: (msg: string) => void;
+}) {
+  const [fromLocationId, setFromLocationId] = useState(activeLocationId);
+  const [toLocationId, setToLocationId] = useState(
+    locations.find((location) => location.id !== activeLocationId)?.id ?? "",
+  );
+  const [qty, setQty] = useState("");
+  const [saving, setSaving] = useState(false);
+  const firstRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { firstRef.current?.focus(); }, []);
+
+  const quantity = parseFloat(qty);
+  const canSubmit =
+    !saving &&
+    fromLocationId !== "" &&
+    toLocationId !== "" &&
+    fromLocationId !== toLocationId &&
+    Number.isFinite(quantity) &&
+    quantity > 0;
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!canSubmit) return;
+
+    const toLocationName =
+      locations.find((location) => location.id === toLocationId)?.name ?? "branch";
+
+    setSaving(true);
+    try {
+      await stockTransfer({
+        itemId: item.id,
+        fromLocationId,
+        toLocationId,
+        quantity,
+      });
+      onSuccess(quantity, toLocationName);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Transfer failed");
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal title={`Transfer Stock — ${item.name}`} onClose={onClose}>
+      <form onSubmit={(e) => { void handleSubmit(e); }}>
+        <div className="adjust-current-stock">
+          <span className="adjust-current-label">Current branch stock</span>
+          <span className="adjust-current-value">
+            {formatNumber(currentQty)} <span className="adjust-current-unit">{item.unit}</span>
+          </span>
+        </div>
+
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">From location</label>
+            <select
+              className="form-select"
+              value={fromLocationId}
+              onChange={(e) => {
+                const nextFrom = e.target.value;
+                setFromLocationId(nextFrom);
+                if (nextFrom === toLocationId) {
+                  setToLocationId(locations.find((location) => location.id !== nextFrom)?.id ?? "");
+                }
+              }}
+            >
+              {locations.map((location) => (
+                <option key={location.id} value={location.id}>
+                  {location.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">To location</label>
+            <select
+              className="form-select"
+              value={toLocationId}
+              onChange={(e) => setToLocationId(e.target.value)}
+            >
+              <option value="">Select branch</option>
+              {locations
+                .filter((location) => location.id !== fromLocationId)
+                .map((location) => (
+                  <option key={location.id} value={location.id}>
+                    {location.name}
+                  </option>
+                ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">Quantity * ({item.unit})</label>
+          <input
+            ref={firstRef}
+            className="form-input"
+            type="number"
+            min={0.01}
+            step="any"
+            value={qty}
+            onChange={(e) => setQty(e.target.value)}
+            placeholder="0"
+            required
+          />
+        </div>
+
+        <div className="modal-footer">
+          <button type="button" className="btn btn--ghost" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className="btn btn--primary" disabled={!canSubmit}>
+            {saving ? <span className="btn-spinner" /> : null}
+            {saving ? "Transferring..." : "Transfer Stock"}
           </button>
         </div>
       </form>

@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import { getAlerts } from "../api/alerts";
+import { getItems } from "../api/items";
+import { getPurchases } from "../api/purchases";
 import { getStockMovements, getStockSummary } from "../api/stock";
 import { useAuth } from "../context/AuthContext";
+import { useLocation } from "../context/LocationContext";
 import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
-import type { AlertsResponse, StockMovement, StockSummaryItem } from "../types";
+import type { AlertsResponse, Item, Purchase, StockMovement, StockSummaryItem } from "../types";
 import { formatCurrency } from "../utils/currency";
 import { getSuggestedReorderQuantity } from "../utils/reorder";
 import {
@@ -29,6 +32,10 @@ function daysUntil(dateStr: string) {
 
 function toYMD(d: Date) {
   return d.toISOString().slice(0, 10);
+}
+
+function startOfMonth(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), 1);
 }
 
 function sumWastageValue(movements: StockMovement[]) {
@@ -71,6 +78,7 @@ const EMPTY_ALERTS: AlertsResponse = {
 
 export function DashboardPage() {
   const { user } = useAuth();
+  const { activeLocationId } = useLocation();
   const { settings } = useWorkspaceSettings();
   const canAccessManagement = user?.role === "OWNER" || user?.role === "MANAGER";
   const currency = settings.currency;
@@ -82,6 +90,8 @@ export function DashboardPage() {
   const [wastageLastWeek, setWastageLastWeek] = useState(0);
   const [topItems, setTopItems] = useState<WastedItem[]>([]);
   const [usageMovements, setUsageMovements] = useState<StockMovement[]>([]);
+  const [items, setItems] = useState<Item[]>([]);
+  const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -97,6 +107,8 @@ export function DashboardPage() {
           setWastageLastWeek(0);
           setTopItems([]);
           setUsageMovements([]);
+          setItems([]);
+          setPurchases([]);
           return;
         }
 
@@ -123,6 +135,8 @@ export function DashboardPage() {
           wastageResWeek,
           wastageResLastWeek,
           usageRes,
+          itemsRes,
+          purchasesRes,
         ] =
           await Promise.all([
             getStockSummary(),
@@ -131,6 +145,8 @@ export function DashboardPage() {
             getStockMovements({ type: "WASTAGE", fromDate: thisWeekStartStr, toDate: todayStr }),
             getStockMovements({ type: "WASTAGE", fromDate: lastWeekStartStr, toDate: lastWeekEndStr }),
             getStockMovements({ type: "STOCK_OUT", ...usageRange }),
+            getItems(),
+            getPurchases(),
           ]);
 
         setSummary(summaryRes.summary);
@@ -140,6 +156,8 @@ export function DashboardPage() {
         setWastageLastWeek(sumWastageValue(wastageResLastWeek.movements));
         setTopItems(topWastedItems(wastageResWeek.movements, 3));
         setUsageMovements(usageRes.movements);
+        setItems(itemsRes.items);
+        setPurchases(purchasesRes.purchases);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load dashboard data");
       } finally {
@@ -147,7 +165,7 @@ export function DashboardPage() {
       }
     }
     void load();
-  }, [canAccessManagement]);
+  }, [canAccessManagement, activeLocationId]);
 
   if (loading) {
     return (
@@ -195,6 +213,14 @@ export function DashboardPage() {
   const usageInsights = getUsageInsights(usageMovements);
   const topUsageInsights = usageInsights.slice(0, 5);
   const stockForecast = getStockForecast(summary, usageInsights).slice(0, 5);
+  const itemById = new Map(items.map((item) => [item.id, item]));
+  const stockValueByCategory = getStockValueByCategory(summary, itemById);
+  const topValueItems = [...summary]
+    .filter((item) => item.totalValue > 0)
+    .sort((a, b) => b.totalValue - a.totalValue)
+    .slice(0, 5);
+  const purchaseSpend = getPurchaseSpend(purchases);
+  const averageUnitCosts = getAverageUnitCosts(purchases).slice(0, 5);
 
   return (
     <div className="dashboard">
@@ -203,6 +229,10 @@ export function DashboardPage() {
         <p className="page-subtitle">{workspaceName} inventory at a glance</p>
       </div>
 
+      <DashboardGroup
+        title="Overview"
+        helper="Current inventory health at a glance"
+      >
       <div className="stat-grid">
         <div className="stat-card">
           <div className="stat-icon stat-icon--blue">
@@ -299,6 +329,12 @@ export function DashboardPage() {
         </div>
       )}
 
+      </DashboardGroup>
+
+      <DashboardGroup
+        title="Action Required"
+        helper="Items that need attention"
+      >
       {canAccessManagement && (
         <div className={`alert-summary ${totalAlertCount > 0 ? "alert-summary--active" : ""}`}>
           <div>
@@ -355,6 +391,45 @@ export function DashboardPage() {
           </div>
         )}
       </div>
+
+      {canAccessManagement && expiringSoonCount > 0 && (
+        <div className="section">
+          <div className="section-header">
+            <h2 className="section-title">
+              <span className="badge badge--red">Expiring within {settings.expiryAlertDays} days</span>
+            </h2>
+          </div>
+          <div className="expiry-list">
+            {alerts.expiringSoon.map((batch) => {
+              const days = daysUntil(batch.expiryDate);
+              return (
+                <div key={batch.id} className="expiry-item">
+                  <div className="expiry-item-name">{batch.item.name}</div>
+                  <div className="expiry-item-meta">
+                    <span className="expiry-qty">{batch.remainingQuantity} remaining</span>
+                    {batch.batchNo && <span className="expiry-batch">Batch: {batch.batchNo}</span>}
+                  </div>
+                  <div className={`expiry-days ${days <= 2 ? "expiry-days--critical" : ""}`}>
+                    {days === 0
+                      ? "Expires today"
+                      : days === 1
+                        ? "1 day left"
+                        : `${days} days left`}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      </DashboardGroup>
+
+      {canAccessManagement && (
+      <DashboardGroup
+        title="Insights"
+        helper="Trends and cost patterns from your recent activity"
+      >
 
       {canAccessManagement && (
       <div className="section usage-section">
@@ -444,35 +519,87 @@ export function DashboardPage() {
       </div>
       )}
 
-      {canAccessManagement && expiringSoonCount > 0 && (
-        <div className="section">
+      {canAccessManagement && (
+        <div className="section cost-analysis-section">
           <div className="section-header">
-            <h2 className="section-title">
-              <span className="badge badge--red">Expiring within {settings.expiryAlertDays} days</span>
-            </h2>
+            <h2 className="section-title">Cost Analysis</h2>
           </div>
-          <div className="expiry-list">
-            {alerts.expiringSoon.map((batch) => {
-              const days = daysUntil(batch.expiryDate);
-              return (
-                <div key={batch.id} className="expiry-item">
-                  <div className="expiry-item-name">{batch.item.name}</div>
-                  <div className="expiry-item-meta">
-                    <span className="expiry-qty">{batch.remainingQuantity} remaining</span>
-                    {batch.batchNo && <span className="expiry-batch">Batch: {batch.batchNo}</span>}
-                  </div>
-                  <div className={`expiry-days ${days <= 2 ? "expiry-days--critical" : ""}`}>
-                    {days === 0
-                      ? "Expires today"
-                      : days === 1
-                        ? "1 day left"
-                        : `${days} days left`}
-                  </div>
+
+          <div className="cost-analysis-grid">
+            <div className="cost-panel">
+              <h3 className="cost-panel-title">Stock Value by Category</h3>
+              {stockValueByCategory.length === 0 ? (
+                <p className="cost-empty">No stock value to group yet.</p>
+              ) : (
+                <div className="cost-list">
+                  {stockValueByCategory.map((category) => (
+                    <div key={category.name} className="cost-row">
+                      <span>{category.name}</span>
+                      <strong>{formatCurrency(category.value, currency)}</strong>
+                    </div>
+                  ))}
                 </div>
-              );
-            })}
+              )}
+            </div>
+
+            <div className="cost-panel">
+              <h3 className="cost-panel-title">Top 5 Highest Value Items</h3>
+              {topValueItems.length === 0 ? (
+                <p className="cost-empty">No inventory value recorded yet.</p>
+              ) : (
+                <div className="cost-list">
+                  {topValueItems.map((item) => (
+                    <div key={item.itemId} className="cost-row cost-row--stack">
+                      <span>
+                        {item.itemName}
+                        <small>{formatNumber(item.totalQuantity)} {item.unit}</small>
+                      </span>
+                      <strong>{formatCurrency(item.totalValue, currency)}</strong>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="cost-panel">
+              <h3 className="cost-panel-title">Purchase Spend</h3>
+              <div className="cost-metric-list">
+                <div className="cost-metric">
+                  <span>Today</span>
+                  <strong>{formatCurrency(purchaseSpend.today, currency)}</strong>
+                </div>
+                <div className="cost-metric">
+                  <span>This week</span>
+                  <strong>{formatCurrency(purchaseSpend.week, currency)}</strong>
+                </div>
+                <div className="cost-metric">
+                  <span>This month</span>
+                  <strong>{formatCurrency(purchaseSpend.month, currency)}</strong>
+                </div>
+              </div>
+            </div>
+
+            {averageUnitCosts.length > 0 && (
+              <div className="cost-panel">
+                <h3 className="cost-panel-title">Average Unit Cost</h3>
+                <div className="cost-list">
+                  {averageUnitCosts.map((item) => (
+                    <div key={item.itemId} className="cost-row cost-row--stack">
+                      <span>
+                        {item.itemName}
+                        <small>{item.unit}</small>
+                      </span>
+                      <strong>{formatCurrency(item.averageUnitCost, currency)}</strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
+      )}
+
+      </DashboardGroup>
       )}
 
       <div className="section">
@@ -549,6 +676,104 @@ function WastageTrend({
       {icon} {label}
     </span>
   );
+}
+
+function DashboardGroup({
+  title,
+  helper,
+  children,
+}: {
+  title: string;
+  helper: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="dashboard-group">
+      <div className="dashboard-group-header">
+        <h2 className="dashboard-group-title">{title}</h2>
+        <p className="dashboard-group-helper">{helper}</p>
+      </div>
+      <div className="dashboard-group-body">
+        {children}
+      </div>
+    </section>
+  );
+}
+
+function getStockValueByCategory(
+  summary: StockSummaryItem[],
+  itemById: Map<string, Item>,
+) {
+  const map = new Map<string, number>();
+
+  for (const item of summary) {
+    if (item.totalValue <= 0) continue;
+    const category = itemById.get(item.itemId)?.category?.trim() || "Uncategorized";
+    map.set(category, (map.get(category) ?? 0) + item.totalValue);
+  }
+
+  return [...map.entries()]
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value);
+}
+
+function getPurchaseSpend(purchases: Purchase[]) {
+  const now = new Date();
+  const todayStr = toYMD(now);
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+  weekStart.setHours(0, 0, 0, 0);
+  const monthStart = startOfMonth(now);
+
+  return purchases.reduce(
+    (acc, purchase) => {
+      const purchaseDate = new Date(purchase.date);
+      const purchaseDay = toYMD(purchaseDate);
+
+      if (purchaseDay === todayStr) acc.today += purchase.totalAmount;
+      if (purchaseDate >= weekStart) acc.week += purchase.totalAmount;
+      if (purchaseDate >= monthStart) acc.month += purchase.totalAmount;
+
+      return acc;
+    },
+    { today: 0, week: 0, month: 0 },
+  );
+}
+
+function getAverageUnitCosts(purchases: Purchase[]) {
+  const map = new Map<string, {
+    itemId: string;
+    itemName: string;
+    unit: string;
+    quantity: number;
+    total: number;
+  }>();
+
+  for (const purchase of purchases) {
+    for (const line of purchase.purchaseItems) {
+      const prev = map.get(line.itemId) ?? {
+        itemId: line.itemId,
+        itemName: line.item.name,
+        unit: line.item.unit,
+        quantity: 0,
+        total: 0,
+      };
+
+      map.set(line.itemId, {
+        ...prev,
+        quantity: prev.quantity + line.quantity,
+        total: prev.total + line.total,
+      });
+    }
+  }
+
+  return [...map.values()]
+    .filter((item) => item.quantity > 0)
+    .map((item) => ({
+      ...item,
+      averageUnitCost: item.total / item.quantity,
+    }))
+    .sort((a, b) => b.averageUnitCost - a.averageUnitCost);
 }
 
 function formatNumber(value: number) {

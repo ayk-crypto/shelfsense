@@ -3,6 +3,7 @@ import { Role } from "../generated/prisma/enums.js";
 import { prisma } from "../db/prisma.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async-handler.js";
+import { getActiveLocationId } from "../utils/locations.js";
 
 export const alertsRouter = Router();
 
@@ -14,6 +15,7 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(asyn
   if (!workspaceId) {
     return res.status(403).json({ error: "Workspace access required" });
   }
+  const locationId = await getActiveLocationId(req, workspaceId);
 
   const now = new Date();
   const workspace = await prisma.workspace.findUnique({
@@ -35,6 +37,7 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(asyn
         stockBatches: {
           where: {
             workspaceId,
+            locationId,
             remainingQuantity: { gt: 0 },
           },
           select: {
@@ -46,6 +49,7 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(asyn
     prisma.stockBatch.findMany({
       where: {
         workspaceId,
+        locationId,
         remainingQuantity: { gt: 0 },
         expiryDate: {
           gte: now,
@@ -70,6 +74,7 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(asyn
     prisma.stockBatch.findMany({
       where: {
         workspaceId,
+        locationId,
         remainingQuantity: { gt: 0 },
         expiryDate: {
           lt: now,

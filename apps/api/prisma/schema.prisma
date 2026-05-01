@@ -18,6 +18,8 @@ enum StockMovementType {
   STOCK_OUT
   WASTAGE
   ADJUSTMENT
+  TRANSFER_IN
+  TRANSFER_OUT
 }
 
 model User {
@@ -28,6 +30,7 @@ model User {
   createdAt   DateTime     @default(now())
   ownedSpaces Workspace[]  @relation("WorkspaceOwner")
   memberships Membership[]
+  auditLogs   AuditLog[]
 }
 
 model Workspace {
@@ -40,11 +43,45 @@ model Workspace {
   createdAt      DateTime        @default(now())
   owner          User            @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   memberships    Membership[]
+  locations      Location[]
   items          Item[]
   stockBatches StockBatch[]
   stockMovements StockMovement[]
   suppliers      Supplier[]
   purchases      Purchase[]
+  auditLogs      AuditLog[]
+}
+
+model AuditLog {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @db.Uuid
+  userId      String    @db.Uuid
+  action      String
+  entity      String
+  entityId    String
+  meta        Json
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model Location {
+  id             String          @id @default(uuid()) @db.Uuid
+  name           String
+  workspaceId    String          @db.Uuid
+  createdAt      DateTime        @default(now())
+  workspace      Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  stockBatches   StockBatch[]
+  stockMovements StockMovement[]
+  purchases      Purchase[]
+
+  @@index([workspaceId])
+  @@unique([workspaceId, name])
 }
 
 model Membership {
@@ -85,6 +122,7 @@ model StockBatch {
   id                String          @id @default(uuid()) @db.Uuid
   itemId            String          @db.Uuid
   workspaceId       String          @db.Uuid
+  locationId        String          @db.Uuid
   quantity          Float
   remainingQuantity Float
   unitCost          Float?
@@ -95,9 +133,11 @@ model StockBatch {
   updatedAt         DateTime        @updatedAt
   item              Item            @relation(fields: [itemId], references: [id], onDelete: Cascade)
   workspace         Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  location          Location        @relation(fields: [locationId], references: [id], onDelete: Cascade)
   stockMovements    StockMovement[]
 
   @@index([workspaceId])
+  @@index([locationId])
   @@index([itemId])
   @@index([expiryDate])
 }
@@ -105,6 +145,7 @@ model StockBatch {
 model StockMovement {
   id          String            @id @default(uuid()) @db.Uuid
   workspaceId String            @db.Uuid
+  locationId  String            @db.Uuid
   itemId      String            @db.Uuid
   batchId     String?           @db.Uuid
   type        StockMovementType
@@ -114,10 +155,12 @@ model StockMovement {
   note        String?
   createdAt   DateTime          @default(now())
   workspace   Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  location    Location          @relation(fields: [locationId], references: [id], onDelete: Cascade)
   item        Item              @relation(fields: [itemId], references: [id], onDelete: Cascade)
   batch       StockBatch?       @relation(fields: [batchId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId])
+  @@index([locationId])
   @@index([itemId])
   @@index([batchId])
   @@index([type])
@@ -143,13 +186,16 @@ model Purchase {
   date          DateTime
   totalAmount   Float
   workspaceId   String         @db.Uuid
+  locationId    String         @db.Uuid
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   supplier      Supplier       @relation(fields: [supplierId], references: [id], onDelete: Restrict)
   workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  location      Location       @relation(fields: [locationId], references: [id], onDelete: Cascade)
   purchaseItems PurchaseItem[]
 
   @@index([workspaceId])
+  @@index([locationId])
   @@index([supplierId])
   @@index([date])
 }

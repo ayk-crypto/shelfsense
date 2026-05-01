@@ -56,6 +56,49 @@ export interface UpdateWorkspaceSettingsInput {
   expiryAlertDays?: number;
 }
 
+export interface Location {
+  id: string;
+  name: string;
+  workspaceId: string;
+  createdAt: string;
+}
+
+export interface LocationsResponse {
+  locations: Location[];
+}
+
+export interface CreateLocationInput {
+  name: string;
+}
+
+export interface CreateLocationResponse {
+  location: Location;
+}
+
+export interface AuditLog {
+  id: string;
+  action: string;
+  entity: string;
+  entityId: string;
+  meta: Record<string, unknown>;
+  createdAt: string;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+  };
+}
+
+export interface AuditLogsResponse {
+  logs: AuditLog[];
+}
+
+export interface AuditLogFilters {
+  fromDate?: string;
+  toDate?: string;
+  action?: string;
+}
+
 export interface StockSummaryItem {
   itemId: string;
   itemName: string;
@@ -130,11 +173,20 @@ export interface StockOutInput {
   note?: string;
 }
 
+export interface StockTransferInput {
+  itemId: string;
+  fromLocationId: string;
+  toLocationId: string;
+  quantity: number;
+}
+
 export type StockMovementType =
   | "STOCK_IN"
   | "STOCK_OUT"
   | "WASTAGE"
-  | "ADJUSTMENT";
+  | "ADJUSTMENT"
+  | "TRANSFER_IN"
+  | "TRANSFER_OUT";
 
 export interface StockMovement {
   id: string;

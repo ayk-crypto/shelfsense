@@ -1,10 +1,13 @@
 import { Navigate, Route, BrowserRouter as Router, Routes } from "react-router-dom";
 import { AppShell } from "./components/AppShell";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { LocationProvider } from "./context/LocationContext";
 import { WorkspaceSettingsProvider } from "./context/WorkspaceSettingsContext";
+import { ActivityPage } from "./pages/ActivityPage";
 import { AlertsPage } from "./pages/AlertsPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ItemsPage } from "./pages/ItemsPage";
+import { LocationsPage } from "./pages/LocationsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MovementsPage } from "./pages/MovementsPage";
 import { PurchasesPage } from "./pages/PurchasesPage";
@@ -68,7 +71,9 @@ export function App() {
             element={
               <ProtectedRoute>
                 <WorkspaceSettingsProvider>
-                  <AppShell />
+                  <LocationProvider>
+                    <AppShell />
+                  </LocationProvider>
                 </WorkspaceSettingsProvider>
               </ProtectedRoute>
             }
@@ -95,6 +100,14 @@ export function App() {
             <Route
               path="/team"
               element={<RoleRoute allowedRoles={["OWNER"]}><TeamPage /></RoleRoute>}
+            />
+            <Route
+              path="/activity"
+              element={<RoleRoute allowedRoles={["OWNER"]}><ActivityPage /></RoleRoute>}
+            />
+            <Route
+              path="/locations"
+              element={<RoleRoute allowedRoles={["OWNER"]}><LocationsPage /></RoleRoute>}
             />
             <Route
               path="/settings"

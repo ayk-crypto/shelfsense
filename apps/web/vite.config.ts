@@ -31,6 +31,10 @@ export default defineConfig({
         target: apiProxyTarget,
         changeOrigin: true,
       },
+      "/audit-logs": {
+        target: apiProxyTarget,
+        changeOrigin: true,
+      },
       "/suppliers": {
         target: apiProxyTarget,
         changeOrigin: true,
@@ -44,6 +48,10 @@ export default defineConfig({
         changeOrigin: true,
       },
       "/workspace": {
+        target: apiProxyTarget,
+        changeOrigin: true,
+      },
+      "/locations": {
         target: apiProxyTarget,
         changeOrigin: true,
       },

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { getItems } from "../api/items";
 import { createPurchase, getPurchases } from "../api/purchases";
 import { getSuppliers } from "../api/suppliers";
+import { useLocation } from "../context/LocationContext";
 import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
 import type { CreatePurchaseInput, Item, Purchase, Supplier } from "../types";
 import { formatCurrency } from "../utils/currency";
@@ -34,6 +35,7 @@ function todayISO() {
    Main page
 ───────────────────────────────────────────── */
 export function PurchasesPage() {
+  const { activeLocationId } = useLocation();
   const { settings } = useWorkspaceSettings();
   const currency = settings.currency;
   const [purchases, setPurchases] = useState<Purchase[]>([]);
@@ -66,7 +68,7 @@ export function PurchasesPage() {
     }
   }
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(); }, [activeLocationId]);
 
   // Derive unique suppliers for filter dropdown
   const supplierOptions = Array.from(

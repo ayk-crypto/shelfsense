@@ -5,6 +5,7 @@ import type {
   StockMovementsResponse,
   StockOutInput,
   StockSummaryResponse,
+  StockTransferInput,
 } from "../types";
 import { apiClient } from "./client";
 
@@ -38,4 +39,8 @@ export async function stockIn(data: StockInInput): Promise<unknown> {
 
 export async function stockOut(data: StockOutInput): Promise<unknown> {
   return apiClient.post<unknown>("/stock/out", data, true);
+}
+
+export async function stockTransfer(data: StockTransferInput): Promise<unknown> {
+  return apiClient.post<unknown>("/stock/transfer", data, true);
 }

@@ -1,4 +1,21 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL?.trim() || "/api";
+const ACTIVE_LOCATION_KEY = "shelfsense_active_location_id";
+
+let activeLocationId = localStorage.getItem(ACTIVE_LOCATION_KEY) || "";
+
+export function setApiLocationId(locationId: string | null) {
+  activeLocationId = locationId ?? "";
+
+  if (activeLocationId) {
+    localStorage.setItem(ACTIVE_LOCATION_KEY, activeLocationId);
+  } else {
+    localStorage.removeItem(ACTIVE_LOCATION_KEY);
+  }
+}
+
+export function getApiLocationId() {
+  return activeLocationId;
+}
 
 function getToken(): string | null {
   return localStorage.getItem("shelfsense_token");
@@ -22,6 +39,10 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
     }
+  }
+
+  if (activeLocationId) {
+    headers["x-location-id"] = activeLocationId;
   }
 
   const res = await fetch(`${API_BASE}${path}`, {

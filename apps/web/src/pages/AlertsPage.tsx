@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getAlerts } from "../api/alerts";
+import { useLocation } from "../context/LocationContext";
 import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
 import type { AlertsResponse, ExpiryAlert, LowStockAlert } from "../types";
 import { getSuggestedReorderQuantity } from "../utils/reorder";
@@ -11,6 +12,7 @@ const EMPTY_ALERTS: AlertsResponse = {
 };
 
 export function AlertsPage() {
+  const { activeLocationId } = useLocation();
   const { settings } = useWorkspaceSettings();
   const [alerts, setAlerts] = useState<AlertsResponse>(EMPTY_ALERTS);
   const [loading, setLoading] = useState(true);
@@ -30,7 +32,7 @@ export function AlertsPage() {
     }
 
     void loadAlerts();
-  }, []);
+  }, [activeLocationId]);
 
   if (loading) {
     return (

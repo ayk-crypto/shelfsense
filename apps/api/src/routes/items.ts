@@ -3,6 +3,7 @@ import { Role } from "../generated/prisma/enums.js";
 import { prisma } from "../db/prisma.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async-handler.js";
+import { logAction } from "../utils/audit-log.js";
 
 export const itemsRouter = Router();
 
@@ -37,6 +38,20 @@ itemsRouter.post("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(asyn
       name: data.name,
       unit: data.unit,
       workspaceId,
+    },
+  });
+
+  await logAction({
+    userId: req.user!.userId,
+    workspaceId,
+    action: "CREATE_ITEM",
+    entity: "Item",
+    entityId: item.id,
+    meta: {
+      itemName: item.name,
+      unit: item.unit,
+      category: item.category,
+      minStockLevel: item.minStockLevel,
     },
   });
 

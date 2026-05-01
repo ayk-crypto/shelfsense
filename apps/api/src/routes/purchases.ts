@@ -3,6 +3,8 @@ import { Router } from "express";
 import { prisma } from "../db/prisma.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async-handler.js";
+import { logAction } from "../utils/audit-log.js";
+import { getActiveLocationId } from "../utils/locations.js";
 
 export const purchasesRouter = Router();
 
@@ -14,6 +16,7 @@ purchasesRouter.post("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(
   if (!workspaceId) {
     return res.status(403).json({ error: "Workspace access required" });
   }
+  const locationId = await getActiveLocationId(req, workspaceId);
 
   const input = parsePurchaseInput(req.body);
 
@@ -71,6 +74,11 @@ purchasesRouter.post("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(
     return res.status(404).json({ error: "One or more items were not found" });
   }
 
+  const location = await prisma.location.findFirst({
+    where: { id: locationId, workspaceId },
+    select: { id: true, name: true },
+  });
+
   const lines = input.items.map((item) => ({
     itemId: item.itemId!,
     quantity: item.quantity!,
@@ -85,6 +93,7 @@ purchasesRouter.post("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(
       data: {
         supplierId: supplier.id,
         workspaceId,
+        locationId,
         date: purchaseDate,
         totalAmount,
       },
@@ -109,6 +118,7 @@ purchasesRouter.post("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(
         data: {
           itemId: line.itemId,
           workspaceId,
+          locationId,
           quantity: line.quantity,
           remainingQuantity: line.quantity,
           unitCost: line.unitCost,
@@ -119,6 +129,7 @@ purchasesRouter.post("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(
       const stockMovement = await tx.stockMovement.create({
         data: {
           workspaceId,
+          locationId,
           itemId: line.itemId,
           batchId: stockBatch.id,
           type: StockMovementType.STOCK_IN,
@@ -142,6 +153,21 @@ purchasesRouter.post("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(
     };
   });
 
+  await logAction({
+    userId: req.user!.userId,
+    workspaceId,
+    action: "CREATE_PURCHASE",
+    entity: "Purchase",
+    entityId: result.purchase.id,
+    meta: {
+      supplierName: supplier.name,
+      totalAmount,
+      lineCount: lines.length,
+      locationId,
+      locationName: location?.name,
+    },
+  });
+
   return res.status(201).json(result);
 }));
 
@@ -151,9 +177,10 @@ purchasesRouter.get("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(a
   if (!workspaceId) {
     return res.status(403).json({ error: "Workspace access required" });
   }
+  const locationId = await getActiveLocationId(req, workspaceId);
 
   const purchases = await prisma.purchase.findMany({
-    where: { workspaceId },
+    where: { workspaceId, locationId },
     orderBy: { date: "desc" },
     include: {
       supplier: {

@@ -90,6 +90,11 @@ workspaceRouter.post("/create", requireAuth, asyncHandler(async (req, res) => {
     data: {
       name: trimmedName,
       ownerId: req.user!.id,
+      locations: {
+        create: {
+          name: "Main Branch",
+        },
+      },
       memberships: {
         create: {
           userId: req.user!.id,

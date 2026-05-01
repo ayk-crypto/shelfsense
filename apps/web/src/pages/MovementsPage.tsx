@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { getItems } from "../api/items";
 import { getStockMovements } from "../api/stock";
+import { useLocation } from "../context/LocationContext";
 import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
 import type { Item, StockMovement, StockMovementFilters, StockMovementType } from "../types";
 import { formatCurrency } from "../utils/currency";
@@ -10,6 +11,8 @@ const MOVEMENT_TYPES: Array<{ value: StockMovementType; label: string }> = [
   { value: "STOCK_OUT", label: "Stock Out" },
   { value: "WASTAGE", label: "Wastage" },
   { value: "ADJUSTMENT", label: "Adjustment" },
+  { value: "TRANSFER_IN", label: "Transfer In" },
+  { value: "TRANSFER_OUT", label: "Transfer Out" },
 ];
 
 const MOVEMENT_LABELS = Object.fromEntries(
@@ -32,6 +35,7 @@ function wastageTotal(movements: StockMovement[]) {
 }
 
 export function MovementsPage() {
+  const { activeLocationId } = useLocation();
   const { settings } = useWorkspaceSettings();
   const [items, setItems] = useState<Item[]>([]);
   const [movements, setMovements] = useState<StockMovement[]>([]);
@@ -70,7 +74,7 @@ export function MovementsPage() {
       }
     }
     void loadMovements();
-  }, [filters]);
+  }, [filters, activeLocationId]);
 
   const isWastageOnly = filters.type === "WASTAGE";
   const { qty: wQty, value: wValue, count: wCount, topItem: wTopItem } = wastageTotal(movements);

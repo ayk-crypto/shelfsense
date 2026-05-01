@@ -2,11 +2,18 @@ import { useEffect, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { getAlerts } from "../api/alerts";
 import { useAuth } from "../context/AuthContext";
+import { useLocation } from "../context/LocationContext";
 import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
 
 export function AppShell() {
   const { user, logout } = useAuth();
   const { settings, loading: workspaceLoading } = useWorkspaceSettings();
+  const {
+    locations,
+    activeLocationId,
+    loading: locationsLoading,
+    setActiveLocationId,
+  } = useLocation();
   const navigate = useNavigate();
   const [alertCount, setAlertCount] = useState(0);
   const canAccessManagement = user?.role === "OWNER" || user?.role === "MANAGER";
@@ -31,7 +38,7 @@ export function AppShell() {
     }
 
     void loadAlertCount();
-  }, [canAccessManagement]);
+  }, [canAccessManagement, activeLocationId]);
 
   function handleLogout() {
     logout();
@@ -51,6 +58,12 @@ export function AppShell() {
               <span className="logo-powered">Powered by ShelfSense</span>
             </span>
           </div>
+          <LocationSelector
+            locations={locations}
+            activeLocationId={activeLocationId}
+            loading={locationsLoading}
+            onChange={setActiveLocationId}
+          />
         </div>
 
         <nav className="sidebar-nav">
@@ -130,6 +143,20 @@ export function AppShell() {
                     </svg>
                     Team
                   </NavLink>
+                  <NavLink to="/activity" className={({ isActive }) => `nav-item ${isActive ? "nav-item--active" : ""}`}>
+                    <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M3 3v18h18" />
+                      <path d="M7 14l4-4 3 3 5-6" />
+                    </svg>
+                    Activity
+                  </NavLink>
+                  <NavLink to="/locations" className={({ isActive }) => `nav-item ${isActive ? "nav-item--active" : ""}`}>
+                    <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 10c0 7-9 12-9 12S3 17 3 10a9 9 0 1 1 18 0z" />
+                      <circle cx="12" cy="10" r="3" />
+                    </svg>
+                    Locations
+                  </NavLink>
                   <NavLink to="/settings" className={({ isActive }) => `nav-item ${isActive ? "nav-item--active" : ""}`}>
                     <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <circle cx="12" cy="12" r="3" />
@@ -172,6 +199,12 @@ export function AppShell() {
             </span>
           </div>
           <div className="topbar-user">
+            <LocationSelector
+              locations={locations}
+              activeLocationId={activeLocationId}
+              loading={locationsLoading}
+              onChange={setActiveLocationId}
+            />
             <div className="user-avatar user-avatar--sm">{user?.name?.[0]?.toUpperCase() ?? "U"}</div>
           </div>
         </header>
@@ -258,6 +291,20 @@ export function AppShell() {
                   </svg>
                   <span>Team</span>
                 </NavLink>
+                <NavLink to="/activity" className={({ isActive }) => `bottom-nav-item ${isActive ? "bottom-nav-item--active" : ""}`}>
+                  <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M3 3v18h18" />
+                    <path d="M7 14l4-4 3 3 5-6" />
+                  </svg>
+                  <span>Activity</span>
+                </NavLink>
+                <NavLink to="/locations" className={({ isActive }) => `bottom-nav-item ${isActive ? "bottom-nav-item--active" : ""}`}>
+                  <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 10c0 7-9 12-9 12S3 17 3 10a9 9 0 1 1 18 0z" />
+                    <circle cx="12" cy="10" r="3" />
+                  </svg>
+                  <span>Branches</span>
+                </NavLink>
                 <NavLink to="/settings" className={({ isActive }) => `bottom-nav-item ${isActive ? "bottom-nav-item--active" : ""}`}>
                   <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <circle cx="12" cy="12" r="3" />
@@ -279,5 +326,42 @@ export function AppShell() {
         </button>
       </nav>
     </div>
+  );
+}
+
+function LocationSelector({
+  locations,
+  activeLocationId,
+  loading,
+  onChange,
+}: {
+  locations: Array<{ id: string; name: string }>;
+  activeLocationId: string;
+  loading: boolean;
+  onChange: (locationId: string) => void;
+}) {
+  if (loading && locations.length === 0) {
+    return <div className="location-select-skeleton" aria-label="Loading locations" />;
+  }
+
+  if (locations.length === 0) {
+    return null;
+  }
+
+  return (
+    <label className="location-selector">
+      <span className="location-selector-label">Branch</span>
+      <select
+        className="location-selector-select"
+        value={activeLocationId}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        {locations.map((location) => (
+          <option key={location.id} value={location.id}>
+            {location.name}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
