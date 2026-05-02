@@ -31,6 +31,7 @@ model User {
   ownedSpaces Workspace[]  @relation("WorkspaceOwner")
   memberships Membership[]
   auditLogs   AuditLog[]
+  notifications Notification[]
 }
 
 model Workspace {
@@ -50,6 +51,29 @@ model Workspace {
   suppliers      Supplier[]
   purchases      Purchase[]
   auditLogs      AuditLog[]
+  notifications  Notification[]
+}
+
+model Notification {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @db.Uuid
+  userId      String?   @db.Uuid
+  type        String
+  title       String
+  message     String
+  entity      String?
+  entityId    String?
+  readAt      DateTime?
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([userId])
+  @@index([type])
+  @@index([readAt])
+  @@index([createdAt])
+  @@index([workspaceId, type, entity, entityId, createdAt])
 }
 
 model AuditLog {

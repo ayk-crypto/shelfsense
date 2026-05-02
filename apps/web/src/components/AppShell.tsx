@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { getAlerts } from "../api/alerts";
+import { getNotifications, markAllNotificationsRead, markNotificationRead } from "../api/notifications";
 import { useAuth } from "../context/AuthContext";
 import { useLocation } from "../context/LocationContext";
 import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
+import type { Notification } from "../types";
 
 export function AppShell() {
   const { user, logout } = useAuth();
@@ -16,33 +18,131 @@ export function AppShell() {
   } = useLocation();
   const navigate = useNavigate();
   const [alertCount, setAlertCount] = useState(0);
+  const [isOnline, setIsOnline] = useState(() => navigator.onLine);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [isDesktopShell, setIsDesktopShell] = useState(() => window.innerWidth >= 768);
   const canAccessManagement = user?.role === "OWNER" || user?.role === "MANAGER";
   const canManageTeam = user?.role === "OWNER";
   const workspaceName = settings.name.trim() || "ShelfSense";
 
   useEffect(() => {
-    async function loadAlertCount() {
+    async function loadShellSignals() {
+      setNotificationsLoading(true);
       if (!canAccessManagement) {
         setAlertCount(0);
-        return;
       }
 
       try {
-        const alerts = await getAlerts();
-        setAlertCount(
-          alerts.lowStock.length + alerts.expiringSoon.length + alerts.expired.length,
-        );
+        if (canAccessManagement) {
+          const alerts = await getAlerts();
+          setAlertCount(
+            alerts.lowStock.length + alerts.expiringSoon.length + alerts.expired.length,
+          );
+        }
+
+        const res = await getNotifications();
+        setNotifications(res.notifications);
+        setUnreadNotifications(res.unreadCount);
       } catch {
-        setAlertCount(0);
+        if (canAccessManagement) setAlertCount(0);
+        setNotifications([]);
+        setUnreadNotifications(0);
+      } finally {
+        setNotificationsLoading(false);
       }
     }
 
-    void loadAlertCount();
+    void loadShellSignals();
   }, [canAccessManagement, activeLocationId]);
+
+  useEffect(() => {
+    function handleOnline() {
+      setIsOnline(true);
+    }
+
+    function handleOffline() {
+      setIsOnline(false);
+    }
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
+  useEffect(() => {
+    function handleResize() {
+      const nextIsDesktop = window.innerWidth >= 768;
+      setIsDesktopShell((current) => {
+        if (current !== nextIsDesktop) {
+          setNotificationsOpen(false);
+        }
+        return nextIsDesktop;
+      });
+    }
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   function handleLogout() {
     logout();
     navigate("/login");
+  }
+
+  async function handleMarkNotificationRead(id: string) {
+    const existing = notifications.find((notification) => notification.id === id);
+    if (!existing || existing.readAt) return;
+
+    const readAt = new Date().toISOString();
+    setNotifications((current) =>
+      current.map((notification) =>
+        notification.id === id ? { ...notification, readAt } : notification,
+      ),
+    );
+    setUnreadNotifications((current) => Math.max(0, current - 1));
+
+    try {
+      await markNotificationRead(id);
+    } catch {
+      setNotifications((current) =>
+        current.map((notification) =>
+          notification.id === id ? { ...notification, readAt: null } : notification,
+        ),
+      );
+      setUnreadNotifications((current) => current + 1);
+    }
+  }
+
+  async function handleMarkAllNotificationsRead() {
+    const unreadIds = notifications
+      .filter((notification) => !notification.readAt)
+      .map((notification) => notification.id);
+    if (unreadIds.length === 0) return;
+
+    const readAt = new Date().toISOString();
+    setNotifications((current) =>
+      current.map((notification) =>
+        notification.readAt ? notification : { ...notification, readAt },
+      ),
+    );
+    setUnreadNotifications(0);
+
+    try {
+      await markAllNotificationsRead();
+    } catch {
+      setNotifications((current) =>
+        current.map((notification) =>
+          unreadIds.includes(notification.id) ? { ...notification, readAt: null } : notification,
+        ),
+      );
+      setUnreadNotifications(unreadIds.length);
+    }
   }
 
   return (
@@ -185,6 +285,18 @@ export function AppShell() {
               <line x1="21" y1="12" x2="9" y2="12" />
             </svg>
           </button>
+          {isDesktopShell && (
+            <NotificationBell
+              open={notificationsOpen}
+              notifications={notifications}
+              unreadCount={unreadNotifications}
+              loading={notificationsLoading}
+              onToggle={() => setNotificationsOpen((open) => !open)}
+              onClose={() => setNotificationsOpen(false)}
+              onMarkRead={handleMarkNotificationRead}
+              onMarkAllRead={handleMarkAllNotificationsRead}
+            />
+          )}
         </div>
       </aside>
 
@@ -205,11 +317,24 @@ export function AppShell() {
               loading={locationsLoading}
               onChange={setActiveLocationId}
             />
+            {!isDesktopShell && (
+              <NotificationBell
+                open={notificationsOpen}
+                notifications={notifications}
+                unreadCount={unreadNotifications}
+                loading={notificationsLoading}
+                onToggle={() => setNotificationsOpen((open) => !open)}
+                onClose={() => setNotificationsOpen(false)}
+                onMarkRead={handleMarkNotificationRead}
+                onMarkAllRead={handleMarkAllNotificationsRead}
+              />
+            )}
             <div className="user-avatar user-avatar--sm">{user?.name?.[0]?.toUpperCase() ?? "U"}</div>
           </div>
         </header>
 
         <main className="page-content">
+          {!isOnline && <OfflineNotice />}
           <Outlet />
         </main>
       </div>
@@ -327,6 +452,143 @@ export function AppShell() {
       </nav>
     </div>
   );
+}
+
+function OfflineNotice() {
+  return (
+    <div className="offline-notice" role="status">
+      <strong>You appear offline.</strong>
+      <span>Cached screens may still open, but live inventory data needs the server.</span>
+    </div>
+  );
+}
+
+function NotificationBell({
+  open,
+  notifications,
+  unreadCount,
+  loading,
+  onToggle,
+  onClose,
+  onMarkRead,
+  onMarkAllRead,
+}: {
+  open: boolean;
+  notifications: Notification[];
+  unreadCount: number;
+  loading: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  onMarkRead: (id: string) => void;
+  onMarkAllRead: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    function handlePointerDown(event: PointerEvent) {
+      if (ref.current && !ref.current.contains(event.target as Node)) {
+        onClose();
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose, open]);
+
+  return (
+    <div className="notification-menu" ref={ref}>
+      <button
+        type="button"
+        className={`notification-bell ${open ? "notification-bell--active" : ""}`}
+        onClick={onToggle}
+        aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ""}`}
+        aria-expanded={open}
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
+          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+        </svg>
+        {unreadCount > 0 && <span className="notification-badge">{unreadCount > 9 ? "9+" : unreadCount}</span>}
+      </button>
+
+      {open && (
+        <div className="notification-panel" role="dialog" aria-label="Notifications">
+          <div className="notification-panel-header">
+            <div>
+              <h2 className="notification-panel-title">Notifications</h2>
+              <p className="notification-panel-subtitle">
+                {unreadCount > 0 ? `${unreadCount} unread` : "All caught up"}
+              </p>
+            </div>
+            <button
+              type="button"
+              className="notification-mark-all"
+              disabled={unreadCount === 0}
+              onClick={onMarkAllRead}
+            >
+              Mark all read
+            </button>
+          </div>
+
+          <div className="notification-list">
+            {loading ? (
+              <p className="notification-empty">Loading notifications...</p>
+            ) : notifications.length === 0 ? (
+              <p className="notification-empty">No notifications yet. Alerts will appear here when ShelfSense spots risk.</p>
+            ) : (
+              notifications.map((notification) => (
+                <article
+                  key={notification.id}
+                  className={`notification-item ${notification.readAt ? "" : "notification-item--unread"}`}
+                >
+                  <div className="notification-item-main">
+                    <div className="notification-item-head">
+                      <h3>{notification.title}</h3>
+                      <span>{formatNotificationTime(notification.createdAt)}</span>
+                    </div>
+                    <p>{notification.message}</p>
+                  </div>
+                  {!notification.readAt && (
+                    <button
+                      type="button"
+                      className="notification-read-btn"
+                      onClick={() => onMarkRead(notification.id)}
+                    >
+                      Mark read
+                    </button>
+                  )}
+                </article>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function formatNotificationTime(value: string) {
+  const date = new Date(value);
+  const diffMs = Date.now() - date.getTime();
+  const diffMinutes = Math.floor(diffMs / 60000);
+
+  if (diffMinutes < 1) return "Just now";
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 function LocationSelector({

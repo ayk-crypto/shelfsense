@@ -240,6 +240,24 @@ export interface AlertsResponse {
   expired: ExpiryAlert[];
 }
 
+export interface Notification {
+  id: string;
+  workspaceId: string;
+  userId: string | null;
+  type: string;
+  title: string;
+  message: string;
+  entity: string | null;
+  entityId: string | null;
+  readAt: string | null;
+  createdAt: string;
+}
+
+export interface NotificationsResponse {
+  notifications: Notification[];
+  unreadCount: number;
+}
+
 export interface Supplier {
   id: string;
   name: string;

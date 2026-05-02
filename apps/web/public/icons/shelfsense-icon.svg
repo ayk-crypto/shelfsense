@@ -1,0 +1,6 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="ShelfSense">
+  <rect width="512" height="512" rx="112" fill="#4f46e5"/>
+  <path d="M128 172 256 98l128 74v148l-128 74-128-74V172Z" fill="#eef2ff" opacity=".96"/>
+  <path d="m128 172 128 74 128-74M256 246v148" fill="none" stroke="#4f46e5" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M188 206 316 132" fill="none" stroke="#818cf8" stroke-width="22" stroke-linecap="round" opacity=".9"/>
+</svg>

@@ -146,6 +146,17 @@ npm run build
 
 The root build compiles shared types, the API, and the web app.
 
+## PWA Support
+
+The web app includes a lightweight Progressive Web App foundation:
+
+- `apps/web/public/manifest.webmanifest` defines the ShelfSense install metadata, standalone display mode, start URL, theme color, and install icons.
+- `apps/web/public/sw.js` caches the app shell and static same-origin assets for quicker repeat loads and basic offline access.
+- API routes are handled network-only by the service worker, so authenticated inventory data is not cached aggressively.
+- When the browser is offline, the authenticated app shell shows a friendly offline notice. API connection failures also surface a clearer server/offline message.
+
+For production deployments, serve the web app over HTTPS and make sure all frontend routes fall back to `index.html` so installed PWA navigation works after refreshes.
+
 ## Common Commands
 
 ```bash

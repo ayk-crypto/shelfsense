@@ -45,13 +45,22 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     headers["x-location-id"] = activeLocationId;
   }
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    throw new Error(
+      navigator.onLine
+        ? "Unable to reach the ShelfSense server. Please try again in a moment."
+        : "You appear offline. Reconnect to the internet to refresh ShelfSense data.",
+    );
+  }
 
-  const data = await res.json();
+  const data = await parseJsonResponse(res);
 
   if (!res.ok) {
     throw new Error(
@@ -62,6 +71,14 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
 
   return data as T;
+}
+
+async function parseJsonResponse(res: Response): Promise<unknown> {
+  try {
+    return await res.json();
+  } catch {
+    return {};
+  }
 }
 
 export const apiClient = {
