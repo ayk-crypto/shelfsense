@@ -31,6 +31,7 @@ export function LocationsPage() {
     () => allLocations.filter((location) => !location.isActive).length,
     [allLocations],
   );
+  const visibleArchivedCount = visibleLocations.filter((location) => !location.isActive).length;
 
   function showToast(msg: string, type: "success" | "error") {
     const id = ++toastSeq;
@@ -123,7 +124,7 @@ export function LocationsPage() {
       <div className="page-header locations-page-header">
         <div>
           <h1 className="page-title">Locations</h1>
-          <p className="page-subtitle">Manage workspace branches and archived locations</p>
+          <p className="page-subtitle">Manage branches, archived locations, and active stock destinations.</p>
         </div>
         <div className="page-header-actions">
           <button className="btn btn--secondary" onClick={() => { void handleToggleArchived(); }}>
@@ -135,9 +136,23 @@ export function LocationsPage() {
         </div>
       </div>
 
-      <div className="lifecycle-summary" aria-live="polite">
-        <span>{locations.length} active</span>
-        {showArchived ? <span>{archivedCount} archived</span> : null}
+      <div className="ops-metric-strip" aria-live="polite" aria-label="Location summary">
+        <div className="ops-metric">
+          <span className="ops-metric-label">Active locations</span>
+          <strong className="ops-metric-value">{locations.length}</strong>
+        </div>
+        <div className="ops-metric">
+          <span className="ops-metric-label">Archived</span>
+          <strong className="ops-metric-value">{showArchived ? visibleArchivedCount : archivedCount}</strong>
+        </div>
+        <div className="ops-metric">
+          <span className="ops-metric-label">Visible rows</span>
+          <strong className="ops-metric-value">{visibleLocations.length}</strong>
+        </div>
+        <div className="ops-metric">
+          <span className="ops-metric-label">Lifecycle mode</span>
+          <strong className="ops-metric-value ops-metric-value--small">{showArchived ? "Archive view" : "Active only"}</strong>
+        </div>
       </div>
 
       {localLoading ? <div className="alert alert--info">Refreshing locations...</div> : null}

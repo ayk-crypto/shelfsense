@@ -90,6 +90,8 @@ export function PurchasesPage() {
   });
 
   const hasFilters = filterSupplier || filterFrom || filterTo;
+  const filteredTotal = filtered.reduce((sum, purchase) => sum + purchase.totalAmount, 0);
+  const filteredLineCount = filtered.reduce((sum, purchase) => sum + purchase.purchaseItems.length, 0);
 
   if (loading) {
     return (
@@ -113,11 +115,30 @@ export function PurchasesPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Purchases</h1>
-          <p className="page-subtitle">Record stock purchases from suppliers</p>
+          <p className="page-subtitle">Manage procurement intake, supplier spend, and purchase line detail.</p>
         </div>
         <button className="btn btn--primary" onClick={() => setAddOpen(true)}>
           + New Purchase
         </button>
+      </div>
+
+      <div className="ops-metric-strip" aria-label="Purchase summary">
+        <div className="ops-metric">
+          <span className="ops-metric-label">Visible purchases</span>
+          <strong className="ops-metric-value">{filtered.length}</strong>
+        </div>
+        <div className="ops-metric">
+          <span className="ops-metric-label">Visible spend</span>
+          <strong className="ops-metric-value">{fmt(filteredTotal, currency)}</strong>
+        </div>
+        <div className="ops-metric">
+          <span className="ops-metric-label">Purchase lines</span>
+          <strong className="ops-metric-value">{filteredLineCount}</strong>
+        </div>
+        <div className="ops-metric">
+          <span className="ops-metric-label">Suppliers</span>
+          <strong className="ops-metric-value">{supplierOptions.length}</strong>
+        </div>
       </div>
 
       {/* ── Filters ── */}

@@ -177,7 +177,26 @@ export function ReportsPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Reports</h1>
-          <p className="page-subtitle">Export ShelfSense data as filtered CSV or print-friendly PDF files</p>
+          <p className="page-subtitle">Prepare filtered operational exports as CSV or print-friendly PDF files.</p>
+        </div>
+      </div>
+
+      <div className="ops-metric-strip" aria-label="Report summary">
+        <div className="ops-metric">
+          <span className="ops-metric-label">Stock rows</span>
+          <strong className="ops-metric-value">{filteredStockSummary.length}</strong>
+        </div>
+        <div className="ops-metric">
+          <span className="ops-metric-label">Movement rows</span>
+          <strong className="ops-metric-value">{filteredStockMovements.length}</strong>
+        </div>
+        <div className="ops-metric">
+          <span className="ops-metric-label">Purchase rows</span>
+          <strong className="ops-metric-value">{filteredPurchases.length}</strong>
+        </div>
+        <div className="ops-metric">
+          <span className="ops-metric-label">Active filters</span>
+          <strong className="ops-metric-value">{activeFilterLabels.length}</strong>
         </div>
       </div>
 

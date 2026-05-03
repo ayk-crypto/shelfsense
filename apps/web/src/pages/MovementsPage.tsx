@@ -81,6 +81,12 @@ export function MovementsPage() {
   const showSummary = wCount > 0;
   const wastagePercent =
     movements.length > 0 ? Math.round((wCount / movements.length) * 100) : 0;
+  const activeFilterCount = [
+    filters.type,
+    filters.itemId,
+    filters.fromDate,
+    filters.toDate,
+  ].filter(Boolean).length;
 
   function toggleWastageFilter() {
     setFilters((prev) =>
@@ -94,10 +100,31 @@ export function MovementsPage() {
     <div className="movements-page">
       <div className="page-header">
         <div>
-          <h1 className="page-title">Movements</h1>
-          <p className="page-subtitle">Review stock activity across your workspace</p>
+          <h1 className="page-title">Stock activity</h1>
+          <p className="page-subtitle">Audit every stock in, stock out, adjustment, transfer, and wastage movement.</p>
         </div>
       </div>
+
+      {!loading && !fetchError && (
+        <div className="ops-metric-strip" aria-label="Movement summary">
+          <div className="ops-metric">
+            <span className="ops-metric-label">Visible movements</span>
+            <strong className="ops-metric-value">{movements.length}</strong>
+          </div>
+          <div className="ops-metric">
+            <span className="ops-metric-label">Wastage events</span>
+            <strong className="ops-metric-value ops-metric-value--danger">{wCount}</strong>
+          </div>
+          <div className="ops-metric">
+            <span className="ops-metric-label">Est. wastage value</span>
+            <strong className="ops-metric-value">{formatCurrency(wValue, settings.currency)}</strong>
+          </div>
+          <div className="ops-metric">
+            <span className="ops-metric-label">Active filters</span>
+            <strong className="ops-metric-value">{activeFilterCount}</strong>
+          </div>
+        </div>
+      )}
 
       <div className="movement-filters">
         <label className="form-group">

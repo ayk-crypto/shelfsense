@@ -115,8 +115,8 @@ export function SettingsPage() {
   return (
     <div className="settings-page">
       <div className="page-header">
-        <h1 className="page-title">Settings</h1>
-        <p className="page-subtitle">Manage workspace defaults</p>
+        <h1 className="page-title">Workspace settings</h1>
+        <p className="page-subtitle">Configure business defaults, inventory rules, and notification preferences.</p>
       </div>
 
       <form className="settings-panel" onSubmit={(e) => { void handleSubmit(e); }}>

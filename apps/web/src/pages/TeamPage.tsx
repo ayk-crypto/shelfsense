@@ -29,6 +29,9 @@ export function TeamPage() {
     () => members.filter((member) => member.isActive).length,
     [members],
   );
+  const inactiveCount = members.length - activeCount;
+  const managerCount = members.filter((member) => member.role === "MANAGER" && member.isActive).length;
+  const operatorCount = members.filter((member) => member.role === "OPERATOR" && member.isActive).length;
 
   function showToast(msg: string, type: "success" | "error") {
     const id = ++toastSeq;
@@ -94,7 +97,7 @@ export function TeamPage() {
       <div className="page-header team-page-header">
         <div>
           <h1 className="page-title">Team</h1>
-          <p className="page-subtitle">Manage workspace access and lifecycle</p>
+          <p className="page-subtitle">Manage workspace access, roles, and team lifecycle.</p>
         </div>
         <div className="page-header-actions">
           <button
@@ -109,9 +112,23 @@ export function TeamPage() {
         </div>
       </div>
 
-      <div className="lifecycle-summary" aria-live="polite">
-        <span>{activeCount} active</span>
-        {showInactive ? <span>{members.length - activeCount} inactive</span> : null}
+      <div className="ops-metric-strip" aria-live="polite" aria-label="Team summary">
+        <div className="ops-metric">
+          <span className="ops-metric-label">Active users</span>
+          <strong className="ops-metric-value">{activeCount}</strong>
+        </div>
+        <div className="ops-metric">
+          <span className="ops-metric-label">Managers</span>
+          <strong className="ops-metric-value">{managerCount}</strong>
+        </div>
+        <div className="ops-metric">
+          <span className="ops-metric-label">Operators</span>
+          <strong className="ops-metric-value">{operatorCount}</strong>
+        </div>
+        <div className="ops-metric">
+          <span className="ops-metric-label">Inactive</span>
+          <strong className="ops-metric-value">{inactiveCount}</strong>
+        </div>
       </div>
 
       {members.length === 0 ? (

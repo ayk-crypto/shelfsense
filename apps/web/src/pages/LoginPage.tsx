@@ -37,9 +37,9 @@ export function LoginPage() {
     <div className="login-bg">
       <div className="login-card">
         <div className="login-brand">
-          <span className="login-logo-icon">📦</span>
+          <span className="login-logo-icon">S</span>
           <h1 className="login-logo-text">ShelfSense</h1>
-          <p className="login-tagline">Smart inventory & expiry tracking</p>
+          <p className="login-tagline">Sign in to your inventory workspace</p>
         </div>
 
         <form className="login-form" onSubmit={handleSubmit} noValidate>
@@ -115,3 +115,4 @@ export function LoginPage() {
     </div>
   );
 }
+

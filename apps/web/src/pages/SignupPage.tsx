@@ -56,8 +56,8 @@ export function SignupPage() {
       <div className="login-card signup-card">
         <div className="login-brand">
           <span className="login-logo-icon">SS</span>
-          <h1 className="login-logo-text">Create ShelfSense account</h1>
-          <p className="login-tagline">Set up your business workspace and start onboarding.</p>
+          <h1 className="login-logo-text">Create your workspace</h1>
+          <p className="login-tagline">Set up ShelfSense for your business inventory operations.</p>
         </div>
 
         <form className="login-form" onSubmit={handleSubmit} noValidate>

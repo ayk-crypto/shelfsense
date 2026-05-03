@@ -57,12 +57,33 @@ export function AlertsPage() {
   return (
     <div className="alerts-page">
       <div className="page-header">
-        <h1 className="page-title">Alerts</h1>
-        <p className="page-subtitle">
-          {totalAlerts === 0
-            ? "No active inventory alerts"
-            : `${totalAlerts} active inventory alerts`}
-        </p>
+        <div>
+          <h1 className="page-title">Inventory alerts</h1>
+          <p className="page-subtitle">
+            {totalAlerts === 0
+              ? "No active inventory alerts"
+              : `${totalAlerts} active inventory alerts requiring attention.`}
+          </p>
+        </div>
+      </div>
+
+      <div className="ops-metric-strip ops-metric-strip--alerts" aria-label="Alert summary">
+        <div className="ops-metric">
+          <span className="ops-metric-label">Total active</span>
+          <strong className={`ops-metric-value ${totalAlerts > 0 ? "ops-metric-value--danger" : ""}`}>{totalAlerts}</strong>
+        </div>
+        <div className="ops-metric">
+          <span className="ops-metric-label">Low stock</span>
+          <strong className="ops-metric-value ops-metric-value--accent">{alerts.lowStock.length}</strong>
+        </div>
+        <div className="ops-metric">
+          <span className="ops-metric-label">Expiring soon</span>
+          <strong className="ops-metric-value ops-metric-value--accent">{alerts.expiringSoon.length}</strong>
+        </div>
+        <div className="ops-metric">
+          <span className="ops-metric-label">Expired</span>
+          <strong className="ops-metric-value ops-metric-value--danger">{alerts.expired.length}</strong>
+        </div>
       </div>
 
       <LowStockSection items={alerts.lowStock} multiplier={settings.lowStockMultiplier} />

@@ -225,8 +225,8 @@ export function DashboardPage() {
   return (
     <div className="dashboard">
       <div className="page-header">
-        <h1 className="page-title">Dashboard</h1>
-        <p className="page-subtitle">{workspaceName} inventory at a glance</p>
+        <h1 className="page-title">Today&apos;s operations</h1>
+        <p className="page-subtitle">{workspaceName} inventory health, reorder work, usage, and cost signals.</p>
       </div>
 
       <DashboardGroup

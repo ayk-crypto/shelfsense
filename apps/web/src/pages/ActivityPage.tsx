@@ -34,12 +34,39 @@ export function ActivityPage() {
     void loadLogs();
   }, [filters]);
 
+  const activeFilterCount = [filters.fromDate, filters.toDate, filters.action].filter(Boolean).length;
+  const uniqueActorCount = new Set(logs.map((log) => log.user.id)).size;
+  const latestLog = logs[0]?.createdAt;
+
   return (
     <div className="activity-page">
       <div className="page-header">
-        <h1 className="page-title">Activity</h1>
-        <p className="page-subtitle">Review workspace audit events</p>
+        <h1 className="page-title">Activity log</h1>
+        <p className="page-subtitle">Review workspace audit events, actor history, and inventory changes.</p>
       </div>
+
+      {!loading && !error && (
+        <div className="ops-metric-strip" aria-label="Activity summary">
+          <div className="ops-metric">
+            <span className="ops-metric-label">Visible events</span>
+            <strong className="ops-metric-value">{logs.length}</strong>
+          </div>
+          <div className="ops-metric">
+            <span className="ops-metric-label">Actors</span>
+            <strong className="ops-metric-value">{uniqueActorCount}</strong>
+          </div>
+          <div className="ops-metric">
+            <span className="ops-metric-label">Active filters</span>
+            <strong className="ops-metric-value">{activeFilterCount}</strong>
+          </div>
+          <div className="ops-metric">
+            <span className="ops-metric-label">Latest event</span>
+            <strong className="ops-metric-value ops-metric-value--small">
+              {latestLog ? formatDateTime(latestLog) : "None"}
+            </strong>
+          </div>
+        </div>
+      )}
 
       <div className="activity-filters">
         <label className="form-group">

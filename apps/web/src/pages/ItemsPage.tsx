@@ -1,5 +1,6 @@
 import JsBarcode from "jsbarcode";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { archiveItem, createItem, getItems, reactivateItem, updateItem } from "../api/items";
 import { getStockMovements, getStockSummary, stockIn, stockOut, stockTransfer } from "../api/stock";
 import { useAuth } from "../context/AuthContext";
@@ -39,6 +40,8 @@ interface StatusInfo { label: string; variant: "green" | "orange" | "red" | "gra
 
 type BarcodeLabelPresetId = "small" | "medium" | "large";
 type BarcodeLabelTemplateId = "barcode-only" | "name" | "name-details";
+type ItemStatusFilter = "all" | "ok" | "low" | "expiring" | "expired" | "archived";
+type ItemSortKey = "name" | "stock-asc" | "stock-desc" | "value-desc" | "recent";
 
 const BARCODE_LABEL_PRESET_STORAGE_KEY = "shelfsense.barcodeLabelPreset";
 const BARCODE_LABEL_TEMPLATE_STORAGE_KEY = "shelfsense.barcodeLabelTemplate";
@@ -97,6 +100,7 @@ export function ItemsPage() {
   const { user } = useAuth();
   const { activeLocationId, locations } = useLocation();
   const { settings } = useWorkspaceSettings();
+  const [searchParams, setSearchParams] = useSearchParams();
   const canManageStock = user?.role === "OWNER" || user?.role === "MANAGER";
   const currency = settings.currency;
   const [items, setItems] = useState<Item[]>([]);
@@ -122,15 +126,67 @@ export function ItemsPage() {
   const [bulkSaving, setBulkSaving] = useState(false);
   const [busy, setBusy] = useState<Set<string>>(new Set());
   const [showArchived, setShowArchived] = useState(false);
-  const hasBarcodes = useMemo(() => items.some((item) => item.barcode), [items]);
-  const visibleItemIds = useMemo(() => items.map((item) => item.id), [items]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<ItemStatusFilter>("all");
+  const [sortBy, setSortBy] = useState<ItemSortKey>("name");
+  const [editingItem, setEditingItem] = useState<Item | null>(null);
+  const [openActionMenuItemId, setOpenActionMenuItemId] = useState<string | null>(null);
+  const [pendingCommandAction, setPendingCommandAction] = useState<"stock-in" | null>(null);
+  const inventorySearchRef = useRef<HTMLInputElement>(null);
   const selectedCount = selectedItemIds.size;
-  const allVisibleSelected =
-    visibleItemIds.length > 0 && visibleItemIds.every((id) => selectedItemIds.has(id));
   const usageMap = useMemo(
     () => new Map(getUsageInsights(usageMovements).map((usage) => [usage.itemId, usage])),
     [usageMovements],
   );
+  const categoryOptions = useMemo(() => {
+    const categories = new Set<string>();
+    for (const item of items) {
+      if (item.category?.trim()) categories.add(item.category.trim());
+    }
+    return [...categories].sort((a, b) => a.localeCompare(b));
+  }, [items]);
+  const filteredItems = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+    const filtered = items.filter((item) => {
+      const summary = summaryMap.get(item.id);
+      const status = getStatus(summary, item.trackExpiry, settings.expiryAlertDays);
+      const matchesSearch =
+        !query ||
+        item.name.toLowerCase().includes(query) ||
+        item.unit.toLowerCase().includes(query) ||
+        item.category?.toLowerCase().includes(query) ||
+        item.sku?.toLowerCase().includes(query) ||
+        item.barcode?.toLowerCase().includes(query);
+      const matchesCategory = categoryFilter === "all" || item.category === categoryFilter;
+      const matchesStatus =
+        statusFilter === "all" ||
+        (statusFilter === "archived" && !item.isActive) ||
+        (statusFilter === "low" && summary?.isLowStock && item.isActive) ||
+        (statusFilter === "expiring" && status.label === "Expiring" && item.isActive) ||
+        (statusFilter === "expired" && status.label === "Expired" && item.isActive) ||
+        (statusFilter === "ok" && status.label === "OK" && item.isActive);
+      return matchesSearch && matchesCategory && matchesStatus;
+    });
+
+    return filtered.sort((a, b) => {
+      const summaryA = summaryMap.get(a.id);
+      const summaryB = summaryMap.get(b.id);
+      if (sortBy === "stock-asc") return (summaryA?.totalQuantity ?? 0) - (summaryB?.totalQuantity ?? 0);
+      if (sortBy === "stock-desc") return (summaryB?.totalQuantity ?? 0) - (summaryA?.totalQuantity ?? 0);
+      if (sortBy === "value-desc") return (summaryB?.totalValue ?? 0) - (summaryA?.totalValue ?? 0);
+      if (sortBy === "recent") return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      return a.name.localeCompare(b.name);
+    });
+  }, [items, summaryMap, settings.expiryAlertDays, searchTerm, categoryFilter, statusFilter, sortBy]);
+  const hasBarcodes = useMemo(() => filteredItems.some((item) => item.barcode), [filteredItems]);
+  const visibleItemIds = useMemo(() => filteredItems.map((item) => item.id), [filteredItems]);
+  const allVisibleSelected =
+    visibleItemIds.length > 0 && visibleItemIds.every((id) => selectedItemIds.has(id));
+  const activeCount = items.filter((item) => item.isActive).length;
+  const archivedCount = items.length - activeCount;
+  const lowStockCount = items.filter((item) => item.isActive && summaryMap.get(item.id)?.isLowStock).length;
+  const filteredArchivedCount = filteredItems.filter((item) => !item.isActive).length;
 
   useEffect(() => {
     setSelectedItemIds((prev) => {
@@ -139,6 +195,36 @@ export function ItemsPage() {
       return next.size === prev.size ? prev : next;
     });
   }, [visibleItemIds]);
+
+  useEffect(() => {
+    const query = searchParams.get("q") ?? "";
+    setSearchTerm(query);
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!showArchived && statusFilter === "archived") {
+      setStatusFilter("all");
+    }
+  }, [showArchived, statusFilter]);
+
+  useEffect(() => {
+    const action = searchParams.get("action");
+    if (action === "scan") {
+      setScannerOpen(true);
+      const next = new URLSearchParams(searchParams);
+      next.delete("action");
+      setSearchParams(next, { replace: true });
+      return;
+    }
+
+    if (action === "stock-in") {
+      setPendingCommandAction("stock-in");
+      inventorySearchRef.current?.focus();
+      const next = new URLSearchParams(searchParams);
+      next.delete("action");
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   function showToast(msg: string, type: "success" | "error") {
     const id = ++toastSeq;
@@ -326,15 +412,11 @@ export function ItemsPage() {
     <div className="items-page">
       <div className="page-header">
         <div>
-          <h1 className="page-title">Items</h1>
-          <p className="page-subtitle">Manage your inventory items</p>
+          <p className="eyebrow">Inventory</p>
+          <h1 className="page-title">Inventory command center</h1>
+          <p className="page-subtitle">Search, scan, move stock, and maintain every item from one table-first workspace.</p>
         </div>
         <div className="page-header-actions">
-          {canManageStock && (
-            <button className="btn btn--secondary" onClick={() => setShowArchived((value) => !value)}>
-              {showArchived ? "Hide archived" : "Show archived"}
-            </button>
-          )}
           <button className="btn btn--secondary" onClick={() => setScannerOpen(true)} title="Scan a barcode">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="btn-icon">
               <rect x="3" y="3" width="5" height="5" rx="1" />
@@ -359,10 +441,109 @@ export function ItemsPage() {
         </div>
       </div>
 
-      {canManageStock && (
-        <div className="lifecycle-summary" aria-live="polite">
-          <span>{items.filter((item) => item.isActive).length} active</span>
-          {showArchived ? <span>{items.filter((item) => !item.isActive).length} archived</span> : null}
+      <div className="inventory-command-panel">
+        <div className="inventory-kpis" aria-live="polite">
+          <span><strong>{activeCount}</strong> active</span>
+          <span><strong>{lowStockCount}</strong> low stock</span>
+          {showArchived ? <span><strong>{filteredArchivedCount}</strong> archived shown</span> : <span><strong>{archivedCount}</strong> archived hidden</span>}
+        </div>
+
+        <div className="inventory-filters">
+          <label className="inventory-search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" />
+              <path d="m21 21-4.35-4.35" />
+            </svg>
+            <input
+              ref={inventorySearchRef}
+              className="form-input"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search name, SKU, barcode, category..."
+              aria-label="Search inventory items"
+            />
+          </label>
+          <select
+            className="form-select"
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            aria-label="Filter by category"
+          >
+            <option value="all">All categories</option>
+            {categoryOptions.map((category) => (
+              <option key={category} value={category}>{category}</option>
+            ))}
+          </select>
+          <select
+            className="form-select"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as ItemStatusFilter)}
+            aria-label="Filter by status"
+          >
+            <option value="all">All statuses</option>
+            <option value="ok">OK</option>
+            <option value="low">Low stock</option>
+            <option value="expiring">Expiring soon</option>
+            <option value="expired">Expired</option>
+            {(showArchived || statusFilter === "archived") && <option value="archived">Archived</option>}
+          </select>
+          <select
+            className="form-select"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as ItemSortKey)}
+            aria-label="Sort inventory items"
+          >
+            <option value="name">Sort: Name</option>
+            <option value="stock-asc">Stock: Low to high</option>
+            <option value="stock-desc">Stock: High to low</option>
+            <option value="value-desc">Value: High to low</option>
+            <option value="recent">Newest first</option>
+          </select>
+          {canManageStock && (
+            <button
+              className="btn btn--secondary"
+              onClick={() => {
+                setShowArchived((value) => {
+                  if (value && statusFilter === "archived") setStatusFilter("all");
+                  return !value;
+                });
+              }}
+            >
+              {showArchived ? "Hide archived" : "Show archived"}
+            </button>
+          )}
+          {(searchTerm || categoryFilter !== "all" || statusFilter !== "all" || sortBy !== "name") && (
+            <button
+              className="btn btn--ghost"
+              onClick={() => {
+                setSearchTerm("");
+                setCategoryFilter("all");
+                setStatusFilter("all");
+                setSortBy("name");
+                setPendingCommandAction(null);
+                setSearchParams(new URLSearchParams(), { replace: true });
+              }}
+            >
+              Clear
+            </button>
+          )}
+        </div>
+
+        <p className="inventory-filter-summary">
+          Showing {filteredItems.length} of {items.length} items
+          {searchTerm ? ` matching "${searchTerm.trim()}"` : ""}
+          {categoryFilter !== "all" ? ` in ${categoryFilter}` : ""}
+          {statusFilter !== "all" ? ` with ${statusFilter.replace("-", " ")} status` : ""}.
+        </p>
+      </div>
+
+      {pendingCommandAction === "stock-in" && (
+        <div className="inventory-action-notice" role="status">
+          <strong>Stock in:</strong>
+          <span>Search or choose an item below, then use the visible <strong>+ In</strong> row action.</span>
+          <button type="button" className="btn btn--ghost btn--sm" onClick={() => setPendingCommandAction(null)}>
+            Dismiss
+          </button>
         </div>
       )}
 
@@ -385,7 +566,7 @@ export function ItemsPage() {
         />
       )}
 
-      {canManageStock && items.length > 0 && selectedCount === 0 && (
+      {canManageStock && filteredItems.length > 0 && selectedCount === 0 && (
         <div className="selection-toolbar">
           <label className="bulk-select-all">
             <input
@@ -401,7 +582,13 @@ export function ItemsPage() {
 
       {items.length === 0 ? (
         <div className="empty-state">
-          <p>No items yet. Add your first inventory item to get started.</p>
+          <h3>No inventory items yet</h3>
+          <p>Add your first item or import a CSV/Excel list to start tracking stock.</p>
+        </div>
+      ) : filteredItems.length === 0 ? (
+        <div className="empty-state">
+          <h3>No items match these filters</h3>
+          <p>Try a different search, category, status, or show archived inventory.</p>
         </div>
       ) : (
         <>
@@ -431,7 +618,7 @@ export function ItemsPage() {
                 </tr>
               </thead>
               <tbody>
-                {items.map((item) => {
+                {filteredItems.map((item) => {
                   const s = summaryMap.get(item.id);
                   const usage = usageMap.get(item.id);
                   const estimatedDaysRemaining = s && usage && usage.averageDailyUsage > 0
@@ -453,10 +640,19 @@ export function ItemsPage() {
                         </td>
                       )}
                       <td className="td-name">
-                        {item.name}
-                        {!item.isActive && (
-                          <span className="badge badge--gray item-lifecycle-badge">Archived</span>
-                        )}
+                        <span className="item-name-line">
+                          <strong>{item.name}</strong>
+                          {!item.isActive && (
+                            <span className="badge badge--gray item-lifecycle-badge">Archived</span>
+                          )}
+                          {item.trackExpiry && (
+                            <span className="badge badge--gray item-lifecycle-badge">Expiry</span>
+                          )}
+                        </span>
+                        <span className="item-meta-line">
+                          {item.category || "Uncategorized"}
+                          {item.sku ? ` / SKU ${item.sku}` : ""}
+                        </span>
                         {s?.isLowStock && (
                           <span className="reorder-hint">
                             Suggested reorder:{" "}
@@ -493,85 +689,91 @@ export function ItemsPage() {
                         <span className={`badge badge--${status.variant}`}>{status.label}</span>
                       </td>
                       <td className="td-actions">
-                        <span className="quick-btns">
-                          {item.isActive && canManageStock && ([1, 5] as const).map((n) => (
-                            <button
-                              key={`+${n}`}
-                              className="btn btn--xs btn--quick btn--quick-in"
-                              disabled={busy.has(item.id)}
-                              onClick={() => { void quickAdjust(item, n); }}
-                              title={`Add ${n} ${item.unit}`}
-                            >+{n}</button>
-                          ))}
-                          {item.isActive && ([1, 5] as const).map((n) => (
-                            <button
-                              key={`-${n}`}
-                              className="btn btn--xs btn--quick btn--quick-out"
-                              disabled={busy.has(item.id)}
-                              onClick={() => { void quickAdjust(item, -n); }}
-                              title={`Deduct ${n} ${item.unit}`}
-                            >−{n}</button>
-                          ))}
-                        </span>
-                        <span className="actions-divider" />
                         {item.isActive && canManageStock && (
                           <button
                             className="btn btn--sm btn--ghost btn--green-text"
-                            onClick={() => setStockInItem(item)}
+                            onClick={() => {
+                              setPendingCommandAction(null);
+                              setStockInItem(item);
+                            }}
                           >
                             + In
                           </button>
                         )}
                         {item.isActive && (
-                        <button
-                          className="btn btn--sm btn--ghost btn--red-text"
-                          onClick={() => setStockOutItem(item)}
-                        >
-                          − Out
-                        </button>
-                        )}
-                        {item.isActive && canManageStock && (
                           <button
-                            className="btn btn--sm btn--ghost btn--blue-text"
-                            onClick={() => setAdjustItem(item)}
-                            title="Set exact stock quantity"
+                            className="btn btn--sm btn--ghost btn--red-text"
+                            onClick={() => setStockOutItem(item)}
                           >
-                            Adjust
+                            - Out
                           </button>
                         )}
-                        {item.isActive && canManageStock && locations.length > 1 && (
+                        <div className="row-action-menu">
                           <button
-                            className="btn btn--sm btn--ghost"
-                            onClick={() => setTransferItem(item)}
+                            type="button"
+                            className="btn btn--sm btn--secondary row-action-menu-trigger"
+                            aria-haspopup="menu"
+                            aria-expanded={openActionMenuItemId === item.id}
+                            onClick={() => setOpenActionMenuItemId((current) => current === item.id ? null : item.id)}
                           >
-                            Transfer
+                            More
                           </button>
-                        )}
-                        <button
-                          className="btn btn--sm btn--ghost"
-                          onClick={() => setBarcodeItem(item)}
-                        >
-                          Barcode
-                        </button>
-                        {canManageStock && (
-                          item.isActive ? (
-                            <button
-                              className="btn btn--sm btn--ghost btn--red-text"
-                              disabled={busy.has(item.id)}
-                              onClick={() => { void handleArchiveItem(item); }}
-                            >
-                              Archive
-                            </button>
-                          ) : (
-                            <button
-                              className="btn btn--sm btn--ghost btn--green-text"
-                              disabled={busy.has(item.id)}
-                              onClick={() => { void handleReactivateItem(item); }}
-                            >
-                              Reactivate
-                            </button>
-                          )
-                        )}
+                          {openActionMenuItemId === item.id && (
+                            <div className="row-action-menu-panel" role="menu">
+                              {item.isActive && canManageStock && (
+                                <div className="row-action-menu-quick" aria-label={`Quick adjust ${item.name}`}>
+                                  {([1, 5] as const).map((n) => (
+                                    <button
+                                      key={`+${n}`}
+                                      className="btn btn--xs btn--quick btn--quick-in"
+                                      disabled={busy.has(item.id)}
+                                      onClick={() => { setOpenActionMenuItemId(null); void quickAdjust(item, n); }}
+                                      title={`Add ${n} ${item.unit}`}
+                                    >+{n}</button>
+                                  ))}
+                                  {([1, 5] as const).map((n) => (
+                                    <button
+                                      key={`-${n}`}
+                                      className="btn btn--xs btn--quick btn--quick-out"
+                                      disabled={busy.has(item.id)}
+                                      onClick={() => { setOpenActionMenuItemId(null); void quickAdjust(item, -n); }}
+                                      title={`Deduct ${n} ${item.unit}`}
+                                    >-{n}</button>
+                                  ))}
+                                </div>
+                              )}
+                              {item.isActive && canManageStock && (
+                                <button className="row-action-menu-item" role="menuitem" onClick={() => { setOpenActionMenuItemId(null); setAdjustItem(item); }}>
+                                  Adjust quantity
+                                </button>
+                              )}
+                              {item.isActive && canManageStock && locations.length > 1 && (
+                                <button className="row-action-menu-item" role="menuitem" onClick={() => { setOpenActionMenuItemId(null); setTransferItem(item); }}>
+                                  Transfer
+                                </button>
+                              )}
+                              <button className="row-action-menu-item" role="menuitem" onClick={() => { setOpenActionMenuItemId(null); setBarcodeItem(item); }}>
+                                Barcode
+                              </button>
+                              {canManageStock && (
+                                <button className="row-action-menu-item" role="menuitem" onClick={() => { setOpenActionMenuItemId(null); setEditingItem(item); }}>
+                                  Edit item
+                                </button>
+                              )}
+                              {canManageStock && (
+                                item.isActive ? (
+                                  <button className="row-action-menu-item row-action-menu-item--danger" role="menuitem" disabled={busy.has(item.id)} onClick={() => { setOpenActionMenuItemId(null); void handleArchiveItem(item); }}>
+                                    Archive
+                                  </button>
+                                ) : (
+                                  <button className="row-action-menu-item row-action-menu-item--success" role="menuitem" disabled={busy.has(item.id)} onClick={() => { setOpenActionMenuItemId(null); void handleReactivateItem(item); }}>
+                                    Reactivate
+                                  </button>
+                                )
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -582,7 +784,7 @@ export function ItemsPage() {
 
           {/* ── Mobile cards (hidden on desktop) ── */}
           <div className="item-cards">
-            {items.map((item) => {
+            {filteredItems.map((item) => {
               const s = summaryMap.get(item.id);
               const usage = usageMap.get(item.id);
               const estimatedDaysRemaining = s && usage && usage.averageDailyUsage > 0
@@ -607,10 +809,17 @@ export function ItemsPage() {
                       {!item.isActive && (
                         <span className="badge badge--gray item-lifecycle-badge">Archived</span>
                       )}
+                      {item.trackExpiry && (
+                        <span className="badge badge--gray item-lifecycle-badge">Expiry</span>
+                      )}
                     </div>
                     <span className={`badge badge--${status.variant}`}>{status.label}</span>
                   </div>
                   <div className="item-card-meta">
+                    <span className="item-card-stat">
+                      <span className="item-card-stat-label">Category</span>
+                      <span className="item-card-stat-value">{item.category || "Uncategorized"}</span>
+                    </span>
                     {item.barcode && (
                       <span className="item-card-stat">
                         <span className="item-card-stat-label">Barcode</span>
@@ -695,7 +904,7 @@ export function ItemsPage() {
                       )}
                       {item.isActive && canManageStock && (
                         <button
-                          className="btn btn--sm btn--ghost btn--blue-text item-card-btn"
+                          className="btn btn--sm btn--ghost btn--accent-text item-card-btn"
                           onClick={() => setAdjustItem(item)}
                         >
                         ≡ Set Quantity
@@ -715,6 +924,14 @@ export function ItemsPage() {
                       >
                         Barcode
                       </button>
+                      {canManageStock && (
+                        <button
+                          className="btn btn--sm btn--ghost item-card-btn"
+                          onClick={() => setEditingItem(item)}
+                        >
+                          Edit
+                        </button>
+                      )}
                       {canManageStock && (
                         item.isActive ? (
                           <button
@@ -752,6 +969,20 @@ export function ItemsPage() {
             setAddItemOpen(false);
             setScanPrefillBarcode(undefined);
             showToast(`"${item.name}" added successfully`, "success");
+            void refreshSummary();
+          }}
+          onError={(msg) => showToast(msg, "error")}
+        />
+      )}
+
+      {editingItem && (
+        <EditItemModal
+          item={editingItem}
+          onClose={() => setEditingItem(null)}
+          onSuccess={(updatedItem) => {
+            setItems((prev) => prev.map((item) => (item.id === updatedItem.id ? updatedItem : item)));
+            setEditingItem(null);
+            showToast(`"${updatedItem.name}" updated`, "success");
             void refreshSummary();
           }}
           onError={(msg) => showToast(msg, "error")}
@@ -1122,6 +1353,157 @@ function AddItemModal({
           >
             {saving ? <span className="btn-spinner" /> : null}
             {saving ? "Adding…" : "Add Item"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function EditItemModal({
+  item,
+  onClose,
+  onSuccess,
+  onError,
+}: {
+  item: Item;
+  onClose: () => void;
+  onSuccess: (item: Item) => void;
+  onError: (msg: string) => void;
+}) {
+  const [form, setForm] = useState<CreateItemInput>({
+    name: item.name,
+    unit: item.unit,
+    category: item.category ?? "",
+    sku: item.sku ?? "",
+    barcode: item.barcode ?? "",
+    minStockLevel: item.minStockLevel,
+    trackExpiry: item.trackExpiry,
+  });
+  const [saving, setSaving] = useState(false);
+  const firstRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { firstRef.current?.focus(); }, []);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.name.trim() || !form.unit.trim()) return;
+    setSaving(true);
+    try {
+      const res = await updateItem(item.id, {
+        ...form,
+        name: form.name.trim(),
+        unit: form.unit.trim(),
+        category: form.category?.trim() || null,
+        sku: form.sku?.trim() || null,
+        barcode: form.barcode?.trim() || null,
+      });
+      onSuccess(res.item);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Failed to update item");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal title="Edit Item" onClose={onClose}>
+      <form onSubmit={(e) => { void handleSubmit(e); }}>
+        <div className="form-group">
+          <label className="form-label">Name *</label>
+          <input
+            ref={firstRef}
+            className="form-input"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            required
+          />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Unit *</label>
+          <select
+            className="form-select"
+            value={form.unit}
+            onChange={(e) => setForm({ ...form, unit: e.target.value })}
+            required
+          >
+            {UNIT_OPTIONS.map((unit) => (
+              <option key={unit} value={unit}>
+                {unit}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="form-group">
+          <label className="form-label">Category</label>
+          <input
+            className="form-input"
+            list="edit-item-category-options"
+            value={form.category ?? ""}
+            onChange={(e) => setForm({ ...form, category: e.target.value })}
+            placeholder="Optional category"
+          />
+          <datalist id="edit-item-category-options">
+            {CATEGORY_OPTIONS.map((category) => (
+              <option key={category} value={category}>
+                {category}
+              </option>
+            ))}
+          </datalist>
+          {item.category && !CATEGORY_OPTIONS.includes(item.category) && (
+            <p className="form-helper">Current custom category is preserved unless you edit or clear it.</p>
+          )}
+        </div>
+        <div className="form-group">
+          <label className="form-label">SKU</label>
+          <input
+            className="form-input"
+            value={form.sku ?? ""}
+            onChange={(e) => setForm({ ...form, sku: e.target.value })}
+            placeholder="Optional internal SKU"
+          />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Min Stock Level</label>
+          <input
+            className="form-input"
+            type="number"
+            min={0}
+            value={form.minStockLevel}
+            onChange={(e) => setForm({ ...form, minStockLevel: Number(e.target.value) })}
+          />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Barcode</label>
+          <input
+            className="form-input"
+            value={form.barcode ?? ""}
+            onChange={(e) => setForm({ ...form, barcode: e.target.value })}
+            placeholder="Scan or enter barcode"
+          />
+        </div>
+        <div className="form-group form-group--inline">
+          <input
+            id="editTrackExpiry"
+            type="checkbox"
+            checked={form.trackExpiry}
+            onChange={(e) => setForm({ ...form, trackExpiry: e.target.checked })}
+          />
+          <label htmlFor="editTrackExpiry" className="form-label form-label--check">
+            Track expiry dates
+          </label>
+        </div>
+        <div className="modal-footer">
+          <button type="button" className="btn btn--ghost" onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            type="submit"
+            className="btn btn--primary"
+            disabled={saving || !form.name.trim() || !form.unit.trim()}
+          >
+            {saving ? <span className="btn-spinner" /> : null}
+            {saving ? "Saving..." : "Save changes"}
           </button>
         </div>
       </form>
@@ -2385,3 +2767,6 @@ function Modal({
     </div>
   );
 }
+
+
+

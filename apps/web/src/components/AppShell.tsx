@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { getAlerts } from "../api/alerts";
 import { getNotifications, markAllNotificationsRead, markNotificationRead } from "../api/notifications";
@@ -24,6 +24,7 @@ export function AppShell() {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [isDesktopShell, setIsDesktopShell] = useState(() => window.innerWidth >= 768);
+  const [commandSearch, setCommandSearch] = useState("");
   const canAccessManagement = user?.role === "OWNER" || user?.role === "MANAGER";
   const canManageTeam = user?.role === "OWNER";
   const workspaceName = settings.name.trim() || "ShelfSense";
@@ -95,6 +96,17 @@ export function AppShell() {
     navigate("/login");
   }
 
+  function goToItems(params?: Record<string, string>) {
+    const search = new URLSearchParams(params).toString();
+    navigate(`/items${search ? `?${search}` : ""}`);
+  }
+
+  function handleCommandSearch(e: FormEvent) {
+    e.preventDefault();
+    const query = commandSearch.trim();
+    goToItems(query ? { q: query } : undefined);
+  }
+
   async function handleMarkNotificationRead(id: string) {
     const existing = notifications.find((notification) => notification.id === id);
     if (!existing || existing.readAt) return;
@@ -150,20 +162,12 @@ export function AppShell() {
       <aside className="sidebar">
         <div className="sidebar-header">
           <div className="sidebar-logo">
-            <span className="logo-icon">📦</span>
+            <span className="logo-mark">S</span>
             <span className="logo-text">
-              <span className={`logo-name ${workspaceLoading ? "logo-name--loading" : ""}`}>
-                {workspaceName}
-              </span>
-              <span className="logo-powered">Powered by ShelfSense</span>
+              <span className="logo-name">ShelfSense</span>
+              <span className={`logo-powered ${workspaceLoading ? "logo-name--loading" : ""}`}>{workspaceName}</span>
             </span>
           </div>
-          <LocationSelector
-            locations={locations}
-            activeLocationId={activeLocationId}
-            loading={locationsLoading}
-            onChange={setActiveLocationId}
-          />
         </div>
 
         <nav className="sidebar-nav">
@@ -174,7 +178,7 @@ export function AppShell() {
               <rect x="3" y="14" width="7" height="7" rx="1" />
               <rect x="14" y="14" width="7" height="7" rx="1" />
             </svg>
-            Dashboard
+            Today
           </NavLink>
           <NavLink to="/items" className={({ isActive }) => `nav-item ${isActive ? "nav-item--active" : ""}`}>
             <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -182,7 +186,7 @@ export function AppShell() {
               <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
               <line x1="12" y1="22.08" x2="12" y2="12" />
             </svg>
-            Items
+            Inventory
           </NavLink>
           <NavLink to="/movements" className={({ isActive }) => `nav-item ${isActive ? "nav-item--active" : ""}`}>
             <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -191,7 +195,7 @@ export function AppShell() {
               <path d="M21 17H8" />
               <path d="M11 14l-3 3 3 3" />
             </svg>
-            Movements
+            Stock Activity
           </NavLink>
           {canAccessManagement && (
             <>
@@ -307,9 +311,21 @@ export function AppShell() {
               <span className={`topbar-brand-name ${workspaceLoading ? "topbar-brand-name--loading" : ""}`}>
                 {workspaceName}
               </span>
-              <span className="topbar-brand-powered">Powered by ShelfSense</span>
+              <span className="topbar-brand-powered">Inventory command center</span>
             </span>
           </div>
+          <form className="topbar-search" role="search" onSubmit={(e) => { handleCommandSearch(e); }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="7" />
+              <path d="m21 21-4.35-4.35" />
+            </svg>
+            <input
+              aria-label="Search inventory"
+              placeholder="Search items, SKU, barcode..."
+              value={commandSearch}
+              onChange={(e) => setCommandSearch(e.target.value)}
+            />
+          </form>
           <div className="topbar-user">
             <LocationSelector
               locations={locations}
@@ -317,6 +333,10 @@ export function AppShell() {
               loading={locationsLoading}
               onChange={setActiveLocationId}
             />
+            <div className="topbar-actions">
+              <button type="button" className="btn btn--secondary btn--sm" onClick={() => goToItems({ action: "scan" })}>Scan</button>
+              <button type="button" className="btn btn--primary btn--sm" onClick={() => goToItems({ action: "stock-in" })}>Stock In</button>
+            </div>
             {!isDesktopShell && (
               <NotificationBell
                 open={notificationsOpen}
@@ -347,13 +367,13 @@ export function AppShell() {
             <rect x="3" y="14" width="7" height="7" rx="1" />
             <rect x="14" y="14" width="7" height="7" rx="1" />
           </svg>
-          <span>Dashboard</span>
+          <span>Today</span>
         </NavLink>
         <NavLink to="/items" className={({ isActive }) => `bottom-nav-item ${isActive ? "bottom-nav-item--active" : ""}`}>
           <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
           </svg>
-          <span>Items</span>
+          <span>Inventory</span>
         </NavLink>
         <NavLink to="/movements" className={({ isActive }) => `bottom-nav-item ${isActive ? "bottom-nav-item--active" : ""}`}>
           <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -627,3 +647,5 @@ function LocationSelector({
     </label>
   );
 }
+
+
