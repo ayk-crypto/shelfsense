@@ -15,6 +15,7 @@ import { OnboardingPage } from "./pages/OnboardingPage";
 import { PurchasesPage } from "./pages/PurchasesPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { SignupPage } from "./pages/SignupPage";
 import { SuppliersPage } from "./pages/SuppliersPage";
 import { TeamPage } from "./pages/TeamPage";
 import { useEffect, useState } from "react";
@@ -30,6 +31,31 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth();
   return isAuthenticated ? <Navigate to="/dashboard" replace /> : <>{children}</>;
+}
+
+function WorkspaceRequiredRoute({ children }: { children: React.ReactNode }) {
+  const { user, logout } = useAuth();
+
+  if (user?.workspaceId) return <>{children}</>;
+
+  function handleSignupRedirect() {
+    logout();
+    window.location.assign("/signup");
+  }
+
+  return (
+    <div className="page-error">
+      <div className="access-denied">
+        <h1 className="access-denied-title">Workspace setup needed</h1>
+        <p className="access-denied-copy">
+          This account is not connected to a ShelfSense workspace yet. Sign out and create a workspace owner account, or ask an owner to invite you.
+        </p>
+        <button type="button" className="btn btn--primary access-denied-action" onClick={handleSignupRedirect}>
+          Sign out and create account
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function RoleRoute({
@@ -144,15 +170,25 @@ export function App() {
             }
           />
           <Route
+            path="/signup"
+            element={
+              <PublicRoute>
+                <SignupPage />
+              </PublicRoute>
+            }
+          />
+          <Route
             element={
               <ProtectedRoute>
-                <WorkspaceSettingsProvider>
-                  <OwnerOnboardingGate>
-                    <LocationProvider>
-                      <AppShell />
-                    </LocationProvider>
-                  </OwnerOnboardingGate>
-                </WorkspaceSettingsProvider>
+                <WorkspaceRequiredRoute>
+                  <WorkspaceSettingsProvider>
+                    <OwnerOnboardingGate>
+                      <LocationProvider>
+                        <AppShell />
+                      </LocationProvider>
+                    </OwnerOnboardingGate>
+                  </WorkspaceSettingsProvider>
+                </WorkspaceRequiredRoute>
               </ProtectedRoute>
             }
           >

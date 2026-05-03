@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { login } from "../api/auth";
 import { useAuth } from "../context/AuthContext";
 
@@ -107,6 +107,10 @@ export function LoginPage() {
             Fill demo credentials
           </button>
         </div>
+
+        <p className="auth-switch">
+          New to ShelfSense? <Link to="/signup">Create an account</Link>
+        </p>
       </div>
     </div>
   );

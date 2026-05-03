@@ -28,6 +28,7 @@ export async function requireAuth(
         name: true,
         email: true,
         memberships: {
+          where: { isActive: true },
           orderBy: { createdAt: "asc" },
           select: { workspaceId: true, role: true },
           take: 1,

@@ -4,7 +4,7 @@ import { prisma } from "../db/prisma.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { logAction } from "../utils/audit-log.js";
-import { getActiveLocationId } from "../utils/locations.js";
+import { assertActiveLocation, getActiveLocationId } from "../utils/locations.js";
 
 export const purchasesRouter = Router();
 
@@ -89,6 +89,8 @@ purchasesRouter.post("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(
   const purchaseDate = input.date ?? new Date();
 
   const result = await prisma.$transaction(async (tx) => {
+    await assertActiveLocation(tx, workspaceId, locationId);
+
     const purchase = await tx.purchase.create({
       data: {
         supplierId: supplier.id,

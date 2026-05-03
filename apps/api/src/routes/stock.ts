@@ -4,7 +4,7 @@ import { prisma } from "../db/prisma.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { logAction } from "../utils/audit-log.js";
-import { getActiveLocationId } from "../utils/locations.js";
+import { assertActiveLocation, assertActiveLocations, getActiveLocationId } from "../utils/locations.js";
 
 export const stockRouter = Router();
 
@@ -47,6 +47,8 @@ stockRouter.post("/in", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(as
   }
 
   const result = await prisma.$transaction(async (tx) => {
+    await assertActiveLocation(tx, workspaceId, locationId);
+
     const latestPricedBatch = input.unitCost === undefined
       ? await tx.stockBatch.findFirst({
           where: {
@@ -272,6 +274,7 @@ stockRouter.post("/transfer", requireRole([Role.OWNER, Role.MANAGER]), asyncHand
       where: {
         workspaceId,
         id: { in: [fromLocationId, toLocationId] },
+        isActive: true,
       },
       select: { id: true, name: true },
     }),
@@ -282,7 +285,7 @@ stockRouter.post("/transfer", requireRole([Role.OWNER, Role.MANAGER]), asyncHand
   }
 
   if (locations.length !== 2) {
-    return res.status(400).json({ error: "Both locations must belong to this workspace" });
+    return res.status(400).json({ error: "Both locations must be active and belong to this workspace" });
   }
 
   const toLocation = locations.find((location) => location.id === toLocationId)!;
@@ -290,6 +293,8 @@ stockRouter.post("/transfer", requireRole([Role.OWNER, Role.MANAGER]), asyncHand
 
   try {
     const result = await prisma.$transaction(async (tx) => {
+      await assertActiveLocations(tx, workspaceId, [fromLocationId, toLocationId]);
+
       const batches = await tx.stockBatch.findMany({
         where: {
           itemId,

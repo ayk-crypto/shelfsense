@@ -106,13 +106,17 @@ model Location {
   id             String          @id @default(uuid()) @db.Uuid
   name           String
   workspaceId    String          @db.Uuid
+  isActive       Boolean         @default(true)
+  archivedAt     DateTime?
   createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
   workspace      Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   stockBatches   StockBatch[]
   stockMovements StockMovement[]
   purchases      Purchase[]
 
   @@index([workspaceId])
+  @@index([workspaceId, isActive])
   @@unique([workspaceId, name])
 }
 
@@ -121,12 +125,16 @@ model Membership {
   userId      String    @db.Uuid
   workspaceId String    @db.Uuid
   role        Role
+  isActive    Boolean   @default(true)
+  deactivatedAt DateTime?
   createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@unique([userId, workspaceId])
   @@index([workspaceId])
+  @@index([workspaceId, isActive])
 }
 
 model Item {

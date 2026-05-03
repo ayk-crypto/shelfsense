@@ -15,6 +15,7 @@ function parseCsv(value: string | undefined) {
 
 export const env = {
   databaseUrl:
+    (process.env.NODE_ENV === "test" ? process.env.TEST_DATABASE_URL : undefined) ??
     process.env.DATABASE_URL ??
     "postgresql://postgres:postgres@localhost:5432/shelfsense?schema=public",
   jwtSecret: process.env.JWT_SECRET ?? "development-secret",

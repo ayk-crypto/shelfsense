@@ -16,7 +16,8 @@ curl -X POST "$API_URL/auth/register" \
   -d '{
     "name": "Demo User",
     "email": "demo@example.com",
-    "password": "demo123456"
+    "password": "demo123456",
+    "workspaceName": "Demo Workspace"
   }'
 ```
 

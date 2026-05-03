@@ -169,6 +169,17 @@ npm run db:migrate --workspace @shelfsense/api
 npm run db:seed
 ```
 
+## API Tests
+
+Focused API tests use Vitest and Supertest. Set `TEST_DATABASE_URL` to a migrated disposable database before running them; do not point it at production data.
+
+```bash
+cd apps/api
+$env:TEST_DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/shelfsense_test?schema=public"
+npx prisma migrate deploy
+npm test
+```
+
 ## Troubleshooting
 
 ### Prisma migration pending or database drift
