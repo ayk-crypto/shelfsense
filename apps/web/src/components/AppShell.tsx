@@ -622,29 +622,78 @@ function LocationSelector({
   loading: boolean;
   onChange: (locationId: string) => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handlePointerDown(e: PointerEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [open]);
+
   if (loading && locations.length === 0) {
     return <div className="location-select-skeleton" aria-label="Loading locations" />;
   }
 
-  if (locations.length === 0) {
-    return null;
-  }
+  if (locations.length === 0) return null;
+
+  const active = locations.find((l) => l.id === activeLocationId) ?? locations[0];
 
   return (
-    <label className="location-selector">
-      <span className="location-selector-label">Branch</span>
-      <select
-        className="location-selector-select"
-        value={activeLocationId}
-        onChange={(e) => onChange(e.target.value)}
+    <div className="loc-picker" ref={ref}>
+      <button
+        type="button"
+        className="loc-picker-btn"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
       >
-        {locations.map((location) => (
-          <option key={location.id} value={location.id}>
-            {location.name}
-          </option>
-        ))}
-      </select>
-    </label>
+        <svg className="loc-picker-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M21 10c0 7-9 12-9 12S3 17 3 10a9 9 0 1 1 18 0z" />
+          <circle cx="12" cy="10" r="3" />
+        </svg>
+        <span className="loc-picker-name">{active.name}</span>
+        <svg className={`loc-picker-chevron ${open ? "loc-picker-chevron--open" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="loc-picker-panel" role="listbox">
+          <div className="loc-picker-panel-label">Switch branch</div>
+          {locations.map((loc) => {
+            const isActive = loc.id === activeLocationId;
+            return (
+              <button
+                key={loc.id}
+                type="button"
+                role="option"
+                aria-selected={isActive}
+                className={`loc-picker-item ${isActive ? "loc-picker-item--active" : ""}`}
+                onClick={() => { onChange(loc.id); setOpen(false); }}
+              >
+                <span className="loc-picker-item-name">{loc.name}</span>
+                {isActive && (
+                  <svg className="loc-picker-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -6972,6 +6972,149 @@ tr.row--wastage td:first-child {
 }
 
 /* =============================================
+   CUSTOM BRANCH / LOCATION PICKER
+   ============================================= */
+
+.loc-picker {
+  position: relative;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.loc-picker-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 10px 0 10px;
+  border-radius: 9px;
+  border: 1.5px solid #e2e8f0;
+  background: #fff;
+  color: #1e293b;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  min-width: 0;
+  max-width: 180px;
+}
+
+.loc-picker-btn:hover {
+  border-color: #a5b4fc;
+  background: #f5f3ff;
+  color: #4f46e5;
+}
+
+.loc-picker-btn[aria-expanded="true"] {
+  border-color: #6366f1;
+  background: #f5f3ff;
+  color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+}
+
+.loc-picker-icon {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  color: #6366f1;
+}
+
+.loc-picker-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}
+
+.loc-picker-chevron {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  color: #94a3b8;
+  transition: transform 0.18s;
+}
+
+.loc-picker-chevron--open {
+  transform: rotate(180deg);
+  color: #6366f1;
+}
+
+/* Dropdown panel */
+.loc-picker-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 180px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.04), 0 12px 32px rgba(0,0,0,0.10);
+  z-index: 200;
+  overflow: hidden;
+  padding: 4px;
+}
+
+.loc-picker-panel-label {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+  padding: 8px 12px 4px;
+}
+
+.loc-picker-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 9px 12px;
+  border: none;
+  background: none;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+  gap: 8px;
+  transition: background 0.1s, color 0.1s;
+}
+
+.loc-picker-item:hover {
+  background: #f5f3ff;
+  color: #4f46e5;
+}
+
+.loc-picker-item--active {
+  background: #ede9fe;
+  color: #4338ca;
+  font-weight: 650;
+}
+
+.loc-picker-item--active:hover {
+  background: #e0e7ff;
+}
+
+.loc-picker-item-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.loc-picker-check {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: #6366f1;
+}
+
+/* =============================================
    TOPBAR ALIGNMENT FIX
    ============================================= */
 
