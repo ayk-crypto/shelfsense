@@ -6970,3 +6970,92 @@ tr.row--wastage td:first-child {
 .bottom-nav-item--active {
   color: #6366f1;
 }
+
+/* =============================================
+   TOPBAR ALIGNMENT FIX
+   ============================================= */
+
+/* Force all topbar children to vertically center */
+.topbar {
+  align-items: center;
+  display: flex;
+}
+
+@media (min-width: 768px) {
+  .topbar {
+    align-items: center;
+    display: flex;
+  }
+}
+
+/* Location selector: inline row in topbar so it doesn't break height */
+.topbar .location-selector {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Show BRANCH label inline beside the dropdown */
+.topbar .location-selector-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 800;
+  color: #a5b4fc;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* Dropdown itself: single fixed height, vertically centered */
+.topbar .location-selector-select {
+  height: 36px;
+  min-height: 36px;
+  max-height: 36px;
+  padding-top: 0;
+  padding-bottom: 0;
+  display: flex;
+  align-items: center;
+  margin: 0;
+}
+
+/* Topbar right cluster: strict center alignment */
+.topbar .topbar-user {
+  align-items: center;
+  display: flex;
+}
+
+/* Topbar action buttons: same height as search */
+.topbar .topbar-actions {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+}
+
+.topbar .btn--sm {
+  height: 36px;
+  min-height: 36px;
+  padding-top: 0;
+  padding-bottom: 0;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Search: same height as buttons */
+.topbar .topbar-search {
+  height: 36px;
+  align-self: center;
+}
+
+/* Avatar: centered */
+.topbar .user-avatar--sm {
+  align-self: center;
+  flex-shrink: 0;
+}
+
+/* Notification bell: centered */
+.topbar .notification-bell-btn {
+  align-self: center;
+  height: 36px;
+  width: 36px;
+  flex-shrink: 0;
+}
