@@ -9,6 +9,12 @@ export const itemsRouter = Router();
 
 itemsRouter.use(requireAuth);
 
+const MAX_ITEM_NAME_LENGTH = 160;
+const MAX_ITEM_UNIT_LENGTH = 32;
+const MAX_ITEM_CATEGORY_LENGTH = 80;
+const MAX_ITEM_SKU_LENGTH = 80;
+const MAX_ITEM_BARCODE_LENGTH = 120;
+
 itemsRouter.post("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
   const workspaceId = getWorkspaceId(req);
 
@@ -21,6 +27,14 @@ itemsRouter.post("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(asyn
   if (!data.name || !data.unit) {
     return res.status(400).json({ error: "Name and unit are required" });
   }
+
+  const validationError = validateItemInput(data);
+  if (validationError) {
+    return res.status(400).json({ error: validationError });
+  }
+
+  const name = data.name;
+  const unit = data.unit;
 
   if (data.barcode) {
     const duplicate = await findDuplicateBarcode(workspaceId, data.barcode);
@@ -36,8 +50,8 @@ itemsRouter.post("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(asyn
     const createdItem = await tx.item.create({
       data: {
         ...data,
-        name: data.name,
-        unit: data.unit,
+        name,
+        unit,
         workspaceId,
       },
     });
@@ -113,6 +127,11 @@ itemsRouter.patch("/:id", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(
 
   if (data.name === "" || data.unit === "") {
     return res.status(400).json({ error: "Name and unit cannot be empty" });
+  }
+
+  const validationError = validateItemInput(data);
+  if (validationError) {
+    return res.status(400).json({ error: validationError });
   }
 
   if (data.barcode) {
@@ -317,6 +336,34 @@ function parseNullableString(value: unknown) {
 
 function parseBooleanQuery(value: unknown) {
   return typeof value === "string" && value.toLowerCase() === "true";
+}
+
+function validateItemInput(input: ReturnType<typeof parseItemInput>) {
+  if (input.name && input.name.length > MAX_ITEM_NAME_LENGTH) {
+    return "Item name must be 160 characters or fewer";
+  }
+
+  if (input.unit && input.unit.length > MAX_ITEM_UNIT_LENGTH) {
+    return "Unit must be 32 characters or fewer";
+  }
+
+  if (input.category && input.category.length > MAX_ITEM_CATEGORY_LENGTH) {
+    return "Category must be 80 characters or fewer";
+  }
+
+  if (input.sku && input.sku.length > MAX_ITEM_SKU_LENGTH) {
+    return "SKU must be 80 characters or fewer";
+  }
+
+  if (input.barcode && input.barcode.length > MAX_ITEM_BARCODE_LENGTH) {
+    return "Barcode must be 120 characters or fewer";
+  }
+
+  if (input.minStockLevel !== undefined && input.minStockLevel < 0) {
+    return "Minimum stock level cannot be negative";
+  }
+
+  return null;
 }
 
 function sanitizeMeta(meta: Record<string, unknown>) {

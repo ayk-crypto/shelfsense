@@ -1,11 +1,16 @@
 import bcrypt from "bcryptjs";
 import { Router } from "express";
+import { Prisma } from "../generated/prisma/client.js";
 import { Role } from "../generated/prisma/enums.js";
 import { prisma } from "../db/prisma.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async-handler.js";
 
 export const teamRouter = Router();
+
+const MAX_EMAIL_LENGTH = 254;
+const MAX_NAME_LENGTH = 120;
+const MAX_PASSWORD_LENGTH = 128;
 
 teamRouter.use(requireAuth);
 teamRouter.use(requireRole([Role.OWNER]));
@@ -68,6 +73,26 @@ teamRouter.post("/users", asyncHandler(async (req, res) => {
     return res.status(400).json({ error: "Name, email, password, and role are required" });
   }
 
+  if (input.name.length > MAX_NAME_LENGTH) {
+    return res.status(400).json({ error: "Name must be 120 characters or fewer" });
+  }
+
+  if (!isValidEmail(input.email)) {
+    return res.status(400).json({ error: "A valid email address is required" });
+  }
+
+  if (!input.password.trim()) {
+    return res.status(400).json({ error: "Password cannot be empty" });
+  }
+
+  if (input.password.length < 8) {
+    return res.status(400).json({ error: "Password must be at least 8 characters" });
+  }
+
+  if (input.password.length > MAX_PASSWORD_LENGTH) {
+    return res.status(400).json({ error: "Password must be 128 characters or fewer" });
+  }
+
   if (input.role === "OWNER") {
     return res.status(400).json({ error: "Team users cannot be created as OWNER" });
   }
@@ -92,47 +117,48 @@ teamRouter.post("/users", asyncHandler(async (req, res) => {
 
   const hashedPassword = await bcrypt.hash(password, 12);
 
-  const result = await prisma.$transaction(async (tx) => {
-    const user = await tx.user.create({
-      data: {
-        name,
-        email,
-        password: hashedPassword,
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        createdAt: true,
-      },
-    });
+  let result: ReturnType<typeof formatCreatedMember>;
 
-    const membership = await tx.membership.create({
-      data: {
-        userId: user.id,
-        workspaceId,
-        role,
-      },
-      select: {
-        role: true,
-        isActive: true,
-        deactivatedAt: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
+  try {
+    result = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          name,
+          email,
+          password: hashedPassword,
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          createdAt: true,
+        },
+      });
 
-    return {
-      userId: user.id,
-      name: user.name,
-      email: user.email,
-      role: membership.role,
-      isActive: membership.isActive,
-      deactivatedAt: membership.deactivatedAt,
-      createdAt: membership.createdAt,
-      updatedAt: membership.updatedAt,
-    };
-  });
+      const membership = await tx.membership.create({
+        data: {
+          userId: user.id,
+          workspaceId,
+          role,
+        },
+        select: {
+          role: true,
+          isActive: true,
+          deactivatedAt: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+
+      return formatCreatedMember(user, membership);
+    });
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      return res.status(409).json({ error: "Email is already registered" });
+    }
+
+    throw error;
+  }
 
   return res.status(201).json({ user: result });
 }));
@@ -427,7 +453,7 @@ function parseCreateTeamUserInput(body: unknown) {
   return {
     name: parseOptionalString(input.name),
     email: parseOptionalString(input.email)?.toLowerCase(),
-    password: parseOptionalString(input.password),
+    password: typeof input.password === "string" ? input.password : undefined,
     role: parseOptionalString(input.role),
   };
 }
@@ -454,6 +480,36 @@ function parseBooleanQuery(value: unknown) {
 
 function isAssignableRole(value: string): value is Extract<Role, "MANAGER" | "OPERATOR"> {
   return value === Role.MANAGER || value === Role.OPERATOR;
+}
+
+function isValidEmail(value: string) {
+  return value.length <= MAX_EMAIL_LENGTH && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function isUniqueConstraintError(error: unknown) {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+}
+
+function formatCreatedMember(
+  user: { id: string; name: string; email: string; createdAt: Date },
+  membership: {
+    role: Role;
+    isActive: boolean;
+    deactivatedAt: Date | null;
+    createdAt: Date;
+    updatedAt: Date;
+  },
+) {
+  return {
+    userId: user.id,
+    name: user.name,
+    email: user.email,
+    role: membership.role,
+    isActive: membership.isActive,
+    deactivatedAt: membership.deactivatedAt,
+    createdAt: membership.createdAt,
+    updatedAt: membership.updatedAt,
+  };
 }
 
 const memberSelect = {

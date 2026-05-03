@@ -1,5 +1,6 @@
 import { Role, StockMovementType } from "../generated/prisma/enums.js";
 import { Router } from "express";
+import { Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../db/prisma.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -66,6 +67,7 @@ purchasesRouter.post("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(
     where: {
       id: { in: itemIds },
       workspaceId,
+      isActive: true,
     },
     select: { id: true },
   });
@@ -88,89 +90,98 @@ purchasesRouter.post("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(
   const totalAmount = lines.reduce((total, line) => total + line.total, 0);
   const purchaseDate = input.date ?? new Date();
 
-  const result = await prisma.$transaction(async (tx) => {
-    await assertActiveLocation(tx, workspaceId, locationId);
+  try {
+    const result = await runSerializableWrite(async (tx) => {
+      await assertActiveLocation(tx, workspaceId, locationId);
+      await assertActiveItems(tx, workspaceId, itemIds);
 
-    const purchase = await tx.purchase.create({
-      data: {
-        supplierId: supplier.id,
-        workspaceId,
-        locationId,
-        date: purchaseDate,
+      const purchase = await tx.purchase.create({
+        data: {
+          supplierId: supplier.id,
+          workspaceId,
+          locationId,
+          date: purchaseDate,
+          totalAmount,
+        },
+      });
+
+      const purchaseItems = [];
+      const stockBatches = [];
+      const stockMovements = [];
+
+      for (const line of lines) {
+        const purchaseItem = await tx.purchaseItem.create({
+          data: {
+            purchaseId: purchase.id,
+            itemId: line.itemId,
+            quantity: line.quantity,
+            unitCost: line.unitCost,
+            total: line.total,
+          },
+        });
+
+        const stockBatch = await tx.stockBatch.create({
+          data: {
+            itemId: line.itemId,
+            workspaceId,
+            locationId,
+            quantity: line.quantity,
+            remainingQuantity: line.quantity,
+            unitCost: line.unitCost,
+            supplierName: supplier.name,
+          },
+        });
+
+        const stockMovement = await tx.stockMovement.create({
+          data: {
+            workspaceId,
+            locationId,
+            itemId: line.itemId,
+            batchId: stockBatch.id,
+            type: StockMovementType.STOCK_IN,
+            quantity: line.quantity,
+            unitCost: line.unitCost,
+            reason: "purchase",
+            note: `Purchase from ${supplier.name}`,
+          },
+        });
+
+        purchaseItems.push(purchaseItem);
+        stockBatches.push(stockBatch);
+        stockMovements.push(stockMovement);
+      }
+
+      return {
+        purchase,
+        purchaseItems,
+        stockBatches,
+        stockMovements,
+      };
+    });
+
+    await logAction({
+      userId: req.user!.userId,
+      workspaceId,
+      action: "CREATE_PURCHASE",
+      entity: "Purchase",
+      entityId: result.purchase.id,
+      meta: {
+        supplierName: supplier.name,
         totalAmount,
+        lineCount: lines.length,
+        locationId,
+        locationName: location?.name,
       },
     });
 
-    const purchaseItems = [];
-    const stockBatches = [];
-    const stockMovements = [];
-
-    for (const line of lines) {
-      const purchaseItem = await tx.purchaseItem.create({
-        data: {
-          purchaseId: purchase.id,
-          itemId: line.itemId,
-          quantity: line.quantity,
-          unitCost: line.unitCost,
-          total: line.total,
-        },
-      });
-
-      const stockBatch = await tx.stockBatch.create({
-        data: {
-          itemId: line.itemId,
-          workspaceId,
-          locationId,
-          quantity: line.quantity,
-          remainingQuantity: line.quantity,
-          unitCost: line.unitCost,
-          supplierName: supplier.name,
-        },
-      });
-
-      const stockMovement = await tx.stockMovement.create({
-        data: {
-          workspaceId,
-          locationId,
-          itemId: line.itemId,
-          batchId: stockBatch.id,
-          type: StockMovementType.STOCK_IN,
-          quantity: line.quantity,
-          unitCost: line.unitCost,
-          reason: "purchase",
-          note: `Purchase from ${supplier.name}`,
-        },
-      });
-
-      purchaseItems.push(purchaseItem);
-      stockBatches.push(stockBatch);
-      stockMovements.push(stockMovement);
+    return res.status(201).json(result);
+  } catch (error) {
+    if (isSerializationConflict(error)) {
+      return res.status(409).json({ error: "Inventory changed. Please retry." });
     }
 
-    return {
-      purchase,
-      purchaseItems,
-      stockBatches,
-      stockMovements,
-    };
-  });
-
-  await logAction({
-    userId: req.user!.userId,
-    workspaceId,
-    action: "CREATE_PURCHASE",
-    entity: "Purchase",
-    entityId: result.purchase.id,
-    meta: {
-      supplierName: supplier.name,
-      totalAmount,
-      lineCount: lines.length,
-      locationId,
-      locationName: location?.name,
-    },
-  });
-
-  return res.status(201).json(result);
+    throw error;
+  }
 }));
 
 purchasesRouter.get("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
@@ -261,4 +272,56 @@ function parseOptionalDate(value: unknown) {
 
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "invalid" : date;
+}
+
+function runSerializableWrite<T>(
+  fn: (tx: Prisma.TransactionClient) => Promise<T>,
+  maxAttempts = 3,
+): Promise<T> {
+  return retrySerializable(
+    () =>
+      prisma.$transaction(fn, {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      }),
+    maxAttempts,
+  );
+}
+
+async function retrySerializable<T>(fn: () => Promise<T>, maxAttempts: number) {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      if (!isSerializationConflict(error) || attempt === maxAttempts) {
+        throw error;
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+function isSerializationConflict(error: unknown) {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034";
+}
+
+async function assertActiveItems(
+  client: Prisma.TransactionClient,
+  workspaceId: string,
+  itemIds: string[],
+) {
+  const activeItemCount = await client.item.count({
+    where: {
+      workspaceId,
+      id: { in: itemIds },
+      isActive: true,
+    },
+  });
+
+  if (activeItemCount !== itemIds.length) {
+    throw Object.assign(new Error("Purchase items must be active and belong to this workspace"), { status: 400 });
+  }
 }

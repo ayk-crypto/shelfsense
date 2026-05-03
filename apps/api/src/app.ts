@@ -4,6 +4,7 @@ import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import type { HealthResponse } from "@shelfsense/shared";
 import { env } from "./config/env.js";
+import { prisma } from "./db/prisma.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import { alertsRouter } from "./routes/alerts.js";
 import { auditLogsRouter } from "./routes/audit-logs.js";
@@ -76,6 +77,21 @@ app.use(express.json({ limit: "1mb" }));
 app.get("/api/health", (_req, res) => {
   const response: HealthResponse = { status: "ok" };
   res.json(response);
+});
+
+app.get("/api/ready", async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    return res.json({
+      status: "ready",
+      database: "ok",
+    });
+  } catch {
+    return res.status(503).json({
+      status: "not_ready",
+      database: "unavailable",
+    });
+  }
 });
 
 app.use("/auth", authRouter);

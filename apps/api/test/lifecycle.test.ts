@@ -525,6 +525,151 @@ describe("location lifecycle", () => {
   });
 });
 
+describe("item lifecycle and inventory race safety", () => {
+  it("archives items without deleting stock history and can reactivate them", async () => {
+    const owner = await registerOwner("item-archive-owner");
+    const itemRes = await createItem(owner.token, "Archive Safe Tea");
+    const itemId = itemRes.body.item.id as string;
+
+    await request(app)
+      .post("/stock/in")
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({
+        itemId,
+        quantity: 6,
+      })
+      .expect(201);
+
+    await request(app)
+      .delete(`/items/${itemId}`)
+      .set("Authorization", `Bearer ${owner.token}`)
+      .expect(204);
+
+    const archivedItem = await prisma.item.findFirstOrThrow({
+      where: { id: itemId, workspaceId: owner.workspaceId },
+      select: { isActive: true, archivedAt: true },
+    });
+    expect(archivedItem.isActive).toBe(false);
+    expect(archivedItem.archivedAt).toBeInstanceOf(Date);
+
+    const historyCount = await prisma.stockMovement.count({
+      where: { itemId, workspaceId: owner.workspaceId },
+    });
+    expect(historyCount).toBeGreaterThan(0);
+
+    const activeItemsRes = await request(app)
+      .get("/items")
+      .set("Authorization", `Bearer ${owner.token}`)
+      .expect(200);
+    expect(activeItemsRes.body.items.some((item: { id: string }) => item.id === itemId)).toBe(false);
+
+    const allItemsRes = await request(app)
+      .get("/items?includeArchived=true")
+      .set("Authorization", `Bearer ${owner.token}`)
+      .expect(200);
+    expect(allItemsRes.body.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: itemId, isActive: false }),
+      ]),
+    );
+
+    await request(app)
+      .post("/stock/in")
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({
+        itemId,
+        quantity: 1,
+      })
+      .expect(404);
+
+    await request(app)
+      .patch(`/items/${itemId}/reactivate`)
+      .set("Authorization", `Bearer ${owner.token}`)
+      .expect(200);
+
+    const reactivatedItem = await prisma.item.findFirstOrThrow({
+      where: { id: itemId, workspaceId: owner.workspaceId },
+      select: { isActive: true, archivedAt: true },
+    });
+    expect(reactivatedItem).toEqual({ isActive: true, archivedAt: null });
+  });
+
+  it("prevents concurrent stock-out requests from overselling a batch", async () => {
+    const owner = await registerOwner("stock-race-owner");
+    const itemRes = await createItem(owner.token, "Race Safe Sugar");
+    const itemId = itemRes.body.item.id as string;
+
+    await request(app)
+      .post("/stock/in")
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({
+        itemId,
+        quantity: 5,
+      })
+      .expect(201);
+
+    const [first, second] = await Promise.all([
+      request(app)
+        .post("/stock/out")
+        .set("Authorization", `Bearer ${owner.token}`)
+        .send({
+          itemId,
+          quantity: 4,
+        }),
+      request(app)
+        .post("/stock/out")
+        .set("Authorization", `Bearer ${owner.token}`)
+        .send({
+          itemId,
+          quantity: 4,
+        }),
+    ]);
+
+    const statuses = [first.status, second.status];
+    expect(statuses.filter((status) => status === 201)).toHaveLength(1);
+    expect(statuses.filter((status) => status === 400 || status === 409)).toHaveLength(1);
+
+    const remaining = await prisma.stockBatch.aggregate({
+      where: { itemId, workspaceId: owner.workspaceId },
+      _sum: { remainingQuantity: true },
+    });
+
+    expect(remaining._sum.remainingQuantity).toBe(1);
+  });
+
+  it("rejects archived items in purchases", async () => {
+    const owner = await registerOwner("purchase-archived-item-owner");
+    const itemRes = await createItem(owner.token, "Archived Purchase Oil");
+    const itemId = itemRes.body.item.id as string;
+
+    await request(app)
+      .delete(`/items/${itemId}`)
+      .set("Authorization", `Bearer ${owner.token}`)
+      .expect(204);
+
+    const supplierRes = await request(app)
+      .post("/suppliers")
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({ name: "Archived Item Supplier" })
+      .expect(201);
+
+    await request(app)
+      .post("/purchases")
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({
+        supplierId: supplierRes.body.supplier.id,
+        items: [
+          {
+            itemId,
+            quantity: 2,
+            unitCost: 10,
+          },
+        ],
+      })
+      .expect(404);
+  });
+});
+
 async function registerOwner(label: string) {
   const email = uniqueEmail(label);
   const res = await request(app)

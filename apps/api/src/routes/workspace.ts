@@ -19,6 +19,8 @@ const DEFAULT_WORKSPACE_SETTINGS = {
 };
 
 const PHONE_PATTERN = /^[+\d\s-]{7,24}$/;
+const MAX_WORKSPACE_NAME_LENGTH = 160;
+const MAX_CURRENCY_LENGTH = 12;
 
 workspaceRouter.get("/settings", requireAuth, asyncHandler(async (req, res) => {
   const workspaceId = req.user?.workspaceId ?? null;
@@ -65,8 +67,16 @@ workspaceRouter.patch("/settings", requireAuth, requireRole([Role.OWNER]), async
     return res.status(400).json({ error: "Business name cannot be empty" });
   }
 
+  if (input.name && input.name.length > MAX_WORKSPACE_NAME_LENGTH) {
+    return res.status(400).json({ error: "Business name must be 160 characters or fewer" });
+  }
+
   if (input.currency === "") {
     return res.status(400).json({ error: "Currency cannot be empty" });
+  }
+
+  if (input.currency && input.currency.length > MAX_CURRENCY_LENGTH) {
+    return res.status(400).json({ error: "Currency must be 12 characters or fewer" });
   }
 
   if (input.lowStockMultiplier !== undefined && input.lowStockMultiplier <= 0) {
@@ -110,6 +120,22 @@ workspaceRouter.post("/create", requireAuth, asyncHandler(async (req, res) => {
 
   if (!trimmedName) {
     return res.status(400).json({ error: "Workspace name is required" });
+  }
+
+  if (trimmedName.length > MAX_WORKSPACE_NAME_LENGTH) {
+    return res.status(400).json({ error: "Workspace name must be 160 characters or fewer" });
+  }
+
+  const existingActiveMembership = await prisma.membership.findFirst({
+    where: {
+      userId: req.user!.id,
+      isActive: true,
+    },
+    select: { id: true },
+  });
+
+  if (existingActiveMembership) {
+    return res.status(409).json({ error: "User already has workspace access" });
   }
 
   const workspace = await prisma.workspace.create({

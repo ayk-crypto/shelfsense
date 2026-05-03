@@ -9,6 +9,10 @@ export const suppliersRouter = Router();
 
 suppliersRouter.use(requireAuth);
 
+const MAX_SUPPLIER_NAME_LENGTH = 120;
+const MAX_SUPPLIER_PHONE_LENGTH = 32;
+const MAX_SUPPLIER_NOTES_LENGTH = 1000;
+
 suppliersRouter.post("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
   const workspaceId = getWorkspaceId(req);
 
@@ -20,6 +24,18 @@ suppliersRouter.post("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(
 
   if (!input.name) {
     return res.status(400).json({ error: "Supplier name is required" });
+  }
+
+  if (input.name.length > MAX_SUPPLIER_NAME_LENGTH) {
+    return res.status(400).json({ error: "Supplier name must be 120 characters or fewer" });
+  }
+
+  if (input.phone && input.phone.length > MAX_SUPPLIER_PHONE_LENGTH) {
+    return res.status(400).json({ error: "Supplier phone must be 32 characters or fewer" });
+  }
+
+  if (input.notes && input.notes.length > MAX_SUPPLIER_NOTES_LENGTH) {
+    return res.status(400).json({ error: "Supplier notes must be 1000 characters or fewer" });
   }
 
   const supplier = await prisma.supplier.create({

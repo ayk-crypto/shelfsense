@@ -6,7 +6,12 @@ import { prisma } from "../db/prisma.js";
 
 interface AuthTokenPayload {
   userId: string;
+  iss?: string;
+  aud?: string;
 }
+
+const TOKEN_ISSUER = "shelfsense-api";
+const TOKEN_AUDIENCE = "shelfsense-web";
 
 export async function requireAuth(
   req: Request,
@@ -20,7 +25,15 @@ export async function requireAuth(
   }
 
   try {
-    const payload = jwt.verify(token, env.jwtSecret) as AuthTokenPayload;
+    const payload = jwt.verify(token, env.jwtSecret, {
+      algorithms: ["HS256"],
+      issuer: TOKEN_ISSUER,
+      audience: TOKEN_AUDIENCE,
+    }) as AuthTokenPayload;
+
+    if (!payload.userId) {
+      return res.status(401).json({ error: "Invalid authentication token" });
+    }
     const user = await prisma.user.findUnique({
       where: { id: payload.userId },
       select: {

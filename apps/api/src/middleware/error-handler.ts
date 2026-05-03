@@ -1,5 +1,4 @@
 import type { NextFunction, Request, Response } from "express";
-import { env } from "../config/env.js";
 
 type HttpError = Error & {
   status?: number;
@@ -18,7 +17,7 @@ function getStatus(error: unknown) {
 
 function getMessage(error: unknown, status: number) {
   if (error instanceof Error) {
-    if (status < 500 || env.nodeEnv !== "production") {
+    if (status < 500) {
       return error.message;
     }
   }
@@ -34,13 +33,9 @@ export function errorHandler(
 ) {
   console.error(error);
   const status = getStatus(error);
-  const response: { error: string; stack?: string } = {
+  const response: { error: string } = {
     error: getMessage(error, status),
   };
-
-  if (env.nodeEnv !== "production" && status >= 500 && error instanceof Error) {
-    response.stack = error.stack;
-  }
 
   res.status(status).json(response);
 }

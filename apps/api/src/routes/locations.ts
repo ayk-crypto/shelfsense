@@ -237,15 +237,25 @@ async function archiveLocationWithRetry(
   actorUserId: string,
   locationId: string,
 ) {
-  try {
-    return await archiveLocation(workspaceId, actorUserId, locationId);
-  } catch (error) {
-    if (isSerializationConflict(error)) {
-      return archiveLocation(workspaceId, actorUserId, locationId);
-    }
+  let lastError: unknown;
 
-    throw error;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      return await archiveLocation(workspaceId, actorUserId, locationId);
+    } catch (error) {
+      lastError = error;
+
+      if (!isSerializationConflict(error)) {
+        throw error;
+      }
+
+      if (attempt === 3) {
+        throw Object.assign(new Error("Location changed. Please retry."), { status: 409 });
+      }
+    }
   }
+
+  throw lastError;
 }
 
 async function archiveLocation(

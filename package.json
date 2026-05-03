@@ -8,10 +8,15 @@
   ],
   "scripts": {
     "db:seed": "npm run db:seed --workspace @shelfsense/api",
+    "db:deploy": "npm run db:deploy --workspace @shelfsense/api",
+    "db:test:migrate": "node scripts/migrate-test-db.mjs",
     "dev:web": "npm run dev --workspace @shelfsense/web",
     "dev:api": "npm run dev --workspace @shelfsense/api",
     "dev": "concurrently \"npm run dev:web\" \"npm run dev:api\"",
-    "build": "npm run build --workspace @shelfsense/shared && npm run build --workspace @shelfsense/api && npm run build --workspace @shelfsense/web"
+    "build": "npm run build --workspace @shelfsense/shared && npm run build --workspace @shelfsense/api && npm run build --workspace @shelfsense/web",
+    "test": "npm test --workspace @shelfsense/api",
+    "ops:check": "node scripts/check-api-env.mjs && npx prisma validate --schema apps/api/prisma/schema.prisma",
+    "verify": "npm run ops:check && npm run build && npm test"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

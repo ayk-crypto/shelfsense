@@ -146,6 +146,29 @@ npm run build
 
 The root build compiles shared types, the API, and the web app.
 
+## Verification And Ops Checks
+
+Run the main non-destructive verification gate:
+
+```bash
+npm run ops:check
+npm run build
+```
+
+`npm run ops:check` validates the API environment and Prisma schema. In production mode it fails fast if:
+
+- `JWT_SECRET` is missing, defaulted, or shorter than 32 characters.
+- `CORS_ALLOWED_ORIGINS` is missing.
+- Production CORS includes wildcard, localhost, or `127.0.0.1`.
+
+Apply migrations in production or staging with the deploy-safe migration command:
+
+```bash
+npm run db:deploy
+```
+
+Use `npm run db:migrate --workspace @shelfsense/api` only for local development migration authoring.
+
 ## PWA Support
 
 The web app includes a lightweight Progressive Web App foundation:
@@ -174,11 +197,33 @@ npm run db:seed
 Focused API tests use Vitest and Supertest. Set `TEST_DATABASE_URL` to a migrated disposable database before running them; do not point it at production data.
 
 ```bash
-cd apps/api
 $env:TEST_DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/shelfsense_test?schema=public"
-npx prisma migrate deploy
+npm run db:test:migrate
 npm test
 ```
+
+The test database safety guard refuses to run unless:
+
+- `TEST_DATABASE_URL` is set.
+- `TEST_DATABASE_URL` does not target the same host/database/schema as `DATABASE_URL`.
+- The test database name or schema contains an obvious marker such as `test`, `testing`, or `shelfsense_test`.
+
+For a full local gate after configuring `TEST_DATABASE_URL`, run:
+
+```bash
+npm run verify
+```
+
+`npm run verify` runs ops checks, the full build, and API tests.
+
+## Health Checks
+
+The API exposes two health endpoints:
+
+- `GET /api/health`: lightweight process health check.
+- `GET /api/ready`: readiness check that verifies database connectivity.
+
+Use `/api/health` for basic uptime and `/api/ready` for deployment readiness or load balancer checks that should fail when the database is unavailable.
 
 ## Troubleshooting
 

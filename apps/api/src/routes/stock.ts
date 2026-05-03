@@ -39,7 +39,7 @@ stockRouter.post("/in", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(as
   const expiryDate = input.expiryDate;
 
   const item = await prisma.item.findFirst({
-    where: { id: itemId, workspaceId },
+    where: { id: itemId, workspaceId, isActive: true },
     select: { id: true, name: true, unit: true },
   });
 
@@ -50,6 +50,7 @@ stockRouter.post("/in", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(as
   try {
     const result = await runSerializableWrite(async (tx) => {
       await assertActiveLocation(tx, workspaceId, locationId);
+      await assertActiveItem(tx, workspaceId, itemId);
 
       const latestPricedBatch = input.unitCost === undefined
         ? await tx.stockBatch.findFirst({
@@ -143,7 +144,7 @@ stockRouter.post("/out", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]),
   }
 
   const item = await prisma.item.findFirst({
-    where: { id: itemId, workspaceId },
+    where: { id: itemId, workspaceId, isActive: true },
     select: { id: true, name: true, unit: true },
   });
 
@@ -154,6 +155,7 @@ stockRouter.post("/out", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]),
   try {
     const result = await runSerializableWrite(async (tx) => {
       await assertActiveLocation(tx, workspaceId, locationId);
+      await assertActiveItem(tx, workspaceId, itemId);
 
       const batches = await tx.stockBatch.findMany({
         where: {
@@ -291,7 +293,7 @@ stockRouter.post("/transfer", requireRole([Role.OWNER, Role.MANAGER]), asyncHand
 
   const [item, locations] = await Promise.all([
     prisma.item.findFirst({
-      where: { id: itemId, workspaceId },
+      where: { id: itemId, workspaceId, isActive: true },
       select: { id: true, name: true, unit: true },
     }),
     prisma.location.findMany({
@@ -318,6 +320,7 @@ stockRouter.post("/transfer", requireRole([Role.OWNER, Role.MANAGER]), asyncHand
   try {
     const result = await runSerializableWrite(async (tx) => {
       await assertActiveLocations(tx, workspaceId, [fromLocationId, toLocationId]);
+      await assertActiveItem(tx, workspaceId, itemId);
 
       const batches = await tx.stockBatch.findMany({
         where: {
@@ -462,7 +465,7 @@ stockRouter.get("/summary", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR
   const locationId = await getActiveLocationId(req, workspaceId);
 
   const items = await prisma.item.findMany({
-    where: { workspaceId },
+    where: { workspaceId, isActive: true },
     orderBy: { name: "asc" },
     select: {
       id: true,
@@ -533,7 +536,7 @@ stockRouter.get("/movements", requireRole([Role.OWNER, Role.MANAGER]), asyncHand
 
   if (filters.itemId) {
     const item = await prisma.item.findFirst({
-      where: { id: filters.itemId, workspaceId },
+      where: { id: filters.itemId, workspaceId, isActive: true },
       select: { id: true },
     });
 
@@ -770,15 +773,32 @@ class StockConflictError extends Error {
   }
 }
 
+async function assertActiveItem(
+  client: Prisma.TransactionClient,
+  workspaceId: string,
+  itemId: string,
+) {
+  const item = await client.item.findFirst({
+    where: { id: itemId, workspaceId, isActive: true },
+    select: { id: true },
+  });
+
+  if (!item) {
+    throw Object.assign(new Error("Item must be active and belong to this workspace"), { status: 400 });
+  }
+}
+
 function runSerializableWrite<T>(
   fn: (tx: Prisma.TransactionClient) => Promise<T>,
   maxAttempts = 3,
 ): Promise<T> {
-  return retrySerializable(() =>
-    prisma.$transaction(fn, {
-      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-    }),
-  maxAttempts);
+  return retrySerializable(
+    () =>
+      prisma.$transaction(fn, {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      }),
+    maxAttempts,
+  );
 }
 
 async function retrySerializable<T>(fn: () => Promise<T>, maxAttempts: number) {

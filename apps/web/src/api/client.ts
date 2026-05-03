@@ -1,5 +1,8 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL?.trim() || "/api";
 const ACTIVE_LOCATION_KEY = "shelfsense_active_location_id";
+const TOKEN_KEY = "shelfsense_token";
+const USER_KEY = "shelfsense_user";
+export const AUTH_EXPIRED_EVENT = "shelfsense:auth-expired";
 
 let activeLocationId = localStorage.getItem(ACTIVE_LOCATION_KEY) || "";
 
@@ -18,7 +21,7 @@ export function getApiLocationId() {
 }
 
 function getToken(): string | null {
-  return localStorage.getItem("shelfsense_token");
+  return localStorage.getItem(TOKEN_KEY);
 }
 
 interface RequestOptions {
@@ -62,6 +65,10 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
   const data = await parseJsonResponse(res);
 
+  if (res.status === 401 && auth) {
+    clearStoredAuth();
+  }
+
   if (!res.ok) {
     throw new Error(
       (data as { error?: string; message?: string }).error ??
@@ -71,6 +78,12 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
 
   return data as T;
+}
+
+function clearStoredAuth() {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+  window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
 }
 
 async function parseJsonResponse(res: Response): Promise<unknown> {
@@ -87,4 +100,6 @@ export const apiClient = {
     request<T>(path, { method: "POST", body, auth }),
   patch: <T>(path: string, body: unknown, auth = true) =>
     request<T>(path, { method: "PATCH", body, auth }),
+  delete: <T = void>(path: string, auth = true) =>
+    request<T>(path, { method: "DELETE", auth }),
 };

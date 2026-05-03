@@ -1,5 +1,11 @@
-import { useEffect, useRef, useState } from "react";
-import { createLocation } from "../api/locations";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  archiveLocation,
+  createLocation,
+  getLocations,
+  reactivateLocation,
+  updateLocation,
+} from "../api/locations";
 import { useLocation } from "../context/LocationContext";
 import type { Location } from "../types";
 
@@ -13,14 +19,87 @@ let toastSeq = 0;
 
 export function LocationsPage() {
   const { locations, loading, error, refreshLocations } = useLocation();
+  const [allLocations, setAllLocations] = useState<Location[]>([]);
+  const [showArchived, setShowArchived] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [editingLocation, setEditingLocation] = useState<Location | null>(null);
+  const [localLoading, setLocalLoading] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
+
+  const visibleLocations = showArchived ? allLocations : locations;
+  const archivedCount = useMemo(
+    () => allLocations.filter((location) => !location.isActive).length,
+    [allLocations],
+  );
 
   function showToast(msg: string, type: "success" | "error") {
     const id = ++toastSeq;
     setToasts((prev) => [...prev, { id, msg, type }]);
     setTimeout(() => setToasts((prev) => prev.filter((toast) => toast.id !== id)), 3500);
   }
+
+  async function refreshAllLocations(nextShowArchived = showArchived) {
+    await refreshLocations();
+
+    if (!nextShowArchived) {
+      return;
+    }
+
+    setLocalLoading(true);
+    try {
+      const res = await getLocations(true);
+      setAllLocations(res.locations);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Failed to load archived locations", "error");
+    } finally {
+      setLocalLoading(false);
+    }
+  }
+
+  async function handleToggleArchived() {
+    const nextShowArchived = !showArchived;
+    setShowArchived(nextShowArchived);
+
+    if (nextShowArchived) {
+      setLocalLoading(true);
+      try {
+        const res = await getLocations(true);
+        setAllLocations(res.locations);
+      } catch (err) {
+        showToast(err instanceof Error ? err.message : "Failed to load archived locations", "error");
+      } finally {
+        setLocalLoading(false);
+      }
+    }
+  }
+
+  async function handleArchive(location: Location) {
+    if (!window.confirm(`Archive ${location.name}? Locations with remaining stock cannot be archived.`)) return;
+
+    try {
+      await archiveLocation(location.id);
+      showToast(`Archived ${location.name}`, "success");
+      await refreshAllLocations(showArchived);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Failed to archive location", "error");
+    }
+  }
+
+  async function handleReactivate(location: Location) {
+    try {
+      await reactivateLocation(location.id);
+      showToast(`Reactivated ${location.name}`, "success");
+      await refreshAllLocations(true);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Failed to reactivate location", "error");
+    }
+  }
+
+  useEffect(() => {
+    if (showArchived) {
+      void refreshAllLocations(true);
+    }
+  }, [showArchived]);
 
   if (loading && locations.length === 0) {
     return (
@@ -44,21 +123,39 @@ export function LocationsPage() {
       <div className="page-header locations-page-header">
         <div>
           <h1 className="page-title">Locations</h1>
-          <p className="page-subtitle">Manage workspace branches</p>
+          <p className="page-subtitle">Manage workspace branches and archived locations</p>
         </div>
-        <button className="btn btn--primary" onClick={() => setAddOpen(true)}>
-          + Add Location
-        </button>
+        <div className="page-header-actions">
+          <button className="btn btn--secondary" onClick={() => { void handleToggleArchived(); }}>
+            {showArchived ? "Hide archived" : "Show archived"}
+          </button>
+          <button className="btn btn--primary" onClick={() => setAddOpen(true)}>
+            + Add Location
+          </button>
+        </div>
       </div>
 
-      {locations.length === 0 ? (
+      <div className="lifecycle-summary" aria-live="polite">
+        <span>{locations.length} active</span>
+        {showArchived ? <span>{archivedCount} archived</span> : null}
+      </div>
+
+      {localLoading ? <div className="alert alert--info">Refreshing locations...</div> : null}
+
+      {visibleLocations.length === 0 ? (
         <div className="empty-state">
           <p>No locations found.</p>
         </div>
       ) : (
         <div className="location-list">
-          {locations.map((location) => (
-            <LocationCard key={location.id} location={location} />
+          {visibleLocations.map((location) => (
+            <LocationCard
+              key={location.id}
+              location={location}
+              onEdit={() => setEditingLocation(location)}
+              onArchive={() => { void handleArchive(location); }}
+              onReactivate={() => { void handleReactivate(location); }}
+            />
           ))}
         </div>
       )}
@@ -69,7 +166,20 @@ export function LocationsPage() {
           onSuccess={(location) => {
             setAddOpen(false);
             showToast(`Added ${location.name}`, "success");
-            void refreshLocations();
+            void refreshAllLocations(showArchived);
+          }}
+          onError={(msg) => showToast(msg, "error")}
+        />
+      )}
+
+      {editingLocation && (
+        <EditLocationModal
+          location={editingLocation}
+          onClose={() => setEditingLocation(null)}
+          onSuccess={(location) => {
+            setEditingLocation(null);
+            showToast(`Updated ${location.name}`, "success");
+            void refreshAllLocations(showArchived);
           }}
           onError={(msg) => showToast(msg, "error")}
         />
@@ -86,12 +196,41 @@ export function LocationsPage() {
   );
 }
 
-function LocationCard({ location }: { location: Location }) {
+function LocationCard({
+  location,
+  onEdit,
+  onArchive,
+  onReactivate,
+}: {
+  location: Location;
+  onEdit: () => void;
+  onArchive: () => void;
+  onReactivate: () => void;
+}) {
   return (
-    <article className="location-card">
+    <article className={`location-card ${!location.isActive ? "is-muted" : ""}`}>
       <div>
         <h2 className="location-card-name">{location.name}</h2>
         <p className="location-card-date">Created {formatDate(location.createdAt)}</p>
+      </div>
+      <div className="team-member-meta">
+        <span className={`badge ${location.isActive ? "badge--green" : "badge--gray"}`}>
+          {location.isActive ? "Active" : "Archived"}
+        </span>
+      </div>
+      <div className="lifecycle-actions">
+        <button className="btn btn--sm btn--secondary" onClick={onEdit}>
+          Edit
+        </button>
+        {location.isActive ? (
+          <button className="btn btn--sm btn--danger" onClick={onArchive}>
+            Archive
+          </button>
+        ) : (
+          <button className="btn btn--sm btn--primary" onClick={onReactivate}>
+            Reactivate
+          </button>
+        )}
       </div>
     </article>
   );
@@ -128,10 +267,63 @@ function AddLocationModal({
   }
 
   return (
+    <LocationModal title="Add Location" onClose={onClose}>
+      <form onSubmit={(e) => { void handleSubmit(e); }}>
+        <LocationNameField value={name} onChange={setName} firstRef={firstRef} />
+        <ModalActions onClose={onClose} saving={saving} disabled={!name.trim()} label="Add Location" savingLabel="Adding..." />
+      </form>
+    </LocationModal>
+  );
+}
+
+function EditLocationModal({
+  location,
+  onClose,
+  onSuccess,
+  onError,
+}: {
+  location: Location;
+  onClose: () => void;
+  onSuccess: (location: Location) => void;
+  onError: (msg: string) => void;
+}) {
+  const [name, setName] = useState(location.name);
+  const [saving, setSaving] = useState(false);
+  const firstRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { firstRef.current?.focus(); }, []);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
+
+    setSaving(true);
+    try {
+      const res = await updateLocation(location.id, { name: trimmedName });
+      onSuccess(res.location);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Failed to update location");
+      setSaving(false);
+    }
+  }
+
+  return (
+    <LocationModal title="Edit Location" onClose={onClose}>
+      <form onSubmit={(e) => { void handleSubmit(e); }}>
+        <LocationNameField value={name} onChange={setName} firstRef={firstRef} />
+        <ModalActions onClose={onClose} saving={saving} disabled={!name.trim()} label="Save changes" savingLabel="Saving..." />
+      </form>
+    </LocationModal>
+  );
+}
+
+function LocationModal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h2 className="modal-title">Add Location</h2>
+          <h2 className="modal-title">{title}</h2>
           <button className="modal-close" onClick={onClose} aria-label="Close">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="18" y1="6" x2="6" y2="18" />
@@ -139,35 +331,36 @@ function AddLocationModal({
             </svg>
           </button>
         </div>
-        <div className="modal-body">
-          <form onSubmit={(e) => { void handleSubmit(e); }}>
-            <div className="form-group">
-              <label className="form-label">Location name / Branch name *</label>
-              <input
-                ref={firstRef}
-                className="form-input"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Downtown Branch"
-                required
-              />
-            </div>
-            <div className="modal-footer">
-              <button type="button" className="btn btn--ghost" onClick={onClose}>
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="btn btn--primary"
-                disabled={saving || !name.trim()}
-              >
-                {saving ? <span className="btn-spinner" /> : null}
-                {saving ? "Adding..." : "Add Location"}
-              </button>
-            </div>
-          </form>
-        </div>
+        <div className="modal-body">{children}</div>
       </div>
+    </div>
+  );
+}
+
+function LocationNameField({ value, onChange, firstRef }: { value: string; onChange: (value: string) => void; firstRef: React.RefObject<HTMLInputElement | null> }) {
+  return (
+    <div className="form-group">
+      <label className="form-label">Location name / Branch name *</label>
+      <input
+        ref={firstRef}
+        className="form-input"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="e.g. Downtown Branch"
+        required
+      />
+    </div>
+  );
+}
+
+function ModalActions({ onClose, saving, disabled, label, savingLabel }: { onClose: () => void; saving: boolean; disabled: boolean; label: string; savingLabel: string }) {
+  return (
+    <div className="modal-footer">
+      <button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button>
+      <button type="submit" className="btn btn--primary" disabled={saving || disabled}>
+        {saving ? <span className="btn-spinner" /> : null}
+        {saving ? savingLabel : label}
+      </button>
     </div>
   );
 }

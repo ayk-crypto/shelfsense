@@ -1,6 +1,6 @@
 import JsBarcode from "jsbarcode";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { createItem, getItems, updateItem } from "../api/items";
+import { archiveItem, createItem, getItems, reactivateItem, updateItem } from "../api/items";
 import { getStockMovements, getStockSummary, stockIn, stockOut, stockTransfer } from "../api/stock";
 import { useAuth } from "../context/AuthContext";
 import { useLocation } from "../context/LocationContext";
@@ -121,6 +121,7 @@ export function ItemsPage() {
   const [bulkProgress, setBulkProgress] = useState<BulkProgress | null>(null);
   const [bulkSaving, setBulkSaving] = useState(false);
   const [busy, setBusy] = useState<Set<string>>(new Set());
+  const [showArchived, setShowArchived] = useState(false);
   const hasBarcodes = useMemo(() => items.some((item) => item.barcode), [items]);
   const visibleItemIds = useMemo(() => items.map((item) => item.id), [items]);
   const selectedCount = selectedItemIds.size;
@@ -191,7 +192,7 @@ export function ItemsPage() {
   async function loadAll() {
     try {
       const [itemsRes, summaryRes, usageRes] = await Promise.all([
-        getItems(),
+        getItems(showArchived),
         getStockSummary(),
         canManageStock
           ? getStockMovements({ type: "STOCK_OUT", ...getLastSevenDaysRange() })
@@ -208,7 +209,7 @@ export function ItemsPage() {
     }
   }
 
-  useEffect(() => { void loadAll(); }, [canManageStock, activeLocationId]);
+  useEffect(() => { void loadAll(); }, [canManageStock, activeLocationId, showArchived]);
 
   function toggleItemSelection(itemId: string) {
     setSelectedItemIds((prev) => {
@@ -274,6 +275,36 @@ export function ItemsPage() {
     }
   }
 
+  async function handleArchiveItem(item: Item) {
+    const quantity = summaryMap.get(item.id)?.totalQuantity ?? 0;
+    const stockNote = quantity > 0 ? ` It currently has ${formatNumber(quantity)} ${item.unit} in stock; history will be preserved.` : "";
+    if (!window.confirm(`Archive "${item.name}"?${stockNote}`)) return;
+
+    setBusy((prev) => new Set(prev).add(item.id));
+    try {
+      await archiveItem(item.id);
+      showToast(`Archived "${item.name}"`, "success");
+      await loadAll();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Failed to archive item", "error");
+    } finally {
+      setBusy((prev) => { const next = new Set(prev); next.delete(item.id); return next; });
+    }
+  }
+
+  async function handleReactivateItem(item: Item) {
+    setBusy((prev) => new Set(prev).add(item.id));
+    try {
+      await reactivateItem(item.id);
+      showToast(`Reactivated "${item.name}"`, "success");
+      await loadAll();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Failed to reactivate item", "error");
+    } finally {
+      setBusy((prev) => { const next = new Set(prev); next.delete(item.id); return next; });
+    }
+  }
+
   if (loading) {
     return (
       <div className="page-loading">
@@ -299,6 +330,11 @@ export function ItemsPage() {
           <p className="page-subtitle">Manage your inventory items</p>
         </div>
         <div className="page-header-actions">
+          {canManageStock && (
+            <button className="btn btn--secondary" onClick={() => setShowArchived((value) => !value)}>
+              {showArchived ? "Hide archived" : "Show archived"}
+            </button>
+          )}
           <button className="btn btn--secondary" onClick={() => setScannerOpen(true)} title="Scan a barcode">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="btn-icon">
               <rect x="3" y="3" width="5" height="5" rx="1" />
@@ -322,6 +358,13 @@ export function ItemsPage() {
           )}
         </div>
       </div>
+
+      {canManageStock && (
+        <div className="lifecycle-summary" aria-live="polite">
+          <span>{items.filter((item) => item.isActive).length} active</span>
+          {showArchived ? <span>{items.filter((item) => !item.isActive).length} archived</span> : null}
+        </div>
+      )}
 
       {canManageStock && selectedCount > 0 && (
         <BulkItemsBar
@@ -397,7 +440,7 @@ export function ItemsPage() {
                   const status = getStatus(s, item.trackExpiry, settings.expiryAlertDays);
                   const selected = selectedItemIds.has(item.id);
                   return (
-                    <tr key={item.id} className={`${s?.isLowStock ? "row--warn" : ""} ${selected ? "row--selected" : ""}`}>
+                    <tr key={item.id} className={`${s?.isLowStock ? "row--warn" : ""} ${selected ? "row--selected" : ""} ${!item.isActive ? "is-muted" : ""}`}>
                       {canManageStock && (
                         <td className="select-col">
                           <input
@@ -411,6 +454,9 @@ export function ItemsPage() {
                       )}
                       <td className="td-name">
                         {item.name}
+                        {!item.isActive && (
+                          <span className="badge badge--gray item-lifecycle-badge">Archived</span>
+                        )}
                         {s?.isLowStock && (
                           <span className="reorder-hint">
                             Suggested reorder:{" "}
@@ -448,7 +494,7 @@ export function ItemsPage() {
                       </td>
                       <td className="td-actions">
                         <span className="quick-btns">
-                          {canManageStock && ([1, 5] as const).map((n) => (
+                          {item.isActive && canManageStock && ([1, 5] as const).map((n) => (
                             <button
                               key={`+${n}`}
                               className="btn btn--xs btn--quick btn--quick-in"
@@ -457,7 +503,7 @@ export function ItemsPage() {
                               title={`Add ${n} ${item.unit}`}
                             >+{n}</button>
                           ))}
-                          {([1, 5] as const).map((n) => (
+                          {item.isActive && ([1, 5] as const).map((n) => (
                             <button
                               key={`-${n}`}
                               className="btn btn--xs btn--quick btn--quick-out"
@@ -468,7 +514,7 @@ export function ItemsPage() {
                           ))}
                         </span>
                         <span className="actions-divider" />
-                        {canManageStock && (
+                        {item.isActive && canManageStock && (
                           <button
                             className="btn btn--sm btn--ghost btn--green-text"
                             onClick={() => setStockInItem(item)}
@@ -476,13 +522,15 @@ export function ItemsPage() {
                             + In
                           </button>
                         )}
+                        {item.isActive && (
                         <button
                           className="btn btn--sm btn--ghost btn--red-text"
                           onClick={() => setStockOutItem(item)}
                         >
                           − Out
                         </button>
-                        {canManageStock && (
+                        )}
+                        {item.isActive && canManageStock && (
                           <button
                             className="btn btn--sm btn--ghost btn--blue-text"
                             onClick={() => setAdjustItem(item)}
@@ -491,7 +539,7 @@ export function ItemsPage() {
                             Adjust
                           </button>
                         )}
-                        {canManageStock && locations.length > 1 && (
+                        {item.isActive && canManageStock && locations.length > 1 && (
                           <button
                             className="btn btn--sm btn--ghost"
                             onClick={() => setTransferItem(item)}
@@ -505,6 +553,25 @@ export function ItemsPage() {
                         >
                           Barcode
                         </button>
+                        {canManageStock && (
+                          item.isActive ? (
+                            <button
+                              className="btn btn--sm btn--ghost btn--red-text"
+                              disabled={busy.has(item.id)}
+                              onClick={() => { void handleArchiveItem(item); }}
+                            >
+                              Archive
+                            </button>
+                          ) : (
+                            <button
+                              className="btn btn--sm btn--ghost btn--green-text"
+                              disabled={busy.has(item.id)}
+                              onClick={() => { void handleReactivateItem(item); }}
+                            >
+                              Reactivate
+                            </button>
+                          )
+                        )}
                       </td>
                     </tr>
                   );
@@ -524,7 +591,7 @@ export function ItemsPage() {
               const status = getStatus(s, item.trackExpiry, settings.expiryAlertDays);
               const selected = selectedItemIds.has(item.id);
               return (
-                <div key={item.id} className={`item-card ${selected ? "item-card--selected" : ""}`}>
+                <div key={item.id} className={`item-card ${selected ? "item-card--selected" : ""} ${!item.isActive ? "is-muted" : ""}`}>
                   <div className="item-card-header">
                     <div className="item-card-title">
                       {canManageStock && (
@@ -537,6 +604,9 @@ export function ItemsPage() {
                         />
                       )}
                       <span className="item-card-name">{item.name}</span>
+                      {!item.isActive && (
+                        <span className="badge badge--gray item-lifecycle-badge">Archived</span>
+                      )}
                     </div>
                     <span className={`badge badge--${status.variant}`}>{status.label}</span>
                   </div>
@@ -587,7 +657,7 @@ export function ItemsPage() {
                   )}
                   <div className="item-card-actions">
                     <div className="quick-btns quick-btns--card">
-                      {canManageStock && ([1, 5] as const).map((n) => (
+                      {item.isActive && canManageStock && ([1, 5] as const).map((n) => (
                         <button
                           key={`+${n}`}
                           className="btn btn--xs btn--quick btn--quick-in"
@@ -596,7 +666,7 @@ export function ItemsPage() {
                           title={`Add ${n} ${item.unit}`}
                         >+{n}</button>
                       ))}
-                      {([1, 5] as const).map((n) => (
+                      {item.isActive && ([1, 5] as const).map((n) => (
                         <button
                           key={`-${n}`}
                           className="btn btn--xs btn--quick btn--quick-out"
@@ -607,7 +677,7 @@ export function ItemsPage() {
                       ))}
                     </div>
                     <div className="item-card-modal-actions">
-                      {canManageStock && (
+                      {item.isActive && canManageStock && (
                         <button
                           className="btn btn--sm btn--ghost btn--green-text item-card-btn"
                           onClick={() => setStockInItem(item)}
@@ -615,13 +685,15 @@ export function ItemsPage() {
                           + Stock In
                         </button>
                       )}
+                      {item.isActive && (
                       <button
                         className="btn btn--sm btn--ghost btn--red-text item-card-btn"
                         onClick={() => setStockOutItem(item)}
                       >
                         − Use / Deduct
                       </button>
-                      {canManageStock && (
+                      )}
+                      {item.isActive && canManageStock && (
                         <button
                           className="btn btn--sm btn--ghost btn--blue-text item-card-btn"
                           onClick={() => setAdjustItem(item)}
@@ -629,7 +701,7 @@ export function ItemsPage() {
                         ≡ Set Quantity
                         </button>
                       )}
-                      {canManageStock && locations.length > 1 && (
+                      {item.isActive && canManageStock && locations.length > 1 && (
                         <button
                           className="btn btn--sm btn--ghost item-card-btn"
                           onClick={() => setTransferItem(item)}
@@ -643,6 +715,25 @@ export function ItemsPage() {
                       >
                         Barcode
                       </button>
+                      {canManageStock && (
+                        item.isActive ? (
+                          <button
+                            className="btn btn--sm btn--ghost btn--red-text item-card-btn"
+                            disabled={busy.has(item.id)}
+                            onClick={() => { void handleArchiveItem(item); }}
+                          >
+                            Archive
+                          </button>
+                        ) : (
+                          <button
+                            className="btn btn--sm btn--ghost btn--green-text item-card-btn"
+                            disabled={busy.has(item.id)}
+                            onClick={() => { void handleReactivateItem(item); }}
+                          >
+                            Reactivate
+                          </button>
+                        )
+                      )}
                     </div>
                   </div>
                 </div>

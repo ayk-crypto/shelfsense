@@ -1,5 +1,11 @@
-import { useEffect, useRef, useState } from "react";
-import { createTeamUser, getTeam } from "../api/team";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  createTeamUser,
+  deactivateTeamUser,
+  getTeam,
+  reactivateTeamUser,
+  updateTeamUser,
+} from "../api/team";
 import type { CreateTeamUserInput, TeamMember } from "../types";
 
 interface Toast {
@@ -15,7 +21,14 @@ export function TeamPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
+  const [showInactive, setShowInactive] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
+
+  const activeCount = useMemo(
+    () => members.filter((member) => member.isActive).length,
+    [members],
+  );
 
   function showToast(msg: string, type: "success" | "error") {
     const id = ++toastSeq;
@@ -23,9 +36,9 @@ export function TeamPage() {
     setTimeout(() => setToasts((prev) => prev.filter((toast) => toast.id !== id)), 3500);
   }
 
-  async function loadTeam() {
+  async function loadTeam(nextShowInactive = showInactive) {
     try {
-      const res = await getTeam();
+      const res = await getTeam(nextShowInactive);
       setMembers(res.members);
       setError(null);
     } catch (err) {
@@ -35,7 +48,29 @@ export function TeamPage() {
     }
   }
 
-  useEffect(() => { void loadTeam(); }, []);
+  async function handleDeactivate(member: TeamMember) {
+    if (!window.confirm(`Deactivate access for ${member.name}?`)) return;
+
+    try {
+      await deactivateTeamUser(member.userId);
+      showToast(`Deactivated ${member.name}`, "success");
+      await loadTeam();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Failed to deactivate user", "error");
+    }
+  }
+
+  async function handleReactivate(member: TeamMember) {
+    try {
+      await reactivateTeamUser(member.userId);
+      showToast(`Reactivated ${member.name}`, "success");
+      await loadTeam(true);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Failed to reactivate user", "error");
+    }
+  }
+
+  useEffect(() => { void loadTeam(showInactive); }, [showInactive]);
 
   if (loading) {
     return (
@@ -59,11 +94,24 @@ export function TeamPage() {
       <div className="page-header team-page-header">
         <div>
           <h1 className="page-title">Team</h1>
-          <p className="page-subtitle">Manage workspace access</p>
+          <p className="page-subtitle">Manage workspace access and lifecycle</p>
         </div>
-        <button className="btn btn--primary" onClick={() => setAddOpen(true)}>
-          + Add User
-        </button>
+        <div className="page-header-actions">
+          <button
+            className="btn btn--secondary"
+            onClick={() => setShowInactive((value) => !value)}
+          >
+            {showInactive ? "Hide inactive" : "Show inactive"}
+          </button>
+          <button className="btn btn--primary" onClick={() => setAddOpen(true)}>
+            + Add User
+          </button>
+        </div>
+      </div>
+
+      <div className="lifecycle-summary" aria-live="polite">
+        <span>{activeCount} active</span>
+        {showInactive ? <span>{members.length - activeCount} inactive</span> : null}
       </div>
 
       {members.length === 0 ? (
@@ -73,7 +121,7 @@ export function TeamPage() {
       ) : (
         <div className="team-list">
           {members.map((member) => (
-            <article key={member.userId} className="team-member-card">
+            <article key={member.userId} className={`team-member-card ${!member.isActive ? "is-muted" : ""}`}>
               <div>
                 <h2 className="team-member-name">{member.name}</h2>
                 <p className="team-member-email">{member.email}</p>
@@ -82,9 +130,32 @@ export function TeamPage() {
                 <span className={`badge team-role-badge team-role-badge--${member.role.toLowerCase()}`}>
                   {member.role}
                 </span>
+                <span className={`badge ${member.isActive ? "badge--green" : "badge--gray"}`}>
+                  {member.isActive ? "Active" : "Inactive"}
+                </span>
                 <span className="team-member-date">
                   Added {formatDate(member.createdAt)}
                 </span>
+              </div>
+              <div className="lifecycle-actions">
+                {member.role !== "OWNER" ? (
+                  <>
+                    <button className="btn btn--sm btn--secondary" onClick={() => setEditingMember(member)}>
+                      Edit
+                    </button>
+                    {member.isActive ? (
+                      <button className="btn btn--sm btn--danger" onClick={() => { void handleDeactivate(member); }}>
+                        Deactivate
+                      </button>
+                    ) : (
+                      <button className="btn btn--sm btn--primary" onClick={() => { void handleReactivate(member); }}>
+                        Reactivate
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <span className="form-helper">Owner access is protected.</span>
+                )}
               </div>
             </article>
           ))}
@@ -99,6 +170,19 @@ export function TeamPage() {
             setMembers((prev) => [...prev, member]);
             showToast(`Added ${member.name}`, "success");
             void loadTeam();
+          }}
+          onError={(msg) => showToast(msg, "error")}
+        />
+      )}
+
+      {editingMember && (
+        <EditTeamUserModal
+          member={editingMember}
+          onClose={() => setEditingMember(null)}
+          onSuccess={(member) => {
+            setEditingMember(null);
+            showToast(`Updated ${member.name}`, "success");
+            void loadTeam(showInactive);
           }}
           onError={(msg) => showToast(msg, "error")}
         />
@@ -155,10 +239,105 @@ function AddTeamUserModal({
   }
 
   return (
+    <TeamModal title="Add User" onClose={onClose}>
+      <form onSubmit={(e) => { void handleSubmit(e); }}>
+        <div className="form-group">
+          <label className="form-label">Name *</label>
+          <input
+            ref={firstRef}
+            className="form-input"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            required
+          />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Email *</label>
+          <input
+            className="form-input"
+            type="email"
+            value={form.email}
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
+            required
+          />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Password *</label>
+          <input
+            className="form-input"
+            type="password"
+            value={form.password}
+            onChange={(e) => setForm({ ...form, password: e.target.value })}
+            required
+          />
+        </div>
+        <RoleSelect value={form.role} onChange={(role) => setForm({ ...form, role })} />
+        <ModalActions onClose={onClose} saving={saving} disabled={!form.name.trim() || !form.email.trim() || !form.password.trim()} label="Add User" savingLabel="Adding..." />
+      </form>
+    </TeamModal>
+  );
+}
+
+function EditTeamUserModal({
+  member,
+  onClose,
+  onSuccess,
+  onError,
+}: {
+  member: TeamMember;
+  onClose: () => void;
+  onSuccess: (member: TeamMember) => void;
+  onError: (msg: string) => void;
+}) {
+  const [form, setForm] = useState({ name: member.name, role: member.role as CreateTeamUserInput["role"] });
+  const [saving, setSaving] = useState(false);
+  const firstRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { firstRef.current?.focus(); }, []);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.name.trim()) return;
+
+    setSaving(true);
+    try {
+      const res = await updateTeamUser(member.userId, {
+        name: form.name.trim(),
+        role: form.role,
+      });
+      onSuccess(res.user);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Failed to update team member");
+      setSaving(false);
+    }
+  }
+
+  return (
+    <TeamModal title="Edit Team Member" onClose={onClose}>
+      <form onSubmit={(e) => { void handleSubmit(e); }}>
+        <div className="form-group">
+          <label className="form-label">Name *</label>
+          <input
+            ref={firstRef}
+            className="form-input"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            required
+          />
+        </div>
+        <RoleSelect value={form.role} onChange={(role) => setForm({ ...form, role })} />
+        <ModalActions onClose={onClose} saving={saving} disabled={!form.name.trim()} label="Save changes" savingLabel="Saving..." />
+      </form>
+    </TeamModal>
+  );
+}
+
+function TeamModal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h2 className="modal-title">Add User</h2>
+          <h2 className="modal-title">{title}</h2>
           <button className="modal-close" onClick={onClose} aria-label="Close">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="18" y1="6" x2="6" y2="18" />
@@ -166,67 +345,32 @@ function AddTeamUserModal({
             </svg>
           </button>
         </div>
-        <div className="modal-body">
-          <form onSubmit={(e) => { void handleSubmit(e); }}>
-            <div className="form-group">
-              <label className="form-label">Name *</label>
-              <input
-                ref={firstRef}
-                className="form-input"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                required
-              />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Email *</label>
-              <input
-                className="form-input"
-                type="email"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                required
-              />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Password *</label>
-              <input
-                className="form-input"
-                type="password"
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                required
-              />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Role</label>
-              <select
-                className="form-select"
-                value={form.role}
-                onChange={(e) =>
-                  setForm({ ...form, role: e.target.value as CreateTeamUserInput["role"] })
-                }
-              >
-                <option value="MANAGER">MANAGER</option>
-                <option value="OPERATOR">OPERATOR</option>
-              </select>
-            </div>
-            <div className="modal-footer">
-              <button type="button" className="btn btn--ghost" onClick={onClose}>
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="btn btn--primary"
-                disabled={saving || !form.name.trim() || !form.email.trim() || !form.password.trim()}
-              >
-                {saving ? <span className="btn-spinner" /> : null}
-                {saving ? "Adding..." : "Add User"}
-              </button>
-            </div>
-          </form>
-        </div>
+        <div className="modal-body">{children}</div>
       </div>
+    </div>
+  );
+}
+
+function RoleSelect({ value, onChange }: { value: CreateTeamUserInput["role"]; onChange: (role: CreateTeamUserInput["role"]) => void }) {
+  return (
+    <div className="form-group">
+      <label className="form-label">Role</label>
+      <select className="form-select" value={value} onChange={(e) => onChange(e.target.value as CreateTeamUserInput["role"])}>
+        <option value="MANAGER">MANAGER</option>
+        <option value="OPERATOR">OPERATOR</option>
+      </select>
+    </div>
+  );
+}
+
+function ModalActions({ onClose, saving, disabled, label, savingLabel }: { onClose: () => void; saving: boolean; disabled: boolean; label: string; savingLabel: string }) {
+  return (
+    <div className="modal-footer">
+      <button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button>
+      <button type="submit" className="btn btn--primary" disabled={saving || disabled}>
+        {saving ? <span className="btn-spinner" /> : null}
+        {saving ? savingLabel : label}
+      </button>
     </div>
   );
 }

@@ -19,7 +19,10 @@ export interface TeamMember {
   name: string;
   email: string;
   role: Role;
+  isActive: boolean;
+  deactivatedAt: string | null;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface TeamResponse {
@@ -87,7 +90,10 @@ export interface Location {
   id: string;
   name: string;
   workspaceId: string;
+  isActive: boolean;
+  archivedAt: string | null;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface LocationsResponse {
@@ -168,6 +174,8 @@ export interface Item {
   trackExpiry: boolean;
   sku: string | null;
   barcode: string | null;
+  isActive: boolean;
+  archivedAt: string | null;
   createdAt: string;
 }
 
