@@ -16,6 +16,8 @@ import { PurchasesPage } from "./pages/PurchasesPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { SignupPage } from "./pages/SignupPage";
+import { StockInPage } from "./pages/StockInPage";
+import { StockOutPage } from "./pages/StockOutPage";
 import { SuppliersPage } from "./pages/SuppliersPage";
 import { TeamPage } from "./pages/TeamPage";
 import { useEffect, useState } from "react";
@@ -195,6 +197,14 @@ export function App() {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/items" element={<ItemsPage />} />
             <Route path="/movements" element={<MovementsPage />} />
+            <Route
+              path="/stock-in"
+              element={<RoleRoute allowedRoles={["OWNER", "MANAGER"]}><StockInPage /></RoleRoute>}
+            />
+            <Route
+              path="/stock-out"
+              element={<RoleRoute allowedRoles={["OWNER", "MANAGER", "OPERATOR"]}><StockOutPage /></RoleRoute>}
+            />
             <Route
               path="/suppliers"
               element={<RoleRoute allowedRoles={["OWNER", "MANAGER"]}><SuppliersPage /></RoleRoute>}
