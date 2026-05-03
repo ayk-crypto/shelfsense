@@ -1,0 +1,32 @@
+Please completely redesign and improve the UI/UX of ShelfSense to make it feel like a modern, polished SaaS inventory platform.
+
+Use BoxHero as a UX inspiration/reference, but do not copy it directly. The goal is to make ShelfSense feel even more professional, cleaner, easier to use, and more suitable for restaurants, retail stores, pharmacies, and small businesses.
+
+Branding and visual direction:
+
+Primary brand color: [add your primary color here]
+Secondary/accent color: [add your accent color here]
+Background style: clean, modern, light SaaS interface
+Use soft shadows, rounded cards, proper spacing, professional typography, and clear hierarchy
+Avoid outdated button styles, flat grey Windows-style UI, cramped layouts, and inconsistent spacing
+
+UI/UX requirements:
+
+Redesign the overall layout, sidebar, top navigation, dashboards, tables, cards, forms, modals, buttons, badges, filters, and empty states
+Make the dashboard more visual and actionable, with clear inventory KPIs, low-stock alerts, expiry alerts, recent movements, and quick actions
+Improve mobile responsiveness across all pages with proper mobile cards, sticky actions where useful, and layouts that work smoothly on small screens
+Improve table UX with better search, filters, sorting, status badges, and row actions
+Improve forms and modals with clearer labels, helper text, validation messages, and better spacing
+Improve loading states, skeletons, empty states, and error states consistently across the app
+Keep the experience simple and fast for non-technical users
+
+Important:
+
+Do not remove any existing features or break current functionality
+Reuse existing APIs and data structure where possible
+Keep the app responsive, lightweight, and performance-friendly
+Apply the redesign consistently across all existing pages
+After implementation, run build/tests and fix any TypeScript, linting, responsiveness, or runtime issues
+
+Expected outcome:
+ShelfSense should look and feel like a premium SaaS product, with a better UX than BoxHero, strong mobile usability, and a clean professional inventory-management experience.
