@@ -9,7 +9,7 @@ export const alertsRouter = Router();
 
 alertsRouter.use(requireAuth);
 
-alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
+alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), asyncHandler(async (req, res) => {
   const workspaceId = req.user?.workspaceId ?? null;
   const userId = req.user?.userId ?? null;
 

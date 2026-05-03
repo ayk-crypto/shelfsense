@@ -517,7 +517,7 @@ stockRouter.get("/summary", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR
   return res.json({ summary });
 }));
 
-stockRouter.get("/movements", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
+stockRouter.get("/movements", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), asyncHandler(async (req, res) => {
   const workspaceId = getWorkspaceId(req);
 
   if (!workspaceId) {

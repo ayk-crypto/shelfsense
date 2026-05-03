@@ -27,18 +27,19 @@ export function AppShell() {
   const [commandSearch, setCommandSearch] = useState("");
   const canAccessManagement = user?.role === "OWNER" || user?.role === "MANAGER";
   const canRecordStockOut = user?.role === "OWNER" || user?.role === "MANAGER" || user?.role === "OPERATOR";
+  const canViewAlerts = user?.role === "OWNER" || user?.role === "MANAGER" || user?.role === "OPERATOR";
   const canManageTeam = user?.role === "OWNER";
   const workspaceName = settings.name.trim() || "ShelfSense";
 
   useEffect(() => {
     async function loadShellSignals() {
       setNotificationsLoading(true);
-      if (!canAccessManagement) {
+      if (!canViewAlerts) {
         setAlertCount(0);
       }
 
       try {
-        if (canAccessManagement) {
+        if (canViewAlerts) {
           const alerts = await getAlerts();
           setAlertCount(
             alerts.lowStock.length + alerts.expiringSoon.length + alerts.expired.length,
@@ -49,7 +50,7 @@ export function AppShell() {
         setNotifications(res.notifications);
         setUnreadNotifications(res.unreadCount);
       } catch {
-        if (canAccessManagement) setAlertCount(0);
+        if (canViewAlerts) setAlertCount(0);
         setNotifications([]);
         setUnreadNotifications(0);
       } finally {
@@ -58,7 +59,7 @@ export function AppShell() {
     }
 
     void loadShellSignals();
-  }, [canAccessManagement, activeLocationId]);
+  }, [canViewAlerts, activeLocationId]);
 
   useEffect(() => {
     function handleOnline() {
@@ -181,6 +182,15 @@ export function AppShell() {
             </svg>
             Today
           </NavLink>
+          <NavLink to="/daily-operations" className={({ isActive }) => `nav-item ${isActive ? "nav-item--active" : ""}`}>
+            <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M4 7h16" />
+              <path d="M4 12h10" />
+              <path d="M4 17h7" />
+              <path d="m16 15 2 2 4-5" />
+            </svg>
+            Daily Ops
+          </NavLink>
           <NavLink to="/items" className={({ isActive }) => `nav-item ${isActive ? "nav-item--active" : ""}`}>
             <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
@@ -214,6 +224,17 @@ export function AppShell() {
             </svg>
             Stock Activity
           </NavLink>
+          {canViewAlerts && (
+            <NavLink to="/alerts" className={({ isActive }) => `nav-item ${isActive ? "nav-item--active" : ""}`}>
+              <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+              <span className="nav-label">Alerts</span>
+              {alertCount > 0 && <span className="nav-badge">{alertCount}</span>}
+            </NavLink>
+          )}
           {canAccessManagement && (
             <>
               <NavLink to="/suppliers" className={({ isActive }) => `nav-item ${isActive ? "nav-item--active" : ""}`}>
@@ -243,15 +264,6 @@ export function AppShell() {
                   <path d="M8 17h5" />
                 </svg>
                 Reports
-              </NavLink>
-              <NavLink to="/alerts" className={({ isActive }) => `nav-item ${isActive ? "nav-item--active" : ""}`}>
-                <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                  <line x1="12" y1="9" x2="12" y2="13" />
-                  <line x1="12" y1="17" x2="12.01" y2="17" />
-                </svg>
-                <span className="nav-label">Alerts</span>
-                {alertCount > 0 && <span className="nav-badge">{alertCount}</span>}
               </NavLink>
               {canManageTeam && (
                 <>
@@ -401,6 +413,15 @@ export function AppShell() {
           </svg>
           <span>Today</span>
         </NavLink>
+        <NavLink to="/daily-operations" className={({ isActive }) => `bottom-nav-item ${isActive ? "bottom-nav-item--active" : ""}`}>
+          <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M4 7h16" />
+            <path d="M4 12h10" />
+            <path d="M4 17h7" />
+            <path d="m16 15 2 2 4-5" />
+          </svg>
+          <span>Ops</span>
+        </NavLink>
         <NavLink to="/items" className={({ isActive }) => `bottom-nav-item ${isActive ? "bottom-nav-item--active" : ""}`}>
           <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
@@ -416,6 +437,19 @@ export function AppShell() {
           </svg>
           <span>Moves</span>
         </NavLink>
+        {canViewAlerts && (
+          <NavLink to="/alerts" className={({ isActive }) => `bottom-nav-item ${isActive ? "bottom-nav-item--active" : ""}`}>
+            <span className="bottom-nav-icon-wrap">
+              <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+              {alertCount > 0 && <span className="bottom-nav-badge">{alertCount}</span>}
+            </span>
+            <span>Alerts</span>
+          </NavLink>
+        )}
         {canAccessManagement && (
           <>
             <NavLink to="/suppliers" className={({ isActive }) => `bottom-nav-item ${isActive ? "bottom-nav-item--active" : ""}`}>
@@ -445,17 +479,6 @@ export function AppShell() {
                 <path d="M8 17h5" />
               </svg>
               <span>Reports</span>
-            </NavLink>
-            <NavLink to="/alerts" className={({ isActive }) => `bottom-nav-item ${isActive ? "bottom-nav-item--active" : ""}`}>
-              <span className="bottom-nav-icon-wrap">
-                <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                  <line x1="12" y1="9" x2="12" y2="13" />
-                  <line x1="12" y1="17" x2="12.01" y2="17" />
-                </svg>
-                {alertCount > 0 && <span className="bottom-nav-badge">{alertCount}</span>}
-              </span>
-              <span>Alerts</span>
             </NavLink>
             {canManageTeam && (
               <>

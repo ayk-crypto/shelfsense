@@ -132,7 +132,7 @@ export function ItemsPage() {
   const [sortBy, setSortBy] = useState<ItemSortKey>("name");
   const [editingItem, setEditingItem] = useState<Item | null>(null);
   const [openActionMenuItemId, setOpenActionMenuItemId] = useState<string | null>(null);
-  const [pendingCommandAction, setPendingCommandAction] = useState<"stock-in" | null>(null);
+  const [pendingCommandAction, setPendingCommandAction] = useState<"stock-in" | "transfer" | null>(null);
   const inventorySearchRef = useRef<HTMLInputElement>(null);
   const selectedCount = selectedItemIds.size;
   const usageMap = useMemo(
@@ -217,8 +217,8 @@ export function ItemsPage() {
       return;
     }
 
-    if (action === "stock-in") {
-      setPendingCommandAction("stock-in");
+    if (action === "stock-in" || action === "transfer") {
+      setPendingCommandAction(action);
       inventorySearchRef.current?.focus();
       const next = new URLSearchParams(searchParams);
       next.delete("action");
@@ -547,6 +547,16 @@ export function ItemsPage() {
         </div>
       )}
 
+      {pendingCommandAction === "transfer" && (
+        <div className="inventory-action-notice" role="status">
+          <strong>Transfer stock:</strong>
+          <span>Search or choose an item below, then open the row menu and select <strong>Transfer</strong>.</span>
+          <button type="button" className="btn btn--ghost btn--sm" onClick={() => setPendingCommandAction(null)}>
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {canManageStock && selectedCount > 0 && (
         <BulkItemsBar
           selectedCount={selectedCount}
@@ -748,7 +758,7 @@ export function ItemsPage() {
                                 </button>
                               )}
                               {item.isActive && canManageStock && locations.length > 1 && (
-                                <button className="row-action-menu-item" role="menuitem" onClick={() => { setOpenActionMenuItemId(null); setTransferItem(item); }}>
+                                <button className="row-action-menu-item" role="menuitem" onClick={() => { setOpenActionMenuItemId(null); setPendingCommandAction(null); setTransferItem(item); }}>
                                   Transfer
                                 </button>
                               )}
@@ -913,7 +923,7 @@ export function ItemsPage() {
                       {item.isActive && canManageStock && locations.length > 1 && (
                         <button
                           className="btn btn--sm btn--ghost item-card-btn"
-                          onClick={() => setTransferItem(item)}
+                          onClick={() => { setPendingCommandAction(null); setTransferItem(item); }}
                         >
                           Transfer
                         </button>

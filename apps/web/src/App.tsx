@@ -6,6 +6,7 @@ import { LocationProvider } from "./context/LocationContext";
 import { useWorkspaceSettings, WorkspaceSettingsProvider } from "./context/WorkspaceSettingsContext";
 import { ActivityPage } from "./pages/ActivityPage";
 import { AlertsPage } from "./pages/AlertsPage";
+import { DailyOperationsPage } from "./pages/DailyOperationsPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ItemsPage } from "./pages/ItemsPage";
 import { LocationsPage } from "./pages/LocationsPage";
@@ -16,6 +17,7 @@ import { PurchasesPage } from "./pages/PurchasesPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { SignupPage } from "./pages/SignupPage";
+import { StockCountPage } from "./pages/StockCountPage";
 import { StockInPage } from "./pages/StockInPage";
 import { StockOutPage } from "./pages/StockOutPage";
 import { SuppliersPage } from "./pages/SuppliersPage";
@@ -195,8 +197,17 @@ export function App() {
             }
           >
             <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/daily-operations" element={<DailyOperationsPage />} />
             <Route path="/items" element={<ItemsPage />} />
             <Route path="/movements" element={<MovementsPage />} />
+            <Route
+              path="/stock-count"
+              element={<RoleRoute allowedRoles={["OWNER", "MANAGER"]}><StockCountPage /></RoleRoute>}
+            />
+            <Route
+              path="/transfers"
+              element={<RoleRoute allowedRoles={["OWNER", "MANAGER"]}><Navigate to="/items?action=transfer" replace /></RoleRoute>}
+            />
             <Route
               path="/stock-in"
               element={<RoleRoute allowedRoles={["OWNER", "MANAGER"]}><StockInPage /></RoleRoute>}
@@ -219,7 +230,7 @@ export function App() {
             />
             <Route
               path="/alerts"
-              element={<RoleRoute allowedRoles={["OWNER", "MANAGER"]}><AlertsPage /></RoleRoute>}
+              element={<RoleRoute allowedRoles={["OWNER", "MANAGER", "OPERATOR"]}><AlertsPage /></RoleRoute>}
             />
             <Route
               path="/team"
