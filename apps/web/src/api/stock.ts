@@ -1,11 +1,13 @@
 import type {
   ExpiringSoonResponse,
+  PriceHistoryResponse,
   StockInInput,
   StockMovementFilters,
   StockMovementsResponse,
   StockOutInput,
   StockSummaryResponse,
   StockTransferInput,
+  SupplierSuggestionResponse,
 } from "../types";
 import { apiClient } from "./client";
 
@@ -43,4 +45,14 @@ export async function stockOut(data: StockOutInput): Promise<unknown> {
 
 export async function stockTransfer(data: StockTransferInput): Promise<unknown> {
   return apiClient.post<unknown>("/stock/transfer", data, true);
+}
+
+export async function getSupplierSuggestion(itemId: string): Promise<SupplierSuggestionResponse> {
+  return apiClient.get<SupplierSuggestionResponse>(`/stock/supplier-suggestion?itemId=${encodeURIComponent(itemId)}`);
+}
+
+export async function getPriceHistory(itemId: string, limit?: number): Promise<PriceHistoryResponse> {
+  const params = new URLSearchParams({ itemId });
+  if (limit) params.set("limit", String(limit));
+  return apiClient.get<PriceHistoryResponse>(`/stock/price-history?${params.toString()}`);
 }

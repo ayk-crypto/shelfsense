@@ -254,8 +254,33 @@ export interface StockInInput {
   quantity: number;
   unitCost?: number;
   expiryDate?: string;
+  batchNo?: string;
+  supplierId?: string;
   supplierName?: string;
   note?: string;
+}
+
+export interface SupplierSuggestion {
+  id: string;
+  name: string;
+}
+
+export interface SupplierSuggestionResponse {
+  suggestion: SupplierSuggestion | null;
+}
+
+export interface PriceHistoryEntry {
+  id: string;
+  unitCost: number;
+  quantity: number;
+  batchNo: string | null;
+  createdAt: string;
+  supplierName: string | null;
+  supplier: { id: string; name: string } | null;
+}
+
+export interface PriceHistoryResponse {
+  history: PriceHistoryEntry[];
 }
 
 export interface StockOutInput {

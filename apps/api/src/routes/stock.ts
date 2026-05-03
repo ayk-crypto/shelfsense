@@ -77,6 +77,7 @@ stockRouter.post("/in", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(as
           unitCost: effectiveUnitCost,
           expiryDate,
           batchNo: input.batchNo,
+          supplierId: input.supplierId ?? null,
           supplierName: input.supplierName,
         },
       });
@@ -656,6 +657,64 @@ stockRouter.get("/expiring-soon", requireRole([Role.OWNER, Role.MANAGER]), async
   return res.json({ batches });
 }));
 
+stockRouter.get("/supplier-suggestion", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
+  const workspaceId = getWorkspaceId(req);
+  if (!workspaceId) return res.status(403).json({ error: "Workspace access required" });
+
+  const itemId = parseOptionalString(req.query.itemId);
+  if (!itemId) return res.status(400).json({ error: "itemId is required" });
+
+  const batches = await prisma.stockBatch.findMany({
+    where: { workspaceId, itemId, supplierId: { not: null } },
+    orderBy: { createdAt: "desc" },
+    take: 10,
+    select: {
+      supplierId: true,
+      supplier: { select: { id: true, name: true } },
+    },
+  });
+
+  const freq = new Map<string, { id: string; name: string; count: number }>();
+  for (const b of batches) {
+    if (!b.supplierId || !b.supplier) continue;
+    const prev = freq.get(b.supplierId) ?? { id: b.supplierId, name: b.supplier.name, count: 0 };
+    freq.set(b.supplierId, { ...prev, count: prev.count + 1 });
+  }
+
+  const sorted = [...freq.values()].sort((a, b) => b.count - a.count);
+  const suggestion = sorted[0] ? { id: sorted[0].id, name: sorted[0].name } : null;
+
+  return res.json({ suggestion });
+}));
+
+stockRouter.get("/price-history", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
+  const workspaceId = getWorkspaceId(req);
+  if (!workspaceId) return res.status(403).json({ error: "Workspace access required" });
+
+  const itemId = parseOptionalString(req.query.itemId);
+  if (!itemId) return res.status(400).json({ error: "itemId is required" });
+
+  const limitRaw = typeof req.query.limit === "string" ? parseInt(req.query.limit, 10) : 20;
+  const limit = Number.isFinite(limitRaw) && limitRaw > 0 && limitRaw <= 100 ? limitRaw : 20;
+
+  const history = await prisma.stockBatch.findMany({
+    where: { workspaceId, itemId, unitCost: { not: null } },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    select: {
+      id: true,
+      unitCost: true,
+      quantity: true,
+      batchNo: true,
+      supplierName: true,
+      createdAt: true,
+      supplier: { select: { id: true, name: true } },
+    },
+  });
+
+  return res.json({ history });
+}));
+
 function getWorkspaceId(req: Express.Request) {
   return req.user?.workspaceId ?? null;
 }
@@ -671,6 +730,7 @@ function parseStockInInput(body: unknown) {
     unitCost?: unknown;
     expiryDate?: unknown;
     batchNo?: unknown;
+    supplierId?: unknown;
     supplierName?: unknown;
     note?: unknown;
   };
@@ -681,6 +741,7 @@ function parseStockInInput(body: unknown) {
     unitCost: parseOptionalNumber(input.unitCost),
     expiryDate: parseOptionalDate(input.expiryDate),
     batchNo: parseNullableString(input.batchNo),
+    supplierId: parseNullableString(input.supplierId),
     supplierName: parseNullableString(input.supplierName),
     note: parseNullableString(input.note),
   };

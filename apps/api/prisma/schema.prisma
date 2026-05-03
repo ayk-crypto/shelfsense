@@ -185,6 +185,7 @@ model StockBatch {
   itemId            String          @db.Uuid
   workspaceId       String          @db.Uuid
   locationId        String          @db.Uuid
+  supplierId        String?         @db.Uuid
   quantity          Float
   remainingQuantity Float
   unitCost          Float?
@@ -196,11 +197,13 @@ model StockBatch {
   item              Item            @relation(fields: [itemId], references: [id], onDelete: Cascade)
   workspace         Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   location          Location        @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  supplier          Supplier?       @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   stockMovements    StockMovement[]
 
   @@index([workspaceId])
   @@index([locationId])
   @@index([itemId])
+  @@index([supplierId])
   @@index([expiryDate])
 }
 
@@ -229,15 +232,16 @@ model StockMovement {
 }
 
 model Supplier {
-  id          String     @id @default(uuid()) @db.Uuid
-  name        String
-  phone       String?
-  notes       String?
-  workspaceId String     @db.Uuid
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  purchases   Purchase[]
+  id           String       @id @default(uuid()) @db.Uuid
+  name         String
+  phone        String?
+  notes        String?
+  workspaceId  String       @db.Uuid
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  workspace    Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  purchases    Purchase[]
+  stockBatches StockBatch[]
 
   @@index([workspaceId])
 }

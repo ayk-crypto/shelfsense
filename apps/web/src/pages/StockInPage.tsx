@@ -1,30 +1,50 @@
 import { useEffect, useRef, useState } from "react";
 import { getItems } from "../api/items";
-import { stockIn } from "../api/stock";
-import type { Item } from "../types";
+import { getPriceHistory, getSupplierSuggestion, stockIn } from "../api/stock";
+import { getSuppliers } from "../api/suppliers";
+import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
+import type { Item, Supplier } from "../types";
+import { formatCurrency } from "../utils/currency";
 
-interface Row {
+interface BatchRow {
   rowId: string;
   item: Item;
   qty: string;
   unitCost: string;
   expiryDate: string;
+  batchNo: string;
+  supplierId: string;
   note: string;
+  lastPrice: number | null;
+  metaLoading: boolean;
+  suggested: boolean;
 }
 
 interface RowResult {
   rowId: string;
   itemName: string;
+  batchNo: string;
   status: "success" | "error";
   error?: string;
 }
 
+function generateBatchNo(rows: BatchRow[], itemId: string): string {
+  const d = new Date();
+  const ymd = d.toISOString().slice(0, 10).replace(/-/g, "");
+  const count = rows.filter((r) => r.item.id === itemId).length + 1;
+  return `B${ymd}-${String(count).padStart(3, "0")}`;
+}
+
 export function StockInPage() {
+  const { settings } = useWorkspaceSettings();
+  const currency = settings.currency;
+
   const [allItems, setAllItems] = useState<Item[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loadingItems, setLoadingItems] = useState(true);
   const [search, setSearch] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
-  const [rows, setRows] = useState<Row[]>([]);
+  const [rows, setRows] = useState<BatchRow[]>([]);
   const [globalNote, setGlobalNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [results, setResults] = useState<RowResult[] | null>(null);
@@ -36,8 +56,9 @@ export function StockInPage() {
   useEffect(() => {
     async function load() {
       try {
-        const res = await getItems();
-        setAllItems(res.items.filter((i) => i.isActive));
+        const [itemsRes, suppliersRes] = await Promise.all([getItems(), getSuppliers()]);
+        setAllItems(itemsRes.items.filter((i) => i.isActive));
+        setSuppliers(suppliersRes.suppliers);
       } catch {
         setAllItems([]);
       } finally {
@@ -61,9 +82,9 @@ export function StockInPage() {
     return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, [showDropdown]);
 
-  const stagedIds = new Set(rows.map((r) => r.item.id));
+  const stagedItemIds = new Set(rows.map((r) => r.item.id));
   const filteredItems = allItems
-    .filter((i) => !stagedIds.has(i.id))
+    .filter((i) => !stagedItemIds.has(i.id))
     .filter((i) => {
       const q = search.toLowerCase().trim();
       if (!q) return true;
@@ -75,21 +96,83 @@ export function StockInPage() {
     });
 
   function addItem(item: Item) {
-    setRows((prev) => [
-      ...prev,
-      { rowId: crypto.randomUUID(), item, qty: "", unitCost: "", expiryDate: "", note: "" },
-    ]);
+    const rowId = crypto.randomUUID();
+    const batchNo = generateBatchNo(rows, item.id);
+    const newRow: BatchRow = {
+      rowId,
+      item,
+      qty: "",
+      unitCost: "",
+      expiryDate: "",
+      batchNo,
+      supplierId: "",
+      note: "",
+      lastPrice: null,
+      metaLoading: true,
+      suggested: false,
+    };
+    setRows((prev) => [...prev, newRow]);
     setSearch("");
     setShowDropdown(false);
     setResults(null);
     setTouched(false);
+    void fetchRowMeta(rowId, item.id);
+  }
+
+  async function fetchRowMeta(rowId: string, itemId: string) {
+    try {
+      const [suggRes, priceRes] = await Promise.all([
+        getSupplierSuggestion(itemId),
+        getPriceHistory(itemId, 3),
+      ]);
+      setRows((prev) =>
+        prev.map((r) =>
+          r.rowId !== rowId
+            ? r
+            : {
+                ...r,
+                supplierId: suggRes.suggestion?.id ?? "",
+                suggested: !!suggRes.suggestion,
+                lastPrice: priceRes.history[0]?.unitCost ?? null,
+                metaLoading: false,
+              },
+        ),
+      );
+    } catch {
+      setRows((prev) => prev.map((r) => (r.rowId !== rowId ? r : { ...r, metaLoading: false })));
+    }
+  }
+
+  function addBatch(sourceRowId: string) {
+    setRows((prev) => {
+      const idx = prev.findIndex((r) => r.rowId === sourceRowId);
+      if (idx === -1) return prev;
+      const source = prev[idx];
+      const batchNo = generateBatchNo(prev, source.item.id);
+      const newRow: BatchRow = {
+        rowId: crypto.randomUUID(),
+        item: source.item,
+        qty: "",
+        unitCost: source.unitCost,
+        expiryDate: "",
+        batchNo,
+        supplierId: source.supplierId,
+        note: "",
+        lastPrice: source.lastPrice,
+        metaLoading: false,
+        suggested: false,
+      };
+      const updated = [...prev];
+      updated.splice(idx + 1, 0, newRow);
+      return updated;
+    });
   }
 
   function removeRow(rowId: string) {
     setRows((prev) => prev.filter((r) => r.rowId !== rowId));
   }
 
-  function updateRow(rowId: string, field: keyof Omit<Row, "rowId" | "item">, value: string) {
+  function updateRow(rowId: string, field: keyof Omit<BatchRow, "rowId" | "item" | "lastPrice" | "metaLoading" | "suggested">, value: string) {
     setRows((prev) => prev.map((r) => (r.rowId === rowId ? { ...r, [field]: value } : r)));
   }
 
@@ -100,7 +183,7 @@ export function StockInPage() {
     setTouched(false);
   }
 
-  function isRowValid(row: Row) {
+  function isRowValid(row: BatchRow) {
     const qty = parseFloat(row.qty);
     if (!qty || qty <= 0) return false;
     if (row.item.trackExpiry && !row.expiryDate) return false;
@@ -118,22 +201,27 @@ export function StockInPage() {
 
     for (const row of rows) {
       if (!isRowValid(row)) {
-        out.push({ rowId: row.rowId, itemName: row.item.name, status: "error", error: "Invalid — skipped" });
+        out.push({ rowId: row.rowId, itemName: row.item.name, batchNo: row.batchNo, status: "error", error: "Invalid — skipped" });
         continue;
       }
+      const selectedSupplier = suppliers.find((s) => s.id === row.supplierId);
       try {
         await stockIn({
           itemId: row.item.id,
           quantity: parseFloat(row.qty),
           unitCost: row.unitCost ? parseFloat(row.unitCost) : undefined,
           expiryDate: row.expiryDate || undefined,
+          batchNo: row.batchNo || undefined,
+          supplierId: row.supplierId || undefined,
+          supplierName: selectedSupplier?.name,
           note: [row.note.trim(), globalNote.trim()].filter(Boolean).join(" · ") || undefined,
         });
-        out.push({ rowId: row.rowId, itemName: row.item.name, status: "success" });
+        out.push({ rowId: row.rowId, itemName: row.item.name, batchNo: row.batchNo, status: "success" });
       } catch (err) {
         out.push({
           rowId: row.rowId,
           itemName: row.item.name,
+          batchNo: row.batchNo,
           status: "error",
           error: err instanceof Error ? err.message : "Failed",
         });
@@ -144,9 +232,7 @@ export function StockInPage() {
     setSubmitting(false);
     const failedIds = new Set(out.filter((r) => r.status === "error").map((r) => r.rowId));
     setRows((prev) => prev.filter((r) => failedIds.has(r.rowId)));
-    if (failedIds.size === 0) {
-      setGlobalNote("");
-    }
+    if (failedIds.size === 0) setGlobalNote("");
   }
 
   const successCount = results?.filter((r) => r.status === "success").length ?? 0;
@@ -163,13 +249,13 @@ export function StockInPage() {
             Stock In
           </div>
           <h1 className="page-title">Record Stock In</h1>
-          <p className="page-subtitle">Add multiple items received into stock. Search, fill quantities, then submit all at once.</p>
+          <p className="page-subtitle">Add items to stock with batch numbers, costs, expiry dates, and supplier info. Use <strong>+ Add batch</strong> on any row to record multiple batches for the same item.</p>
         </div>
         {rows.length > 0 && (
           <div className="stock-entry-tally">
             <div className="stock-entry-tally-item">
               <span className="stock-entry-tally-num">{rows.length}</span>
-              <span className="stock-entry-tally-label">staged</span>
+              <span className="stock-entry-tally-label">batch{rows.length !== 1 ? "es" : ""}</span>
             </div>
             <div className="stock-entry-tally-div" />
             <div className="stock-entry-tally-item">
@@ -192,13 +278,13 @@ export function StockInPage() {
           <div className="stock-entry-results-body">
             <div className="stock-entry-results-title">
               {allSucceeded
-                ? `All ${successCount} item${successCount !== 1 ? "s" : ""} recorded successfully`
-                : `${successCount} of ${results.length} items recorded`}
+                ? `All ${successCount} batch${successCount !== 1 ? "es" : ""} recorded successfully`
+                : `${successCount} of ${results.length} batches recorded`}
             </div>
             {results.some((r) => r.status === "error") && (
               <ul className="stock-entry-results-errors">
                 {results.filter((r) => r.status === "error").map((r) => (
-                  <li key={r.rowId}><strong>{r.itemName}</strong>: {r.error}</li>
+                  <li key={r.rowId}><strong>{r.itemName}</strong> ({r.batchNo}): {r.error}</li>
                 ))}
               </ul>
             )}
@@ -231,7 +317,11 @@ export function StockInPage() {
             <div className="stock-entry-dropdown">
               {filteredItems.length === 0 ? (
                 <div className="stock-entry-dropdown-empty">
-                  {search ? "No items match your search" : stagedIds.size === allItems.length ? "All items already added" : "Start typing to search"}
+                  {search
+                    ? "No items match your search"
+                    : stagedItemIds.size === allItems.length
+                      ? "All items already added — use + Add batch on a row to add another batch"
+                      : "Start typing to search"}
                 </div>
               ) : (
                 filteredItems.slice(0, 10).map((item) => (
@@ -259,35 +349,59 @@ export function StockInPage() {
       {rows.length > 0 ? (
         <>
           <div className="stock-entry-table-wrap">
-            <table className="stock-entry-table">
+            <table className="stock-entry-table stock-entry-table--wide">
               <thead>
                 <tr>
                   <th>Item</th>
-                  <th>Unit</th>
-                  <th>Quantity <span className="stock-entry-th-req">*</span></th>
+                  <th>Batch #</th>
+                  <th>Qty <span className="stock-entry-th-req">*</span></th>
                   <th>Unit Cost</th>
                   <th>Expiry Date</th>
+                  <th>Supplier</th>
                   <th>Note</th>
-                  <th></th>
+                  <th className="stock-entry-th-actions"></th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => {
+                {rows.map((row, idx) => {
                   const qty = parseFloat(row.qty);
                   const qtyInvalid = touched && (row.qty !== "" ? (isNaN(qty) || qty <= 0) : true);
                   const expiryMissing = touched && row.item.trackExpiry && !row.expiryDate;
+                  const prevRow = idx > 0 ? rows[idx - 1] : null;
+                  const isContinuation = prevRow?.item.id === row.item.id;
+                  const batchNum = rows.slice(0, idx + 1).filter((r) => r.item.id === row.item.id).length;
+
                   return (
-                    <tr key={row.rowId} className={qtyInvalid || expiryMissing ? "stock-entry-row--invalid" : ""}>
+                    <tr key={row.rowId} className={`${qtyInvalid || expiryMissing ? "stock-entry-row--invalid" : ""} ${isContinuation ? "stock-entry-row--continuation" : ""}`}>
                       <td className="stock-entry-td-name">
-                        <span className="stock-entry-item-name">{row.item.name}</span>
-                        {row.item.category && (
-                          <span className="stock-entry-item-cat">{row.item.category}</span>
-                        )}
-                        {row.item.trackExpiry && (
-                          <span className="stock-entry-item-flag stock-entry-item-flag--expiry">Expiry</span>
+                        {isContinuation ? (
+                          <span className="stock-entry-batch-indent">
+                            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="stock-entry-batch-arrow">
+                              <path d="M4 4v5h8" />
+                            </svg>
+                            Batch {batchNum}
+                          </span>
+                        ) : (
+                          <>
+                            <span className="stock-entry-item-name">{row.item.name}</span>
+                            {row.item.category && (
+                              <span className="stock-entry-item-cat">{row.item.category}</span>
+                            )}
+                            {row.item.trackExpiry && (
+                              <span className="stock-entry-item-flag stock-entry-item-flag--expiry">Expiry</span>
+                            )}
+                          </>
                         )}
                       </td>
-                      <td className="stock-entry-td-unit">{row.item.unit}</td>
+                      <td className="stock-entry-td-batch">
+                        <input
+                          className="stock-entry-input stock-entry-input--batch"
+                          type="text"
+                          value={row.batchNo}
+                          onChange={(e) => updateRow(row.rowId, "batchNo", e.target.value)}
+                          placeholder="Auto"
+                        />
+                      </td>
                       <td className="stock-entry-td-qty">
                         <input
                           className={`stock-entry-input ${qtyInvalid ? "stock-entry-input--error" : ""}`}
@@ -309,6 +423,20 @@ export function StockInPage() {
                           value={row.unitCost}
                           onChange={(e) => updateRow(row.rowId, "unitCost", e.target.value)}
                         />
+                        {row.lastPrice !== null && !row.metaLoading && (
+                          <span className={`stock-entry-last-price ${
+                            row.unitCost && parseFloat(row.unitCost) > row.lastPrice
+                              ? "stock-entry-last-price--up"
+                              : row.unitCost && parseFloat(row.unitCost) < row.lastPrice
+                                ? "stock-entry-last-price--down"
+                                : ""
+                          }`}>
+                            Last: {formatCurrency(row.lastPrice, currency)}
+                            {row.unitCost && parseFloat(row.unitCost) > row.lastPrice && " ↑"}
+                            {row.unitCost && parseFloat(row.unitCost) < row.lastPrice && " ↓"}
+                          </span>
+                        )}
+                        {row.metaLoading && <span className="stock-entry-last-price stock-entry-last-price--loading">Loading…</span>}
                       </td>
                       <td className="stock-entry-td-expiry">
                         {row.item.trackExpiry ? (
@@ -322,6 +450,25 @@ export function StockInPage() {
                           <span className="stock-entry-na">—</span>
                         )}
                       </td>
+                      <td className="stock-entry-td-supplier">
+                        <div className="stock-entry-supplier-wrap">
+                          <select
+                            className="stock-entry-select"
+                            value={row.supplierId}
+                            onChange={(e) => {
+                              setRows((prev) => prev.map((r) => r.rowId === row.rowId ? { ...r, supplierId: e.target.value, suggested: false } : r));
+                            }}
+                          >
+                            <option value="">No supplier</option>
+                            {suppliers.map((s) => (
+                              <option key={s.id} value={s.id}>{s.name}</option>
+                            ))}
+                          </select>
+                          {row.suggested && row.supplierId && (
+                            <span className="stock-entry-suggested-badge" title="Auto-suggested from recent batches">Suggested</span>
+                          )}
+                        </div>
+                      </td>
                       <td className="stock-entry-td-note">
                         <input
                           className="stock-entry-input"
@@ -331,12 +478,24 @@ export function StockInPage() {
                           onChange={(e) => updateRow(row.rowId, "note", e.target.value)}
                         />
                       </td>
-                      <td className="stock-entry-td-remove">
+                      <td className="stock-entry-td-actions">
+                        <button
+                          type="button"
+                          className="stock-entry-add-batch-btn"
+                          onClick={() => addBatch(row.rowId)}
+                          title="Add another batch for this item"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                            <line x1="12" y1="5" x2="12" y2="19" />
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                          </svg>
+                          <span>Batch</span>
+                        </button>
                         <button
                           type="button"
                           className="stock-entry-remove-btn"
                           onClick={() => removeRow(row.rowId)}
-                          aria-label={`Remove ${row.item.name}`}
+                          aria-label={`Remove ${row.item.name} ${row.batchNo}`}
                         >
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                             <path d="M18 6 6 18M6 6l12 12" />
@@ -352,11 +511,11 @@ export function StockInPage() {
 
           <div className="stock-entry-footer">
             <div className="stock-entry-global-note">
-              <label className="form-label">Batch note <span className="form-label-hint">(applies to all items)</span></label>
+              <label className="form-label">Session note <span className="form-label-hint">(applies to all batches)</span></label>
               <input
                 className="form-input"
                 type="text"
-                placeholder="e.g. Morning delivery from Supplier ABC…"
+                placeholder="e.g. Morning delivery from Metro…"
                 value={globalNote}
                 onChange={(e) => setGlobalNote(e.target.value)}
               />
@@ -376,7 +535,7 @@ export function StockInPage() {
                     <path d="M12 5v14M5 12l7 7 7-7" />
                   </svg>
                 )}
-                {submitting ? "Recording…" : `Record Stock In (${validRowCount})`}
+                {submitting ? "Recording…" : `Record Stock In (${validRowCount} batch${validRowCount !== 1 ? "es" : ""})`}
               </button>
             </div>
           </div>

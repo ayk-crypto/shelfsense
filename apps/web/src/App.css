@@ -9799,3 +9799,71 @@ tr.row--wastage td:first-child {
   flex-shrink: 0;
   stroke: var(--color-success, #16a34a);
 }
+
+/* ── Stock In: multi-batch enhancements ── */
+.stock-entry-table--wide { min-width: 900px; }
+
+.stock-entry-th-actions { width: 90px; }
+
+.stock-entry-td-batch { width: 120px; }
+.stock-entry-input--batch { width: 108px; font-size: 0.78rem; font-family: monospace; letter-spacing: 0.01em; }
+
+.stock-entry-row--continuation td { background: var(--color-bg-subtle, #f8fafc); border-top: 1px dashed var(--color-border, #e2e8f0); }
+.stock-entry-batch-indent {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  padding-left: 8px;
+}
+.stock-entry-batch-arrow { width: 14px; height: 14px; flex-shrink: 0; opacity: 0.5; }
+
+.stock-entry-last-price {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+  white-space: nowrap;
+}
+.stock-entry-last-price--up   { color: #dc2626; }
+.stock-entry-last-price--down { color: #16a34a; }
+.stock-entry-last-price--loading { opacity: 0.5; font-style: italic; }
+
+.stock-entry-td-supplier { min-width: 130px; }
+.stock-entry-supplier-wrap { display: flex; flex-direction: column; gap: 3px; }
+.stock-entry-suggested-badge {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #6366f1;
+  background: #eef2ff;
+  border-radius: 3px;
+  padding: 1px 5px;
+  letter-spacing: 0.02em;
+  width: fit-content;
+}
+
+.stock-entry-td-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.stock-entry-add-batch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 7px;
+  border: 1px solid var(--color-primary, #6366f1);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--color-primary, #6366f1);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.stock-entry-add-batch-btn svg { width: 11px; height: 11px; }
+.stock-entry-add-batch-btn:hover { background: #eef2ff; }
