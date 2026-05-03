@@ -6044,5 +6044,464 @@ tr.row--wastage td:first-child {
   }
 }
 
+/* =============================================
+   DASHBOARD REDESIGN — Phase 4
+   ============================================= */
 
+/* Page header */
+.dashboard .page-header {
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--color-border-light);
+  margin-bottom: 2px;
+}
+
+.dashboard .page-title {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.6px;
+  color: #0f172a;
+}
+
+.dashboard .page-subtitle {
+  font-size: 13px;
+  color: #64748b;
+  margin-top: 4px;
+}
+
+/* Dashboard layout */
+.dashboard {
+  gap: 32px;
+  padding-bottom: 32px;
+}
+
+/* Dashboard groups — card-like with left accent */
+.dashboard-group {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04), 0 4px 16px rgba(99,102,241,0.04);
+  overflow: hidden;
+  gap: 0;
+}
+
+.dashboard-group-header {
+  padding: 16px 20px 14px;
+  border-bottom: 1px solid var(--color-border-light);
+  background: linear-gradient(135deg, #fafaff 0%, #f5f4ff 100%);
+  gap: 3px;
+}
+
+.dashboard-group-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #6366f1;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.dashboard-group-helper {
+  font-size: 12.5px;
+  color: #94a3b8;
+  margin-top: 1px;
+}
+
+.dashboard-group-body {
+  padding: 20px;
+  gap: 16px;
+  background: #fafbfc;
+}
+
+/* Stat grid — 2 cols mobile, 3 medium, 5 large */
+.stat-grid {
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+@media (min-width: 700px) {
+  .stat-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: 1000px) {
+  .stat-grid {
+    grid-template-columns: repeat(5, 1fr);
+  }
+}
+
+/* Stat cards */
+.stat-card {
+  border-radius: 12px;
+  padding: 16px 14px;
+  gap: 10px;
+  background: #fff;
+  border-color: #e8eaf0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.stat-card:hover {
+  box-shadow: 0 4px 16px rgba(99,102,241,0.1);
+  transform: translateY(-2px);
+  border-color: #c7d2fe;
+}
+
+.stat-card--warn {
+  border-color: #fde68a;
+  background: #fffdf0;
+}
+
+.stat-card--danger {
+  border-color: #fca5a5;
+  background: #fff8f8;
+}
+
+/* Stat icons — larger, softer */
+.stat-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+
+.stat-icon svg {
+  width: 19px;
+  height: 19px;
+}
+
+/* Stat label & value */
+.stat-label {
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+.stat-value {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.7px;
+  color: #0f172a;
+  line-height: 1.1;
+}
+
+/* Stat sublabel */
+.stat-sublabel {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 2px;
+  white-space: normal;
+  line-height: 1.4;
+}
+
+/* Sections within dashboard */
+.dashboard-group-body .section {
+  border-radius: 10px;
+  border-color: #e8eaf0;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+}
+
+.dashboard-group-body .section:hover {
+  box-shadow: 0 3px 12px rgba(99,102,241,0.08);
+}
+
+/* Section headers */
+.section-header {
+  padding: 12px 16px;
+  background: #f8f8ff;
+  border-bottom-color: #ede9fe;
+}
+
+.section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e293b;
+  letter-spacing: -0.1px;
+}
+
+/* Alert summary */
+.alert-summary {
+  border-radius: 10px;
+  padding: 14px 16px;
+  border-color: #e8eaf0;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+}
+
+.alert-summary--active {
+  border-color: #fde68a;
+  background: linear-gradient(135deg, #fffdf0 0%, #fff8e1 100%);
+  border-left: 3px solid #f59e0b;
+}
+
+.alert-summary-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.alert-summary-copy {
+  font-size: 12.5px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+/* Table improvements */
+.dashboard-group-body .table-wrap {
+  border-radius: 0 0 9px 9px;
+}
+
+.table th {
+  background: #f8f8ff;
+  color: #64748b;
+  font-size: 10.5px;
+  letter-spacing: 0.6px;
+  padding: 10px 14px;
+  border-bottom-color: #ede9fe;
+}
+
+.table tbody tr:hover {
+  background: #f8f8ff;
+}
+
+.row--warn td {
+  background: #fffceb;
+}
+
+.row--warn:hover td {
+  background: #fef9c3;
+}
+
+/* Badges */
+.badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  font-weight: 700;
+  letter-spacing: 0.1px;
+}
+
+/* Cost analysis */
+.cost-analysis-grid {
+  padding: 0;
+  gap: 12px;
+}
+
+.cost-panel {
+  border-color: #ede9fe;
+  border-radius: 9px;
+  padding: 14px 16px;
+  background: #fafaff;
+}
+
+.cost-panel-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #6366f1;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #ede9fe;
+}
+
+.cost-row,
+.cost-metric {
+  font-size: 13px;
+  padding: 4px 0;
+  border-bottom: 1px solid #f1f0ff;
+}
+
+.cost-row:last-child,
+.cost-metric:last-child {
+  border-bottom: none;
+}
+
+.cost-row strong,
+.cost-metric strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+/* Expiry list */
+.expiry-item {
+  padding: 12px 16px;
+  gap: 12px;
+  border-bottom-color: #f1f0ff;
+}
+
+.expiry-item:hover {
+  background: #fafaff;
+}
+
+.expiry-item-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.expiry-qty {
+  background: #f1f5f9;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+.expiry-days {
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 3px 10px;
+}
+
+/* Wastage top section */
+.wastage-top-section {
+  border-color: rgba(220,38,38,0.15);
+  border-radius: 10px;
+  margin-bottom: 0;
+  background: #fff;
+}
+
+.wastage-top-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 10px 16px;
+  background: rgba(220,38,38,0.05);
+  color: #dc2626;
+}
+
+.wastage-top-row {
+  font-size: 13px;
+  padding: 10px 16px;
+  border-top-color: #fff1f1;
+}
+
+.wastage-top-rank {
+  font-size: 11px;
+  font-weight: 800;
+  color: #94a3b8;
+  background: #f1f5f9;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wastage-top-name {
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.wastage-top-qty {
+  font-size: 11.5px;
+  color: #94a3b8;
+}
+
+.wastage-top-value {
+  font-weight: 700;
+  font-size: 13px;
+}
+
+/* Standalone inventory summary section (outside groups) */
+.dashboard > .section {
+  border-radius: 12px;
+  border-color: #e8eaf0;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}
+
+.dashboard > .section:hover {
+  box-shadow: 0 4px 16px rgba(99,102,241,0.08);
+}
+
+/* Forecast pills */
+.forecast-pill {
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+
+.forecast-pill--critical {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.forecast-pill--warning {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.forecast-pill--normal {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+/* Wastage trend pill */
+.wastage-trend {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  display: inline-block;
+  margin-top: 4px;
+}
+
+.wastage-trend--up {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.wastage-trend--down {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.wastage-trend--flat {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+/* Empty state within sections */
+.dashboard-group-body .empty-state--compact {
+  padding: 18px 16px;
+  font-size: 13px;
+  color: #94a3b8;
+  text-align: center;
+  border: none;
+  background: transparent;
+}
+
+@media (max-width: 560px) {
+  .dashboard {
+    gap: 20px;
+    padding-bottom: 24px;
+  }
+
+  .dashboard-group-body {
+    padding: 14px;
+    gap: 12px;
+  }
+
+  .dashboard-group-header {
+    padding: 14px 16px 12px;
+  }
+
+  .stat-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .stat-card {
+    padding: 14px 12px;
+  }
+
+  .stat-value {
+    font-size: 20px;
+  }
+}
 
