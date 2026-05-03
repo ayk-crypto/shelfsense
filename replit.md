@@ -31,7 +31,8 @@ This is an npm workspaces monorepo with three packages:
 ## Key Features
 
 - Multi-tenant architecture with Workspaces
-- User roles: OWNER, MANAGER, STAFF (route-level access control)
+- User roles: OWNER, MANAGER, OPERATOR (route-level access control via Prisma `Role` enum)
+- Custom roles system: named roles (e.g. "Chef", "Cashier") with `baseRole` (MANAGER|OPERATOR) for API security + `permissions` JSON array for UI gating; stored in `CustomRole` table; assigned via `Membership.customRoleId`
 - Inventory item tracking (SKU, barcode, unit, min stock level, expiry tracking)
 - Stock batch management with expiry dates
 - Stock movement tracking (STOCK_IN, STOCK_OUT, WASTAGE, ADJUSTMENT)
@@ -58,7 +59,7 @@ This is an npm workspaces monorepo with three packages:
 - **Purchases page** (`/purchases`) — purchase history; New Purchase modal with multi-line items
 - **Reports page** (`/reports`) — filterable reports with CSV export
 - **Alerts page** (`/alerts`) — low-stock and expiry alerts grouped by severity
-- **Team page** (`/team`) — member list with role management (OWNER only)
+- **Team page** (`/team`) — two-tab layout: Members (list + role management) + Custom Roles (role builder); OWNER only
 - **Activity page** (`/activity`) — audit log with filters
 - **Locations page** (`/locations`) — location CRUD (OWNER only)
 - **Settings page** (`/settings`) — workspace settings and notification preferences

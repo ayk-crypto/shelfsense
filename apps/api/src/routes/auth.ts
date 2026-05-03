@@ -127,6 +127,10 @@ authRouter.post("/register", asyncHandler(async (req, res) => {
       createdAt: result.user.createdAt,
       workspaceId: result.workspace.id,
       role: Role.OWNER,
+      customRoleId: null,
+      customRoleName: null,
+      customRoleColor: null,
+      permissions: null,
     },
     token: signToken(result.user.id),
   });
@@ -152,7 +156,14 @@ authRouter.post("/login", asyncHandler(async (req, res) => {
       memberships: {
         where: { isActive: true },
         orderBy: { createdAt: "asc" },
-        select: { workspaceId: true, role: true },
+        select: {
+          workspaceId: true,
+          role: true,
+          customRoleId: true,
+          customRole: {
+            select: { name: true, color: true, permissions: true },
+          },
+        },
         take: 1,
       },
     },
@@ -165,6 +176,7 @@ authRouter.post("/login", asyncHandler(async (req, res) => {
   }
 
   const membership = user.memberships[0];
+  const customRole = membership?.customRole ?? null;
 
   return res.json({
     user: {
@@ -174,6 +186,10 @@ authRouter.post("/login", asyncHandler(async (req, res) => {
       createdAt: user.createdAt,
       workspaceId: membership?.workspaceId ?? null,
       role: membership?.role ?? null,
+      customRoleId: membership?.customRoleId ?? null,
+      customRoleName: customRole?.name ?? null,
+      customRoleColor: customRole?.color ?? null,
+      permissions: customRole ? (customRole.permissions as string[]) : null,
     },
     token: signToken(user.id),
   });

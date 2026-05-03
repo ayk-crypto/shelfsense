@@ -7,4 +7,8 @@ export interface AuthUser {
   email: string;
   workspaceId: string | null;
   role: Role | null;
+  customRoleId: string | null;
+  customRoleName: string | null;
+  customRoleColor: string | null;
+  permissions: string[] | null;
 }

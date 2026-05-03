@@ -34,6 +34,7 @@ export async function requireAuth(
     if (!payload.userId) {
       return res.status(401).json({ error: "Invalid authentication token" });
     }
+
     const user = await prisma.user.findUnique({
       where: { id: payload.userId },
       select: {
@@ -43,7 +44,14 @@ export async function requireAuth(
         memberships: {
           where: { isActive: true },
           orderBy: { createdAt: "asc" },
-          select: { workspaceId: true, role: true },
+          select: {
+            workspaceId: true,
+            role: true,
+            customRoleId: true,
+            customRole: {
+              select: { name: true, color: true, permissions: true },
+            },
+          },
           take: 1,
         },
       },
@@ -54,6 +62,7 @@ export async function requireAuth(
     }
 
     const membership = user.memberships[0];
+    const customRole = membership?.customRole ?? null;
 
     req.user = {
       userId: user.id,
@@ -62,7 +71,12 @@ export async function requireAuth(
       email: user.email,
       workspaceId: membership?.workspaceId ?? null,
       role: membership?.role ?? null,
+      customRoleId: membership?.customRoleId ?? null,
+      customRoleName: customRole?.name ?? null,
+      customRoleColor: customRole?.color ?? null,
+      permissions: customRole ? (customRole.permissions as string[]) : null,
     };
+
     return next();
   } catch {
     return res.status(401).json({ error: "Invalid authentication token" });

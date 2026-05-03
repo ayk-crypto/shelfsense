@@ -60,6 +60,7 @@ model Workspace {
   purchases      Purchase[]
   auditLogs      AuditLog[]
   notifications  Notification[]
+  customRoles    CustomRole[]
 }
 
 model Notification {
@@ -120,17 +121,35 @@ model Location {
   @@unique([workspaceId, name])
 }
 
+model CustomRole {
+  id          String       @id @default(uuid()) @db.Uuid
+  workspaceId String       @db.Uuid
+  name        String
+  color       String       @default("#6366f1")
+  baseRole    Role
+  permissions Json         @default("[]")
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  memberships Membership[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId])
+}
+
 model Membership {
-  id          String    @id @default(uuid()) @db.Uuid
-  userId      String    @db.Uuid
-  workspaceId String    @db.Uuid
-  role        Role
-  isActive    Boolean   @default(true)
+  id            String      @id @default(uuid()) @db.Uuid
+  userId        String      @db.Uuid
+  workspaceId   String      @db.Uuid
+  role          Role
+  customRoleId  String?     @db.Uuid
+  isActive      Boolean     @default(true)
   deactivatedAt DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace     Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  customRole    CustomRole? @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
 
   @@unique([userId, workspaceId])
   @@index([workspaceId])

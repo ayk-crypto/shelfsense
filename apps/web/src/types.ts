@@ -1,5 +1,53 @@
 export type Role = "OWNER" | "MANAGER" | "OPERATOR";
 
+export const PERMISSION_DEFS = [
+  { key: "dashboard",         label: "Dashboard",              group: "General",     description: "View the main dashboard and metrics" },
+  { key: "inventory_view",    label: "View Inventory",         group: "Inventory",   description: "Browse and search items" },
+  { key: "inventory_manage",  label: "Manage Items",           group: "Inventory",   description: "Create, edit, and archive items" },
+  { key: "stock_in",          label: "Stock In",               group: "Stock",       description: "Record stock received into inventory" },
+  { key: "stock_out",         label: "Stock Out",              group: "Stock",       description: "Record stock removed from inventory" },
+  { key: "movements_view",    label: "Stock Activity",         group: "Stock",       description: "View the full stock movement history" },
+  { key: "reports",           label: "Reports",                group: "Reporting",   description: "Access and export inventory reports" },
+  { key: "alerts",            label: "Alerts",                 group: "Reporting",   description: "View low-stock and expiry alerts" },
+  { key: "suppliers",         label: "Suppliers",              group: "Procurement", description: "Manage supplier contacts" },
+  { key: "purchases",         label: "Purchases",              group: "Procurement", description: "View and create purchase orders" },
+  { key: "locations",         label: "Locations",              group: "Settings",    description: "Manage branch and warehouse locations" },
+  { key: "settings",          label: "Settings",               group: "Settings",    description: "Access workspace configuration" },
+] as const;
+
+export type Permission = (typeof PERMISSION_DEFS)[number]["key"];
+
+export const MANAGER_PERMISSIONS: Permission[] = [
+  "dashboard", "inventory_view", "inventory_manage", "stock_in", "stock_out",
+  "movements_view", "reports", "alerts", "suppliers", "purchases", "locations", "settings",
+];
+
+export const OPERATOR_PERMISSIONS: Permission[] = [
+  "dashboard", "inventory_view", "stock_out", "movements_view", "alerts",
+];
+
+export interface CustomRole {
+  id: string;
+  name: string;
+  color: string;
+  baseRole: "MANAGER" | "OPERATOR";
+  permissions: Permission[];
+  memberCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CustomRolesResponse {
+  customRoles: CustomRole[];
+}
+
+export interface CreateCustomRoleInput {
+  name: string;
+  color: string;
+  baseRole: "MANAGER" | "OPERATOR";
+  permissions: Permission[];
+}
+
 export interface User {
   id: string;
   name: string;
@@ -7,6 +55,10 @@ export interface User {
   createdAt: string;
   workspaceId?: string | null;
   role?: Role | null;
+  customRoleId?: string | null;
+  customRoleName?: string | null;
+  customRoleColor?: string | null;
+  permissions?: Permission[] | null;
 }
 
 export interface LoginResponse {
@@ -19,6 +71,9 @@ export interface TeamMember {
   name: string;
   email: string;
   role: Role;
+  customRoleId: string | null;
+  customRoleName: string | null;
+  customRoleColor: string | null;
   isActive: boolean;
   deactivatedAt: string | null;
   createdAt: string;
@@ -34,6 +89,7 @@ export interface CreateTeamUserInput {
   email: string;
   password: string;
   role: "MANAGER" | "OPERATOR";
+  customRoleId?: string | null;
 }
 
 export interface CreateTeamUserResponse {
