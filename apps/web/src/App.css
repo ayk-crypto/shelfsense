@@ -708,6 +708,214 @@ body {
   align-items: center;
 }
 
+/* =============================================
+   Onboarding
+   ============================================= */
+.onboarding-shell {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(79, 70, 229, 0.14), transparent 34%),
+    linear-gradient(135deg, #f8fafc 0%, #eef2ff 48%, #ffffff 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px 16px;
+}
+
+.onboarding-card {
+  width: min(860px, 100%);
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid var(--color-border);
+  border-radius: 22px;
+  box-shadow: 0 22px 70px rgba(15, 23, 42, 0.14);
+  padding: 24px;
+}
+
+.onboarding-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.onboarding-logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: var(--color-primary);
+  color: white;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+}
+
+.onboarding-brand h1 {
+  font-size: 24px;
+  line-height: 1.1;
+  color: var(--color-text);
+}
+
+.onboarding-brand p,
+.onboarding-step > p {
+  color: var(--color-text-muted);
+  margin-top: 4px;
+}
+
+.onboarding-progress {
+  margin-bottom: 20px;
+}
+
+.onboarding-progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--color-text);
+  margin-bottom: 8px;
+}
+
+.onboarding-progress-head strong {
+  color: var(--color-primary);
+}
+
+.onboarding-progress-track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--color-primary-light);
+  overflow: hidden;
+}
+
+.onboarding-progress-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-primary);
+  transition: width 0.2s ease;
+}
+
+.onboarding-error {
+  margin-bottom: 16px;
+}
+
+.onboarding-step {
+  min-height: 340px;
+}
+
+.onboarding-step h2 {
+  font-size: 20px;
+  color: var(--color-text);
+  margin-bottom: 4px;
+}
+
+.onboarding-step .form-group,
+.onboarding-step .form-row,
+.onboarding-action-grid {
+  margin-top: 16px;
+}
+
+.onboarding-pill {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 14px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--color-green-light);
+  color: var(--color-green);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.onboarding-action-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+@media (min-width: 760px) {
+  .onboarding-action-grid {
+    grid-template-columns: minmax(0, 2fr) minmax(220px, 1fr);
+  }
+}
+
+.onboarding-option {
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  padding: 16px;
+  background: var(--color-surface);
+}
+
+.onboarding-option--active {
+  border-color: rgba(79, 70, 229, 0.35);
+  background: #fbfbff;
+}
+
+.onboarding-option h3 {
+  font-size: 14px;
+  color: var(--color-text);
+  margin-bottom: 8px;
+}
+
+.onboarding-option p {
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.onboarding-finish {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.onboarding-summary {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+@media (min-width: 640px) {
+  .onboarding-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.onboarding-summary span {
+  border: 1px solid var(--color-border-light);
+  border-radius: 12px;
+  padding: 12px;
+  color: var(--color-text);
+  font-weight: 700;
+  background: var(--color-surface);
+}
+
+.onboarding-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--color-border-light);
+  padding-top: 18px;
+  margin-top: 6px;
+}
+
+@media (max-width: 520px) {
+  .onboarding-card {
+    padding: 18px;
+    border-radius: 18px;
+  }
+
+  .onboarding-footer {
+    flex-direction: column-reverse;
+  }
+
+  .onboarding-footer .btn {
+    width: 100%;
+  }
+}
+
 .demo-label {
   font-size: 12px;
   font-weight: 600;
@@ -1549,6 +1757,106 @@ body {
   border-radius: var(--radius);
   box-shadow: var(--shadow-sm);
   padding: 18px;
+}
+
+.settings-section {
+  padding: 0 0 18px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.settings-section-heading {
+  margin-bottom: 14px;
+}
+
+.settings-section-heading h2 {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.settings-section-heading p {
+  margin: 3px 0 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.settings-toggle-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-toggle {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid var(--color-border-light);
+  border-radius: 12px;
+  padding: 12px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.settings-toggle-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.settings-toggle-label {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.settings-toggle-helper {
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}
+
+.settings-toggle input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.settings-toggle-track {
+  position: relative;
+  width: 44px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--color-border);
+  transition: background 0.15s;
+}
+
+.settings-toggle-track::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.15s;
+}
+
+.settings-toggle input:checked + .settings-toggle-track {
+  background: var(--color-primary);
+}
+
+.settings-toggle input:checked + .settings-toggle-track::after {
+  transform: translateX(18px);
+}
+
+.settings-toggle:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
 }
 
 .settings-actions {

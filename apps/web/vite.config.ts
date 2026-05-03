@@ -55,6 +55,14 @@ export default defineConfig({
         target: apiProxyTarget,
         changeOrigin: true,
       },
+      "/notifications": {
+        target: apiProxyTarget,
+        changeOrigin: true,
+      },
+      "/onboarding": {
+        target: apiProxyTarget,
+        changeOrigin: true,
+      },
     },
   },
 });

@@ -23,6 +23,7 @@ const API_PREFIXES = [
   "/workspace",
   "/locations",
   "/notifications",
+  "/onboarding",
 ];
 
 self.addEventListener("install", (event) => {

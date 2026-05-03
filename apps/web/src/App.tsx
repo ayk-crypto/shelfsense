@@ -1,8 +1,9 @@
 import { Navigate, Route, BrowserRouter as Router, Routes } from "react-router-dom";
+import { getOnboardingStatus } from "./api/onboarding";
 import { AppShell } from "./components/AppShell";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { LocationProvider } from "./context/LocationContext";
-import { WorkspaceSettingsProvider } from "./context/WorkspaceSettingsContext";
+import { useWorkspaceSettings, WorkspaceSettingsProvider } from "./context/WorkspaceSettingsContext";
 import { ActivityPage } from "./pages/ActivityPage";
 import { AlertsPage } from "./pages/AlertsPage";
 import { DashboardPage } from "./pages/DashboardPage";
@@ -10,11 +11,14 @@ import { ItemsPage } from "./pages/ItemsPage";
 import { LocationsPage } from "./pages/LocationsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MovementsPage } from "./pages/MovementsPage";
+import { OnboardingPage } from "./pages/OnboardingPage";
 import { PurchasesPage } from "./pages/PurchasesPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { SuppliersPage } from "./pages/SuppliersPage";
 import { TeamPage } from "./pages/TeamPage";
+import { useEffect, useState } from "react";
+import type { OnboardingStatus } from "./types";
 import type { Role } from "./types";
 import "./App.css";
 
@@ -54,6 +58,78 @@ function AccessDenied() {
   );
 }
 
+function OwnerOnboardingGate({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  const { settings, loading: settingsLoading, error: settingsError, setSettings } = useWorkspaceSettings();
+  const [status, setStatus] = useState<OnboardingStatus | null>(null);
+  const [loading, setLoading] = useState(user?.role === "OWNER");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadStatus() {
+      if (user?.role !== "OWNER") {
+        setLoading(false);
+        setStatus(null);
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const res = await getOnboardingStatus();
+        if (!cancelled) {
+          setStatus(res);
+          setError(null);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Failed to load onboarding status");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void loadStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.role]);
+
+  if (user?.role !== "OWNER") return <>{children}</>;
+
+  if (loading || settingsLoading) {
+    return (
+      <div className="page-loading">
+        <div className="spinner" />
+        <p>Loading workspace setup...</p>
+      </div>
+    );
+  }
+
+  if (error || settingsError || !status) {
+    return (
+      <div className="page-error">
+        <div className="alert alert--error">{error ?? settingsError ?? "Unable to load onboarding"}</div>
+      </div>
+    );
+  }
+
+  if (!status.onboardingCompleted) {
+    return (
+      <OnboardingPage
+        settings={settings}
+        status={status}
+        onSettingsUpdated={setSettings}
+        onComplete={() => setStatus((current) => current ? { ...current, onboardingCompleted: true } : current)}
+      />
+    );
+  }
+
+  return <>{children}</>;
+}
+
 export function App() {
   return (
     <AuthProvider>
@@ -71,9 +147,11 @@ export function App() {
             element={
               <ProtectedRoute>
                 <WorkspaceSettingsProvider>
-                  <LocationProvider>
-                    <AppShell />
-                  </LocationProvider>
+                  <OwnerOnboardingGate>
+                    <LocationProvider>
+                      <AppShell />
+                    </LocationProvider>
+                  </OwnerOnboardingGate>
                 </WorkspaceSettingsProvider>
               </ProtectedRoute>
             }

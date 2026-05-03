@@ -43,10 +43,30 @@ export interface WorkspaceSettings {
   currency: string;
   lowStockMultiplier: number;
   expiryAlertDays: number;
+  ownerPhone: string | null;
+  notifyLowStock: boolean;
+  notifyExpiringSoon: boolean;
+  notifyExpired: boolean;
+  whatsappAlertsEnabled: boolean;
+  emailAlertsEnabled: boolean;
+  pushAlertsEnabled: boolean;
 }
 
 export interface WorkspaceSettingsResponse {
   settings: WorkspaceSettings;
+}
+
+export interface OnboardingStatus {
+  onboardingCompleted: boolean;
+  hasItems: boolean;
+  hasSuppliers: boolean;
+  hasLocations: boolean;
+}
+
+export interface OnboardingStatusResponse extends OnboardingStatus {}
+
+export interface CompleteOnboardingResponse {
+  onboardingCompleted: boolean;
 }
 
 export interface UpdateWorkspaceSettingsInput {
@@ -54,6 +74,13 @@ export interface UpdateWorkspaceSettingsInput {
   currency?: string;
   lowStockMultiplier?: number;
   expiryAlertDays?: number;
+  ownerPhone?: string | null;
+  notifyLowStock?: boolean;
+  notifyExpiringSoon?: boolean;
+  notifyExpired?: boolean;
+  whatsappAlertsEnabled?: boolean;
+  emailAlertsEnabled?: boolean;
+  pushAlertsEnabled?: boolean;
 }
 
 export interface Location {

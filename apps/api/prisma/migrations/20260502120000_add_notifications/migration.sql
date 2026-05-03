@@ -1,4 +1,4 @@
-﻿CREATE TABLE "Notification" (
+CREATE TABLE "Notification" (
     "id" UUID NOT NULL,
     "workspaceId" UUID NOT NULL,
     "userId" UUID,

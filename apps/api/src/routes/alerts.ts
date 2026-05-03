@@ -21,7 +21,12 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(asyn
   const now = new Date();
   const workspace = await prisma.workspace.findUnique({
     where: { id: workspaceId },
-    select: { expiryAlertDays: true },
+    select: {
+      expiryAlertDays: true,
+      notifyLowStock: true,
+      notifyExpiringSoon: true,
+      notifyExpired: true,
+    },
   });
   const expiryAlertUntil = new Date(now);
   expiryAlertUntil.setDate(now.getDate() + getExpiryAlertDays(workspace?.expiryAlertDays));
@@ -122,6 +127,11 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(asyn
     expiringSoon,
     expired,
     now,
+    preferences: {
+      notifyLowStock: workspace?.notifyLowStock ?? true,
+      notifyExpiringSoon: workspace?.notifyExpiringSoon ?? true,
+      notifyExpired: workspace?.notifyExpired ?? true,
+    },
   });
 
   return res.json({
@@ -168,6 +178,11 @@ interface AlertNotificationInput {
     };
   }>;
   now: Date;
+  preferences: {
+    notifyLowStock: boolean;
+    notifyExpiringSoon: boolean;
+    notifyExpired: boolean;
+  };
 }
 
 interface NotificationCandidate {
@@ -185,29 +200,36 @@ async function generateAlertNotifications({
   expiringSoon,
   expired,
   now,
+  preferences,
 }: AlertNotificationInput) {
   const candidates: NotificationCandidate[] = [
-    ...lowStock.map((item) => ({
-      type: "LOW_STOCK",
-      title: "Low stock detected",
-      message: `${item.itemName} is at ${formatQuantity(item.quantity)} ${item.unit}, below or equal to the minimum of ${formatQuantity(item.minStockLevel)}.`,
-      entity: "Item",
-      entityId: item.itemId,
-    })),
-    ...expiringSoon.map((batch) => ({
-      type: "EXPIRY_SOON",
-      title: "Stock expiring soon",
-      message: `${batch.item.name}${batch.batchNo ? ` batch ${batch.batchNo}` : ""} expires on ${formatDate(batch.expiryDate)}.`,
-      entity: "StockBatch",
-      entityId: batch.id,
-    })),
-    ...expired.map((batch) => ({
-      type: "EXPIRED_STOCK",
-      title: "Expired stock detected",
-      message: `${batch.item.name}${batch.batchNo ? ` batch ${batch.batchNo}` : ""} expired on ${formatDate(batch.expiryDate)}.`,
-      entity: "StockBatch",
-      entityId: batch.id,
-    })),
+    ...(preferences.notifyLowStock
+      ? lowStock.map((item) => ({
+          type: "LOW_STOCK",
+          title: "Low stock detected",
+          message: `${item.itemName} is at ${formatQuantity(item.quantity)} ${item.unit}, below or equal to the minimum of ${formatQuantity(item.minStockLevel)}.`,
+          entity: "Item",
+          entityId: item.itemId,
+        }))
+      : []),
+    ...(preferences.notifyExpiringSoon
+      ? expiringSoon.map((batch) => ({
+          type: "EXPIRY_SOON",
+          title: "Stock expiring soon",
+          message: `${batch.item.name}${batch.batchNo ? ` batch ${batch.batchNo}` : ""} expires on ${formatDate(batch.expiryDate)}.`,
+          entity: "StockBatch",
+          entityId: batch.id,
+        }))
+      : []),
+    ...(preferences.notifyExpired
+      ? expired.map((batch) => ({
+          type: "EXPIRED_STOCK",
+          title: "Expired stock detected",
+          message: `${batch.item.name}${batch.batchNo ? ` batch ${batch.batchNo}` : ""} expired on ${formatDate(batch.expiryDate)}.`,
+          entity: "StockBatch",
+          entityId: batch.id,
+        }))
+      : []),
   ];
 
   if (candidates.length === 0) return;

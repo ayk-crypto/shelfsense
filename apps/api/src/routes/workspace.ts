@@ -10,7 +10,15 @@ const DEFAULT_WORKSPACE_SETTINGS = {
   currency: "PKR",
   lowStockMultiplier: 2,
   expiryAlertDays: 7,
+  notifyLowStock: true,
+  notifyExpiringSoon: true,
+  notifyExpired: true,
+  whatsappAlertsEnabled: false,
+  emailAlertsEnabled: false,
+  pushAlertsEnabled: false,
 };
+
+const PHONE_PATTERN = /^[+\d\s-]{7,24}$/;
 
 workspaceRouter.get("/settings", requireAuth, asyncHandler(async (req, res) => {
   const workspaceId = req.user?.workspaceId ?? null;
@@ -27,6 +35,13 @@ workspaceRouter.get("/settings", requireAuth, asyncHandler(async (req, res) => {
       currency: true,
       lowStockMultiplier: true,
       expiryAlertDays: true,
+      ownerPhone: true,
+      notifyLowStock: true,
+      notifyExpiringSoon: true,
+      notifyExpired: true,
+      whatsappAlertsEnabled: true,
+      emailAlertsEnabled: true,
+      pushAlertsEnabled: true,
     },
   });
 
@@ -62,6 +77,10 @@ workspaceRouter.patch("/settings", requireAuth, requireRole([Role.OWNER]), async
     return res.status(400).json({ error: "Expiry alert days cannot be negative" });
   }
 
+  if (input.ownerPhone !== undefined && input.ownerPhone !== null && !isValidPhone(input.ownerPhone)) {
+    return res.status(400).json({ error: "Owner phone can include only +, digits, spaces, and hyphen" });
+  }
+
   const settings = await prisma.workspace.update({
     where: { id: workspaceId },
     data: input,
@@ -71,6 +90,13 @@ workspaceRouter.patch("/settings", requireAuth, requireRole([Role.OWNER]), async
       currency: true,
       lowStockMultiplier: true,
       expiryAlertDays: true,
+      ownerPhone: true,
+      notifyLowStock: true,
+      notifyExpiringSoon: true,
+      notifyExpired: true,
+      whatsappAlertsEnabled: true,
+      emailAlertsEnabled: true,
+      pushAlertsEnabled: true,
     },
   });
 
@@ -119,6 +145,13 @@ function parseWorkspaceSettingsInput(body: unknown) {
     currency?: unknown;
     lowStockMultiplier?: unknown;
     expiryAlertDays?: unknown;
+    ownerPhone?: unknown;
+    notifyLowStock?: unknown;
+    notifyExpiringSoon?: unknown;
+    notifyExpired?: unknown;
+    whatsappAlertsEnabled?: unknown;
+    emailAlertsEnabled?: unknown;
+    pushAlertsEnabled?: unknown;
   };
 
   return {
@@ -126,11 +159,24 @@ function parseWorkspaceSettingsInput(body: unknown) {
     currency: parseOptionalString(input.currency),
     lowStockMultiplier: parseOptionalNumber(input.lowStockMultiplier),
     expiryAlertDays: parseOptionalInteger(input.expiryAlertDays),
+    ownerPhone: parseOptionalNullableString(input.ownerPhone),
+    notifyLowStock: parseOptionalBoolean(input.notifyLowStock),
+    notifyExpiringSoon: parseOptionalBoolean(input.notifyExpiringSoon),
+    notifyExpired: parseOptionalBoolean(input.notifyExpired),
+    whatsappAlertsEnabled: parseOptionalBoolean(input.whatsappAlertsEnabled),
+    emailAlertsEnabled: parseOptionalBoolean(input.emailAlertsEnabled),
+    pushAlertsEnabled: parseOptionalBoolean(input.pushAlertsEnabled),
   };
 }
 
 function parseOptionalString(value: unknown) {
   return typeof value === "string" ? value.trim() : undefined;
+}
+
+function parseOptionalNullableString(value: unknown) {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed || null;
 }
 
 function parseOptionalNumber(value: unknown) {
@@ -141,12 +187,27 @@ function parseOptionalInteger(value: unknown) {
   return typeof value === "number" && Number.isInteger(value) ? value : undefined;
 }
 
+function parseOptionalBoolean(value: unknown) {
+  return typeof value === "boolean" ? value : undefined;
+}
+
+function isValidPhone(value: string) {
+  return PHONE_PATTERN.test(value) && /\d{7,}/.test(value.replace(/\D/g, ""));
+}
+
 function normalizeWorkspaceSettings(settings: {
   id: string;
   name: string;
   currency: string | null;
   lowStockMultiplier: number | null;
   expiryAlertDays: number | null;
+  ownerPhone: string | null;
+  notifyLowStock: boolean | null;
+  notifyExpiringSoon: boolean | null;
+  notifyExpired: boolean | null;
+  whatsappAlertsEnabled: boolean | null;
+  emailAlertsEnabled: boolean | null;
+  pushAlertsEnabled: boolean | null;
 }) {
   return {
     id: settings.id,
@@ -160,5 +221,12 @@ function normalizeWorkspaceSettings(settings: {
       typeof settings.expiryAlertDays === "number" && settings.expiryAlertDays >= 0
         ? settings.expiryAlertDays
         : DEFAULT_WORKSPACE_SETTINGS.expiryAlertDays,
+    ownerPhone: settings.ownerPhone?.trim() || null,
+    notifyLowStock: settings.notifyLowStock ?? DEFAULT_WORKSPACE_SETTINGS.notifyLowStock,
+    notifyExpiringSoon: settings.notifyExpiringSoon ?? DEFAULT_WORKSPACE_SETTINGS.notifyExpiringSoon,
+    notifyExpired: settings.notifyExpired ?? DEFAULT_WORKSPACE_SETTINGS.notifyExpired,
+    whatsappAlertsEnabled: settings.whatsappAlertsEnabled ?? DEFAULT_WORKSPACE_SETTINGS.whatsappAlertsEnabled,
+    emailAlertsEnabled: settings.emailAlertsEnabled ?? DEFAULT_WORKSPACE_SETTINGS.emailAlertsEnabled,
+    pushAlertsEnabled: settings.pushAlertsEnabled ?? DEFAULT_WORKSPACE_SETTINGS.pushAlertsEnabled,
   };
 }

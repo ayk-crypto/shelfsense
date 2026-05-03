@@ -10,6 +10,13 @@ const DEFAULT_SETTINGS: WorkspaceSettings = {
   currency: "PKR",
   lowStockMultiplier: 2,
   expiryAlertDays: 7,
+  ownerPhone: null,
+  notifyLowStock: true,
+  notifyExpiringSoon: true,
+  notifyExpired: true,
+  whatsappAlertsEnabled: false,
+  emailAlertsEnabled: false,
+  pushAlertsEnabled: false,
 };
 
 interface WorkspaceSettingsContextValue {

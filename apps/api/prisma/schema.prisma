@@ -40,6 +40,14 @@ model Workspace {
   currency       String          @default("PKR")
   lowStockMultiplier Float       @default(2)
   expiryAlertDays Int            @default(7)
+  ownerPhone     String?
+  notifyLowStock Boolean         @default(true)
+  notifyExpiringSoon Boolean     @default(true)
+  notifyExpired  Boolean         @default(true)
+  whatsappAlertsEnabled Boolean  @default(false)
+  emailAlertsEnabled Boolean     @default(false)
+  pushAlertsEnabled Boolean      @default(false)
+  onboardingCompleted Boolean    @default(false)
   ownerId        String          @db.Uuid
   createdAt      DateTime        @default(now())
   owner          User            @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
