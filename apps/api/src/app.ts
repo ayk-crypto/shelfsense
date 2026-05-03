@@ -21,6 +21,8 @@ import { workspaceRouter } from "./routes/workspace.js";
 
 export const app = express();
 
+app.set("trust proxy", 1);
+
 class ForbiddenOriginError extends Error {
   status = 403;
 
