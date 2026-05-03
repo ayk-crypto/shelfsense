@@ -44,6 +44,12 @@ app.use(
         return;
       }
 
+      // Allow all Replit dev/preview domains
+      if (origin.match(/^https?:\/\/[^.]+\.replit\.dev(:\d+)?$/)) {
+        callback(null, true);
+        return;
+      }
+
       callback(new ForbiddenOriginError(origin));
     },
   }),
