@@ -45,7 +45,7 @@ app.use(
       }
 
       // Allow all Replit dev/preview domains
-      if (origin.match(/^https?:\/\/[^.]+\.replit\.dev(:\d+)?$/)) {
+      if (origin.match(/^https?:\/\/.+\.replit\.dev(:\d+)?$/)) {
         callback(null, true);
         return;
       }
