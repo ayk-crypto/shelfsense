@@ -76,6 +76,75 @@ suppliersRouter.get("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(a
   return res.json({ suppliers });
 }));
 
+suppliersRouter.patch("/:id", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
+  const workspaceId = getWorkspaceId(req);
+  if (!workspaceId) return res.status(403).json({ error: "Workspace access required" });
+
+  const { id } = req.params;
+  const existing = await prisma.supplier.findFirst({ where: { id, workspaceId }, select: { id: true } });
+  if (!existing) return res.status(404).json({ error: "Supplier not found" });
+
+  const input = parseSupplierInput(req.body);
+
+  if (input.name !== undefined && !input.name) {
+    return res.status(400).json({ error: "Supplier name is required" });
+  }
+  if (input.name && input.name.length > MAX_SUPPLIER_NAME_LENGTH) {
+    return res.status(400).json({ error: "Supplier name must be 120 characters or fewer" });
+  }
+  if (input.phone && input.phone.length > MAX_SUPPLIER_PHONE_LENGTH) {
+    return res.status(400).json({ error: "Supplier phone must be 32 characters or fewer" });
+  }
+  if (input.notes && input.notes.length > MAX_SUPPLIER_NOTES_LENGTH) {
+    return res.status(400).json({ error: "Supplier notes must be 1000 characters or fewer" });
+  }
+
+  const supplier = await prisma.supplier.update({
+    where: { id },
+    data: {
+      ...(input.name !== undefined && { name: input.name }),
+      ...(input.phone !== undefined && { phone: input.phone }),
+      ...(input.notes !== undefined && { notes: input.notes }),
+    },
+  });
+
+  await logAction({
+    userId: req.user!.userId,
+    workspaceId,
+    action: "UPDATE_SUPPLIER",
+    entity: "Supplier",
+    entityId: supplier.id,
+    meta: { supplierName: supplier.name },
+  });
+
+  return res.json({ supplier });
+}));
+
+suppliersRouter.delete("/:id", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
+  const workspaceId = getWorkspaceId(req);
+  if (!workspaceId) return res.status(403).json({ error: "Workspace access required" });
+
+  const { id } = req.params;
+  const existing = await prisma.supplier.findFirst({
+    where: { id, workspaceId },
+    select: { id: true, name: true },
+  });
+  if (!existing) return res.status(404).json({ error: "Supplier not found" });
+
+  await prisma.supplier.delete({ where: { id } });
+
+  await logAction({
+    userId: req.user!.userId,
+    workspaceId,
+    action: "DELETE_SUPPLIER",
+    entity: "Supplier",
+    entityId: id,
+    meta: { supplierName: existing.name },
+  });
+
+  return res.json({ success: true });
+}));
+
 function getWorkspaceId(req: Express.Request) {
   return req.user?.workspaceId ?? null;
 }
