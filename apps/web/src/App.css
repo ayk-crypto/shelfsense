@@ -9779,3 +9779,23 @@ tr.row--wastage td:first-child {
   .stg-save-bar-inner { flex-direction: column; align-items: stretch; gap: 0.625rem; }
   .stg-save-bar-actions { justify-content: flex-end; }
 }
+
+/* Slow-Moving Stock */
+.slow-movers-section .section-helper {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  margin-left: 0.5rem;
+}
+.slow-mover-row td { opacity: 0.85; }
+.empty-state--good {
+  color: var(--color-success, #16a34a);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.empty-state--good svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  flex-shrink: 0;
+  stroke: var(--color-success, #16a34a);
+}
