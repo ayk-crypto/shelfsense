@@ -22,6 +22,11 @@ enum StockMovementType {
   TRANSFER_OUT
 }
 
+enum StockCountStatus {
+  DRAFT
+  FINALIZED
+}
+
 model User {
   id          String       @id @default(uuid()) @db.Uuid
   name        String
@@ -32,6 +37,8 @@ model User {
   memberships Membership[]
   auditLogs   AuditLog[]
   notifications Notification[]
+  createdStockCounts StockCount[] @relation("StockCountCreatedBy")
+  finalizedStockCounts StockCount[] @relation("StockCountFinalizedBy")
 }
 
 model Workspace {
@@ -61,6 +68,7 @@ model Workspace {
   auditLogs      AuditLog[]
   notifications  Notification[]
   customRoles    CustomRole[]
+  stockCounts     StockCount[]
 }
 
 model Notification {
@@ -115,6 +123,7 @@ model Location {
   stockBatches   StockBatch[]
   stockMovements StockMovement[]
   purchases      Purchase[]
+  stockCounts     StockCount[]
 
   @@index([workspaceId])
   @@index([workspaceId, isActive])
@@ -174,6 +183,7 @@ model Item {
   stockBatches   StockBatch[]
   stockMovements StockMovement[]
   purchaseItems  PurchaseItem[]
+  stockCountItems StockCountItem[]
 
   @@index([workspaceId])
   @@index([workspaceId, isActive])
@@ -229,6 +239,50 @@ model StockMovement {
   @@index([itemId])
   @@index([batchId])
   @@index([type])
+}
+
+model StockCount {
+  id            String           @id @default(uuid()) @db.Uuid
+  workspaceId   String           @db.Uuid
+  locationId    String           @db.Uuid
+  createdById   String           @db.Uuid
+  finalizedById String?          @db.Uuid
+  status        StockCountStatus @default(DRAFT)
+  note          String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  finalizedAt   DateTime?
+  workspace     Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  location      Location         @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  createdBy     User             @relation("StockCountCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  finalizedBy   User?            @relation("StockCountFinalizedBy", fields: [finalizedById], references: [id], onDelete: Restrict)
+  items         StockCountItem[]
+
+  @@index([workspaceId])
+  @@index([locationId])
+  @@index([createdById])
+  @@index([finalizedById])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model StockCountItem {
+  id              String     @id @default(uuid()) @db.Uuid
+  stockCountId    String     @db.Uuid
+  itemId          String     @db.Uuid
+  itemName        String
+  unit            String
+  systemQuantity  Float
+  physicalQuantity Float
+  variance        Float
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  stockCount      StockCount @relation(fields: [stockCountId], references: [id], onDelete: Cascade)
+  item            Item       @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  @@unique([stockCountId, itemId])
+  @@index([stockCountId])
+  @@index([itemId])
 }
 
 model Supplier {

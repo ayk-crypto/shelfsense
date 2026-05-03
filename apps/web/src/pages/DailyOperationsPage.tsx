@@ -45,7 +45,7 @@ const ACTIONS: OperationAction[] = [
     to: "/stock-count",
     tone: "indigo",
     icon: "count",
-    roles: ["OWNER", "MANAGER"],
+    roles: ["OWNER", "MANAGER", "OPERATOR"],
     group: "primary",
   },
   {

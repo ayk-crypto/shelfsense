@@ -138,6 +138,18 @@ Local defaults:
 - API: `http://127.0.0.1:4000`
 - Web: `http://127.0.0.1:5000`
 
+## Daily Operations And Stock Counts
+
+ShelfSense includes a mobile-friendly Daily Operations home screen at `/daily-operations` for floor staff and managers. It links to receiving stock, deducting stock, cycle counts, scanning, transfers, alerts, and movement history with role-aware visibility.
+
+Stock Count / Cycle Count is available at `/stock-count`:
+
+- Operators, managers, and owners can create draft counts by selecting a location, adding inventory items, and entering physical quantities.
+- ShelfSense captures the current system quantity per item and calculates variance as `Physical Count - System Quantity`.
+- Draft counts are listed in Stock Count History and can be opened at `/stock-count/:id`.
+- Managers and owners can finalize a draft. Finalization posts `ADJUSTMENT` stock movements with reason `Stock Count Adjustment`, increases stock for positive variance, deducts FIFO batch stock for negative variance, and records audit log entries.
+- Operators can save drafts but cannot finalize counts under the current role model.
+
 ## Build Project
 
 ```bash

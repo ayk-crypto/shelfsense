@@ -330,6 +330,75 @@ export interface StockMovementFilters {
   toDate?: string;
 }
 
+export type StockCountStatus = "DRAFT" | "FINALIZED";
+
+export interface StockCountStockItem {
+  id: string;
+  name: string;
+  unit: string;
+  sku: string | null;
+  barcode: string | null;
+  category: string | null;
+  systemQuantity: number;
+}
+
+export interface StockCountStockResponse {
+  items: StockCountStockItem[];
+}
+
+export interface StockCountLineInput {
+  itemId: string;
+  physicalQuantity: number;
+}
+
+export interface SaveStockCountInput {
+  locationId: string;
+  note?: string | null;
+  items: StockCountLineInput[];
+}
+
+export interface StockCountLine {
+  id: string;
+  itemId: string;
+  itemName: string;
+  unit: string;
+  systemQuantity: number;
+  physicalQuantity: number;
+  variance: number;
+}
+
+export interface StockCount {
+  id: string;
+  status: StockCountStatus;
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+  finalizedAt: string | null;
+  location: {
+    id: string;
+    name: string;
+  };
+  createdBy: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  finalizedBy: {
+    id: string;
+    name: string;
+    email: string;
+  } | null;
+  items: StockCountLine[];
+}
+
+export interface StockCountsResponse {
+  counts: Array<Omit<StockCount, "items"> & { items: Array<{ id: string; variance: number }> }>;
+}
+
+export interface StockCountResponse {
+  count: StockCount;
+}
+
 export interface LowStockAlert {
   itemId: string;
   itemName: string;

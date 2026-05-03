@@ -202,7 +202,11 @@ export function App() {
             <Route path="/movements" element={<MovementsPage />} />
             <Route
               path="/stock-count"
-              element={<RoleRoute allowedRoles={["OWNER", "MANAGER"]}><StockCountPage /></RoleRoute>}
+              element={<RoleRoute allowedRoles={["OWNER", "MANAGER", "OPERATOR"]}><StockCountPage /></RoleRoute>}
+            />
+            <Route
+              path="/stock-count/:id"
+              element={<RoleRoute allowedRoles={["OWNER", "MANAGER", "OPERATOR"]}><StockCountPage /></RoleRoute>}
             />
             <Route
               path="/transfers"
