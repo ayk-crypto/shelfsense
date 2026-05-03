@@ -146,6 +146,8 @@ model Item {
   category       String?
   minStockLevel  Float           @default(0)
   trackExpiry    Boolean         @default(false)
+  isActive       Boolean         @default(true)
+  archivedAt     DateTime?
   workspaceId    String          @db.Uuid
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
@@ -155,6 +157,7 @@ model Item {
   purchaseItems  PurchaseItem[]
 
   @@index([workspaceId])
+  @@index([workspaceId, isActive])
   @@unique([workspaceId, barcode])
 }
 

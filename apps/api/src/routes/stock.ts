@@ -1,5 +1,6 @@
 import { Role, StockMovementType } from "../generated/prisma/enums.js";
 import { Router, type Request } from "express";
+import { Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../db/prisma.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -46,70 +47,78 @@ stockRouter.post("/in", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(as
     return res.status(404).json({ error: "Item not found" });
   }
 
-  const result = await prisma.$transaction(async (tx) => {
-    await assertActiveLocation(tx, workspaceId, locationId);
+  try {
+    const result = await runSerializableWrite(async (tx) => {
+      await assertActiveLocation(tx, workspaceId, locationId);
 
-    const latestPricedBatch = input.unitCost === undefined
-      ? await tx.stockBatch.findFirst({
-          where: {
-            itemId,
-            workspaceId,
-            locationId,
-            unitCost: { not: null },
-          },
-          orderBy: { createdAt: "desc" },
-          select: { unitCost: true },
-        })
-      : null;
-    // Quick stock-in actions do not send cost, so reuse the latest known cost to keep valuation stable.
-    const effectiveUnitCost = input.unitCost ?? latestPricedBatch?.unitCost ?? null;
+      const latestPricedBatch = input.unitCost === undefined
+        ? await tx.stockBatch.findFirst({
+            where: {
+              itemId,
+              workspaceId,
+              locationId,
+              unitCost: { not: null },
+            },
+            orderBy: { createdAt: "desc" },
+            select: { unitCost: true },
+          })
+        : null;
+      // Quick stock-in actions do not send cost, so reuse the latest known cost to keep valuation stable.
+      const effectiveUnitCost = input.unitCost ?? latestPricedBatch?.unitCost ?? null;
 
-    const batch = await tx.stockBatch.create({
-      data: {
-        itemId,
-        workspaceId,
-        locationId,
-        quantity,
-        remainingQuantity: quantity,
-        unitCost: effectiveUnitCost,
-        expiryDate,
-        batchNo: input.batchNo,
-        supplierName: input.supplierName,
-      },
+      const batch = await tx.stockBatch.create({
+        data: {
+          itemId,
+          workspaceId,
+          locationId,
+          quantity,
+          remainingQuantity: quantity,
+          unitCost: effectiveUnitCost,
+          expiryDate,
+          batchNo: input.batchNo,
+          supplierName: input.supplierName,
+        },
+      });
+
+      const movement = await tx.stockMovement.create({
+        data: {
+          workspaceId,
+          locationId,
+          itemId,
+          batchId: batch.id,
+          type: StockMovementType.STOCK_IN,
+          quantity,
+          unitCost: effectiveUnitCost,
+          note: input.note,
+        },
+      });
+
+      return { batch, movement };
     });
 
-    const movement = await tx.stockMovement.create({
-      data: {
-        workspaceId,
-        locationId,
-        itemId,
-        batchId: batch.id,
-        type: StockMovementType.STOCK_IN,
+    await logAction({
+      userId: req.user!.userId,
+      workspaceId,
+      action: "STOCK_IN",
+      entity: "Stock",
+      entityId: itemId,
+      meta: {
+        itemName: item.name,
+        unit: item.unit,
         quantity,
-        unitCost: effectiveUnitCost,
+        locationId,
         note: input.note,
       },
     });
 
-    return { batch, movement };
-  });
+    return res.status(201).json(result);
+  } catch (error) {
+    if (isWriteConflict(error)) {
+      return res.status(409).json({ error: "Inventory changed. Please retry." });
+    }
 
-  await logAction({
-    userId: req.user!.userId,
-    workspaceId,
-    action: "STOCK_IN",
-    entity: "Stock",
-    entityId: itemId,
-    meta: {
-      itemName: item.name,
-      unit: item.unit,
-      quantity,
-      locationId,
-      note: input.note,
-    },
-  });
-
-  return res.status(201).json(result);
+    throw error;
+  }
 }));
 
 stockRouter.post("/out", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), asyncHandler(async (req, res) => {
@@ -143,7 +152,9 @@ stockRouter.post("/out", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]),
   }
 
   try {
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await runSerializableWrite(async (tx) => {
+      await assertActiveLocation(tx, workspaceId, locationId);
+
       const batches = await tx.stockBatch.findMany({
         where: {
           itemId,
@@ -181,12 +192,21 @@ stockRouter.post("/out", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]),
         const deductedQuantity = Math.min(batch.remainingQuantity, quantityToDeduct);
         quantityToDeduct -= deductedQuantity;
 
-        await tx.stockBatch.updateMany({
-          where: { id: batch.id, workspaceId, locationId },
+        const updated = await tx.stockBatch.updateMany({
+          where: {
+            id: batch.id,
+            workspaceId,
+            locationId,
+            remainingQuantity: { gte: deductedQuantity },
+          },
           data: {
-            remainingQuantity: batch.remainingQuantity - deductedQuantity,
+            remainingQuantity: { decrement: deductedQuantity },
           },
         });
+
+        if (updated.count === 0) {
+          throw new StockConflictError();
+        }
 
         const movement = await tx.stockMovement.create({
           data: {
@@ -228,6 +248,10 @@ stockRouter.post("/out", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]),
   } catch (error) {
     if (error instanceof InsufficientStockError) {
       return res.status(400).json({ error: error.message });
+    }
+
+    if (isWriteConflict(error)) {
+      return res.status(409).json({ error: "Inventory changed. Please retry." });
     }
 
     throw error;
@@ -292,7 +316,7 @@ stockRouter.post("/transfer", requireRole([Role.OWNER, Role.MANAGER]), asyncHand
   const fromLocation = locations.find((location) => location.id === fromLocationId)!;
 
   try {
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await runSerializableWrite(async (tx) => {
       await assertActiveLocations(tx, workspaceId, [fromLocationId, toLocationId]);
 
       const batches = await tx.stockBatch.findMany({
@@ -334,12 +358,21 @@ stockRouter.post("/transfer", requireRole([Role.OWNER, Role.MANAGER]), asyncHand
         const transferredQuantity = Math.min(batch.remainingQuantity, quantityToTransfer);
         quantityToTransfer -= transferredQuantity;
 
-        await tx.stockBatch.updateMany({
-          where: { id: batch.id, workspaceId, locationId: fromLocationId },
+        const updated = await tx.stockBatch.updateMany({
+          where: {
+            id: batch.id,
+            workspaceId,
+            locationId: fromLocationId,
+            remainingQuantity: { gte: transferredQuantity },
+          },
           data: {
-            remainingQuantity: batch.remainingQuantity - transferredQuantity,
+            remainingQuantity: { decrement: transferredQuantity },
           },
         });
+
+        if (updated.count === 0) {
+          throw new StockConflictError();
+        }
 
         const transferOut = await tx.stockMovement.create({
           data: {
@@ -410,6 +443,10 @@ stockRouter.post("/transfer", requireRole([Role.OWNER, Role.MANAGER]), asyncHand
   } catch (error) {
     if (error instanceof InsufficientStockError) {
       return res.status(400).json({ error: error.message });
+    }
+
+    if (isWriteConflict(error)) {
+      return res.status(409).json({ error: "Inventory changed. Please retry." });
     }
 
     throw error;
@@ -724,6 +761,49 @@ class InsufficientStockError extends Error {
     );
     this.name = "InsufficientStockError";
   }
+}
+
+class StockConflictError extends Error {
+  constructor() {
+    super("Inventory changed. Please retry.");
+    this.name = "StockConflictError";
+  }
+}
+
+function runSerializableWrite<T>(
+  fn: (tx: Prisma.TransactionClient) => Promise<T>,
+  maxAttempts = 3,
+): Promise<T> {
+  return retrySerializable(() =>
+    prisma.$transaction(fn, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    }),
+  maxAttempts);
+}
+
+async function retrySerializable<T>(fn: () => Promise<T>, maxAttempts: number) {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      if (!isSerializationConflict(error) || attempt === maxAttempts) {
+        throw error;
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+function isWriteConflict(error: unknown) {
+  return error instanceof StockConflictError || isSerializationConflict(error);
+}
+
+function isSerializationConflict(error: unknown) {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034";
 }
 
 function parseOptionalString(value: unknown) {
