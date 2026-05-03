@@ -77,7 +77,7 @@ export function SettingsPage() {
       return;
     }
     if (!Number.isFinite(lowStockMultiplier) || lowStockMultiplier <= 0) {
-      showToast("Low stock multiplier must be greater than zero", "error");
+      showToast("Reorder quantity multiplier must be greater than zero", "error");
       return;
     }
     if (!Number.isInteger(expiryAlertDays) || expiryAlertDays < 0) {
@@ -218,11 +218,11 @@ export function SettingsPage() {
           <div className="stg-card-body stg-rules-body">
             <div className="stg-rule-row">
               <div className="stg-rule-info">
-                <div className="stg-rule-name">Low Stock Multiplier</div>
+                <div className="stg-rule-name">Reorder Quantity Multiplier</div>
                 <div className="stg-rule-desc">
-                  Items are flagged low when stock falls below{" "}
-                  <strong>{form.lowStockMultiplier || "?"}× their minimum level</strong>.
-                  A value of 2 means an item with a minimum of 10 warns at 20 units.
+                  When a reorder is suggested, the recommended order quantity is{" "}
+                  <strong>{form.lowStockMultiplier || "?"}× the item's alert threshold</strong>.
+                  Each item's threshold is set individually when the item is created.
                 </div>
               </div>
               <div className="stg-rule-control">

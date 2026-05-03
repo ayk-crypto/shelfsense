@@ -1303,7 +1303,7 @@ function AddItemModal({
           </select>
         </div>
         <div className="form-group">
-          <label className="form-label">Min Stock Level</label>
+          <label className="form-label">Low Stock Alert Threshold</label>
           <input
             className="form-input"
             type="number"
@@ -1311,6 +1311,7 @@ function AddItemModal({
             value={form.minStockLevel}
             onChange={(e) => setForm({ ...form, minStockLevel: Number(e.target.value) })}
           />
+          <p className="form-helper">Alert triggers when stock is at or below this quantity. Set it based on how fast this item is used.</p>
         </div>
         <div className="form-group">
           <label className="form-label">Barcode</label>
@@ -1464,7 +1465,7 @@ function EditItemModal({
           />
         </div>
         <div className="form-group">
-          <label className="form-label">Min Stock Level</label>
+          <label className="form-label">Low Stock Alert Threshold</label>
           <input
             className="form-input"
             type="number"
@@ -1472,6 +1473,7 @@ function EditItemModal({
             value={form.minStockLevel}
             onChange={(e) => setForm({ ...form, minStockLevel: Number(e.target.value) })}
           />
+          <p className="form-helper">Alert triggers when stock is at or below this quantity. Set it based on how fast this item is used.</p>
         </div>
         <div className="form-group">
           <label className="form-label">Barcode</label>
