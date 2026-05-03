@@ -26,6 +26,7 @@ export function AppShell() {
   const [isDesktopShell, setIsDesktopShell] = useState(() => window.innerWidth >= 768);
   const [commandSearch, setCommandSearch] = useState("");
   const canAccessManagement = user?.role === "OWNER" || user?.role === "MANAGER";
+  const canRecordStockOut = user?.role === "OWNER" || user?.role === "MANAGER" || user?.role === "OPERATOR";
   const canManageTeam = user?.role === "OWNER";
   const workspaceName = settings.name.trim() || "ShelfSense";
 
@@ -188,18 +189,22 @@ export function AppShell() {
             </svg>
             Inventory
           </NavLink>
-          <NavLink to="/stock-in" className={({ isActive }) => `nav-item nav-item--stock-in ${isActive ? "nav-item--active" : ""}`}>
-            <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 5v14M5 12l7 7 7-7" />
-            </svg>
-            Stock In
-          </NavLink>
-          <NavLink to="/stock-out" className={({ isActive }) => `nav-item nav-item--stock-out ${isActive ? "nav-item--active" : ""}`}>
-            <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 19V5M19 12l-7-7-7 7" />
-            </svg>
-            Stock Out
-          </NavLink>
+          {canAccessManagement && (
+            <NavLink to="/stock-in" className={({ isActive }) => `nav-item nav-item--stock-in ${isActive ? "nav-item--active" : ""}`}>
+              <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 5v14M5 12l7 7 7-7" />
+              </svg>
+              Stock In
+            </NavLink>
+          )}
+          {canRecordStockOut && (
+            <NavLink to="/stock-out" className={({ isActive }) => `nav-item nav-item--stock-out ${isActive ? "nav-item--active" : ""}`}>
+              <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 19V5M19 12l-7-7-7 7" />
+              </svg>
+              Stock Out
+            </NavLink>
+          )}
           <NavLink to="/movements" className={({ isActive }) => `nav-item ${isActive ? "nav-item--active" : ""}`}>
             <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M3 7h13" />
@@ -347,18 +352,22 @@ export function AppShell() {
             />
             <div className="topbar-actions">
               <button type="button" className="btn btn--secondary btn--sm" onClick={() => goToItems({ action: "scan" })}>Scan</button>
-              <button type="button" className="btn btn--topbar-stock-out btn--sm" onClick={() => navigate("/stock-out")}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{width:13,height:13}}>
-                  <path d="M12 19V5M19 12l-7-7-7 7" />
-                </svg>
-                Stock Out
-              </button>
-              <button type="button" className="btn btn--topbar-stock-in btn--sm" onClick={() => navigate("/stock-in")}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{width:13,height:13}}>
-                  <path d="M12 5v14M5 12l7 7 7-7" />
-                </svg>
-                Stock In
-              </button>
+              {canRecordStockOut && (
+                <button type="button" className="btn btn--topbar-stock-out btn--sm" onClick={() => navigate("/stock-out")}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{width:13,height:13}}>
+                    <path d="M12 19V5M19 12l-7-7-7 7" />
+                  </svg>
+                  Stock Out
+                </button>
+              )}
+              {canAccessManagement && (
+                <button type="button" className="btn btn--topbar-stock-in btn--sm" onClick={() => navigate("/stock-in")}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{width:13,height:13}}>
+                    <path d="M12 5v14M5 12l7 7 7-7" />
+                  </svg>
+                  Stock In
+                </button>
+              )}
             </div>
             {!isDesktopShell && (
               <NotificationBell

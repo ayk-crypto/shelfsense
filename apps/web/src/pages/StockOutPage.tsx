@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { getItems } from "../api/items";
 import { getStockSummary, stockOut } from "../api/stock";
 import type { Item, StockSummaryItem } from "../types";
@@ -28,6 +29,7 @@ interface RowResult {
 }
 
 export function StockOutPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [allItems, setAllItems] = useState<Item[]>([]);
   const [summaryMap, setSummaryMap] = useState<Map<string, StockSummaryItem>>(new Map());
   const [loadingItems, setLoadingItems] = useState(true);
@@ -46,8 +48,41 @@ export function StockOutPage() {
     async function load() {
       try {
         const [itemsRes, summaryRes] = await Promise.all([getItems(), getStockSummary()]);
-        setAllItems(itemsRes.items.filter((i) => i.isActive));
+        const activeItems = itemsRes.items.filter((i) => i.isActive);
+        setAllItems(activeItems);
         setSummaryMap(new Map(summaryRes.summary.map((s) => [s.itemId, s])));
+
+        const itemId = searchParams.get("itemId");
+        const query = searchParams.get("q")?.trim().toLowerCase();
+        const preselected = itemId
+          ? activeItems.find((item) => item.id === itemId)
+          : query
+            ? activeItems.find((item) =>
+                item.name.toLowerCase().includes(query) ||
+                (item.sku ?? "").toLowerCase().includes(query) ||
+                (item.barcode ?? "").toLowerCase().includes(query)
+              )
+            : null;
+
+        if (preselected) {
+          setRows([{
+            rowId: crypto.randomUUID(),
+            item: preselected,
+            qty: "",
+            reason: "kitchen_usage",
+            note: "",
+          }]);
+          setSearch("");
+          setShowDropdown(false);
+
+          const next = new URLSearchParams(searchParams);
+          next.delete("itemId");
+          next.delete("q");
+          setSearchParams(next, { replace: true });
+        } else if (query) {
+          setSearch(searchParams.get("q") ?? "");
+          setShowDropdown(true);
+        }
       } catch {
         setAllItems([]);
       } finally {

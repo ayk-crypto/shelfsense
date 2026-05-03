@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { getItems } from "../api/items";
 import { getPriceHistory, getSupplierSuggestion, stockIn } from "../api/stock";
 import { getSuppliers } from "../api/suppliers";
@@ -36,6 +37,7 @@ function generateBatchNo(rows: BatchRow[], itemId: string): string {
 }
 
 export function StockInPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { settings } = useWorkspaceSettings();
   const currency = settings.currency;
 
@@ -57,8 +59,50 @@ export function StockInPage() {
     async function load() {
       try {
         const [itemsRes, suppliersRes] = await Promise.all([getItems(), getSuppliers()]);
-        setAllItems(itemsRes.items.filter((i) => i.isActive));
+        const activeItems = itemsRes.items.filter((i) => i.isActive);
+        setAllItems(activeItems);
         setSuppliers(suppliersRes.suppliers);
+
+        const itemId = searchParams.get("itemId");
+        const query = searchParams.get("q")?.trim().toLowerCase();
+        const preselected = itemId
+          ? activeItems.find((item) => item.id === itemId)
+          : query
+            ? activeItems.find((item) =>
+                item.name.toLowerCase().includes(query) ||
+                (item.sku ?? "").toLowerCase().includes(query) ||
+                (item.barcode ?? "").toLowerCase().includes(query)
+              )
+            : null;
+
+        if (preselected) {
+          const rowId = crypto.randomUUID();
+          const batchNo = generateBatchNo([], preselected.id);
+          setRows([{
+            rowId,
+            item: preselected,
+            qty: "",
+            unitCost: "",
+            expiryDate: "",
+            batchNo,
+            supplierId: "",
+            note: "",
+            lastPrice: null,
+            metaLoading: true,
+            suggested: false,
+          }]);
+          setSearch("");
+          setShowDropdown(false);
+          void fetchRowMeta(rowId, preselected.id);
+
+          const next = new URLSearchParams(searchParams);
+          next.delete("itemId");
+          next.delete("q");
+          setSearchParams(next, { replace: true });
+        } else if (query) {
+          setSearch(searchParams.get("q") ?? "");
+          setShowDropdown(true);
+        }
       } catch {
         setAllItems([]);
       } finally {
