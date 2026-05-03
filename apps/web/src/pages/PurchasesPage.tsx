@@ -7,6 +7,29 @@ import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
 import type { CreatePurchaseInput, Item, Purchase, Supplier } from "../types";
 import { formatCurrency } from "../utils/currency";
 
+const AVATAR_COLORS = [
+  { bg: "#e0f2fe", text: "#0369a1" },
+  { bg: "#dcfce7", text: "#16a34a" },
+  { bg: "#fef9c3", text: "#a16207" },
+  { bg: "#fce7f3", text: "#be185d" },
+  { bg: "#ede9fe", text: "#6d28d9" },
+  { bg: "#ffedd5", text: "#c2410c" },
+  { bg: "#e0e7ff", text: "#4338ca" },
+  { bg: "#f0fdf4", text: "#15803d" },
+];
+
+function getAvatarColor(name: string) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
+function getInitials(name: string) {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
 interface Toast {
   id: number;
   msg: string;
@@ -188,68 +211,71 @@ export function PurchasesPage() {
 
       {purchases.length === 0 ? (
         <div className="empty-state">
-          <p>No purchases yet. Record your first purchase to track stock intake.</p>
+          <div className="empty-state-icon">
+            <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <rect x="6" y="10" width="36" height="32" rx="3" />
+              <path d="M16 10V7a2 2 0 012-2h12a2 2 0 012 2v3" strokeLinecap="round" />
+              <path d="M16 22h16M16 30h10" strokeLinecap="round" />
+            </svg>
+          </div>
+          <h3>No purchases yet</h3>
+          <p>Record your first purchase to track stock intake and supplier spend.</p>
+          <button className="btn btn--primary" onClick={() => setAddOpen(true)}>
+            Record first purchase
+          </button>
         </div>
       ) : filtered.length === 0 ? (
-        <div className="empty-state">
+        <div className="empty-state empty-state--compact">
           <p>No purchases match the current filters.</p>
+          <button
+            className="btn btn--ghost btn--sm"
+            onClick={() => { setFilterSupplier(""); setFilterFrom(""); setFilterTo(""); }}
+          >
+            Clear filters
+          </button>
         </div>
       ) : (
-        <>
-          {/* ── Desktop table ── */}
-          <div className="table-wrap purchases-table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Supplier</th>
-                  <th className="th-right">Total Amount</th>
-                  <th className="th-right">Lines</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((p) => (
-                  <tr
-                    key={p.id}
-                    className="tr--clickable"
-                    onClick={() => setDetailPurchase(p)}
-                    title="View details"
-                  >
-                    <td className="td-expiry">{fmtDate(p.date)}</td>
-                    <td className="td-name">{p.supplier.name}</td>
-                    <td className="td-amount">{fmt(p.totalAmount, currency)}</td>
-                    <td className="td-count">{p.purchaseItems.length}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* ── Mobile cards ── */}
-          <div className="purchase-cards">
-            {filtered.map((p) => (
+        <div className="pur-list">
+          {filtered.map((p) => {
+            const color = getAvatarColor(p.supplier.name);
+            const initials = getInitials(p.supplier.name);
+            const preview = p.purchaseItems.slice(0, 2).map((li) => li.item.name).join(" · ");
+            const extra = p.purchaseItems.length > 2 ? p.purchaseItems.length - 2 : 0;
+            return (
               <div
                 key={p.id}
-                className="purchase-card purchase-card--clickable"
+                className="pur-item"
                 role="button"
                 tabIndex={0}
                 onClick={() => setDetailPurchase(p)}
                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setDetailPurchase(p); }}
               >
-                <div className="purchase-card-header">
-                  <span className="purchase-card-supplier">{p.supplier.name}</span>
-                  <span className="purchase-card-date">{fmtDate(p.date)}</span>
+                <div className="pur-avatar" style={{ background: color.bg, color: color.text }}>
+                  {initials}
                 </div>
-                <div className="purchase-card-meta">
-                  <span className="purchase-card-amount">{fmt(p.totalAmount, currency)}</span>
-                  <span className="purchase-card-lines">
-                    {p.purchaseItems.length} {p.purchaseItems.length === 1 ? "line" : "lines"}
-                  </span>
+                <div className="pur-item-body">
+                  <div className="pur-item-supplier">{p.supplier.name}</div>
+                  <div className="pur-item-items">
+                    {preview}
+                    {extra > 0 && <span className="pur-item-extra"> +{extra} more</span>}
+                  </div>
                 </div>
+                <div className="pur-item-right">
+                  <span className="pur-item-amount">{fmt(p.totalAmount, currency)}</span>
+                  <div className="pur-item-meta">
+                    <span className="pur-item-date">{fmtDate(p.date)}</span>
+                    <span className="pur-item-lines">
+                      {p.purchaseItems.length} {p.purchaseItems.length === 1 ? "line" : "lines"}
+                    </span>
+                  </div>
+                </div>
+                <svg className="pur-item-chevron" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M8 5l5 5-5 5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
               </div>
-            ))}
-          </div>
-        </>
+            );
+          })}
+        </div>
       )}
 
       {/* ── Modals ── */}
@@ -334,27 +360,33 @@ function PurchaseDetailModal({
         </div>
 
         <div className="modal-body">
-          {/* ── Meta row ── */}
-          <div className="purchase-detail-meta-row">
-            <div className="purchase-detail-meta">
-              <span className="purchase-detail-meta-label">Date</span>
-              <span className="purchase-detail-meta-value">{fmtDate(purchase.date)}</span>
+          {/* ── Summary banner ── */}
+          <div className="pur-detail-banner">
+            <div className="pur-detail-banner-left">
+              {(() => {
+                const color = getAvatarColor(purchase.supplier.name);
+                const initials = getInitials(purchase.supplier.name);
+                return (
+                  <div className="pur-detail-avatar" style={{ background: color.bg, color: color.text }}>
+                    {initials}
+                  </div>
+                );
+              })()}
+              <div className="pur-detail-banner-info">
+                <span className="pur-detail-supplier">{purchase.supplier.name}</span>
+                <span className="pur-detail-subline">
+                  {fmtDate(purchase.date)}
+                  <span className="pur-detail-dot">·</span>
+                  {purchase.purchaseItems.length} {purchase.purchaseItems.length === 1 ? "line item" : "line items"}
+                </span>
+              </div>
             </div>
-            <div className="purchase-detail-meta">
-              <span className="purchase-detail-meta-label">Supplier</span>
-              <span className="purchase-detail-meta-value">{purchase.supplier.name}</span>
-            </div>
-            <div className="purchase-detail-meta">
-              <span className="purchase-detail-meta-label">Total Amount</span>
-              <span className="purchase-detail-meta-value purchase-detail-meta-value--amount">
-                {fmt(purchase.totalAmount, currency)}
-              </span>
-            </div>
+            <div className="pur-detail-total">{fmt(purchase.totalAmount, currency)}</div>
           </div>
 
           {/* ── Line items ── */}
           <div className="purchase-detail-lines">
-            <p className="purchase-detail-lines-heading">Line Items</p>
+            <p className="purchase-detail-lines-heading">Items Purchased</p>
             <div className="table-wrap">
               <table className="table">
                 <thead>
@@ -371,12 +403,12 @@ function PurchaseDetailModal({
                       <td className="td-name">
                         {li.item.name}
                         {li.item.unit && (
-                          <span className="td-unit"> {li.item.unit}</span>
+                          <span className="td-unit"> · {li.item.unit}</span>
                         )}
                       </td>
                       <td className="td-amount">{li.quantity}</td>
                       <td className="td-amount">{fmt(li.unitCost, currency)}</td>
-                      <td className="td-amount">{fmt(li.total, currency)}</td>
+                      <td className="td-amount" style={{ fontWeight: 600 }}>{fmt(li.total, currency)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -584,13 +616,17 @@ function NewPurchaseModal({
               {/* ── Lines ── */}
               <div className="purchase-lines-section">
                 <div className="purchase-lines-title-row">
-                  <span className="purchase-lines-label">Purchase Lines</span>
+                  <span className="purchase-lines-label">Items</span>
                   <button type="button" className="btn btn--ghost btn--sm" onClick={addLine}>
-                    + Add Line
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" style={{ width: 13, height: 13 }}>
+                      <path d="M8 3v10M3 8h10" strokeLinecap="round" />
+                    </svg>
+                    Add Line
                   </button>
                 </div>
 
                 <div className="purchase-line purchase-line--header">
+                  <span className="purchase-line-num" />
                   <span>Item</span>
                   <span>Qty</span>
                   <span>Unit Cost</span>
@@ -598,10 +634,11 @@ function NewPurchaseModal({
                   <span />
                 </div>
 
-                {lines.map((line) => {
+                {lines.map((line, idx) => {
                   const t = lineTotal(line);
                   return (
                     <div key={line.key} className="purchase-line">
+                      <span className="purchase-line-num">{idx + 1}</span>
                       <div className="purchase-line-item">
                         <select
                           className="form-input form-select"
@@ -611,7 +648,7 @@ function NewPurchaseModal({
                           <option value="">Select item…</option>
                           {items.map((i) => (
                             <option key={i.id} value={i.id}>
-                              {i.name}{i.unit ? ` (${i.unit})` : ""}
+                              {i.name}{i.unit ? ` · ${i.unit}` : ""}
                             </option>
                           ))}
                         </select>
