@@ -9363,3 +9363,419 @@ tr.row--wastage td:first-child {
   .team-member-card { flex-wrap: wrap; }
   .team-member-side { align-items: flex-start; }
 }
+
+/* ══════════════════════════════════════════
+   SETTINGS PAGE — REDESIGN 2026
+══════════════════════════════════════════ */
+
+.settings-page {
+  max-width: 760px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* ── Card shell ── */
+.stg-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  overflow: hidden;
+  transition: box-shadow 0.15s;
+}
+
+.stg-card:focus-within {
+  box-shadow: 0 2px 10px rgba(99,102,241,0.07);
+}
+
+.stg-card--muted {
+  background: #fafafe;
+  border-color: var(--color-border-light);
+}
+
+.stg-card--muted .stg-card-title h2 {
+  color: var(--color-text-muted);
+}
+
+/* ── Card header ── */
+.stg-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1.125rem 1.25rem 1rem;
+  border-bottom: 1px solid var(--color-border-light);
+  background: #fafafe;
+}
+
+.stg-card--muted .stg-card-header {
+  background: transparent;
+}
+
+.stg-card-icon {
+  flex-shrink: 0;
+  width: 2.375rem;
+  height: 2.375rem;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0.125rem;
+}
+
+.stg-card-icon svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.stg-card-icon--indigo { background: #ede9fe; color: #6366f1; }
+.stg-card-icon--orange { background: #fff7ed; color: #f97316; }
+.stg-card-icon--amber  { background: #fffbeb; color: #d97706; }
+.stg-card-icon--violet { background: #f5f3ff; color: #7c3aed; }
+
+.stg-card-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.stg-card-title h2 {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0 0 0.2rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.stg-card-title p {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  margin: 0;
+  line-height: 1.45;
+}
+
+/* ── Card body ── */
+.stg-card-body {
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* ── Fields ── */
+.stg-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.stg-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.stg-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.stg-hint {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  line-height: 1.35;
+}
+
+/* ── Inventory rules ── */
+.stg-rules-body {
+  gap: 0;
+  padding: 0;
+}
+
+.stg-rule-row {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 1.125rem 1.25rem;
+  justify-content: space-between;
+}
+
+.stg-rule-divider {
+  height: 1px;
+  background: var(--color-border-light);
+  margin: 0 1.25rem;
+}
+
+.stg-rule-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.stg-rule-name {
+  font-size: 0.875rem;
+  font-weight: 650;
+  color: var(--color-text);
+  margin-bottom: 0.25rem;
+}
+
+.stg-rule-desc {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.stg-rule-desc strong {
+  color: var(--color-text);
+}
+
+.stg-rule-control {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.stg-number-input {
+  width: 5rem;
+  padding: 0.5rem 0.625rem;
+  border: 1.5px solid var(--color-border);
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text);
+  background: var(--color-surface);
+  text-align: center;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  -moz-appearance: textfield;
+}
+
+.stg-number-input::-webkit-outer-spin-button,
+.stg-number-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+.stg-number-input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.14);
+}
+
+.stg-number-unit {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  min-width: 2.5rem;
+}
+
+/* ── Alert / channel rows ── */
+.stg-alerts-body {
+  gap: 0;
+  padding: 0;
+}
+
+.stg-alert-row {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  padding: 1rem 1.25rem;
+  cursor: pointer;
+  border-bottom: 1px solid var(--color-border-light);
+  transition: background 0.12s;
+}
+
+.stg-alert-row:last-child { border-bottom: none; }
+
+.stg-alert-row:hover { background: #fafafe; }
+
+.stg-alert-row--muted { opacity: 0.75; }
+.stg-alert-row--muted:hover { background: transparent; }
+
+.stg-alert-icon {
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stg-alert-icon svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.stg-alert-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.stg-alert-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.stg-alert-desc {
+  font-size: 0.775rem;
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}
+
+.stg-inline-soon {
+  display: inline-block;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: #6b7280;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ── Toggle (reused) ── */
+.stg-toggle-input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.stg-toggle-track {
+  position: relative;
+  flex-shrink: 0;
+  width: 42px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--color-border);
+  transition: background 0.15s;
+}
+
+.stg-toggle-track::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.18);
+  transition: transform 0.18s cubic-bezier(0.34,1.56,0.64,1);
+}
+
+.stg-toggle-input:checked ~ .stg-toggle-track {
+  background: var(--color-primary);
+}
+
+.stg-toggle-input:checked ~ .stg-toggle-track::after {
+  transform: translateX(18px);
+}
+
+.stg-alert-row:focus-within .stg-toggle-track {
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.18);
+}
+
+/* ── Coming soon badge ── */
+.stg-coming-soon-badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  vertical-align: middle;
+}
+
+/* ── Footer actions (always-visible save) ── */
+.stg-footer-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.25rem 0 0.5rem;
+}
+
+/* ── Sticky unsaved-changes bar ── */
+.stg-save-bar {
+  position: fixed;
+  bottom: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  pointer-events: none;
+}
+
+.stg-save-bar-inner {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.625rem 0.875rem 0.625rem 1rem;
+  background: #1e1b4b;
+  border-radius: 12px;
+  box-shadow: 0 4px 24px rgba(30,27,75,0.25), 0 1px 4px rgba(0,0,0,0.15);
+  pointer-events: all;
+  white-space: nowrap;
+}
+
+.stg-save-bar-msg {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #c7d2fe;
+}
+
+.stg-save-bar-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #818cf8;
+  animation: stg-pulse 1.5s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes stg-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.stg-save-bar-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.stg-save-bar-discard {
+  color: #a5b4fc;
+  border-color: transparent;
+}
+
+.stg-save-bar-discard:hover {
+  background: rgba(255,255,255,0.08);
+  color: #e0e7ff;
+  border-color: transparent;
+}
+
+@media (max-width: 640px) {
+  .stg-row { grid-template-columns: 1fr; }
+  .stg-rule-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+  .stg-rule-control { align-self: flex-end; }
+  .stg-save-bar { left: 1rem; right: 1rem; transform: none; bottom: 4.5rem; }
+  .stg-save-bar-inner { flex-direction: column; align-items: stretch; gap: 0.625rem; }
+  .stg-save-bar-actions { justify-content: flex-end; }
+}

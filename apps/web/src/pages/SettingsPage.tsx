@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { updateWorkspaceSettings } from "../api/workspace";
 import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
 import type { WorkspaceSettings } from "../types";
@@ -25,23 +25,45 @@ interface SettingsForm {
 
 let toastSeq = 0;
 
-const CURRENCY_OPTIONS = ["PKR"];
+const CURRENCY_OPTIONS = [
+  { value: "PKR", label: "PKR — Pakistani Rupee" },
+  { value: "USD", label: "USD — US Dollar" },
+  { value: "EUR", label: "EUR — Euro" },
+  { value: "GBP", label: "GBP — British Pound" },
+  { value: "AED", label: "AED — UAE Dirham" },
+  { value: "SAR", label: "SAR — Saudi Riyal" },
+  { value: "INR", label: "INR — Indian Rupee" },
+];
+
 const PHONE_PATTERN = /^[+\d\s-]{7,24}$/;
 
 export function SettingsPage() {
   const { settings, loading, error, setSettings } = useWorkspaceSettings();
   const [form, setForm] = useState<SettingsForm>(toForm(settings));
+  const [savedForm, setSavedForm] = useState<SettingsForm>(toForm(settings));
   const [saving, setSaving] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const saveBarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setForm(toForm(settings));
+    const f = toForm(settings);
+    setForm(f);
+    setSavedForm(f);
   }, [settings]);
+
+  const isDirty = useMemo(
+    () => JSON.stringify(form) !== JSON.stringify(savedForm),
+    [form, savedForm],
+  );
 
   function showToast(msg: string, type: "success" | "error") {
     const id = ++toastSeq;
     setToasts((prev) => [...prev, { id, msg, type }]);
-    setTimeout(() => setToasts((prev) => prev.filter((toast) => toast.id !== id)), 3500);
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 3500);
+  }
+
+  function handleDiscard() {
+    setForm(savedForm);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -54,20 +76,17 @@ export function SettingsPage() {
       showToast("Business name is required", "error");
       return;
     }
-
     if (!Number.isFinite(lowStockMultiplier) || lowStockMultiplier <= 0) {
       showToast("Low stock multiplier must be greater than zero", "error");
       return;
     }
-
     if (!Number.isInteger(expiryAlertDays) || expiryAlertDays < 0) {
       showToast("Expiry alert days cannot be negative", "error");
       return;
     }
-
     const ownerPhone = form.ownerPhone.trim();
     if (ownerPhone && !isValidPhone(ownerPhone)) {
-      showToast("Owner phone can include only +, digits, spaces, and hyphen", "error");
+      showToast("Phone can include only +, digits, spaces, and hyphens", "error");
       return;
     }
 
@@ -87,6 +106,7 @@ export function SettingsPage() {
         pushAlertsEnabled: form.pushAlertsEnabled,
       });
       setSettings(res.settings);
+      setSavedForm(toForm(res.settings));
       showToast("Settings saved", "success");
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Failed to save settings", "error");
@@ -112,184 +132,347 @@ export function SettingsPage() {
     );
   }
 
+  const expiryDaysNum = Number(form.expiryAlertDays);
+
   return (
     <div className="settings-page">
       <div className="page-header">
-        <h1 className="page-title">Workspace settings</h1>
-        <p className="page-subtitle">Configure business defaults, inventory rules, and notification preferences.</p>
+        <div>
+          <h1 className="page-title">Settings</h1>
+          <p className="page-subtitle">Configure your workspace, inventory rules, and notification preferences.</p>
+        </div>
       </div>
 
-      <form className="settings-panel" onSubmit={(e) => { void handleSubmit(e); }}>
-        <section className="settings-section">
-          <div className="settings-section-heading">
-            <h2>Workspace</h2>
-            <p>Basic business details used across ShelfSense.</p>
-          </div>
+      <form onSubmit={(e) => { void handleSubmit(e); }}>
 
-          <div className="form-group">
-            <label className="form-label">Business Name</label>
-            <input
-              className="form-input"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              required
-            />
+        {/* ── Workspace ── */}
+        <div className="stg-card">
+          <div className="stg-card-header">
+            <div className="stg-card-icon stg-card-icon--indigo">
+              <svg viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a1 1 0 110 2h-3a1 1 0 01-1-1v-2a1 1 0 00-1-1H9a1 1 0 00-1 1v2a1 1 0 01-1 1H4a1 1 0 110-2V4zm3 1h2v2H7V5zm2 4H7v2h2V9zm2-4h2v2h-2V5zm2 4h-2v2h2V9z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="stg-card-title">
+              <h2>Workspace</h2>
+              <p>Business details that appear across reports, alerts, and the app.</p>
+            </div>
           </div>
-
-          <div className="form-group">
-            <label className="form-label">Currency</label>
-            <select
-              className="form-select"
-              value={form.currency}
-              onChange={(e) => setForm({ ...form, currency: e.target.value })}
-            >
-              {CURRENCY_OPTIONS.map((currency) => (
-                <option key={currency} value={currency}>
-                  {currency}
-                </option>
-              ))}
-            </select>
-          </div>
-        </section>
-
-        <section className="settings-section">
-          <div className="settings-section-heading">
-            <h2>Inventory Rules</h2>
-            <p>Thresholds used for stock health and expiry warnings.</p>
-          </div>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">Low Stock Multiplier</label>
+          <div className="stg-card-body">
+            <div className="stg-field">
+              <label className="stg-label" htmlFor="ws-name">Business Name</label>
               <input
+                id="ws-name"
                 className="form-input"
-                type="number"
-                min={0.01}
-                step="any"
-                value={form.lowStockMultiplier}
-                onChange={(e) => setForm({ ...form, lowStockMultiplier: e.target.value })}
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="My Business"
                 required
               />
             </div>
-
-            <div className="form-group">
-              <label className="form-label">Expiry Alert Days</label>
-              <input
-                className="form-input"
-                type="number"
-                min={0}
-                step={1}
-                value={form.expiryAlertDays}
-                onChange={(e) => setForm({ ...form, expiryAlertDays: e.target.value })}
-                required
-              />
+            <div className="stg-row">
+              <div className="stg-field">
+                <label className="stg-label" htmlFor="ws-currency">Currency</label>
+                <select
+                  id="ws-currency"
+                  className="form-select"
+                  value={form.currency}
+                  onChange={(e) => setForm({ ...form, currency: e.target.value })}
+                >
+                  {CURRENCY_OPTIONS.map((c) => (
+                    <option key={c.value} value={c.value}>{c.label}</option>
+                  ))}
+                </select>
+                <span className="stg-hint">Used in cost calculations and reports</span>
+              </div>
+              <div className="stg-field">
+                <label className="stg-label" htmlFor="ws-phone">Owner Phone</label>
+                <input
+                  id="ws-phone"
+                  className="form-input"
+                  type="tel"
+                  value={form.ownerPhone}
+                  onChange={(e) => setForm({ ...form, ownerPhone: e.target.value })}
+                  placeholder="+92 300 0000000"
+                />
+                <span className="stg-hint">Used for future WhatsApp alert delivery</span>
+              </div>
             </div>
           </div>
-        </section>
+        </div>
 
-        <section className="settings-section">
-          <div className="settings-section-heading">
-            <h2>Notification Preferences</h2>
-            <p>Choose which inventory risks create in-app notifications now and save future channel preferences.</p>
+        {/* ── Inventory Rules ── */}
+        <div className="stg-card">
+          <div className="stg-card-header">
+            <div className="stg-card-icon stg-card-icon--orange">
+              <svg viewBox="0 0 20 20" fill="currentColor">
+                <path d="M4 3a2 2 0 100 4h12a2 2 0 100-4H4z" />
+                <path fillRule="evenodd" d="M3 8h14v7a2 2 0 01-2 2H5a2 2 0 01-2-2V8zm5 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="stg-card-title">
+              <h2>Inventory Rules</h2>
+              <p>Thresholds that control when stock health warnings appear.</p>
+            </div>
           </div>
-
-          <div className="form-group">
-            <label className="form-label">Owner phone number</label>
-            <input
-              className="form-input"
-              type="tel"
-              value={form.ownerPhone}
-              onChange={(e) => setForm({ ...form, ownerPhone: e.target.value })}
-              placeholder="+92 300 0000000"
-            />
+          <div className="stg-card-body stg-rules-body">
+            <div className="stg-rule-row">
+              <div className="stg-rule-info">
+                <div className="stg-rule-name">Low Stock Multiplier</div>
+                <div className="stg-rule-desc">
+                  Items are flagged low when stock falls below{" "}
+                  <strong>{form.lowStockMultiplier || "?"}× their minimum level</strong>.
+                  A value of 2 means an item with a minimum of 10 warns at 20 units.
+                </div>
+              </div>
+              <div className="stg-rule-control">
+                <input
+                  className="stg-number-input"
+                  type="number"
+                  min={0.01}
+                  step="any"
+                  value={form.lowStockMultiplier}
+                  onChange={(e) => setForm({ ...form, lowStockMultiplier: e.target.value })}
+                  required
+                />
+                <span className="stg-number-unit">×</span>
+              </div>
+            </div>
+            <div className="stg-rule-divider" />
+            <div className="stg-rule-row">
+              <div className="stg-rule-info">
+                <div className="stg-rule-name">Expiry Alert Window</div>
+                <div className="stg-rule-desc">
+                  Batches expiring within{" "}
+                  <strong>{Number.isFinite(expiryDaysNum) && expiryDaysNum >= 0 ? expiryDaysNum : "?"} {expiryDaysNum === 1 ? "day" : "days"}</strong>{" "}
+                  are flagged as "expiring soon" in alerts and on the dashboard.
+                </div>
+              </div>
+              <div className="stg-rule-control">
+                <input
+                  className="stg-number-input"
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={form.expiryAlertDays}
+                  onChange={(e) => setForm({ ...form, expiryAlertDays: e.target.value })}
+                  required
+                />
+                <span className="stg-number-unit">days</span>
+              </div>
+            </div>
           </div>
+        </div>
 
-          <div className="settings-toggle-list">
-            <SettingsToggle
+        {/* ── Alert Preferences ── */}
+        <div className="stg-card">
+          <div className="stg-card-header">
+            <div className="stg-card-icon stg-card-icon--amber">
+              <svg viewBox="0 0 20 20" fill="currentColor">
+                <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+              </svg>
+            </div>
+            <div className="stg-card-title">
+              <h2>Alert Preferences</h2>
+              <p>Choose which inventory events generate in-app alerts and notifications.</p>
+            </div>
+          </div>
+          <div className="stg-card-body stg-alerts-body">
+            <AlertRow
+              color="#ef4444"
+              icon={
+                <svg viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              }
               label="Low stock alerts"
+              desc="Triggered when an item's available quantity drops below its configured threshold."
               checked={form.notifyLowStock}
-              onChange={(checked) => setForm({ ...form, notifyLowStock: checked })}
+              onChange={(v) => setForm({ ...form, notifyLowStock: v })}
             />
-            <SettingsToggle
+            <AlertRow
+              color="#f59e0b"
+              icon={
+                <svg viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                </svg>
+              }
               label="Expiring soon alerts"
+              desc={`Triggered when a stock batch will expire within ${Number.isFinite(expiryDaysNum) && expiryDaysNum >= 0 ? expiryDaysNum : "?"} ${expiryDaysNum === 1 ? "day" : "days"} (your current alert window).`}
               checked={form.notifyExpiringSoon}
-              onChange={(checked) => setForm({ ...form, notifyExpiringSoon: checked })}
+              onChange={(v) => setForm({ ...form, notifyExpiringSoon: v })}
             />
-            <SettingsToggle
+            <AlertRow
+              color="#6b7280"
+              icon={
+                <svg viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clipRule="evenodd" />
+                </svg>
+              }
               label="Expired stock alerts"
+              desc="Triggered when a batch's expiry date has passed and it is still tracked in inventory."
               checked={form.notifyExpired}
-              onChange={(checked) => setForm({ ...form, notifyExpired: checked })}
-            />
-            <SettingsToggle
-              label="WhatsApp alerts"
-              helper="Coming soon — preference saved for future alerts."
-              checked={form.whatsappAlertsEnabled}
-              onChange={(checked) => setForm({ ...form, whatsappAlertsEnabled: checked })}
-            />
-            <SettingsToggle
-              label="Email alerts"
-              helper="Coming soon — preference saved for future alerts."
-              checked={form.emailAlertsEnabled}
-              onChange={(checked) => setForm({ ...form, emailAlertsEnabled: checked })}
-            />
-            <SettingsToggle
-              label="Push alerts"
-              helper="Coming soon — preference saved for future alerts."
-              checked={form.pushAlertsEnabled}
-              onChange={(checked) => setForm({ ...form, pushAlertsEnabled: checked })}
+              onChange={(v) => setForm({ ...form, notifyExpired: v })}
             />
           </div>
-        </section>
+        </div>
 
-        <div className="settings-actions">
+        {/* ── Notification Channels (coming soon) ── */}
+        <div className="stg-card stg-card--muted">
+          <div className="stg-card-header">
+            <div className="stg-card-icon stg-card-icon--violet">
+              <svg viewBox="0 0 20 20" fill="currentColor">
+                <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
+              </svg>
+            </div>
+            <div className="stg-card-title">
+              <h2>
+                Notification Channels
+                <span className="stg-coming-soon-badge">Coming soon</span>
+              </h2>
+              <p>Save channel preferences now — they'll activate automatically when each channel goes live.</p>
+            </div>
+          </div>
+          <div className="stg-card-body stg-alerts-body">
+            <AlertRow
+              color="#25d366"
+              icon={
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+                </svg>
+              }
+              label="WhatsApp"
+              desc="Send alert messages to the owner phone number via WhatsApp."
+              checked={form.whatsappAlertsEnabled}
+              onChange={(v) => setForm({ ...form, whatsappAlertsEnabled: v })}
+              comingSoon
+            />
+            <AlertRow
+              color="#6366f1"
+              icon={
+                <svg viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
+                  <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+                </svg>
+              }
+              label="Email"
+              desc="Receive digest emails for stock events at your registered address."
+              checked={form.emailAlertsEnabled}
+              onChange={(v) => setForm({ ...form, emailAlertsEnabled: v })}
+              comingSoon
+            />
+            <AlertRow
+              color="#0ea5e9"
+              icon={
+                <svg viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+                </svg>
+              }
+              label="Push notifications"
+              desc="Browser and mobile push notifications for urgent stock events."
+              checked={form.pushAlertsEnabled}
+              onChange={(v) => setForm({ ...form, pushAlertsEnabled: v })}
+              comingSoon
+            />
+          </div>
+        </div>
+
+        {/* ── Fallback save button (always visible) ── */}
+        <div className="stg-footer-actions">
           <button
             type="submit"
             className="btn btn--primary"
             disabled={saving || !form.name.trim()}
           >
             {saving ? <span className="btn-spinner" /> : null}
-            {saving ? "Saving..." : "Save Settings"}
+            {saving ? "Saving…" : "Save Settings"}
           </button>
         </div>
       </form>
 
-      <div className="toast-stack">
-        {toasts.map((toast) => (
-          <div key={toast.id} className={`toast toast--${toast.type}`}>
-            {toast.msg}
+      {/* ── Sticky unsaved-changes bar ── */}
+      {isDirty && (
+        <div className="stg-save-bar" ref={saveBarRef}>
+          <div className="stg-save-bar-inner">
+            <div className="stg-save-bar-msg">
+              <span className="stg-save-bar-dot" />
+              You have unsaved changes
+            </div>
+            <div className="stg-save-bar-actions">
+              <button
+                type="button"
+                className="btn btn--ghost stg-save-bar-discard"
+                onClick={handleDiscard}
+                disabled={saving}
+              >
+                Discard
+              </button>
+              <button
+                type="button"
+                className="btn btn--primary"
+                disabled={saving || !form.name.trim()}
+                onClick={(e) => { void handleSubmit(e as unknown as React.FormEvent); }}
+              >
+                {saving ? <span className="btn-spinner" /> : null}
+                {saving ? "Saving…" : "Save Settings"}
+              </button>
+            </div>
           </div>
+        </div>
+      )}
+
+      <div className="toast-stack">
+        {toasts.map((t) => (
+          <div key={t.id} className={`toast toast--${t.type}`}>{t.msg}</div>
         ))}
       </div>
     </div>
   );
 }
 
-function SettingsToggle({
+/* ── Alert row ── */
+
+function AlertRow({
+  color,
+  icon,
   label,
-  helper,
+  desc,
   checked,
   onChange,
+  comingSoon,
 }: {
+  color: string;
+  icon: React.ReactNode;
   label: string;
-  helper?: string;
+  desc: string;
   checked: boolean;
-  onChange: (checked: boolean) => void;
+  onChange: (v: boolean) => void;
+  comingSoon?: boolean;
 }) {
   return (
-    <label className="settings-toggle">
-      <span className="settings-toggle-copy">
-        <span className="settings-toggle-label">{label}</span>
-        {helper ? <span className="settings-toggle-helper">{helper}</span> : null}
+    <label className={`stg-alert-row${comingSoon ? " stg-alert-row--muted" : ""}`}>
+      <span className="stg-alert-icon" style={{ background: color + "18", color }}>
+        {icon}
+      </span>
+      <span className="stg-alert-copy">
+        <span className="stg-alert-label">
+          {label}
+          {comingSoon && <span className="stg-inline-soon">soon</span>}
+        </span>
+        <span className="stg-alert-desc">{desc}</span>
       </span>
       <input
         type="checkbox"
+        className="stg-toggle-input"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
       />
-      <span className="settings-toggle-track" aria-hidden="true" />
+      <span className="stg-toggle-track" aria-hidden="true" />
     </label>
   );
 }
+
+/* ── Utilities ── */
 
 function toForm(settings: WorkspaceSettings): SettingsForm {
   return {
