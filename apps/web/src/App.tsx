@@ -6,6 +6,7 @@ import { LocationProvider } from "./context/LocationContext";
 import { useWorkspaceSettings, WorkspaceSettingsProvider } from "./context/WorkspaceSettingsContext";
 import { ActivityPage } from "./pages/ActivityPage";
 import { AlertsPage } from "./pages/AlertsPage";
+import { BatchDetailPage } from "./pages/BatchDetailPage";
 import { DailyOperationsPage } from "./pages/DailyOperationsPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ItemsPage } from "./pages/ItemsPage";
@@ -199,6 +200,7 @@ export function App() {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/daily-operations" element={<DailyOperationsPage />} />
             <Route path="/items" element={<ItemsPage />} />
+            <Route path="/items/:id/batches" element={<BatchDetailPage />} />
             <Route path="/movements" element={<MovementsPage />} />
             <Route
               path="/stock-count"

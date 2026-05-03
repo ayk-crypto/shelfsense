@@ -239,6 +239,73 @@ export interface ItemsResponse {
   items: Item[];
 }
 
+export type BatchStatus = "ACTIVE" | "EXPIRING_SOON" | "EXPIRED" | "DEPLETED";
+export type BatchExpiryStatus = "EXPIRED" | "EXPIRING_SOON" | "HEALTHY" | "NO_EXPIRY";
+
+export interface BatchDetailItem extends Item {
+  totalCurrentStock: number;
+  totalStockValue: number;
+  nearestExpiryDate: string | null;
+  statuses: {
+    isLowStock: boolean;
+    hasExpired: boolean;
+    hasExpiringSoon: boolean;
+  };
+}
+
+export interface BatchDetailBatch {
+  id: string;
+  batchNo: string | null;
+  location: {
+    id: string;
+    name: string;
+  };
+  remainingQuantity: number;
+  originalQuantity: number;
+  unitCost: number | null;
+  totalValue: number;
+  supplier: {
+    id: string | null;
+    name: string;
+  } | null;
+  expiryDate: string | null;
+  createdAt: string;
+  updatedAt: string;
+  status: BatchStatus;
+  expiryStatus: BatchExpiryStatus;
+}
+
+export interface BatchDetailMovement {
+  id: string;
+  batchId: string | null;
+  batchNo: string | null;
+  type: StockMovementType;
+  quantity: number;
+  unitCost: number | null;
+  reason: string | null;
+  note: string | null;
+  location: {
+    id: string;
+    name: string;
+  };
+  createdBy: {
+    id: string;
+    name: string;
+    email: string;
+  } | null;
+  createdAt: string;
+  reference: string | null;
+}
+
+export interface BatchDetailResponse {
+  item: BatchDetailItem;
+  batches: BatchDetailBatch[];
+  movements: BatchDetailMovement[];
+  meta: {
+    expiryAlertDays: number;
+  };
+}
+
 export interface CreateItemInput {
   name: string;
   unit: string;

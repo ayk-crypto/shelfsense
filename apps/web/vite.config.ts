@@ -19,10 +19,6 @@ export default defineConfig({
         target: apiProxyTarget,
         changeOrigin: true,
       },
-      "/items": {
-        target: apiProxyTarget,
-        changeOrigin: true,
-      },
       "^/stock(?:/|$)": {
         target: apiProxyTarget,
         changeOrigin: true,

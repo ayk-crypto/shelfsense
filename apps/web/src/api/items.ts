@@ -1,4 +1,4 @@
-import type { CreateItemInput, Item, ItemsResponse } from "../types";
+import type { BatchDetailResponse, CreateItemInput, Item, ItemsResponse } from "../types";
 import { apiClient } from "./client";
 
 type UpdateItemInput = Partial<Omit<CreateItemInput, "category" | "sku" | "barcode">> & {
@@ -9,6 +9,10 @@ type UpdateItemInput = Partial<Omit<CreateItemInput, "category" | "sku" | "barco
 
 export async function getItems(includeArchived = false): Promise<ItemsResponse> {
   return apiClient.get<ItemsResponse>(`/items${includeArchived ? "?includeArchived=true" : ""}`);
+}
+
+export async function getItemBatchesDetail(id: string): Promise<BatchDetailResponse> {
+  return apiClient.get<BatchDetailResponse>(`/items/${encodeURIComponent(id)}/batches-detail`);
 }
 
 export async function createItem(data: CreateItemInput): Promise<{ item: Item }> {

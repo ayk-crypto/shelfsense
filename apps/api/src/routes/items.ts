@@ -98,6 +98,155 @@ itemsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), asy
   return res.json({ items });
 }));
 
+itemsRouter.get("/:id/batches-detail", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), asyncHandler(async (req, res) => {
+  const workspaceId = getWorkspaceId(req);
+
+  if (!workspaceId) {
+    return res.status(403).json({ error: "Workspace access required" });
+  }
+
+  const [item, workspace] = await Promise.all([
+    prisma.item.findFirst({
+      where: { id: req.params.id, workspaceId },
+      select: {
+        id: true,
+        name: true,
+        sku: true,
+        barcode: true,
+        unit: true,
+        category: true,
+        minStockLevel: true,
+        trackExpiry: true,
+        isActive: true,
+        archivedAt: true,
+        createdAt: true,
+      },
+    }),
+    prisma.workspace.findUnique({
+      where: { id: workspaceId },
+      select: { expiryAlertDays: true },
+    }),
+  ]);
+
+  if (!item) {
+    return res.status(404).json({ error: "Item not found" });
+  }
+
+  const [batches, movements] = await Promise.all([
+    prisma.stockBatch.findMany({
+      where: { workspaceId, itemId: item.id },
+      orderBy: [{ remainingQuantity: "desc" }, { expiryDate: "asc" }, { createdAt: "desc" }],
+      select: {
+        id: true,
+        quantity: true,
+        remainingQuantity: true,
+        unitCost: true,
+        expiryDate: true,
+        batchNo: true,
+        supplierName: true,
+        createdAt: true,
+        updatedAt: true,
+        location: { select: { id: true, name: true } },
+        supplier: { select: { id: true, name: true } },
+      },
+    }),
+    prisma.stockMovement.findMany({
+      where: { workspaceId, itemId: item.id },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+      select: {
+        id: true,
+        batchId: true,
+        type: true,
+        quantity: true,
+        unitCost: true,
+        reason: true,
+        note: true,
+        createdAt: true,
+        location: { select: { id: true, name: true } },
+        batch: {
+          select: {
+            id: true,
+            batchNo: true,
+          },
+        },
+      },
+    }),
+  ]);
+
+  const now = new Date();
+  const expiryAlertDays = getExpiryAlertDays(workspace?.expiryAlertDays);
+  const expiryAlertUntil = new Date(now.getTime() + expiryAlertDays * 86_400_000);
+
+  const responseBatches = batches.map((batch) => {
+    const status = getBatchStatus(batch.remainingQuantity, batch.expiryDate, expiryAlertUntil, now);
+    const expiryStatus = getExpiryStatus(batch.expiryDate, expiryAlertUntil, now);
+    const unitCost = batch.unitCost ?? null;
+
+    return {
+      id: batch.id,
+      batchNo: batch.batchNo,
+      location: batch.location,
+      remainingQuantity: batch.remainingQuantity,
+      originalQuantity: batch.quantity,
+      unitCost,
+      totalValue: batch.remainingQuantity * (unitCost ?? 0),
+      supplier: batch.supplier
+        ? { id: batch.supplier.id, name: batch.supplier.name }
+        : batch.supplierName
+          ? { id: null, name: batch.supplierName }
+          : null,
+      expiryDate: batch.expiryDate,
+      createdAt: batch.createdAt,
+      updatedAt: batch.updatedAt,
+      status,
+      expiryStatus,
+    };
+  });
+
+  const activeBatches = responseBatches.filter((batch) => batch.remainingQuantity > 0);
+  const totalCurrentStock = activeBatches.reduce((total, batch) => total + batch.remainingQuantity, 0);
+  const totalStockValue = activeBatches.reduce((total, batch) => total + batch.totalValue, 0);
+  const nearestExpiryDate = activeBatches
+    .map((batch) => batch.expiryDate)
+    .filter((expiryDate): expiryDate is Date => expiryDate !== null)
+    .sort((first, second) => first.getTime() - second.getTime())[0] ?? null;
+
+  const itemStatuses = {
+    isLowStock: totalCurrentStock <= item.minStockLevel,
+    hasExpired: activeBatches.some((batch) => batch.expiryStatus === "EXPIRED"),
+    hasExpiringSoon: activeBatches.some((batch) => batch.expiryStatus === "EXPIRING_SOON"),
+  };
+
+  return res.json({
+    item: {
+      ...item,
+      totalCurrentStock,
+      totalStockValue,
+      nearestExpiryDate,
+      statuses: itemStatuses,
+    },
+    batches: responseBatches,
+    movements: movements.map((movement) => ({
+      id: movement.id,
+      batchId: movement.batchId,
+      batchNo: movement.batch?.batchNo ?? null,
+      type: movement.type,
+      quantity: movement.quantity,
+      unitCost: movement.unitCost,
+      reason: movement.reason,
+      note: movement.note,
+      location: movement.location,
+      createdBy: null,
+      createdAt: movement.createdAt,
+      reference: movement.batchId,
+    })),
+    meta: {
+      expiryAlertDays,
+    },
+  });
+}));
+
 itemsRouter.get("/:id", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), asyncHandler(async (req, res) => {
   const workspaceId = getWorkspaceId(req);
 
@@ -336,6 +485,34 @@ function parseNullableString(value: unknown) {
 
 function parseBooleanQuery(value: unknown) {
   return typeof value === "string" && value.toLowerCase() === "true";
+}
+
+function getExpiryAlertDays(value: number | null | undefined) {
+  return typeof value === "number" && value >= 0 ? value : 7;
+}
+
+function getBatchStatus(
+  remainingQuantity: number,
+  expiryDate: Date | null,
+  expiryAlertUntil: Date,
+  now: Date,
+) {
+  if (remainingQuantity <= 0) return "DEPLETED";
+  if (!expiryDate) return "ACTIVE";
+  if (expiryDate < now) return "EXPIRED";
+  if (expiryDate <= expiryAlertUntil) return "EXPIRING_SOON";
+  return "ACTIVE";
+}
+
+function getExpiryStatus(
+  expiryDate: Date | null,
+  expiryAlertUntil: Date,
+  now: Date,
+) {
+  if (!expiryDate) return "NO_EXPIRY";
+  if (expiryDate < now) return "EXPIRED";
+  if (expiryDate <= expiryAlertUntil) return "EXPIRING_SOON";
+  return "HEALTHY";
 }
 
 function validateItemInput(input: ReturnType<typeof parseItemInput>) {

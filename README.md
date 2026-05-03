@@ -150,6 +150,8 @@ Stock Count / Cycle Count is available at `/stock-count`:
 - Managers and owners can finalize a draft. Finalization posts `ADJUSTMENT` stock movements with reason `Stock Count Adjustment`, increases stock for positive variance, deducts FIFO batch stock for negative variance, and records audit log entries.
 - Operators can save drafts but cannot finalize counts under the current role model.
 
+Batch Detail View is available from each Inventory item row or mobile item card via **Batch details**. The route `/items/:id/batches` shows item identity, total stock, stock value, nearest expiry, low-stock/expiry status, every stock batch with location/supplier/cost/expiry, and recent movement history. Users can filter by location, batch status, expiry status, and movement type. Operators can view it under the same inventory visibility rules as the Inventory page.
+
 ## Build Project
 
 ```bash

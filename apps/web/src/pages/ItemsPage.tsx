@@ -1,6 +1,6 @@
 import JsBarcode from "jsbarcode";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { archiveItem, createItem, getItems, reactivateItem, updateItem } from "../api/items";
 import { getStockMovements, getStockSummary, stockIn, stockOut, stockTransfer } from "../api/stock";
 import { useAuth } from "../context/AuthContext";
@@ -100,6 +100,7 @@ export function ItemsPage() {
   const { user } = useAuth();
   const { activeLocationId, locations } = useLocation();
   const { settings } = useWorkspaceSettings();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const canManageStock = user?.role === "OWNER" || user?.role === "MANAGER";
   const currency = settings.currency;
@@ -765,6 +766,9 @@ export function ItemsPage() {
                               <button className="row-action-menu-item" role="menuitem" onClick={() => { setOpenActionMenuItemId(null); setBarcodeItem(item); }}>
                                 Barcode
                               </button>
+                              <button className="row-action-menu-item" role="menuitem" onClick={() => { setOpenActionMenuItemId(null); navigate(`/items/${item.id}/batches`); }}>
+                                Batch details
+                              </button>
                               {canManageStock && (
                                 <button className="row-action-menu-item" role="menuitem" onClick={() => { setOpenActionMenuItemId(null); setEditingItem(item); }}>
                                   Edit item
@@ -933,6 +937,12 @@ export function ItemsPage() {
                         onClick={() => setBarcodeItem(item)}
                       >
                         Barcode
+                      </button>
+                      <button
+                        className="btn btn--sm btn--ghost item-card-btn"
+                        onClick={() => navigate(`/items/${item.id}/batches`)}
+                      >
+                        Batch Details
                       </button>
                       {canManageStock && (
                         <button
