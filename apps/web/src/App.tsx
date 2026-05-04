@@ -19,6 +19,7 @@ import { OnboardingPage } from "./pages/OnboardingPage";
 import { PurchasesPage } from "./pages/PurchasesPage";
 import { ReorderSuggestionsPage } from "./pages/ReorderSuggestionsPage";
 import { ReportsPage } from "./pages/ReportsPage";
+import { LandingPage } from "./pages/LandingPage";
 import { PlanPage } from "./pages/PlanPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { ResetPasswordPage } from "./pages/ResetPasswordPage";
@@ -347,6 +348,7 @@ export function App() {
               element={<RoleRoute allowedRoles={["OWNER"]}><SettingsPage /></RoleRoute>}
             />
           </Route>
+          <Route path="/" element={<LandingPage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </Router>

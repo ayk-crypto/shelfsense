@@ -58,6 +58,7 @@ This is an npm workspaces monorepo with three packages:
 ## Frontend Integration (`apps/web`)
 
 - **Login page** — email/password form; "Forgot password?" link; account lockout UI
+- **Landing page** (`/`) — marketing page accessible to everyone (authenticated users see "Go to app" CTAs); sticky navbar with smooth-scroll, hero with live CSS app mockup, stats bar, 6-feature grid, alerts showcase, pricing cards (Free/Basic/Pro), CTA banner, footer
 - **Signup page** — workspace + user creation; redirects to `/onboarding` after signup
 - **ForgotPasswordPage** (`/forgot-password`) — sends reset email
 - **ResetPasswordPage** (`/reset-password`) — validates token, sets new password
