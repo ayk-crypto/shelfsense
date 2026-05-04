@@ -13,6 +13,12 @@ enum Role {
   OPERATOR
 }
 
+enum PlatformRole {
+  USER
+  SUPER_ADMIN
+  SUPPORT_ADMIN
+}
+
 enum PlanTier {
   FREE
   BASIC
@@ -47,6 +53,9 @@ model User {
   email                 String                   @unique
   password              String
   emailVerified         Boolean                  @default(false)
+  isDisabled            Boolean                  @default(false)
+  platformRole          PlatformRole             @default(USER)
+  passwordResetRequired Boolean                  @default(false)
   failedLoginAttempts   Int                      @default(0)
   lockedUntil           DateTime?
   createdAt             DateTime                 @default(now())
@@ -58,6 +67,7 @@ model User {
   finalizedStockCounts  StockCount[]             @relation("StockCountFinalizedBy")
   passwordResetTokens   PasswordResetToken[]
   emailVerifTokens      EmailVerifToken[]
+  adminAuditLogs        AdminAuditLog[]
 }
 
 model PasswordResetToken {
@@ -110,6 +120,11 @@ model Workspace {
   onboardingStep   Int             @default(0)
   businessType   String?
   plan           PlanTier    @default(FREE)
+  suspended      Boolean         @default(false)
+  suspendedAt    DateTime?
+  suspendReason  String?
+  trialEndsAt    DateTime?
+  subscriptionStatus String?
   ownerId        String          @db.Uuid
   createdAt      DateTime        @default(now())
   owner          User            @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
@@ -400,4 +415,20 @@ model PurchaseItem {
 
   @@index([purchaseId])
   @@index([itemId])
+}
+
+model AdminAuditLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  adminId   String   @db.Uuid
+  action    String
+  entity    String
+  entityId  String
+  meta      Json     @default("{}")
+  createdAt DateTime @default(now())
+  admin     User     @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@index([action])
+  @@index([entity])
+  @@index([createdAt])
 }

@@ -48,11 +48,14 @@ export interface CreateCustomRoleInput {
   permissions: Permission[];
 }
 
+export type PlatformRole = "USER" | "SUPER_ADMIN" | "SUPPORT_ADMIN";
+
 export interface User {
   id: string;
   name: string;
   email: string;
   emailVerified?: boolean;
+  platformRole?: PlatformRole;
   createdAt: string;
   workspaceId?: string | null;
   role?: Role | null;
@@ -877,4 +880,147 @@ export interface TransferHistoryResponse {
   summary: { totalTransfers: number; totalInQty: number; totalOutQty: number };
   rows: TransferRow[];
   generatedAt: string;
+}
+
+export interface AdminOverviewStats {
+  totalWorkspaces: number;
+  activeWorkspaces: number;
+  suspendedWorkspaces: number;
+  trialWorkspaces: number;
+  paidWorkspaces: number;
+  totalUsers: number;
+  verifiedUsers: number;
+  unverifiedUsers: number;
+  newSignupsThisWeek: number;
+}
+
+export interface AdminAuditLog {
+  id: string;
+  action: string;
+  entity: string;
+  entityId: string;
+  meta: Record<string, unknown>;
+  createdAt: string;
+  admin: { id: string; name: string; email: string };
+}
+
+export interface AdminOverview {
+  overview: AdminOverviewStats;
+  recentActivity: AdminAuditLog[];
+}
+
+export interface AdminWorkspace {
+  id: string;
+  name: string;
+  plan: string;
+  suspended: boolean;
+  suspendedAt: string | null;
+  suspendReason: string | null;
+  trialEndsAt: string | null;
+  subscriptionStatus: string | null;
+  createdAt: string;
+  owner: { id: string; name: string; email: string };
+  memberCount: number;
+  itemCount: number;
+  stockMovementCount: number;
+}
+
+export interface AdminPagination {
+  page: number;
+  limit: number;
+  total: number;
+  pages: number;
+}
+
+export interface AdminWorkspacesResponse {
+  workspaces: AdminWorkspace[];
+  pagination: AdminPagination;
+}
+
+export interface AdminWorkspaceDetail {
+  workspace: {
+    id: string;
+    name: string;
+    plan: string;
+    suspended: boolean;
+    suspendedAt: string | null;
+    suspendReason: string | null;
+    trialEndsAt: string | null;
+    subscriptionStatus: string | null;
+    businessType: string | null;
+    currency: string;
+    onboardingCompleted: boolean;
+    createdAt: string;
+    owner: { id: string; name: string; email: string; emailVerified: boolean; createdAt: string };
+    memberships: Array<{
+      id: string;
+      role: string;
+      isActive: boolean;
+      createdAt: string;
+      user: { id: string; name: string; email: string; emailVerified: boolean };
+    }>;
+    locations: Array<{ id: string; name: string; createdAt: string }>;
+    itemCount: number;
+    stockMovementCount: number;
+    purchaseCount: number;
+    supplierCount: number;
+  };
+  recentActivity: Array<{
+    id: string;
+    type: string;
+    quantity: number;
+    createdAt: string;
+    item: { name: string };
+  }>;
+}
+
+export interface AdminUser {
+  id: string;
+  name: string;
+  email: string;
+  emailVerified: boolean;
+  isDisabled: boolean;
+  platformRole: PlatformRole;
+  createdAt: string;
+  workspaceCount: number;
+}
+
+export interface AdminUsersResponse {
+  users: AdminUser[];
+  pagination: AdminPagination;
+}
+
+export interface AdminUserDetail {
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    emailVerified: boolean;
+    isDisabled: boolean;
+    passwordResetRequired: boolean;
+    platformRole: PlatformRole;
+    failedLoginAttempts: number;
+    lockedUntil: string | null;
+    createdAt: string;
+    memberships: Array<{
+      id: string;
+      role: string;
+      isActive: boolean;
+      createdAt: string;
+      workspace: { id: string; name: string; plan: string; suspended: boolean };
+    }>;
+  };
+  recentActivity: Array<{
+    id: string;
+    action: string;
+    entity: string;
+    entityId: string;
+    createdAt: string;
+    workspace: { id: string; name: string } | null;
+  }>;
+}
+
+export interface AdminAuditLogsResponse {
+  logs: AdminAuditLog[];
+  pagination: AdminPagination;
 }

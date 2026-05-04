@@ -33,6 +33,7 @@ This is an npm workspaces monorepo with three packages:
 
 ## Key Features
 
+- **Platform Admin (SUPER_ADMIN)**: separate admin panel at `/admin` for SaaS owner — manage all workspaces, users, plans, billing status, audit logs. Role stored as `platformRole` on `User` (USER / SUPER_ADMIN / SUPPORT_ADMIN). Promote via `npm run make:super-admin -- email@example.com`.
 - Multi-tenant architecture with Workspaces
 - User roles: OWNER, MANAGER, OPERATOR (route-level access control via Prisma `Role` enum)
 - Custom roles system: named roles with `baseRole` + `permissions` JSON; stored in `CustomRole` table; assigned via `Membership.customRoleId`
@@ -140,6 +141,7 @@ npm run build:web        # web only (tsc + vite build)
 npm run start:api        # start compiled API (node dist/index.js, binds 0.0.0.0)
 npm run prisma:generate  # run prisma generate in API workspace
 npm run migrate:prod     # run prisma migrate deploy (production-safe)
+npm run make:super-admin -- user@example.com  # promote user to SUPER_ADMIN
 ```
 
 ## Production Deployment

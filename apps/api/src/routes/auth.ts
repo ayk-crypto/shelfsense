@@ -184,6 +184,10 @@ authRouter.post("/login", asyncHandler(async (req, res) => {
     },
   });
 
+  if (user?.isDisabled) {
+    return res.status(403).json({ error: "This account has been disabled. Contact support." });
+  }
+
   if (user?.lockedUntil && user.lockedUntil > new Date()) {
     const remainingMs = user.lockedUntil.getTime() - Date.now();
     const remainingMin = Math.ceil(remainingMs / 60000);
@@ -230,6 +234,7 @@ authRouter.post("/login", asyncHandler(async (req, res) => {
       name: user.name,
       email: user.email,
       emailVerified: user.emailVerified,
+      platformRole: user.platformRole,
       createdAt: user.createdAt,
       workspaceId: membership?.workspaceId ?? null,
       role: membership?.role ?? null,

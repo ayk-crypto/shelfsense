@@ -1,4 +1,4 @@
-import type { Role } from "../generated/prisma/enums.js";
+import type { PlatformRole, Role } from "../generated/prisma/enums.js";
 
 export interface AuthUser {
   userId: string;
@@ -6,6 +6,7 @@ export interface AuthUser {
   name: string;
   email: string;
   emailVerified: boolean;
+  platformRole: PlatformRole;
   workspaceId: string | null;
   role: Role | null;
   customRoleId: string | null;

@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import type { Role } from "../generated/prisma/enums.js";
+import { PlatformRole } from "../generated/prisma/enums.js";
 import { env } from "../config/env.js";
 import { prisma } from "../db/prisma.js";
 
@@ -42,6 +43,8 @@ export async function requireAuth(
         name: true,
         email: true,
         emailVerified: true,
+        isDisabled: true,
+        platformRole: true,
         memberships: {
           where: { isActive: true },
           orderBy: { createdAt: "asc" },
@@ -62,6 +65,10 @@ export async function requireAuth(
       return res.status(401).json({ error: "Invalid authentication token" });
     }
 
+    if (user.isDisabled) {
+      return res.status(403).json({ error: "This account has been disabled. Contact support." });
+    }
+
     const membership = user.memberships[0];
     const customRole = membership?.customRole ?? null;
 
@@ -71,6 +78,7 @@ export async function requireAuth(
       name: user.name,
       email: user.email,
       emailVerified: user.emailVerified,
+      platformRole: user.platformRole,
       workspaceId: membership?.workspaceId ?? null,
       role: membership?.role ?? null,
       customRoleId: membership?.customRoleId ?? null,
@@ -97,6 +105,20 @@ export function requireRole(allowedRoles: Role[]) {
 
     return next();
   };
+}
+
+export function requirePlatformAdmin(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  const platformRole = req.user?.platformRole;
+
+  if (platformRole !== PlatformRole.SUPER_ADMIN) {
+    return res.status(403).json({ error: "Platform admin access required." });
+  }
+
+  return next();
 }
 
 function getBearerToken(req: Request) {

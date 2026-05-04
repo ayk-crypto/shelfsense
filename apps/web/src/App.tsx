@@ -1,4 +1,11 @@
 import { Navigate, Route, BrowserRouter as Router, Routes, useNavigate } from "react-router-dom";
+import { AdminLayout } from "./pages/admin/AdminLayout";
+import { AdminDashboardPage } from "./pages/admin/AdminDashboardPage";
+import { AdminWorkspacesPage } from "./pages/admin/AdminWorkspacesPage";
+import { AdminWorkspaceDetailPage } from "./pages/admin/AdminWorkspaceDetailPage";
+import { AdminUsersPage } from "./pages/admin/AdminUsersPage";
+import { AdminUserDetailPage } from "./pages/admin/AdminUserDetailPage";
+import { AdminActivityPage } from "./pages/admin/AdminActivityPage";
 import { getOnboardingStatus } from "./api/onboarding";
 import { getWorkspaceSettings } from "./api/workspace";
 import { AppShell } from "./components/AppShell";
@@ -81,6 +88,13 @@ function RoleRoute({
   return user?.role && allowedRoles.includes(user.role)
     ? <>{children}</>
     : <AccessDenied />;
+}
+
+function PlatformAdminRoute({ children }: { children: React.ReactNode }) {
+  const { user, isAuthenticated } = useAuth();
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (user?.platformRole !== "SUPER_ADMIN") return <AccessDenied />;
+  return <>{children}</>;
 }
 
 function AccessDenied() {
@@ -347,6 +361,21 @@ export function App() {
               path="/settings"
               element={<RoleRoute allowedRoles={["OWNER"]}><SettingsPage /></RoleRoute>}
             />
+          </Route>
+          <Route
+            path="/admin"
+            element={
+              <PlatformAdminRoute>
+                <AdminLayout />
+              </PlatformAdminRoute>
+            }
+          >
+            <Route index element={<AdminDashboardPage />} />
+            <Route path="workspaces" element={<AdminWorkspacesPage />} />
+            <Route path="workspaces/:id" element={<AdminWorkspaceDetailPage />} />
+            <Route path="users" element={<AdminUsersPage />} />
+            <Route path="users/:id" element={<AdminUserDetailPage />} />
+            <Route path="activity" element={<AdminActivityPage />} />
           </Route>
           <Route path="/" element={<LandingPage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

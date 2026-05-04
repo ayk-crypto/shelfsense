@@ -1,0 +1,118 @@
+Add a Platform Admin / Super Admin module for ShelfSense SaaS.
+
+Current app is multi-tenant with User, Workspace, Membership, and workspace-level roles. I need a separate SaaS owner/admin area so I can manage all customer workspaces, users, plans, billing status, and support actions.
+
+Requirements:
+
+1. Add platform-level role
+- Add a platformRole field to User, separate from workspace membership roles.
+- Supported values:
+  - USER
+  - SUPER_ADMIN
+  - SUPPORT_ADMIN
+- Default should be USER.
+- Only SUPER_ADMIN can access full platform admin routes.
+
+2. Admin route protection
+- Add backend middleware requirePlatformAdmin.
+- Protect all /admin API routes.
+- Normal workspace owners/admins must not access platform admin APIs.
+
+3. Backend admin APIs
+Create these routes:
+- GET /admin/overview
+  Return total workspaces, total users, verified users, unverified users, active workspaces, suspended workspaces, trial workspaces, paid workspaces, recent signups, and recent activity.
+- GET /admin/workspaces
+  Paginated list with search/filter by workspace name, owner email, status, plan, created date.
+- GET /admin/workspaces/:id
+  Workspace detail including owner, members, locations, item count, stock movement count, plan/trial status, recent activity.
+- PATCH /admin/workspaces/:id/status
+  Suspend/reactivate workspace.
+- PATCH /admin/workspaces/:id/plan
+  Change plan, trial end date, subscription status.
+- GET /admin/users
+  Paginated user list with search/filter by name, email, verified status, workspace, role, created date.
+- GET /admin/users/:id
+  User detail with memberships, last login if available, activity logs.
+- PATCH /admin/users/:id/status
+  Enable/disable user.
+- POST /admin/users/:id/resend-verification
+  Resend verification email.
+- POST /admin/users/:id/force-password-reset
+  Create password reset flow or mark password reset required.
+- GET /admin/audit-logs
+  Show admin and platform-level audit logs.
+
+4. Admin frontend
+Add frontend routes:
+- /admin
+- /admin/workspaces
+- /admin/workspaces/:id
+- /admin/users
+- /admin/users/:id
+- /admin/plans
+- /admin/activity
+- /admin/system
+
+5. Admin UI
+Use a professional SaaS admin design.
+Dashboard cards:
+- Total workspaces
+- Total users
+- Verified users
+- Trial accounts
+- Paid accounts
+- Suspended accounts
+- New signups this week
+- API/admin activity
+
+Workspace table columns:
+- Workspace name
+- Owner
+- Plan
+- Status
+- Users
+- Items
+- Created date
+- Last activity
+- Actions
+
+User table columns:
+- Name
+- Email
+- Verified
+- Status
+- Workspace count
+- Created date
+- Last activity
+- Actions
+
+6. Admin actions
+Add buttons:
+- View workspace
+- Suspend/reactivate workspace
+- Extend trial
+- Change plan
+- Resend verification
+- Disable/enable user
+
+7. Security
+- Do not expose password hashes, tokens, secrets, DATABASE_URL, JWT_SECRET, or SMTP credentials.
+- All admin actions must create audit logs.
+- Impersonation can be added later, but if added now it must be clearly logged.
+- Use soft suspension, not hard delete.
+- Ensure normal users cannot see admin navigation or call admin APIs.
+
+8. Navigation
+- If logged-in user has platformRole SUPER_ADMIN, show “Platform Admin” in the user menu/sidebar.
+- Normal users should not see this.
+
+9. Seed/setup
+- Add a safe way to promote my own user to SUPER_ADMIN using a script or documented SQL command.
+- Example script:
+  npm run make:super-admin -- email@example.com
+
+10. Build
+- Ensure Prisma migration is created.
+- Ensure TypeScript build passes.
+- Do not break existing customer dashboard or workspace flows.
