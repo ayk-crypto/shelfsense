@@ -27,12 +27,6 @@ export function LoginPage() {
     }
   }
 
-  function fillDemo() {
-    setEmail("demo@shelfsense.local");
-    setPassword("demo123456");
-    setError(null);
-  }
-
   return (
     <div className="login-bg">
       <div className="login-card">
@@ -93,23 +87,6 @@ export function LoginPage() {
             )}
           </button>
         </form>
-
-        <div className="login-demo">
-          <p className="demo-label">Demo credentials</p>
-          <div className="demo-credentials">
-            <div className="demo-row">
-              <span className="demo-key">Email</span>
-              <code className="demo-value">demo@shelfsense.local</code>
-            </div>
-            <div className="demo-row">
-              <span className="demo-key">Password</span>
-              <code className="demo-value">demo123456</code>
-            </div>
-          </div>
-          <button className="btn btn--ghost btn--sm" type="button" onClick={fillDemo}>
-            Fill demo credentials
-          </button>
-        </div>
 
         <p className="auth-switch">
           New to ShelfSense? <Link to="/signup">Create an account</Link>
