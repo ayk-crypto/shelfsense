@@ -528,27 +528,56 @@ export interface CreateSupplierInput {
   notes?: string;
 }
 
+export type PurchaseStatus =
+  | "DRAFT"
+  | "ORDERED"
+  | "PARTIALLY_RECEIVED"
+  | "RECEIVED"
+  | "CANCELLED";
+
 export interface PurchaseItemLine {
   id: string;
   purchaseId: string;
   itemId: string;
   quantity: number;
+  orderedQuantity: number;
+  receivedQuantity: number;
+  remainingQuantity: number;
   unitCost: number;
   total: number;
+  orderedValue: number;
+  receivedValue: number;
+  expiryDate: string | null;
+  batchNo: string | null;
   item: {
     id: string;
     name: string;
     unit: string;
+    trackExpiry: boolean;
   };
 }
 
 export interface Purchase {
   id: string;
   supplierId: string;
+  status: PurchaseStatus;
   date: string;
+  orderedAt: string | null;
+  expectedDeliveryDate: string | null;
+  receivedAt: string | null;
+  cancelledAt: string | null;
+  cancelReason: string | null;
   totalAmount: number;
+  orderedQuantity: number;
+  receivedQuantity: number;
+  remainingQuantity: number;
+  receivedValue: number;
   createdAt: string;
   supplier: {
+    id: string;
+    name: string;
+  };
+  location: {
     id: string;
     name: string;
   };
@@ -563,20 +592,101 @@ export interface CreatePurchaseLineInput {
   itemId: string;
   quantity: number;
   unitCost: number;
+  expiryDate?: string;
+  batchNo?: string;
 }
 
 export interface CreatePurchaseInput {
   supplierId: string;
   date?: string;
+  expectedDeliveryDate?: string;
   items: CreatePurchaseLineInput[];
 }
 
 export interface CreatePurchaseResponse {
-  purchase: {
+  purchase: Purchase;
+}
+
+export interface PurchaseResponse {
+  purchase: Purchase;
+}
+
+export interface PurchaseFilters {
+  status?: PurchaseStatus;
+  supplierId?: string;
+  fromDate?: string;
+  toDate?: string;
+  locationId?: string;
+}
+
+export interface ReceivePurchaseLineInput {
+  purchaseItemId: string;
+  receivedQuantity: number;
+  locationId?: string;
+  expiryDate?: string;
+  batchNo?: string;
+  unitCost?: number;
+  notes?: string;
+}
+
+export interface ReceivePurchaseInput {
+  lines: ReceivePurchaseLineInput[];
+}
+
+export interface ReceivePurchaseResponse {
+  purchase: Purchase;
+  receivedQuantity: number;
+  receivedValue: number;
+}
+
+export interface ReorderSuggestion {
+  itemId: string;
+  itemName: string;
+  sku: string | null;
+  barcode: string | null;
+  category: string | null;
+  unit: string;
+  currentStock: number;
+  minStockLevel: number;
+  suggestedQuantity: number;
+  trackExpiry: boolean;
+  location: {
+    id: string;
+    name: string;
+  };
+  preferredSupplier: {
+    id: string;
+    name: string;
+  } | null;
+  lastPurchaseCost: number | null;
+}
+
+export interface ReorderSuggestionsResponse {
+  suggestions: ReorderSuggestion[];
+}
+
+export interface CreateReorderPurchaseLineInput {
+  itemId: string;
+  supplierId: string;
+  quantity: number;
+  unitCost?: number;
+}
+
+export interface CreateReorderPurchasesInput {
+  locationId?: string;
+  items: CreateReorderPurchaseLineInput[];
+}
+
+export interface CreateReorderPurchasesResponse {
+  purchases: Array<{
     id: string;
     supplierId: string;
-    date: string;
+    status: PurchaseStatus;
     totalAmount: number;
-    createdAt: string;
-  };
+    purchaseItems: Array<{
+      itemId: string;
+      quantity: number;
+      unitCost: number;
+    }>;
+  }>;
 }

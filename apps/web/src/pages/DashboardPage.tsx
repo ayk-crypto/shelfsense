@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { getAlerts } from "../api/alerts";
 import { getStockMovements, getStockSummary } from "../api/stock";
 import { useAuth } from "../context/AuthContext";
@@ -341,6 +342,11 @@ export function DashboardPage() {
       <div className="section reorder-section">
         <div className="section-header">
           <h2 className="section-title">Reorder Suggestions</h2>
+          {canAccessManagement && reorderSuggestions.length > 0 && (
+            <Link className="btn btn--secondary btn--sm" to="/reorder-suggestions">
+              Create Purchase Draft
+            </Link>
+          )}
         </div>
 
         {reorderSuggestions.length === 0 ? (

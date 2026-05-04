@@ -1,34 +1,38 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useSearchParams } from "react-router-dom";
+import {
+  cancelPurchase,
+  createPurchase,
+  getPurchase,
+  getPurchases,
+  orderPurchase,
+  receivePurchase,
+} from "../api/purchases";
 import { getItems } from "../api/items";
-import { createPurchase, getPurchases } from "../api/purchases";
+import { getLocations } from "../api/locations";
 import { getSuppliers } from "../api/suppliers";
 import { useLocation } from "../context/LocationContext";
 import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
-import type { CreatePurchaseInput, Item, Purchase, Supplier } from "../types";
+import type {
+  CreatePurchaseInput,
+  Item,
+  Location,
+  Purchase,
+  PurchaseFilters,
+  PurchaseStatus,
+  Supplier,
+} from "../types";
 import { formatCurrency } from "../utils/currency";
 
-const AVATAR_COLORS = [
-  { bg: "#e0f2fe", text: "#0369a1" },
-  { bg: "#dcfce7", text: "#16a34a" },
-  { bg: "#fef9c3", text: "#a16207" },
-  { bg: "#fce7f3", text: "#be185d" },
-  { bg: "#ede9fe", text: "#6d28d9" },
-  { bg: "#ffedd5", text: "#c2410c" },
-  { bg: "#e0e7ff", text: "#4338ca" },
-  { bg: "#f0fdf4", text: "#15803d" },
-];
+const STATUSES: PurchaseStatus[] = ["DRAFT", "ORDERED", "PARTIALLY_RECEIVED", "RECEIVED", "CANCELLED"];
 
-function getAvatarColor(name: string) {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
-}
-
-function getInitials(name: string) {
-  const parts = name.trim().split(/\s+/);
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
+const STATUS_LABEL: Record<PurchaseStatus, string> = {
+  DRAFT: "Draft",
+  ORDERED: "Ordered",
+  PARTIALLY_RECEIVED: "Partially Received",
+  RECEIVED: "Received",
+  CANCELLED: "Cancelled",
+};
 
 interface Toast {
   id: number;
@@ -37,52 +41,90 @@ interface Toast {
 }
 
 let toastSeq = 0;
+let lineSeq = 0;
 
-function fmt(n: number, currency: string) {
-  return formatCurrency(n, currency);
+interface PurchaseLineDraft {
+  key: number;
+  itemId: string;
+  quantity: string;
+  unitCost: string;
+  expiryDate: string;
+  batchNo: string;
 }
 
-function fmtDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+interface ReceiveLineDraft {
+  purchaseItemId: string;
+  receivedQuantity: string;
+  locationId: string;
+  expiryDate: string;
+  batchNo: string;
+  unitCost: string;
+  notes: string;
+}
+
+function newLine(): PurchaseLineDraft {
+  return { key: ++lineSeq, itemId: "", quantity: "", unitCost: "", expiryDate: "", batchNo: "" };
+}
+
+function fmt(value: number, currency: string) {
+  return formatCurrency(value, currency);
+}
+
+function fmtDate(value: string | null | undefined) {
+  if (!value) return "-";
+  return new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-/* ─────────────────────────────────────────────
-   Main page
-───────────────────────────────────────────── */
+function toDateInput(value: string | null | undefined) {
+  return value ? value.slice(0, 10) : "";
+}
+
+function numberValue(value: string) {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 export function PurchasesPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const handledReorderRedirect = useRef(false);
   const { activeLocationId } = useLocation();
   const { settings } = useWorkspaceSettings();
   const currency = settings.currency;
   const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [items, setItems] = useState<Item[]>([]);
+  const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [receivePurchaseTarget, setReceivePurchaseTarget] = useState<Purchase | null>(null);
   const [detailPurchase, setDetailPurchase] = useState<Purchase | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
-
-  // Filters
-  const [filterSupplier, setFilterSupplier] = useState("");
-  const [filterFrom, setFilterFrom] = useState("");
-  const [filterTo, setFilterTo] = useState("");
+  const [filters, setFilters] = useState<PurchaseFilters>({});
 
   function showToast(msg: string, type: "success" | "error") {
     const id = ++toastSeq;
     setToasts((prev) => [...prev, { id, msg, type }]);
-    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 3500);
+    setTimeout(() => setToasts((prev) => prev.filter((toast) => toast.id !== id)), 3500);
   }
 
-  async function load() {
+  async function load(nextFilters = filters) {
+    setLoading(true);
     try {
-      const res = await getPurchases();
-      setPurchases(res.purchases);
+      const [purchaseRes, supplierRes, itemRes, locationRes] = await Promise.all([
+        getPurchases(nextFilters),
+        getSuppliers(),
+        getItems(),
+        getLocations(),
+      ]);
+      setPurchases(purchaseRes.purchases);
+      setSuppliers(supplierRes.suppliers);
+      setItems(itemRes.items);
+      setLocations(locationRes.locations);
       setFetchError(null);
     } catch (err) {
       setFetchError(err instanceof Error ? err.message : "Failed to load purchases");
@@ -91,36 +133,71 @@ export function PurchasesPage() {
     }
   }
 
-  useEffect(() => { void load(); }, [activeLocationId]);
+  useEffect(() => {
+    void load(filters);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeLocationId, filters.status, filters.supplierId, filters.fromDate, filters.toDate, filters.locationId]);
 
-  // Derive unique suppliers for filter dropdown
-  const supplierOptions = Array.from(
-    new Map(purchases.map((p) => [p.supplier.id, p.supplier])).values(),
-  ).sort((a, b) => a.name.localeCompare(b.name));
+  useEffect(() => {
+    const purchaseId = searchParams.get("purchaseId");
+    if (!purchaseId || purchases.length === 0 || handledReorderRedirect.current) return;
 
-  // Filtered list (client-side)
-  const filtered = purchases.filter((p) => {
-    if (filterSupplier && p.supplier.id !== filterSupplier) return false;
-    if (filterFrom) {
-      const pDate = p.date.slice(0, 10);
-      if (pDate < filterFrom) return false;
+    handledReorderRedirect.current = true;
+    const fromReorder = Number(searchParams.get("fromReorder") ?? "0");
+    const purchase = purchases.find((entry) => entry.id === purchaseId);
+    if (purchase) setDetailPurchase(purchase);
+    if (fromReorder > 0) {
+      showToast(
+        fromReorder === 1
+          ? "Created purchase draft from reorder suggestions"
+          : `Created ${fromReorder} purchase drafts from reorder suggestions`,
+        "success",
+      );
     }
-    if (filterTo) {
-      const pDate = p.date.slice(0, 10);
-      if (pDate > filterTo) return false;
+    setSearchParams({}, { replace: true });
+  }, [purchases, searchParams, setSearchParams]);
+
+  const totals = useMemo(() => ({
+    orderedValue: purchases.reduce((sum, purchase) => sum + purchase.totalAmount, 0),
+    receivedValue: purchases.reduce((sum, purchase) => sum + purchase.receivedValue, 0),
+    remainingQuantity: purchases.reduce((sum, purchase) => sum + purchase.remainingQuantity, 0),
+  }), [purchases]);
+
+  async function refreshDetail(id: string) {
+    const res = await getPurchase(id);
+    setDetailPurchase(res.purchase);
+    setReceivePurchaseTarget((current) => current?.id === id ? res.purchase : current);
+    await load(filters);
+  }
+
+  async function handleOrder(purchase: Purchase) {
+    try {
+      const res = await orderPurchase(purchase.id);
+      showToast("Purchase marked as ordered", "success");
+      setDetailPurchase(res.purchase);
+      await load(filters);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Failed to order purchase", "error");
     }
-    return true;
-  });
+  }
 
-  const hasFilters = filterSupplier || filterFrom || filterTo;
-  const filteredTotal = filtered.reduce((sum, purchase) => sum + purchase.totalAmount, 0);
-  const filteredLineCount = filtered.reduce((sum, purchase) => sum + purchase.purchaseItems.length, 0);
+  async function handleCancel(purchase: Purchase) {
+    const reason = window.prompt("Cancellation reason (optional)") ?? undefined;
+    try {
+      const res = await cancelPurchase(purchase.id, reason);
+      showToast("Purchase cancelled", "success");
+      setDetailPurchase(res.purchase);
+      await load(filters);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Failed to cancel purchase", "error");
+    }
+  }
 
-  if (loading) {
+  if (loading && purchases.length === 0) {
     return (
       <div className="page-loading">
         <div className="spinner" />
-        <p>Loading purchases…</p>
+        <p>Loading purchases...</p>
       </div>
     );
   }
@@ -138,160 +215,135 @@ export function PurchasesPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Purchases</h1>
-          <p className="page-subtitle">Manage procurement intake, supplier spend, and purchase line detail.</p>
+          <p className="page-subtitle">Create purchase orders, receive stock in parts, and track what is still due.</p>
         </div>
-        <button className="btn btn--primary" onClick={() => setAddOpen(true)}>
-          + New Purchase
-        </button>
+        <button className="btn btn--primary" onClick={() => setAddOpen(true)}>New Purchase</button>
       </div>
 
       <div className="ops-metric-strip" aria-label="Purchase summary">
         <div className="ops-metric">
-          <span className="ops-metric-label">Visible purchases</span>
-          <strong className="ops-metric-value">{filtered.length}</strong>
+          <span className="ops-metric-label">Purchases</span>
+          <strong className="ops-metric-value">{purchases.length}</strong>
         </div>
         <div className="ops-metric">
-          <span className="ops-metric-label">Visible spend</span>
-          <strong className="ops-metric-value">{fmt(filteredTotal, currency)}</strong>
+          <span className="ops-metric-label">Ordered value</span>
+          <strong className="ops-metric-value">{fmt(totals.orderedValue, currency)}</strong>
         </div>
         <div className="ops-metric">
-          <span className="ops-metric-label">Purchase lines</span>
-          <strong className="ops-metric-value">{filteredLineCount}</strong>
+          <span className="ops-metric-label">Received value</span>
+          <strong className="ops-metric-value">{fmt(totals.receivedValue, currency)}</strong>
         </div>
         <div className="ops-metric">
-          <span className="ops-metric-label">Suppliers</span>
-          <strong className="ops-metric-value">{supplierOptions.length}</strong>
+          <span className="ops-metric-label">Remaining qty</span>
+          <strong className="ops-metric-value">{totals.remainingQuantity}</strong>
         </div>
       </div>
 
-      {/* ── Filters ── */}
-      {purchases.length > 0 && (
-        <div className="purchase-filters">
-          <select
-            className="form-input form-select purchase-filter-select"
-            value={filterSupplier}
-            onChange={(e) => setFilterSupplier(e.target.value)}
-          >
-            <option value="">All suppliers</option>
-            {supplierOptions.map((s) => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
-          </select>
-
-          <div className="purchase-filter-dates">
-            <input
-              type="date"
-              className="form-input purchase-filter-date"
-              value={filterFrom}
-              onChange={(e) => setFilterFrom(e.target.value)}
-              title="From date"
-              aria-label="From date"
-            />
-            <span className="purchase-filter-sep">–</span>
-            <input
-              type="date"
-              className="form-input purchase-filter-date"
-              value={filterTo}
-              onChange={(e) => setFilterTo(e.target.value)}
-              title="To date"
-              aria-label="To date"
-            />
-          </div>
-
-          {hasFilters && (
-            <button
-              className="btn btn--ghost btn--sm purchase-filter-clear"
-              onClick={() => { setFilterSupplier(""); setFilterFrom(""); setFilterTo(""); }}
-            >
-              Clear
-            </button>
-          )}
-        </div>
-      )}
+      <div className="purchase-filters purchase-filters--lifecycle">
+        <select
+          className="form-input form-select purchase-filter-select"
+          value={filters.status ?? ""}
+          onChange={(e) => setFilters((current) => ({ ...current, status: e.target.value ? e.target.value as PurchaseStatus : undefined }))}
+        >
+          <option value="">All statuses</option>
+          {STATUSES.map((status) => <option key={status} value={status}>{STATUS_LABEL[status]}</option>)}
+        </select>
+        <select
+          className="form-input form-select purchase-filter-select"
+          value={filters.supplierId ?? ""}
+          onChange={(e) => setFilters((current) => ({ ...current, supplierId: e.target.value || undefined }))}
+        >
+          <option value="">All suppliers</option>
+          {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
+        </select>
+        <select
+          className="form-input form-select purchase-filter-select"
+          value={filters.locationId ?? ""}
+          onChange={(e) => setFilters((current) => ({ ...current, locationId: e.target.value || undefined }))}
+        >
+          <option value="">Active branch</option>
+          {locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
+        </select>
+        <input
+          type="date"
+          className="form-input purchase-filter-date"
+          value={filters.fromDate ?? ""}
+          onChange={(e) => setFilters((current) => ({ ...current, fromDate: e.target.value || undefined }))}
+          aria-label="From date"
+        />
+        <input
+          type="date"
+          className="form-input purchase-filter-date"
+          value={filters.toDate ?? ""}
+          onChange={(e) => setFilters((current) => ({ ...current, toDate: e.target.value || undefined }))}
+          aria-label="To date"
+        />
+        {(filters.status || filters.supplierId || filters.locationId || filters.fromDate || filters.toDate) && (
+          <button className="btn btn--ghost btn--sm" onClick={() => setFilters({})}>Clear</button>
+        )}
+      </div>
 
       {purchases.length === 0 ? (
         <div className="empty-state">
-          <div className="empty-state-icon">
-            <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <rect x="6" y="10" width="36" height="32" rx="3" />
-              <path d="M16 10V7a2 2 0 012-2h12a2 2 0 012 2v3" strokeLinecap="round" />
-              <path d="M16 22h16M16 30h10" strokeLinecap="round" />
-            </svg>
-          </div>
-          <h3>No purchases yet</h3>
-          <p>Record your first purchase to track stock intake and supplier spend.</p>
-          <button className="btn btn--primary" onClick={() => setAddOpen(true)}>
-            Record first purchase
-          </button>
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="empty-state empty-state--compact">
-          <p>No purchases match the current filters.</p>
-          <button
-            className="btn btn--ghost btn--sm"
-            onClick={() => { setFilterSupplier(""); setFilterFrom(""); setFilterTo(""); }}
-          >
-            Clear filters
-          </button>
+          <h3>No purchases found</h3>
+          <p>Create a draft purchase order, then receive stock only when items arrive.</p>
+          <button className="btn btn--primary" onClick={() => setAddOpen(true)}>Create draft purchase</button>
         </div>
       ) : (
         <div className="pur-list">
-          {filtered.map((p) => {
-            const color = getAvatarColor(p.supplier.name);
-            const initials = getInitials(p.supplier.name);
-            const preview = p.purchaseItems.slice(0, 2).map((li) => li.item.name).join(" · ");
-            const extra = p.purchaseItems.length > 2 ? p.purchaseItems.length - 2 : 0;
-            return (
-              <div
-                key={p.id}
-                className="pur-item"
-                role="button"
-                tabIndex={0}
-                onClick={() => setDetailPurchase(p)}
-                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setDetailPurchase(p); }}
-              >
-                <div className="pur-avatar" style={{ background: color.bg, color: color.text }}>
-                  {initials}
+          {purchases.map((purchase) => (
+            <article
+              key={purchase.id}
+              className="pur-item pur-item--lifecycle"
+              role="button"
+              tabIndex={0}
+              onClick={() => setDetailPurchase(purchase)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") setDetailPurchase(purchase);
+              }}
+            >
+              <div className="pur-item-body">
+                <div className="pur-item-row">
+                  <span className="pur-item-supplier">{purchase.supplier.name}</span>
+                  <StatusBadge status={purchase.status} />
                 </div>
-                <div className="pur-item-body">
-                  <div className="pur-item-supplier">{p.supplier.name}</div>
-                  <div className="pur-item-items">
-                    {preview}
-                    {extra > 0 && <span className="pur-item-extra"> +{extra} more</span>}
-                  </div>
+                <div className="pur-item-items">
+                  {purchase.purchaseItems.slice(0, 2).map((line) => line.item.name).join(" / ")}
+                  {purchase.purchaseItems.length > 2 && <span className="pur-item-extra"> +{purchase.purchaseItems.length - 2} more</span>}
                 </div>
-                <div className="pur-item-right">
-                  <span className="pur-item-amount">{fmt(p.totalAmount, currency)}</span>
-                  <div className="pur-item-meta">
-                    <span className="pur-item-date">{fmtDate(p.date)}</span>
-                    <span className="pur-item-lines">
-                      {p.purchaseItems.length} {p.purchaseItems.length === 1 ? "line" : "lines"}
-                    </span>
-                  </div>
+                <div className="purchase-progress">
+                  <span>Ordered {purchase.orderedQuantity}</span>
+                  <span>Received {purchase.receivedQuantity}</span>
+                  <span>Remaining {purchase.remainingQuantity}</span>
+                  <span>{purchase.location.name}</span>
                 </div>
-                <svg className="pur-item-chevron" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8">
-                  <path d="M8 5l5 5-5 5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
               </div>
-            );
-          })}
+              <div className="pur-item-right">
+                <span className="pur-item-amount">{fmt(purchase.totalAmount, currency)}</span>
+                <span className="pur-item-received">{fmt(purchase.receivedValue, currency)} received</span>
+                <span className="pur-item-date">{fmtDate(purchase.date)}</span>
+              </div>
+              <svg className="pur-item-chevron" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M8 5l5 5-5 5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </article>
+          ))}
         </div>
       )}
 
-      {/* ── Modals ── */}
       {addOpen && (
         <NewPurchaseModal
           currency={currency}
+          suppliers={suppliers}
+          items={items}
           onClose={() => setAddOpen(false)}
-          onSuccess={(totalAmount, supplierName) => {
+          onError={(message) => showToast(message, "error")}
+          onSuccess={async (purchase) => {
             setAddOpen(false);
-            void load();
-            showToast(
-              `Purchase of ${fmt(totalAmount, currency)} from "${supplierName}" recorded`,
-              "success",
-            );
+            showToast("Draft purchase created", "success");
+            setDetailPurchase(purchase);
+            await load(filters);
           }}
-          onError={(msg) => showToast(msg, "error")}
         />
       )}
 
@@ -300,261 +352,188 @@ export function PurchasesPage() {
           purchase={detailPurchase}
           currency={currency}
           onClose={() => setDetailPurchase(null)}
+          onOrder={handleOrder}
+          onCancel={handleCancel}
+          onReceive={(purchase) => setReceivePurchaseTarget(purchase)}
         />
       )}
 
-      {/* ── Toast stack ── */}
+      {receivePurchaseTarget && (
+        <ReceivePurchaseModal
+          purchase={receivePurchaseTarget}
+          currency={currency}
+          locations={locations}
+          defaultLocationId={activeLocationId || locations[0]?.id || ""}
+          onClose={() => setReceivePurchaseTarget(null)}
+          onError={(message) => showToast(message, "error")}
+          onSuccess={async (purchase) => {
+            setReceivePurchaseTarget(null);
+            setDetailPurchase(purchase);
+            showToast(purchase.status === "RECEIVED" ? "Purchase fully received" : "Purchase partially received", "success");
+            await refreshDetail(purchase.id);
+          }}
+        />
+      )}
+
       <div className="toast-stack">
-        {toasts.map((t) => (
-          <div key={t.id} className={`toast toast--${t.type}`}>
-            {t.type === "success" ? (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            ) : (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <circle cx="12" cy="12" r="10" />
-                <line x1="12" y1="8" x2="12" y2="12" />
-                <line x1="12" y1="16" x2="12.01" y2="16" />
-              </svg>
-            )}
-            {t.msg}
-          </div>
+        {toasts.map((toast) => (
+          <div key={toast.id} className={`toast toast--${toast.type}`}>{toast.msg}</div>
         ))}
       </div>
     </div>
   );
 }
 
-/* ─────────────────────────────────────────────
-   Purchase Detail Modal
-───────────────────────────────────────────── */
+function StatusBadge({ status }: { status: PurchaseStatus }) {
+  return <span className={`purchase-status purchase-status--${status.toLowerCase().replace("_", "-")}`}>{STATUS_LABEL[status]}</span>;
+}
+
 function PurchaseDetailModal({
   purchase,
   currency,
   onClose,
+  onOrder,
+  onCancel,
+  onReceive,
 }: {
   purchase: Purchase;
   currency: string;
   onClose: () => void;
+  onOrder: (purchase: Purchase) => void;
+  onCancel: (purchase: Purchase) => void;
+  onReceive: (purchase: Purchase) => void;
 }) {
-  useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", handleKey);
-    return () => document.removeEventListener("keydown", handleKey);
-  }, [onClose]);
+  const canOrder = purchase.status === "DRAFT";
+  const canReceive = purchase.status === "ORDERED" || purchase.status === "PARTIALLY_RECEIVED";
+  const canCancel = purchase.status === "DRAFT" || purchase.status === "ORDERED" || purchase.status === "PARTIALLY_RECEIVED";
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal modal--wide" onClick={(e) => e.stopPropagation()}>
+      <div className="modal modal--wide" onClick={(event) => event.stopPropagation()}>
         <div className="modal-header">
-          <h2 className="modal-title">Purchase Details</h2>
-          <button className="modal-close" onClick={onClose} aria-label="Close">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
+          <div>
+            <h2 className="modal-title">Purchase Details</h2>
+            <p className="modal-subtitle">{purchase.supplier.name} / {fmtDate(purchase.date)}</p>
+          </div>
+          <button className="modal-close" onClick={onClose} aria-label="Close">x</button>
         </div>
-
         <div className="modal-body">
-          {/* ── Summary banner ── */}
-          <div className="pur-detail-banner">
-            <div className="pur-detail-banner-left">
-              {(() => {
-                const color = getAvatarColor(purchase.supplier.name);
-                const initials = getInitials(purchase.supplier.name);
-                return (
-                  <div className="pur-detail-avatar" style={{ background: color.bg, color: color.text }}>
-                    {initials}
-                  </div>
-                );
-              })()}
-              <div className="pur-detail-banner-info">
-                <span className="pur-detail-supplier">{purchase.supplier.name}</span>
-                <span className="pur-detail-subline">
-                  {fmtDate(purchase.date)}
-                  <span className="pur-detail-dot">·</span>
-                  {purchase.purchaseItems.length} {purchase.purchaseItems.length === 1 ? "line item" : "line items"}
-                </span>
-              </div>
-            </div>
-            <div className="pur-detail-total">{fmt(purchase.totalAmount, currency)}</div>
+          <div className="purchase-detail-summary">
+            <StatusBadge status={purchase.status} />
+            <div><span>Ordered</span><strong>{purchase.orderedQuantity}</strong></div>
+            <div><span>Received</span><strong>{purchase.receivedQuantity}</strong></div>
+            <div><span>Remaining</span><strong>{purchase.remainingQuantity}</strong></div>
+            <div><span>Ordered value</span><strong>{fmt(purchase.totalAmount, currency)}</strong></div>
+            <div><span>Received value</span><strong>{fmt(purchase.receivedValue, currency)}</strong></div>
           </div>
 
-          {/* ── Line items ── */}
-          <div className="purchase-detail-lines">
-            <p className="purchase-detail-lines-heading">Items Purchased</p>
-            <div className="table-wrap">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Item</th>
-                    <th className="th-right">Qty</th>
-                    <th className="th-right">Unit Cost</th>
-                    <th className="th-right">Total</th>
+          <div className="purchase-lifecycle-dates">
+            <span>Ordered: {fmtDate(purchase.orderedAt)}</span>
+            <span>Expected: {fmtDate(purchase.expectedDeliveryDate)}</span>
+            <span>Received: {fmtDate(purchase.receivedAt)}</span>
+            {purchase.cancelledAt && <span>Cancelled: {fmtDate(purchase.cancelledAt)}</span>}
+          </div>
+
+          {purchase.cancelReason && <div className="alert alert--error">Cancelled: {purchase.cancelReason}</div>}
+
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th className="text-right">Ordered</th>
+                  <th className="text-right">Received</th>
+                  <th className="text-right">Remaining</th>
+                  <th className="text-right">Unit Cost</th>
+                  <th>Batch</th>
+                  <th>Expiry</th>
+                </tr>
+              </thead>
+              <tbody>
+                {purchase.purchaseItems.map((line) => (
+                  <tr key={line.id}>
+                    <td className="td-name">{line.item.name} <span className="td-unit">/ {line.item.unit}</span></td>
+                    <td className="text-right td-num">{line.orderedQuantity}</td>
+                    <td className="text-right td-num">{line.receivedQuantity}</td>
+                    <td className="text-right td-num">{line.remainingQuantity}</td>
+                    <td className="text-right td-num">{fmt(line.unitCost, currency)}</td>
+                    <td>{line.batchNo ?? "-"}</td>
+                    <td>{fmtDate(line.expiryDate)}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {purchase.purchaseItems.map((li) => (
-                    <tr key={li.id}>
-                      <td className="td-name">
-                        {li.item.name}
-                        {li.item.unit && (
-                          <span className="td-unit"> · {li.item.unit}</span>
-                        )}
-                      </td>
-                      <td className="td-amount">{li.quantity}</td>
-                      <td className="td-amount">{fmt(li.unitCost, currency)}</td>
-                      <td className="td-amount" style={{ fontWeight: 600 }}>{fmt(li.total, currency)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
-
         <div className="modal-footer">
           <button className="btn btn--ghost" onClick={onClose}>Close</button>
+          {canCancel && <button className="btn btn--danger" onClick={() => onCancel(purchase)}>Cancel Purchase</button>}
+          {canOrder && <button className="btn btn--primary" onClick={() => onOrder(purchase)}>Mark Ordered</button>}
+          {canReceive && <button className="btn btn--primary" onClick={() => onReceive(purchase)}>Receive Items</button>}
         </div>
       </div>
     </div>
   );
 }
 
-/* ─────────────────────────────────────────────
-   New Purchase Modal
-───────────────────────────────────────────── */
-interface PurchaseLine {
-  key: number;
-  itemId: string;
-  qty: string;
-  unitCost: string;
-}
-
-let lineSeq = 0;
-
-function newLine(): PurchaseLine {
-  return { key: ++lineSeq, itemId: "", qty: "", unitCost: "" };
-}
-
 function NewPurchaseModal({
   currency,
+  suppliers,
+  items,
   onClose,
   onSuccess,
   onError,
 }: {
   currency: string;
+  suppliers: Supplier[];
+  items: Item[];
   onClose: () => void;
-  onSuccess: (totalAmount: number, supplierName: string) => void;
-  onError: (msg: string) => void;
+  onSuccess: (purchase: Purchase) => void | Promise<void>;
+  onError: (message: string) => void;
 }) {
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [items, setItems] = useState<Item[]>([]);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [dataLoading, setDataLoading] = useState(true);
-
   const [supplierId, setSupplierId] = useState("");
   const [date, setDate] = useState(todayISO());
-  const [lines, setLines] = useState<PurchaseLine[]>([newLine()]);
+  const [expectedDeliveryDate, setExpectedDeliveryDate] = useState("");
+  const [lines, setLines] = useState<PurchaseLineDraft[]>([newLine()]);
   const [saving, setSaving] = useState(false);
 
-  const supplierRef = useRef<HTMLSelectElement>(null);
-
-  useEffect(() => {
-    void (async () => {
-      try {
-        const [sRes, iRes] = await Promise.all([getSuppliers(), getItems()]);
-        setSuppliers(sRes.suppliers);
-        setItems(iRes.items);
-      } catch (err) {
-        setLoadError(err instanceof Error ? err.message : "Failed to load data");
-      } finally {
-        setDataLoading(false);
-        requestAnimationFrame(() => supplierRef.current?.focus());
-      }
-    })();
-  }, []);
-
-  useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", handleKey);
-    return () => document.removeEventListener("keydown", handleKey);
-  }, [onClose]);
-
-  function addLine() {
-    setLines((prev) => [...prev, newLine()]);
+  function updateLine(key: number, patch: Partial<PurchaseLineDraft>) {
+    setLines((current) => current.map((line) => line.key === key ? { ...line, ...patch } : line));
   }
 
   function removeLine(key: number) {
-    setLines((prev) => (prev.length > 1 ? prev.filter((l) => l.key !== key) : prev));
+    setLines((current) => current.length > 1 ? current.filter((line) => line.key !== key) : current);
   }
 
-  function updateLine(key: number, patch: Partial<Omit<PurchaseLine, "key">>) {
-    setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
-  }
-
-  function lineTotal(line: PurchaseLine) {
-    const q = parseFloat(line.qty);
-    const c = parseFloat(line.unitCost);
-    return Number.isFinite(q) && Number.isFinite(c) ? q * c : null;
-  }
-
-  const grandTotal = lines.reduce<number>((sum, l) => {
-    const t = lineTotal(l);
-    return t !== null ? sum + t : sum;
+  const grandTotal = lines.reduce((sum, line) => {
+    const quantity = numberValue(line.quantity) ?? 0;
+    const unitCost = numberValue(line.unitCost) ?? 0;
+    return sum + quantity * unitCost;
   }, 0);
 
-  const canSubmit =
-    !saving &&
-    supplierId !== "" &&
-    date !== "" &&
-    lines.some(
-      (l) =>
-        l.itemId !== "" &&
-        parseFloat(l.qty) > 0 &&
-        parseFloat(l.unitCost) >= 0 &&
-        Number.isFinite(parseFloat(l.qty)) &&
-        Number.isFinite(parseFloat(l.unitCost)),
-    );
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-
-    const validLines = lines.filter(
-      (l) =>
-        l.itemId !== "" &&
-        parseFloat(l.qty) > 0 &&
-        parseFloat(l.unitCost) >= 0 &&
-        Number.isFinite(parseFloat(l.qty)) &&
-        Number.isFinite(parseFloat(l.unitCost)),
-    );
-
-    if (validLines.length === 0) {
-      onError("Add at least one valid purchase line");
-      return;
-    }
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const validLines = lines.filter((line) => line.itemId && (numberValue(line.quantity) ?? 0) > 0 && (numberValue(line.unitCost) ?? -1) >= 0);
+    if (!supplierId) return onError("Supplier is required");
+    if (validLines.length === 0) return onError("Add at least one valid purchase line");
 
     const payload: CreatePurchaseInput = {
       supplierId,
       date,
-      items: validLines.map((l) => ({
-        itemId: l.itemId,
-        quantity: parseFloat(l.qty),
-        unitCost: parseFloat(l.unitCost),
+      expectedDeliveryDate: expectedDeliveryDate || undefined,
+      items: validLines.map((line) => ({
+        itemId: line.itemId,
+        quantity: numberValue(line.quantity)!,
+        unitCost: numberValue(line.unitCost)!,
+        expiryDate: line.expiryDate || undefined,
+        batchNo: line.batchNo || undefined,
       })),
     };
 
     setSaving(true);
     try {
       const res = await createPurchase(payload);
-      const supplierName = suppliers.find((s) => s.id === supplierId)?.name ?? "Supplier";
-      onSuccess(res.purchase.totalAmount, supplierName);
+      await onSuccess(res.purchase);
     } catch (err) {
       onError(err instanceof Error ? err.message : "Failed to create purchase");
       setSaving(false);
@@ -563,163 +542,195 @@ function NewPurchaseModal({
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal modal--wide" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2 className="modal-title">New Purchase</h2>
-          <button className="modal-close" onClick={onClose} aria-label="Close">
+      <div className="modal modal--wide modal--purchase" onClick={(event) => event.stopPropagation()}>
+        <div className="modal-header purchase-modal-header">
+          <div>
+            <h2 className="modal-title">New Draft Purchase</h2>
+            <p className="modal-subtitle">Build the order first. Stock is added later from Receive Items.</p>
+          </div>
+          <button className="modal-close purchase-modal-close" onClick={onClose} aria-label="Close">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="18" y1="6" x2="6" y2="18" />
               <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
         </div>
-
-        <div className="modal-body">
-          {dataLoading ? (
-            <div className="purchase-modal-loading">
-              <div className="spinner" />
-              <p>Loading suppliers & items…</p>
-            </div>
-          ) : loadError ? (
-            <div className="alert alert--error">{loadError}</div>
-          ) : (
-            <form id="purchase-form" onSubmit={(e) => { void handleSubmit(e); }}>
-              {/* ── Header fields ── */}
+        <form onSubmit={(event) => { void submit(event); }}>
+          <div className="modal-body purchase-modal-body">
+            <div className="purchase-info-panel">
+              <div className="purchase-info-heading">
+                <span>Purchase Info</span>
+                <strong>Draft</strong>
+              </div>
               <div className="purchase-header-fields">
-                <div className="form-group">
-                  <label className="form-label">Supplier *</label>
-                  <select
-                    ref={supplierRef}
-                    className="form-input form-select"
-                    value={supplierId}
-                    onChange={(e) => setSupplierId(e.target.value)}
-                    required
-                  >
-                    <option value="">Select supplier…</option>
-                    {suppliers.map((s) => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Purchase Date *</label>
-                  <input
-                    type="date"
-                    className="form-input"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    required
-                  />
-                </div>
+              <label className="form-group">
+                <span className="form-label">Supplier</span>
+                <select className="form-input form-select" value={supplierId} onChange={(event) => setSupplierId(event.target.value)}>
+                  <option value="">Select supplier</option>
+                  {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
+                </select>
+              </label>
+              <label className="form-group">
+                <span className="form-label">Purchase date</span>
+                <input className="form-input" type="date" value={date} onChange={(event) => setDate(event.target.value)} />
+              </label>
+              <label className="form-group">
+                <span className="form-label">Expected delivery</span>
+                <input className="form-input" type="date" value={expectedDeliveryDate} onChange={(event) => setExpectedDeliveryDate(event.target.value)} />
+              </label>
               </div>
+            </div>
 
-              {/* ── Lines ── */}
-              <div className="purchase-lines-section">
-                <div className="purchase-lines-title-row">
-                  <span className="purchase-lines-label">Items</span>
-                  <button type="button" className="btn btn--ghost btn--sm" onClick={addLine}>
-                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" style={{ width: 13, height: 13 }}>
-                      <path d="M8 3v10M3 8h10" strokeLinecap="round" />
-                    </svg>
-                    Add Line
-                  </button>
+            <div className="purchase-lines-section">
+              <div className="purchase-lines-title-row">
+                <div>
+                  <span className="purchase-lines-label">Line items</span>
+                  <p>Item, quantity, cost, and batch details for this order.</p>
                 </div>
-
-                <div className="purchase-line purchase-line--header">
-                  <span className="purchase-line-num" />
-                  <span>Item</span>
-                  <span>Qty</span>
-                  <span>Unit Cost</span>
-                  <span className="purchase-line-total-label">Total</span>
-                  <span />
-                </div>
-
-                {lines.map((line, idx) => {
-                  const t = lineTotal(line);
-                  return (
-                    <div key={line.key} className="purchase-line">
-                      <span className="purchase-line-num">{idx + 1}</span>
-                      <div className="purchase-line-item">
-                        <select
-                          className="form-input form-select"
-                          value={line.itemId}
-                          onChange={(e) => updateLine(line.key, { itemId: e.target.value })}
-                        >
-                          <option value="">Select item…</option>
-                          {items.map((i) => (
-                            <option key={i.id} value={i.id}>
-                              {i.name}{i.unit ? ` · ${i.unit}` : ""}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="purchase-line-qty">
-                        <input
-                          type="number"
-                          className="form-input"
-                          placeholder="0"
-                          min="0.01"
-                          step="0.01"
-                          value={line.qty}
-                          onChange={(e) => updateLine(line.key, { qty: e.target.value })}
-                        />
-                      </div>
-                      <div className="purchase-line-cost">
-                        <input
-                          type="number"
-                          className="form-input"
-                          placeholder="0.00"
-                          min="0"
-                          step="0.01"
-                          value={line.unitCost}
-                          onChange={(e) => updateLine(line.key, { unitCost: e.target.value })}
-                        />
-                      </div>
-                      <div className="purchase-line-total">
-                        {t !== null ? fmt(t, currency) : <span className="text-muted">—</span>}
-                      </div>
-                      <button
-                        type="button"
-                        className="purchase-line-remove"
-                        onClick={() => removeLine(line.key)}
-                        disabled={lines.length === 1}
-                        aria-label="Remove line"
-                        title="Remove line"
-                      >
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <line x1="18" y1="6" x2="6" y2="18" />
-                          <line x1="6" y1="6" x2="18" y2="18" />
-                        </svg>
-                      </button>
-                    </div>
-                  );
-                })}
-
-                <div className="purchase-grand-total">
-                  <span className="purchase-grand-total-label">Grand Total</span>
-                  <span className="purchase-grand-total-value">{fmt(grandTotal, currency)}</span>
-                </div>
+                <button type="button" className="btn btn--ghost btn--sm purchase-add-line-btn" onClick={() => setLines((current) => [...current, newLine()])}>Add Line</button>
               </div>
-            </form>
-          )}
-        </div>
-
-        {!dataLoading && !loadError && (
-          <div className="modal-footer">
-            <button type="button" className="btn btn--ghost" onClick={onClose}>
-              Cancel
-            </button>
-            <button
-              type="submit"
-              form="purchase-form"
-              className="btn btn--primary"
-              disabled={!canSubmit}
-            >
-              {saving ? <span className="btn-spinner" /> : null}
-              {saving ? "Saving…" : "Create Purchase"}
-            </button>
+              <div className="purchase-line purchase-line--lifecycle purchase-line--header">
+                <span>Item</span><span>Qty</span><span>Unit cost</span><span>Expiry</span><span>Batch</span><span>Total</span><span />
+              </div>
+              {lines.map((line) => {
+                const quantity = numberValue(line.quantity) ?? 0;
+                const unitCost = numberValue(line.unitCost) ?? 0;
+                return (
+                  <div key={line.key} className="purchase-line purchase-line--lifecycle">
+                    <select aria-label="Item" className="form-input form-select" value={line.itemId} onChange={(event) => updateLine(line.key, { itemId: event.target.value })}>
+                      <option value="">Select item</option>
+                      {items.map((item) => <option key={item.id} value={item.id}>{item.name} / {item.unit}</option>)}
+                    </select>
+                    <input aria-label="Quantity" className="form-input" type="number" min="0.01" step="0.01" value={line.quantity} onChange={(event) => updateLine(line.key, { quantity: event.target.value })} placeholder="0" />
+                    <input aria-label="Unit cost" className="form-input" type="number" min="0" step="0.01" value={line.unitCost} onChange={(event) => updateLine(line.key, { unitCost: event.target.value })} placeholder="0.00" />
+                    <input aria-label="Expiry date" className="form-input" type="date" value={line.expiryDate} onChange={(event) => updateLine(line.key, { expiryDate: event.target.value })} />
+                    <input aria-label="Batch number" className="form-input" value={line.batchNo} onChange={(event) => updateLine(line.key, { batchNo: event.target.value })} placeholder="Batch no." />
+                    <span className="purchase-line-total">{fmt(quantity * unitCost, currency)}</span>
+                    <button type="button" className="purchase-line-remove" onClick={() => removeLine(line.key)} disabled={lines.length === 1} aria-label="Remove line">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
+                  </div>
+                );
+              })}
+              <div className="purchase-grand-total">
+                <span className="purchase-grand-total-label">Ordered total</span>
+                <span className="purchase-grand-total-value">{fmt(grandTotal, currency)}</span>
+              </div>
+            </div>
           </div>
-        )}
+          <div className="modal-footer">
+            <button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button>
+            <button className="btn btn--primary" disabled={saving}>{saving ? "Saving..." : "Create Draft"}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function ReceivePurchaseModal({
+  purchase,
+  currency,
+  locations,
+  defaultLocationId,
+  onClose,
+  onSuccess,
+  onError,
+}: {
+  purchase: Purchase;
+  currency: string;
+  locations: Location[];
+  defaultLocationId: string;
+  onClose: () => void;
+  onSuccess: (purchase: Purchase) => void | Promise<void>;
+  onError: (message: string) => void;
+}) {
+  const [lines, setLines] = useState<ReceiveLineDraft[]>(() =>
+    purchase.purchaseItems
+      .filter((line) => line.remainingQuantity > 0)
+      .map((line) => ({
+        purchaseItemId: line.id,
+        receivedQuantity: String(line.remainingQuantity),
+        locationId: defaultLocationId || purchase.location.id,
+        expiryDate: toDateInput(line.expiryDate),
+        batchNo: line.batchNo ?? "",
+        unitCost: String(line.unitCost),
+        notes: "",
+      })),
+  );
+  const [saving, setSaving] = useState(false);
+
+  function updateLine(purchaseItemId: string, patch: Partial<ReceiveLineDraft>) {
+    setLines((current) => current.map((line) => line.purchaseItemId === purchaseItemId ? { ...line, ...patch } : line));
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const validLines = lines.filter((line) => (numberValue(line.receivedQuantity) ?? 0) > 0);
+    if (validLines.length === 0) return onError("Enter at least one received quantity");
+
+    setSaving(true);
+    try {
+      const res = await receivePurchase(purchase.id, {
+        lines: validLines.map((line) => ({
+          purchaseItemId: line.purchaseItemId,
+          receivedQuantity: numberValue(line.receivedQuantity)!,
+          locationId: line.locationId,
+          expiryDate: line.expiryDate || undefined,
+          batchNo: line.batchNo || undefined,
+          unitCost: numberValue(line.unitCost),
+          notes: line.notes || undefined,
+        })),
+      });
+      await onSuccess(res.purchase);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Failed to receive purchase");
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal modal--wide" onClick={(event) => event.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <h2 className="modal-title">Receive Items</h2>
+            <p className="modal-subtitle">{purchase.supplier.name} / Remaining {purchase.remainingQuantity}</p>
+          </div>
+          <button className="modal-close" onClick={onClose} aria-label="Close">x</button>
+        </div>
+        <form onSubmit={(event) => { void submit(event); }}>
+          <div className="modal-body">
+            <div className="purchase-line receive-line receive-line--header">
+              <span>Item</span><span>Remaining</span><span>Receive</span><span>Branch</span><span>Expiry</span><span>Batch</span><span>Unit cost</span><span>Notes</span>
+            </div>
+            {purchase.purchaseItems.filter((line) => line.remainingQuantity > 0).map((itemLine) => {
+              const line = lines.find((candidate) => candidate.purchaseItemId === itemLine.id)!;
+              return (
+                <div key={itemLine.id} className="purchase-line receive-line">
+                  <span className="td-name">{itemLine.item.name}</span>
+                  <span>{itemLine.remainingQuantity}</span>
+                  <input className="form-input" type="number" min="0" max={itemLine.remainingQuantity} step="0.01" value={line.receivedQuantity} onChange={(event) => updateLine(itemLine.id, { receivedQuantity: event.target.value })} />
+                  <select className="form-input form-select" value={line.locationId} onChange={(event) => updateLine(itemLine.id, { locationId: event.target.value })}>
+                    {locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
+                  </select>
+                  <input className="form-input" type="date" value={line.expiryDate} onChange={(event) => updateLine(itemLine.id, { expiryDate: event.target.value })} />
+                  <input className="form-input" value={line.batchNo} onChange={(event) => updateLine(itemLine.id, { batchNo: event.target.value })} />
+                  <input className="form-input" type="number" min="0" step="0.01" value={line.unitCost} onChange={(event) => updateLine(itemLine.id, { unitCost: event.target.value })} />
+                  <input className="form-input" value={line.notes} onChange={(event) => updateLine(itemLine.id, { notes: event.target.value })} placeholder="Optional" />
+                </div>
+              );
+            })}
+            <p className="purchase-receive-hint">Stock batches and stock-in movements are created only when this receiving form is submitted.</p>
+          </div>
+          <div className="modal-footer">
+            <button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button>
+            <button className="btn btn--primary" disabled={saving}>{saving ? "Receiving..." : `Receive (${fmt(lines.reduce((sum, line) => sum + ((numberValue(line.receivedQuantity) ?? 0) * (numberValue(line.unitCost) ?? 0)), 0), currency)})`}</button>
+          </div>
+        </form>
       </div>
     </div>
   );

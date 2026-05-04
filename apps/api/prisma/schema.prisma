@@ -27,6 +27,14 @@ enum StockCountStatus {
   FINALIZED
 }
 
+enum PurchaseStatus {
+  DRAFT
+  ORDERED
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CANCELLED
+}
+
 model User {
   id          String       @id @default(uuid()) @db.Uuid
   name        String
@@ -301,35 +309,47 @@ model Supplier {
 }
 
 model Purchase {
-  id            String         @id @default(uuid()) @db.Uuid
-  supplierId    String         @db.Uuid
-  date          DateTime
-  totalAmount   Float
-  workspaceId   String         @db.Uuid
-  locationId    String         @db.Uuid
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  supplier      Supplier       @relation(fields: [supplierId], references: [id], onDelete: Restrict)
-  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  location      Location       @relation(fields: [locationId], references: [id], onDelete: Cascade)
-  purchaseItems PurchaseItem[]
+  id                   String         @id @default(uuid()) @db.Uuid
+  supplierId           String         @db.Uuid
+  date                 DateTime
+  orderedAt            DateTime?
+  expectedDeliveryDate DateTime?
+  receivedAt           DateTime?
+  cancelledAt          DateTime?
+  cancelReason         String?
+  status               PurchaseStatus @default(DRAFT)
+  totalAmount          Float
+  workspaceId          String         @db.Uuid
+  locationId           String         @db.Uuid
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+  supplier             Supplier       @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  workspace            Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  location             Location       @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  purchaseItems        PurchaseItem[]
 
   @@index([workspaceId])
   @@index([locationId])
   @@index([supplierId])
+  @@index([status])
   @@index([date])
+  @@index([orderedAt])
 }
 
 model PurchaseItem {
-  id         String   @id @default(uuid()) @db.Uuid
-  purchaseId String   @db.Uuid
-  itemId     String   @db.Uuid
-  quantity   Float
-  unitCost   Float
-  total      Float
-  createdAt  DateTime @default(now())
-  purchase   Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
-  item       Item     @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  id               String   @id @default(uuid()) @db.Uuid
+  purchaseId       String   @db.Uuid
+  itemId           String   @db.Uuid
+  quantity         Float
+  receivedQuantity Float    @default(0)
+  unitCost         Float
+  total            Float
+  expiryDate       DateTime?
+  batchNo          String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  purchase         Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  item             Item     @relation(fields: [itemId], references: [id], onDelete: Restrict)
 
   @@index([purchaseId])
   @@index([itemId])

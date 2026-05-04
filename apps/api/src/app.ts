@@ -14,6 +14,7 @@ import { locationsRouter } from "./routes/locations.js";
 import { notificationsRouter } from "./routes/notifications.js";
 import { onboardingRouter } from "./routes/onboarding.js";
 import { purchasesRouter } from "./routes/purchases.js";
+import { reorderSuggestionsRouter } from "./routes/reorder-suggestions.js";
 import { stockCountsRouter } from "./routes/stock-counts.js";
 import { stockRouter } from "./routes/stock.js";
 import { suppliersRouter } from "./routes/suppliers.js";
@@ -115,6 +116,7 @@ app.use("/alerts", alertsRouter);
 app.use("/audit-logs", auditLogsRouter);
 app.use("/suppliers", suppliersRouter);
 app.use("/purchases", purchasesRouter);
+app.use("/reorder-suggestions", reorderSuggestionsRouter);
 app.use("/team", teamRouter);
 app.use((_req, res) => {
   res.status(404).json({ error: "Route not found" });

@@ -118,6 +118,33 @@ Demo accounts:
 - OWNER: `demo@shelfsense.local` / `demo123456`
 - OPERATOR: `operator@shelfsense.local` / `demo123456`
 
+## Purchase Receiving Lifecycle
+
+Purchases use a receiving lifecycle instead of immediately adding stock:
+
+- New purchases start as `Draft`.
+- Draft purchases can be marked `Ordered`.
+- Ordered purchases can be received in full or in partial quantities.
+- Partial receipts create stock batches and `STOCK_IN` movements only for the received quantity.
+- A purchase becomes `Partially Received` when some quantity has arrived and `Received` when all ordered quantities are received.
+- Draft, Ordered, and Partially Received purchases can be cancelled with an optional reason.
+
+Receiving is workspace and branch scoped. Each received line records quantity, branch/location, unit cost, expiry date, batch number, and optional notes. The API prevents receiving more than ordered, receiving cancelled purchases, and changing received quantities outside the receiving workflow. Purchase lifecycle actions are written to audit logs.
+
+## Reorder-To-Purchase Workflow
+
+Low-stock items can be converted into draft purchase orders from `/reorder-suggestions`. The page respects the active branch and shows item identity, SKU/barcode, category, current stock, minimum stock level, suggested quantity, preferred or last purchase supplier, last purchase cost, and expiry tracking.
+
+Suggested quantity currently uses a simple documented formula:
+
+```text
+suggested quantity = minimum stock level - current stock
+```
+
+If current stock is zero, ShelfSense suggests at least the minimum stock level. Items with no positive suggested quantity are hidden. This intentionally simple formula leaves room for later lead-time, usage trend, and seasonality logic.
+
+Owners and managers can select one or more suggestions, choose suppliers, adjust quantity or cost, and create purchase drafts. If selected lines use different suppliers, ShelfSense creates separate draft purchases per supplier. Drafts do not increment stock; inventory increases only when the purchase is received through the purchase receiving workflow. Operators can view reorder suggestions only under the current role rules. Draft creation from reorder suggestions is recorded in audit logs with selected items, quantities, supplier, location, and user.
+
 ## Run Development Servers
 
 Run both the frontend and API:

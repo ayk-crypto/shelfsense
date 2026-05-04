@@ -70,9 +70,9 @@ const ACTIONS: OperationAction[] = [
   },
   {
     key: "low-stock",
-    title: "View Low Stock",
-    description: "See items that need replenishment.",
-    to: "/alerts?focus=low-stock",
+    title: "Reorder Low Stock",
+    description: "Turn low-stock items into purchase drafts.",
+    to: "/reorder-suggestions",
     tone: "orange",
     icon: "low",
     roles: ["OWNER", "MANAGER", "OPERATOR"],

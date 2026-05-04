@@ -15,6 +15,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { MovementsPage } from "./pages/MovementsPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { PurchasesPage } from "./pages/PurchasesPage";
+import { ReorderSuggestionsPage } from "./pages/ReorderSuggestionsPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { SignupPage } from "./pages/SignupPage";
@@ -229,6 +230,10 @@ export function App() {
             <Route
               path="/purchases"
               element={<RoleRoute allowedRoles={["OWNER", "MANAGER"]}><PurchasesPage /></RoleRoute>}
+            />
+            <Route
+              path="/reorder-suggestions"
+              element={<RoleRoute allowedRoles={["OWNER", "MANAGER", "OPERATOR"]}><ReorderSuggestionsPage /></RoleRoute>}
             />
             <Route
               path="/reports"

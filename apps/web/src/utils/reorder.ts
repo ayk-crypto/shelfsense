@@ -1,7 +1,11 @@
 export function getSuggestedReorderQuantity(
   currentQuantity: number,
   minStockLevel: number,
-  multiplier = 2,
+  _legacyMultiplier?: number,
 ) {
-  return Math.max(0, minStockLevel * multiplier - currentQuantity);
+  // First-pass formula: refill only the gap to minimum stock.
+  // Future versions can factor in lead time, usage trends, and seasonality.
+  if (minStockLevel <= 0) return 0;
+  if (currentQuantity <= 0) return minStockLevel;
+  return Math.max(0, minStockLevel - currentQuantity);
 }

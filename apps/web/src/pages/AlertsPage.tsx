@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { getAlerts } from "../api/alerts";
 import { useLocation } from "../context/LocationContext";
 import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
@@ -172,6 +173,11 @@ function LowStockSection({
           <h2 className="alrt-section-title">Low Stock</h2>
         </div>
         <span className="alrt-section-badge alrt-section-badge--amber">{items.length}</span>
+      </div>
+      <div className="alrt-section-action">
+        <Link className="btn btn--secondary btn--sm" to="/reorder-suggestions">
+          Create Purchase Draft
+        </Link>
       </div>
       <div className="alrt-rows">
         {items.map((item) => {
