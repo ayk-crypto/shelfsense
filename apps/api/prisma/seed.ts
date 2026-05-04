@@ -124,11 +124,13 @@ async function main() {
       update: {
         name: demoUser.name,
         password: hashedPassword,
+        emailVerified: true,
       },
       create: {
         name: demoUser.name,
         email: demoUser.email,
         password: hashedPassword,
+        emailVerified: true,
       },
     });
 
@@ -137,11 +139,13 @@ async function main() {
       update: {
         name: demoOperatorUser.name,
         password: hashedOperatorPassword,
+        emailVerified: true,
       },
       create: {
         name: demoOperatorUser.name,
         email: demoOperatorUser.email,
         password: hashedOperatorPassword,
+        emailVerified: true,
       },
     });
 
