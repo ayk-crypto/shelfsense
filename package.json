@@ -7,13 +7,23 @@
     "packages/*"
   ],
   "scripts": {
-    "db:seed": "npm run db:seed --workspace @shelfsense/api",
-    "db:deploy": "npm run db:deploy --workspace @shelfsense/api",
-    "db:test:migrate": "node scripts/migrate-test-db.mjs",
     "dev:web": "npm run dev --workspace @shelfsense/web",
     "dev:api": "npm run dev --workspace @shelfsense/api",
     "dev": "concurrently \"npm run dev:web\" \"npm run dev:api\"",
+
     "build": "npm run build --workspace @shelfsense/shared && npm run build --workspace @shelfsense/api && npm run build --workspace @shelfsense/web",
+    "build:api": "npm run build --workspace @shelfsense/api",
+    "build:web": "npm run build --workspace @shelfsense/web",
+
+    "start:api": "npm run start --workspace @shelfsense/api",
+
+    "prisma:generate": "npm run prisma:generate --workspace @shelfsense/api",
+    "migrate:prod": "npm run migrate:deploy --workspace @shelfsense/api",
+
+    "db:seed": "npm run db:seed --workspace @shelfsense/api",
+    "db:deploy": "npm run db:deploy --workspace @shelfsense/api",
+    "db:test:migrate": "node scripts/migrate-test-db.mjs",
+
     "test": "npm test --workspace @shelfsense/api",
     "ops:check": "node scripts/check-api-env.mjs && npx prisma validate --schema apps/api/prisma/schema.prisma",
     "verify": "npm run ops:check && npm run build && npm test"

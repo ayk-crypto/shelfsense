@@ -26,20 +26,28 @@ function getJwtSecret() {
   return secret;
 }
 
+function getEmailFrom() {
+  return (
+    process.env.SMTP_FROM ??
+    process.env.EMAIL_FROM ??
+    "no-reply@shelfsense.app"
+  );
+}
+
 export const env = {
   databaseUrl:
     (process.env.NODE_ENV === "test" ? process.env.TEST_DATABASE_URL : undefined) ??
     process.env.DATABASE_URL ??
     "postgresql://postgres:postgres@localhost:5432/shelfsense?schema=public",
   jwtSecret: getJwtSecret(),
-  port: Number(process.env.PORT ?? 4000),
+  port: Number(process.env.PORT ?? 3000),
   nodeEnv: process.env.NODE_ENV ?? "development",
   corsAllowedOrigins: parseCsv(process.env.CORS_ALLOWED_ORIGINS) ?? defaultCorsAllowedOrigins,
   smtpHost: process.env.SMTP_HOST,
   smtpPort: Number(process.env.SMTP_PORT ?? 587),
   smtpUser: process.env.SMTP_USER,
   smtpPass: process.env.SMTP_PASS,
-  emailFrom: process.env.EMAIL_FROM ?? "no-reply@shelfsense.app",
+  emailFrom: getEmailFrom(),
   emailFromName: process.env.EMAIL_FROM_NAME ?? "ShelfSense",
-  appUrl: process.env.APP_URL ?? "http://localhost:5000",
+  appUrl: process.env.WEB_BASE_URL ?? process.env.APP_URL ?? "http://localhost:5000",
 };

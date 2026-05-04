@@ -94,19 +94,33 @@ This is an npm workspaces monorepo with three packages:
 
 ## Environment Variables
 
-- `DATABASE_URL` — PostgreSQL connection string (managed by Replit)
-- `PORT` — API port (set to 3000)
-- `JWT_SECRET` — JWT signing secret (defaults to "development-secret" in dev)
+### API (`apps/api/.env`)
+- `DATABASE_URL` — PostgreSQL connection string (managed by Replit in dev; Neon pooled string in prod)
+- `PORT` — API port (defaults to 3000)
+- `NODE_ENV` — `development` | `production`
+- `JWT_SECRET` — JWT signing secret (must be ≥ 32 chars in production)
+- `CORS_ALLOWED_ORIGINS` — comma-separated allowed frontend origins
+- `WEB_BASE_URL` — public frontend URL used in auth email links (aliases `APP_URL`)
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` — email sending (optional; console fallback in dev)
-- `EMAIL_FROM` — sender address for auth emails (optional; defaults to `noreply@shelfsense.app`)
-- `APP_URL` — public base URL for email links (optional; defaults to `http://localhost:5000`)
+- `SMTP_FROM` — sender address for auth emails (aliases `EMAIL_FROM`)
+
+### Web (`apps/web/.env`)
+- `VITE_API_BASE_URL` — API base URL; defaults to `/api` (proxied in dev); set to full Render URL in production
+- `VITE_APP_ENV` — `development` | `production`
 
 ## Database
 
-Prisma ORM with migrations in `apps/api/prisma/migrations/`. Run migrations with:
+Prisma ORM with migrations in `apps/api/prisma/migrations/`.
+
+```bash
+# Production migration (safe — never resets data)
+DATABASE_URL="<neon-direct-url>" npm run migrate:prod
+
+# Development migration
+cd apps/api && npx prisma migrate dev
 ```
-cd apps/api && npx prisma migrate deploy
-```
+
+**Never run `prisma migrate dev`, `db push`, or `migrate reset` against production.**
 
 ## Development
 
@@ -117,16 +131,27 @@ npm run dev:api          # start API (port 3000)
 npm run dev              # start both concurrently
 ```
 
-## Production Operations
+## Build Scripts
 
-See [docs/production-readiness.md](docs/production-readiness.md) for:
-- Security checklist, deployment checklist, and SMTP setup
-- Auth flow reference (password reset, email verification)
-- Logging and monitoring considerations (request IDs, health/readiness endpoints)
-- Database backup/restore and rollback instructions
+```bash
+npm run build            # full monorepo build (shared + api + web)
+npm run build:api        # API only (prisma generate + tsc)
+npm run build:web        # web only (tsc + vite build)
+npm run start:api        # start compiled API (node dist/index.js, binds 0.0.0.0)
+npm run prisma:generate  # run prisma generate in API workspace
+npm run migrate:prod     # run prisma migrate deploy (production-safe)
+```
 
-## Deployment
+## Production Deployment
 
-Configured as autoscale deployment:
-- **Build**: `npm install && npm run build`
-- **Run**: `node apps/api/dist/index.js`
+- **Frontend**: Vercel (root dir: `apps/web`, output: `dist`)
+- **Backend**: Render (build: `npm install && npm run build:api`, start: `npm run start:api`)
+- **Database**: Neon PostgreSQL (pooled connection string for runtime; direct for migrations)
+- **SPA routing**: `apps/web/vercel.json` rewrites all routes → `index.html`
+
+See [docs/deployment.md](docs/deployment.md) for the full deployment guide, environment variable reference, safe migration process, and rollback instructions.
+
+## Health Checks
+
+- `GET /api/health` — always returns `{"status":"ok"}` (lightweight)
+- `GET /api/ready` — checks DB with `SELECT 1`, returns 503 if unavailable
