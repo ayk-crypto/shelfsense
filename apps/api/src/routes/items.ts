@@ -4,6 +4,7 @@ import { Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../db/prisma.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async-handler.js";
+import { PLAN_LIMITS, isAtLimit, type PlanTier } from "../utils/plan-limits.js";
 
 export const itemsRouter = Router();
 
@@ -20,6 +21,24 @@ itemsRouter.post("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(asyn
 
   if (!workspaceId) {
     return res.status(403).json({ error: "Workspace access required" });
+  }
+
+  const workspace = await prisma.workspace.findUnique({
+    where: { id: workspaceId },
+    select: { plan: true },
+  });
+  if (workspace) {
+    const limits = PLAN_LIMITS[workspace.plan as PlanTier];
+    if (limits.maxItems !== -1) {
+      const itemCount = await prisma.item.count({ where: { workspaceId, isActive: true } });
+      if (isAtLimit(itemCount, limits.maxItems)) {
+        return res.status(403).json({
+          error: `Item limit reached for your ${workspace.plan} plan (${itemCount}/${limits.maxItems}). Upgrade your plan to add more items.`,
+          code: "PLAN_LIMIT_REACHED",
+          limitType: "items",
+        });
+      }
+    }
   }
 
   const data = parseItemInput(req.body);

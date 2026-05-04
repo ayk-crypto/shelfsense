@@ -13,6 +13,12 @@ enum Role {
   OPERATOR
 }
 
+enum PlanTier {
+  FREE
+  BASIC
+  PRO
+}
+
 enum StockMovementType {
   STOCK_IN
   STOCK_OUT
@@ -102,6 +108,7 @@ model Workspace {
   lastDailyDigestSentAt           DateTime?
   onboardingCompleted Boolean    @default(false)
   businessType   String?
+  plan           PlanTier    @default(FREE)
   ownerId        String          @db.Uuid
   createdAt      DateTime        @default(now())
   owner          User            @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)

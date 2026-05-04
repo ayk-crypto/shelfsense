@@ -5,6 +5,7 @@ import { prisma } from "../db/prisma.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { ensureDefaultLocation } from "../utils/locations.js";
+import { PLAN_LIMITS, isAtLimit, type PlanTier } from "../utils/plan-limits.js";
 
 export const locationsRouter = Router();
 
@@ -38,6 +39,24 @@ locationsRouter.post("/", requireRole([Role.OWNER]), asyncHandler(async (req, re
 
   if (!workspaceId) {
     return res.status(403).json({ error: "Workspace access required" });
+  }
+
+  const workspace = await prisma.workspace.findUnique({
+    where: { id: workspaceId },
+    select: { plan: true },
+  });
+  if (workspace) {
+    const limits = PLAN_LIMITS[workspace.plan as PlanTier];
+    if (limits.maxLocations !== -1) {
+      const locationCount = await prisma.location.count({ where: { workspaceId, isActive: true } });
+      if (isAtLimit(locationCount, limits.maxLocations)) {
+        return res.status(403).json({
+          error: `Location limit reached for your ${workspace.plan} plan (${locationCount}/${limits.maxLocations}). Upgrade your plan to add more locations.`,
+          code: "PLAN_LIMIT_REACHED",
+          limitType: "locations",
+        });
+      }
+    }
   }
 
   const name = parseOptionalString((req.body as { name?: unknown }).name);

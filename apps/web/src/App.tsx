@@ -19,6 +19,7 @@ import { OnboardingPage } from "./pages/OnboardingPage";
 import { PurchasesPage } from "./pages/PurchasesPage";
 import { ReorderSuggestionsPage } from "./pages/ReorderSuggestionsPage";
 import { ReportsPage } from "./pages/ReportsPage";
+import { PlanPage } from "./pages/PlanPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { SignupPage } from "./pages/SignupPage";
@@ -336,6 +337,10 @@ export function App() {
             <Route
               path="/locations"
               element={<RoleRoute allowedRoles={["OWNER"]}><LocationsPage /></RoleRoute>}
+            />
+            <Route
+              path="/plan"
+              element={<RoleRoute allowedRoles={["OWNER"]}><PlanPage /></RoleRoute>}
             />
             <Route
               path="/settings"

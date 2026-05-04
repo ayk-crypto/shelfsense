@@ -48,6 +48,7 @@ This is an npm workspaces monorepo with three packages:
 - **Onboarding wizard** (5-step): Workspace Setup (name + `businessType` card selector: restaurant/retail/pharmacy/other) → Add First Item → Add Initial Stock → Add Supplier → All Set summary. Dedicated `/onboarding` route; `OnboardingGuard` redirects OWNER to `/onboarding` if `onboardingCompleted` is false; `OnboardingPageWrapper` fetches settings + status, short-circuits to dashboard if already complete.
 - **Server-side reports**: 8 analytics reports at `GET /reports/{type}` — Inventory Valuation, Wastage Cost, Usage by Item, Supplier Spend, Stock Aging, Expiry Loss, Adjustment Variance, Transfer History. Each supports `dateFrom/dateTo/locationId/category/supplierId` filters and `?format=csv` streaming export. Protected by `reports:export` permission (OWNER + MANAGER).
 - Reports page with CSV export
+- **Subscription plan system**: 3 tiers — FREE (50 items, 1 location, 3 users), BASIC (500 items, 5 locations, 10 users), PRO (unlimited). `PlanTier` enum on `Workspace.plan` (default FREE). Limits enforced server-side on `POST /items`, `POST /locations`, `POST /team/users` with HTTP 403 + `code: "PLAN_LIMIT_REACHED"`. `GET /plan/status` returns plan + limits + live usage counts; `PATCH /plan` (OWNER only) switches tiers. Frontend: `/plan` page (OWNER-only) with plan cards + usage progress bars; "Plan" nav link in sidebar.
 - Team management (invite / role change / remove)
 - Activity log with filters
 - Settings page (workspace name, notifications toggles, daily digest email preference)
@@ -73,6 +74,7 @@ This is an npm workspaces monorepo with three packages:
 - **Team page** (`/team`) — two-tab layout: Members (list + role management) + Custom Roles (role builder); OWNER only
 - **Activity page** (`/activity`) — audit log with filters
 - **Locations page** (`/locations`) — location CRUD (OWNER only)
+- **Plan page** (`/plan`) — subscription tier cards (FREE/BASIC/PRO) with one-click switching, live usage progress bars per limit type (items, locations, users), at-limit / near-limit warnings (OWNER only)
 - **Settings page** (`/settings`) — workspace settings and notification preferences
 - **App shell** — responsive layout: sidebar on desktop (≥768px), bottom nav + topbar on mobile
 - **API client** — `src/api/client.ts` fetch wrapper injects Bearer token automatically; captures `X-Request-Id` from responses and attaches it to thrown `Error` objects as `.requestId`

@@ -712,6 +712,28 @@ export interface CreateReorderPurchasesResponse {
   }>;
 }
 
+// ─── Plan ─────────────────────────────────────────────────────────────────────
+
+export type PlanTier = "FREE" | "BASIC" | "PRO";
+
+export interface PlanLimits {
+  maxItems: number;
+  maxLocations: number;
+  maxUsers: number;
+}
+
+export interface PlanUsage {
+  items: number;
+  locations: number;
+  users: number;
+}
+
+export interface PlanStatus {
+  plan: PlanTier;
+  limits: PlanLimits;
+  usage: PlanUsage;
+}
+
 // ─── Reports ──────────────────────────────────────────────────────────────────
 
 export interface ReportParams {

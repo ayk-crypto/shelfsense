@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import { Router } from "express";
+import { PLAN_LIMITS, isAtLimit, type PlanTier } from "../utils/plan-limits.js";
 import { Prisma } from "../generated/prisma/client.js";
 import { Role } from "../generated/prisma/enums.js";
 import { prisma } from "../db/prisma.js";
@@ -64,6 +65,24 @@ teamRouter.post("/users", asyncHandler(async (req, res) => {
   }
   if (!isAssignableRole(input.role)) {
     return res.status(400).json({ error: "Role must be MANAGER or OPERATOR" });
+  }
+
+  const wsForPlan = await prisma.workspace.findUnique({
+    where: { id: workspaceId },
+    select: { plan: true },
+  });
+  if (wsForPlan) {
+    const limits = PLAN_LIMITS[wsForPlan.plan as PlanTier];
+    if (limits.maxUsers !== -1) {
+      const memberCount = await prisma.membership.count({ where: { workspaceId, isActive: true } });
+      if (isAtLimit(memberCount, limits.maxUsers)) {
+        return res.status(403).json({
+          error: `Team member limit reached for your ${wsForPlan.plan} plan (${memberCount}/${limits.maxUsers}). Upgrade your plan to add more members.`,
+          code: "PLAN_LIMIT_REACHED",
+          limitType: "users",
+        });
+      }
+    }
   }
 
   // Validate custom role if provided

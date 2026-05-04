@@ -17,6 +17,7 @@ import { notificationsRouter } from "./routes/notifications.js";
 import { onboardingRouter } from "./routes/onboarding.js";
 import { purchasesRouter } from "./routes/purchases.js";
 import { reorderSuggestionsRouter } from "./routes/reorder-suggestions.js";
+import { planRouter } from "./routes/plan.js";
 import { reportsRouter } from "./routes/reports.js";
 import { stockCountsRouter } from "./routes/stock-counts.js";
 import { stockRouter } from "./routes/stock.js";
@@ -160,6 +161,7 @@ app.use("/suppliers", suppliersRouter);
 app.use("/purchases", purchasesRouter);
 app.use("/reorder-suggestions", reorderSuggestionsRouter);
 app.use("/reports", reportsRouter);
+app.use("/plan", planRouter);
 app.use("/team", teamRouter);
 app.use((req, res) => {
   const body: Record<string, unknown> = { error: "Route not found", code: "NOT_FOUND" };
