@@ -16,6 +16,9 @@ const DEFAULT_WORKSPACE_SETTINGS = {
   whatsappAlertsEnabled: false,
   emailAlertsEnabled: false,
   pushAlertsEnabled: false,
+  emailLowStock: false,
+  emailExpiringSoon: false,
+  emailExpired: false,
 };
 
 const PHONE_PATTERN = /^[+\d\s-]{7,24}$/;
@@ -44,6 +47,9 @@ workspaceRouter.get("/settings", requireAuth, asyncHandler(async (req, res) => {
       whatsappAlertsEnabled: true,
       emailAlertsEnabled: true,
       pushAlertsEnabled: true,
+      emailLowStock: true,
+      emailExpiringSoon: true,
+      emailExpired: true,
     },
   });
 
@@ -107,6 +113,9 @@ workspaceRouter.patch("/settings", requireAuth, requireRole([Role.OWNER]), async
       whatsappAlertsEnabled: true,
       emailAlertsEnabled: true,
       pushAlertsEnabled: true,
+      emailLowStock: true,
+      emailExpiringSoon: true,
+      emailExpired: true,
     },
   });
 
@@ -178,6 +187,9 @@ function parseWorkspaceSettingsInput(body: unknown) {
     whatsappAlertsEnabled?: unknown;
     emailAlertsEnabled?: unknown;
     pushAlertsEnabled?: unknown;
+    emailLowStock?: unknown;
+    emailExpiringSoon?: unknown;
+    emailExpired?: unknown;
   };
 
   return {
@@ -192,6 +204,9 @@ function parseWorkspaceSettingsInput(body: unknown) {
     whatsappAlertsEnabled: parseOptionalBoolean(input.whatsappAlertsEnabled),
     emailAlertsEnabled: parseOptionalBoolean(input.emailAlertsEnabled),
     pushAlertsEnabled: parseOptionalBoolean(input.pushAlertsEnabled),
+    emailLowStock: parseOptionalBoolean(input.emailLowStock),
+    emailExpiringSoon: parseOptionalBoolean(input.emailExpiringSoon),
+    emailExpired: parseOptionalBoolean(input.emailExpired),
   };
 }
 
@@ -234,6 +249,9 @@ function normalizeWorkspaceSettings(settings: {
   whatsappAlertsEnabled: boolean | null;
   emailAlertsEnabled: boolean | null;
   pushAlertsEnabled: boolean | null;
+  emailLowStock: boolean | null;
+  emailExpiringSoon: boolean | null;
+  emailExpired: boolean | null;
 }) {
   return {
     id: settings.id,
@@ -254,5 +272,8 @@ function normalizeWorkspaceSettings(settings: {
     whatsappAlertsEnabled: settings.whatsappAlertsEnabled ?? DEFAULT_WORKSPACE_SETTINGS.whatsappAlertsEnabled,
     emailAlertsEnabled: settings.emailAlertsEnabled ?? DEFAULT_WORKSPACE_SETTINGS.emailAlertsEnabled,
     pushAlertsEnabled: settings.pushAlertsEnabled ?? DEFAULT_WORKSPACE_SETTINGS.pushAlertsEnabled,
+    emailLowStock: settings.emailLowStock ?? DEFAULT_WORKSPACE_SETTINGS.emailLowStock,
+    emailExpiringSoon: settings.emailExpiringSoon ?? DEFAULT_WORKSPACE_SETTINGS.emailExpiringSoon,
+    emailExpired: settings.emailExpired ?? DEFAULT_WORKSPACE_SETTINGS.emailExpired,
   };
 }

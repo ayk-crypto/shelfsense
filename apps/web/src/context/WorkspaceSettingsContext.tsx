@@ -17,6 +17,9 @@ const DEFAULT_SETTINGS: WorkspaceSettings = {
   whatsappAlertsEnabled: false,
   emailAlertsEnabled: false,
   pushAlertsEnabled: false,
+  emailLowStock: false,
+  emailExpiringSoon: false,
+  emailExpired: false,
 };
 
 interface WorkspaceSettingsContextValue {

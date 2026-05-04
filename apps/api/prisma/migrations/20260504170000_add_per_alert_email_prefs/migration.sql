@@ -1,0 +1,3 @@
+ALTER TABLE "Workspace" ADD COLUMN "emailLowStock" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "Workspace" ADD COLUMN "emailExpiringSoon" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "Workspace" ADD COLUMN "emailExpired" BOOLEAN NOT NULL DEFAULT false;

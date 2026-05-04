@@ -110,6 +110,9 @@ export interface WorkspaceSettings {
   whatsappAlertsEnabled: boolean;
   emailAlertsEnabled: boolean;
   pushAlertsEnabled: boolean;
+  emailLowStock: boolean;
+  emailExpiringSoon: boolean;
+  emailExpired: boolean;
 }
 
 export interface WorkspaceSettingsResponse {
@@ -141,6 +144,9 @@ export interface UpdateWorkspaceSettingsInput {
   whatsappAlertsEnabled?: boolean;
   emailAlertsEnabled?: boolean;
   pushAlertsEnabled?: boolean;
+  emailLowStock?: boolean;
+  emailExpiringSoon?: boolean;
+  emailExpired?: boolean;
 }
 
 export interface Location {

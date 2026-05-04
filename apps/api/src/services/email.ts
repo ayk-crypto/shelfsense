@@ -68,6 +68,91 @@ export async function sendPasswordResetEmail(
   });
 }
 
+export interface AlertEmailPayload {
+  ownerEmail: string;
+  workspaceName: string;
+  lowStock: Array<{ itemName: string; unit: string; quantity: number; minStockLevel: number }>;
+  expiringSoon: Array<{ itemName: string; batchNo: string | null; expiryDate: Date | null }>;
+  expired: Array<{ itemName: string; batchNo: string | null; expiryDate: Date | null }>;
+}
+
+export async function sendAlertDigestEmail(payload: AlertEmailPayload): Promise<void> {
+  const { ownerEmail, workspaceName, lowStock, expiringSoon, expired } = payload;
+
+  const sections: string[] = [];
+  const htmlSections: string[] = [];
+
+  if (lowStock.length > 0) {
+    const lines = lowStock.map(
+      (i) => `  • ${i.itemName}: ${i.quantity} ${i.unit} (min ${i.minStockLevel})`,
+    );
+    sections.push(`LOW STOCK (${lowStock.length}):\n${lines.join("\n")}`);
+    htmlSections.push(
+      `<h3 style="color:#ef4444;margin:16px 0 8px">Low Stock (${lowStock.length})</h3><ul style="margin:0;padding-left:20px">${lowStock.map((i) => `<li>${i.itemName}: <strong>${i.quantity} ${i.unit}</strong> (min ${i.minStockLevel})</li>`).join("")}</ul>`,
+    );
+  }
+
+  if (expiringSoon.length > 0) {
+    const lines = expiringSoon.map(
+      (b) => `  • ${b.itemName}${b.batchNo ? ` [${b.batchNo}]` : ""} — expires ${b.expiryDate?.toISOString().slice(0, 10) ?? "unknown"}`,
+    );
+    sections.push(`EXPIRING SOON (${expiringSoon.length}):\n${lines.join("\n")}`);
+    htmlSections.push(
+      `<h3 style="color:#f59e0b;margin:16px 0 8px">Expiring Soon (${expiringSoon.length})</h3><ul style="margin:0;padding-left:20px">${expiringSoon.map((b) => `<li>${b.itemName}${b.batchNo ? ` [${b.batchNo}]` : ""} — expires <strong>${b.expiryDate?.toISOString().slice(0, 10) ?? "unknown"}</strong></li>`).join("")}</ul>`,
+    );
+  }
+
+  if (expired.length > 0) {
+    const lines = expired.map(
+      (b) => `  • ${b.itemName}${b.batchNo ? ` [${b.batchNo}]` : ""} — expired ${b.expiryDate?.toISOString().slice(0, 10) ?? "unknown"}`,
+    );
+    sections.push(`EXPIRED STOCK (${expired.length}):\n${lines.join("\n")}`);
+    htmlSections.push(
+      `<h3 style="color:#6b7280;margin:16px 0 8px">Expired Stock (${expired.length})</h3><ul style="margin:0;padding-left:20px">${expired.map((b) => `<li>${b.itemName}${b.batchNo ? ` [${b.batchNo}]` : ""} — expired <strong>${b.expiryDate?.toISOString().slice(0, 10) ?? "unknown"}</strong></li>`).join("")}</ul>`,
+    );
+  }
+
+  if (sections.length === 0) return;
+
+  const subject = `[${workspaceName}] Inventory alert — ${sections.length} issue${sections.length > 1 ? "s" : ""} detected`;
+  const text = [
+    `Inventory alert summary for ${workspaceName}:`,
+    "",
+    sections.join("\n\n"),
+    "",
+    `View your alerts at ${APP_URL}/alerts`,
+  ].join("\n");
+  const html = `
+    <p>Inventory alert summary for <strong>${workspaceName}</strong>:</p>
+    ${htmlSections.join("")}
+    <p style="margin-top:20px"><a href="${APP_URL}/alerts" style="display:inline-block;padding:10px 20px;background:#6366f1;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;">View alerts</a></p>
+  `;
+
+  if (isDev) {
+    logger.info("[EMAIL:DEV] Alert digest (SMTP not configured)", {
+      to: ownerEmail,
+      lowStock: lowStock.length,
+      expiringSoon: expiringSoon.length,
+      expired: expired.length,
+    });
+    return;
+  }
+
+  const transporter = buildTransporter();
+  if (!transporter) {
+    logger.warn("[EMAIL] SMTP not configured — alert digest not sent", { to: ownerEmail });
+    return;
+  }
+
+  await transporter.sendMail({
+    from: `"${FROM_NAME}" <${FROM_ADDRESS}>`,
+    to: ownerEmail,
+    subject,
+    text,
+    html,
+  });
+}
+
 export async function sendEmailVerificationEmail(
   to: string,
   rawToken: string,

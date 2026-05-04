@@ -93,6 +93,9 @@ model Workspace {
   whatsappAlertsEnabled Boolean  @default(false)
   emailAlertsEnabled Boolean     @default(false)
   pushAlertsEnabled Boolean      @default(false)
+  emailLowStock      Boolean     @default(false)
+  emailExpiringSoon  Boolean     @default(false)
+  emailExpired       Boolean     @default(false)
   onboardingCompleted Boolean    @default(false)
   ownerId        String          @db.Uuid
   createdAt      DateTime        @default(now())

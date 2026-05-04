@@ -21,6 +21,9 @@ interface SettingsForm {
   whatsappAlertsEnabled: boolean;
   emailAlertsEnabled: boolean;
   pushAlertsEnabled: boolean;
+  emailLowStock: boolean;
+  emailExpiringSoon: boolean;
+  emailExpired: boolean;
 }
 
 let toastSeq = 0;
@@ -104,6 +107,9 @@ export function SettingsPage() {
         whatsappAlertsEnabled: form.whatsappAlertsEnabled,
         emailAlertsEnabled: form.emailAlertsEnabled,
         pushAlertsEnabled: form.pushAlertsEnabled,
+        emailLowStock: form.emailLowStock,
+        emailExpiringSoon: form.emailExpiringSoon,
+        emailExpired: form.emailExpired,
       });
       setSettings(res.settings);
       setSavedForm(toForm(res.settings));
@@ -274,10 +280,17 @@ export function SettingsPage() {
             </div>
             <div className="stg-card-title">
               <h2>Alert Preferences</h2>
-              <p>Choose which inventory events generate in-app alerts and notifications.</p>
+              <p>Choose which inventory events generate in-app alerts and email notifications.</p>
             </div>
           </div>
-          <div className="stg-card-body stg-alerts-body">
+          <div className="stg-card-body">
+            <div className="stg-alert-header-row">
+              <span className="stg-alert-header-label">Alert type</span>
+              <span className="stg-alert-header-channels">
+                <span className="stg-channel-label">In-app</span>
+                <span className="stg-channel-label">Email</span>
+              </span>
+            </div>
             <AlertRow
               color="#ef4444"
               icon={
@@ -289,6 +302,8 @@ export function SettingsPage() {
               desc="Triggered when an item's available quantity drops below its configured threshold."
               checked={form.notifyLowStock}
               onChange={(v) => setForm({ ...form, notifyLowStock: v })}
+              emailChecked={form.emailLowStock}
+              onEmailChange={(v) => setForm({ ...form, emailLowStock: v })}
             />
             <AlertRow
               color="#f59e0b"
@@ -301,6 +316,8 @@ export function SettingsPage() {
               desc={`Triggered when a stock batch will expire within ${Number.isFinite(expiryDaysNum) && expiryDaysNum >= 0 ? expiryDaysNum : "?"} ${expiryDaysNum === 1 ? "day" : "days"} (your current alert window).`}
               checked={form.notifyExpiringSoon}
               onChange={(v) => setForm({ ...form, notifyExpiringSoon: v })}
+              emailChecked={form.emailExpiringSoon}
+              onEmailChange={(v) => setForm({ ...form, emailExpiringSoon: v })}
             />
             <AlertRow
               color="#6b7280"
@@ -313,11 +330,16 @@ export function SettingsPage() {
               desc="Triggered when a batch's expiry date has passed and it is still tracked in inventory."
               checked={form.notifyExpired}
               onChange={(v) => setForm({ ...form, notifyExpired: v })}
+              emailChecked={form.emailExpired}
+              onEmailChange={(v) => setForm({ ...form, emailExpired: v })}
             />
+            <p className="stg-email-hint">
+              Email alerts are delivered to the workspace owner's registered address when SMTP is configured.
+            </p>
           </div>
         </div>
 
-        {/* ── Notification Channels (coming soon) ── */}
+        {/* ── Notification Channels ── */}
         <div className="stg-card stg-card--muted">
           <div className="stg-card-header">
             <div className="stg-card-icon stg-card-icon--violet">
@@ -327,10 +349,10 @@ export function SettingsPage() {
             </div>
             <div className="stg-card-title">
               <h2>
-                Notification Channels
+                Additional Channels
                 <span className="stg-coming-soon-badge">Coming soon</span>
               </h2>
-              <p>Save channel preferences now — they'll activate automatically when each channel goes live.</p>
+              <p>Save preferences now — they'll activate automatically when each channel goes live.</p>
             </div>
           </div>
           <div className="stg-card-body stg-alerts-body">
@@ -345,20 +367,6 @@ export function SettingsPage() {
               desc="Send alert messages to the owner phone number via WhatsApp."
               checked={form.whatsappAlertsEnabled}
               onChange={(v) => setForm({ ...form, whatsappAlertsEnabled: v })}
-              comingSoon
-            />
-            <AlertRow
-              color="#6366f1"
-              icon={
-                <svg viewBox="0 0 20 20" fill="currentColor">
-                  <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
-                  <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
-                </svg>
-              }
-              label="Email"
-              desc="Receive digest emails for stock events at your registered address."
-              checked={form.emailAlertsEnabled}
-              onChange={(v) => setForm({ ...form, emailAlertsEnabled: v })}
               comingSoon
             />
             <AlertRow
@@ -439,6 +447,8 @@ function AlertRow({
   desc,
   checked,
   onChange,
+  emailChecked,
+  onEmailChange,
   comingSoon,
 }: {
   color: string;
@@ -447,8 +457,46 @@ function AlertRow({
   desc: string;
   checked: boolean;
   onChange: (v: boolean) => void;
+  emailChecked?: boolean;
+  onEmailChange?: (v: boolean) => void;
   comingSoon?: boolean;
 }) {
+  const hasDualToggle = emailChecked !== undefined && onEmailChange !== undefined;
+
+  if (hasDualToggle) {
+    return (
+      <div className={`stg-alert-row stg-alert-row--dual${comingSoon ? " stg-alert-row--muted" : ""}`}>
+        <span className="stg-alert-icon" style={{ background: color + "18", color }}>
+          {icon}
+        </span>
+        <span className="stg-alert-copy">
+          <span className="stg-alert-label">{label}</span>
+          <span className="stg-alert-desc">{desc}</span>
+        </span>
+        <span className="stg-dual-toggles">
+          <label className="stg-toggle-wrap" title="In-app notifications">
+            <input
+              type="checkbox"
+              className="stg-toggle-input"
+              checked={checked}
+              onChange={(e) => onChange(e.target.checked)}
+            />
+            <span className="stg-toggle-track" aria-hidden="true" />
+          </label>
+          <label className="stg-toggle-wrap" title="Email notifications">
+            <input
+              type="checkbox"
+              className="stg-toggle-input"
+              checked={emailChecked}
+              onChange={(e) => onEmailChange(e.target.checked)}
+            />
+            <span className="stg-toggle-track" aria-hidden="true" />
+          </label>
+        </span>
+      </div>
+    );
+  }
+
   return (
     <label className={`stg-alert-row${comingSoon ? " stg-alert-row--muted" : ""}`}>
       <span className="stg-alert-icon" style={{ background: color + "18", color }}>
@@ -487,6 +535,9 @@ function toForm(settings: WorkspaceSettings): SettingsForm {
     whatsappAlertsEnabled: settings.whatsappAlertsEnabled,
     emailAlertsEnabled: settings.emailAlertsEnabled,
     pushAlertsEnabled: settings.pushAlertsEnabled,
+    emailLowStock: settings.emailLowStock,
+    emailExpiringSoon: settings.emailExpiringSoon,
+    emailExpired: settings.emailExpired,
   };
 }
 

@@ -4,6 +4,8 @@ import { prisma } from "../db/prisma.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { getActiveLocationId } from "../utils/locations.js";
+import { sendAlertDigestEmail } from "../services/email.js";
+import { logger } from "../lib/logger.js";
 
 export const alertsRouter = Router();
 
@@ -22,10 +24,15 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), as
   const workspace = await prisma.workspace.findUnique({
     where: { id: workspaceId },
     select: {
+      name: true,
       expiryAlertDays: true,
       notifyLowStock: true,
       notifyExpiringSoon: true,
       notifyExpired: true,
+      emailLowStock: true,
+      emailExpiringSoon: true,
+      emailExpired: true,
+      owner: { select: { email: true } },
     },
   });
   const expiryAlertUntil = new Date(now);
@@ -133,6 +140,30 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), as
       notifyExpired: workspace?.notifyExpired ?? true,
     },
   });
+
+  const ownerEmail = workspace?.owner?.email;
+  if (ownerEmail) {
+    const emailPayload = {
+      ownerEmail,
+      workspaceName: workspace?.name ?? "Your Workspace",
+      lowStock: (workspace?.emailLowStock ?? false) ? lowStock : [],
+      expiringSoon: (workspace?.emailExpiringSoon ?? false)
+        ? expiringSoon.map((b) => ({ itemName: b.item.name, batchNo: b.batchNo, expiryDate: b.expiryDate }))
+        : [],
+      expired: (workspace?.emailExpired ?? false)
+        ? expired.map((b) => ({ itemName: b.item.name, batchNo: b.batchNo, expiryDate: b.expiryDate }))
+        : [],
+    };
+    const hasAnyEmail =
+      emailPayload.lowStock.length > 0 ||
+      emailPayload.expiringSoon.length > 0 ||
+      emailPayload.expired.length > 0;
+    if (hasAnyEmail) {
+      sendAlertDigestEmail(emailPayload).catch((err: unknown) => {
+        logger.warn("[EMAIL] Failed to send alert digest", { error: String(err) });
+      });
+    }
+  }
 
   return res.json({
     lowStock,
