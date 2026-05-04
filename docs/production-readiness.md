@@ -25,6 +25,8 @@ This document summarises the current product surface and the remaining work need
 - Stock In (direct and receive-against-PO), Stock Out, manual adjustments, inter-location transfers.
 - Low-stock, expiring-soon, and expired-stock alerts with per-type in-app and email notification toggles.
 - Alert digest email — workspace-level deduplication (fires at most once per alert type per calendar day, regardless of how many users or page loads trigger the check).
+- Scheduled email notifications via node-cron: low-stock alerts every 4 hours, expiry alerts every 4 hours (offset), daily inventory summary digest at 08:00 — each with per-workspace anti-spam cooldown tracking (`lastScheduledLowStockEmailAt`, `lastScheduledExpirySoonEmailAt`, `lastDailyDigestSentAt`).
+- Daily digest email preference (`dailyDigestEnabled`) — workspace owner can opt in to a once-per-day combined summary covering all active stock issues.
 - Supplier management and Purchase Order lifecycle (DRAFT → ORDERED → PARTIALLY_RECEIVED → RECEIVED/CANCELLED).
 - Barcode label generation and camera scanning (html5-qrcode, lazy-loaded).
 - Dashboard overview, alert summary, reorder suggestions, usage insights, stock forecast, cost analysis, and wastage summary.
@@ -52,7 +54,7 @@ This document summarises the current product surface and the remaining work need
 - No metrics, distributed tracing, or external error-tracking integration (e.g. Sentry).
 - No automated backup scheduling in the repository (manual steps documented in the Logging and Monitoring section).
 - No deployment-specific hardening guide for TLS termination or secret rotation.
-- No background job system for scheduled expiry checks or push notifications.
+- No push notification delivery (WhatsApp / browser push channels are placeholders).
 - No edit/delete flows for team members or locations.
 - Limited audit coverage beyond the currently logged core actions.
 - No advanced forecasting, charting, or machine-learning prediction.

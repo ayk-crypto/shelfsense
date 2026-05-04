@@ -96,6 +96,10 @@ model Workspace {
   emailLowStock      Boolean     @default(false)
   emailExpiringSoon  Boolean     @default(false)
   emailExpired       Boolean     @default(false)
+  dailyDigestEnabled Boolean     @default(false)
+  lastScheduledLowStockEmailAt    DateTime?
+  lastScheduledExpirySoonEmailAt  DateTime?
+  lastDailyDigestSentAt           DateTime?
   onboardingCompleted Boolean    @default(false)
   ownerId        String          @db.Uuid
   createdAt      DateTime        @default(now())

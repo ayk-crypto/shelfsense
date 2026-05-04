@@ -24,6 +24,7 @@ interface SettingsForm {
   emailLowStock: boolean;
   emailExpiringSoon: boolean;
   emailExpired: boolean;
+  dailyDigestEnabled: boolean;
 }
 
 let toastSeq = 0;
@@ -110,6 +111,7 @@ export function SettingsPage() {
         emailLowStock: form.emailLowStock,
         emailExpiringSoon: form.emailExpiringSoon,
         emailExpired: form.emailExpired,
+        dailyDigestEnabled: form.dailyDigestEnabled,
       });
       setSettings(res.settings);
       setSavedForm(toForm(res.settings));
@@ -333,6 +335,29 @@ export function SettingsPage() {
               emailChecked={form.emailExpired}
               onEmailChange={(v) => setForm({ ...form, emailExpired: v })}
             />
+            <div className="stg-alert-row stg-alert-row--dual">
+              <span className="stg-alert-icon" style={{ background: "#6366f118", color: "#6366f1" }}>
+                <svg viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                </svg>
+              </span>
+              <span className="stg-alert-copy">
+                <span className="stg-alert-label">Daily summary email</span>
+                <span className="stg-alert-desc">Sent once per day at 8:00 AM — a combined summary of all active low stock, expiring, and expired stock.</span>
+              </span>
+              <span className="stg-dual-toggles">
+                <span style={{ width: "44px", display: "inline-block" }} />
+                <label className="stg-toggle-wrap" title="Daily summary email">
+                  <input
+                    type="checkbox"
+                    className="stg-toggle-input"
+                    checked={form.dailyDigestEnabled}
+                    onChange={(e) => setForm({ ...form, dailyDigestEnabled: e.target.checked })}
+                  />
+                  <span className="stg-toggle-track" aria-hidden="true" />
+                </label>
+              </span>
+            </div>
             <p className="stg-email-hint">
               Email alerts are delivered to the workspace owner's registered address when SMTP is configured.
             </p>
@@ -538,6 +563,7 @@ function toForm(settings: WorkspaceSettings): SettingsForm {
     emailLowStock: settings.emailLowStock,
     emailExpiringSoon: settings.emailExpiringSoon,
     emailExpired: settings.emailExpired,
+    dailyDigestEnabled: settings.dailyDigestEnabled,
   };
 }
 

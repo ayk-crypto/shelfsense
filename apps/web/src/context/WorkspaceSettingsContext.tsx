@@ -20,6 +20,7 @@ const DEFAULT_SETTINGS: WorkspaceSettings = {
   emailLowStock: false,
   emailExpiringSoon: false,
   emailExpired: false,
+  dailyDigestEnabled: false,
 };
 
 interface WorkspaceSettingsContextValue {

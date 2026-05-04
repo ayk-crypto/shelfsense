@@ -17,6 +17,7 @@ This is an npm workspaces monorepo with three packages:
 - **Database**: PostgreSQL (Replit built-in) with Prisma ORM
 - **Auth**: JWT (`jsonwebtoken`) + `bcryptjs`
 - **Email**: `nodemailer` (console transport in dev, SMTP in prod)
+- **Scheduler**: `node-cron` — low-stock alerts every 4h, expiry alerts every 4h (offset), daily digest at 08:00
 - **Logging**: `winston` (JSON in prod, colorized in dev); per-request structured logging with `requestId`, `userId`, `workspaceId`, `durationMs`
 
 ## Design System (as of May 2026 redesign)
@@ -48,7 +49,8 @@ This is an npm workspaces monorepo with three packages:
 - Reports page with CSV export
 - Team management (invite / role change / remove)
 - Activity log with filters
-- Settings page (workspace name, notifications toggles)
+- Settings page (workspace name, notifications toggles, daily digest email preference)
+- **Scheduled email delivery**: low-stock alert emails, expiry alert emails, and daily digest — each with per-workspace anti-spam timestamp tracking (`lastScheduledLowStockEmailAt`, `lastScheduledExpirySoonEmailAt`, `lastDailyDigestSentAt`)
 - **Auth security**: account lockout after 5 failed logins (15 min), forgot/reset password (SHA-256 hashed tokens, 60 min TTL), email verification (24 h TTL), rate limiting on all auth endpoints
 
 ## Frontend Integration (`apps/web`)

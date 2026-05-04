@@ -19,6 +19,7 @@ const DEFAULT_WORKSPACE_SETTINGS = {
   emailLowStock: false,
   emailExpiringSoon: false,
   emailExpired: false,
+  dailyDigestEnabled: false,
 };
 
 const PHONE_PATTERN = /^[+\d\s-]{7,24}$/;
@@ -50,6 +51,7 @@ workspaceRouter.get("/settings", requireAuth, asyncHandler(async (req, res) => {
       emailLowStock: true,
       emailExpiringSoon: true,
       emailExpired: true,
+      dailyDigestEnabled: true,
     },
   });
 
@@ -116,6 +118,7 @@ workspaceRouter.patch("/settings", requireAuth, requireRole([Role.OWNER]), async
       emailLowStock: true,
       emailExpiringSoon: true,
       emailExpired: true,
+      dailyDigestEnabled: true,
     },
   });
 
@@ -190,6 +193,7 @@ function parseWorkspaceSettingsInput(body: unknown) {
     emailLowStock?: unknown;
     emailExpiringSoon?: unknown;
     emailExpired?: unknown;
+    dailyDigestEnabled?: unknown;
   };
 
   return {
@@ -207,6 +211,7 @@ function parseWorkspaceSettingsInput(body: unknown) {
     emailLowStock: parseOptionalBoolean(input.emailLowStock),
     emailExpiringSoon: parseOptionalBoolean(input.emailExpiringSoon),
     emailExpired: parseOptionalBoolean(input.emailExpired),
+    dailyDigestEnabled: parseOptionalBoolean(input.dailyDigestEnabled),
   };
 }
 
@@ -252,6 +257,7 @@ function normalizeWorkspaceSettings(settings: {
   emailLowStock: boolean | null;
   emailExpiringSoon: boolean | null;
   emailExpired: boolean | null;
+  dailyDigestEnabled: boolean | null;
 }) {
   return {
     id: settings.id,
@@ -275,5 +281,6 @@ function normalizeWorkspaceSettings(settings: {
     emailLowStock: settings.emailLowStock ?? DEFAULT_WORKSPACE_SETTINGS.emailLowStock,
     emailExpiringSoon: settings.emailExpiringSoon ?? DEFAULT_WORKSPACE_SETTINGS.emailExpiringSoon,
     emailExpired: settings.emailExpired ?? DEFAULT_WORKSPACE_SETTINGS.emailExpired,
+    dailyDigestEnabled: settings.dailyDigestEnabled ?? DEFAULT_WORKSPACE_SETTINGS.dailyDigestEnabled,
   };
 }

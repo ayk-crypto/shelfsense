@@ -113,6 +113,7 @@ export interface WorkspaceSettings {
   emailLowStock: boolean;
   emailExpiringSoon: boolean;
   emailExpired: boolean;
+  dailyDigestEnabled: boolean;
 }
 
 export interface WorkspaceSettingsResponse {
@@ -147,6 +148,7 @@ export interface UpdateWorkspaceSettingsInput {
   emailLowStock?: boolean;
   emailExpiringSoon?: boolean;
   emailExpired?: boolean;
+  dailyDigestEnabled?: boolean;
 }
 
 export interface Location {
