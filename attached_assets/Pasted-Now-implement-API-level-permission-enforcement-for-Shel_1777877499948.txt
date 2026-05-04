@@ -1,0 +1,129 @@
+Now implement API-level permission enforcement for ShelfSense.
+
+Goal:
+Ensure that frontend role restrictions are backed by backend API permission checks. Custom roles and base roles should be enforced server-side, not only in the UI.
+
+Important:
+Do not redesign the UI in this task. Focus on backend permission safety, route protection, and documentation.
+
+Current roles:
+- OWNER
+- MANAGER
+- OPERATOR
+
+Current product areas:
+- Inventory items
+- Stock In
+- Stock Out
+- Stock Count
+- Purchases
+- Purchase Receiving
+- Suppliers
+- Transfers
+- Reports
+- Team management
+- Custom roles
+- Workspace settings
+- Audit logs
+- Locations
+
+Requirements:
+
+1. Review existing auth and role middleware.
+   - Identify where routes are protected only by authentication.
+   - Identify where routes use broad role checks only.
+   - Identify where custom role permissions exist but are not enforced by API.
+
+2. Create or improve permission middleware.
+   - Middleware should check the authenticated user’s workspace membership.
+   - Owner should always be allowed.
+   - For Manager and Operator, enforce permissions based on default role rules and custom role permissions where available.
+   - Default behavior should be deny if permission is missing or unclear.
+
+3. Define clear permission keys, for example:
+   - items.view
+   - items.create
+   - items.update
+   - items.archive
+   - stock.view
+   - stock.in
+   - stock.out
+   - stock.adjust
+   - stock.transfer
+   - stock.count.create
+   - stock.count.finalize
+   - purchases.view
+   - purchases.create
+   - purchases.order
+   - purchases.receive
+   - purchases.cancel
+   - suppliers.view
+   - suppliers.create
+   - suppliers.update
+   - suppliers.delete
+   - reports.view
+   - reports.export
+   - team.view
+   - team.manage
+   - roles.manage
+   - settings.manage
+   - locations.manage
+   - audit.view
+
+4. Apply permission checks to sensitive API routes:
+   - Item create/edit/archive/reactivate/import
+   - Stock In
+   - Stock Out
+   - Manual adjustments
+   - Transfers
+   - Stock Count create/update/finalize
+   - Purchase create/order/receive/cancel
+   - Supplier create/edit/delete
+   - Reports/export
+   - Team management
+   - Custom role management
+   - Workspace settings
+   - Location management
+   - Audit logs
+
+5. Keep default role behavior practical:
+   - OWNER: all permissions
+   - MANAGER: inventory, stock operations, stock count finalize, purchases, suppliers, reports, alerts, locations if currently allowed
+   - OPERATOR: daily operations only, such as stock out, scanner, draft stock count, alerts, movement history where currently allowed
+   - OPERATOR should not be able to create/order/receive/cancel purchases unless explicitly granted by custom role.
+
+6. Frontend alignment:
+   - Review frontend route/action visibility.
+   - Ensure UI permission checks use the same permission keys where practical.
+   - Do not rely only on frontend restrictions.
+
+7. Security behavior:
+   - Return 403 Forbidden for permission denied.
+   - Do not leak sensitive internal details.
+   - Log permission denied events with user ID, workspace ID, route/action, and request ID if available.
+
+8. Testing/smoke checks:
+   - Owner can access all major actions.
+   - Manager can perform expected management actions.
+   - Operator cannot directly call restricted APIs.
+   - Operator can still perform allowed daily operations.
+   - Custom role with limited permissions is denied from unassigned actions.
+   - Custom role with granted permissions can perform assigned actions.
+
+9. Compatibility:
+   - Do not break auth/login.
+   - Do not break Daily Operations.
+   - Do not break Stock In/Out.
+   - Do not break Stock Count.
+   - Do not break Purchases and Receiving.
+   - Do not break Suppliers, Reports, Alerts, Dashboard, or Audit Logs.
+
+10. Documentation:
+   - Add/update docs explaining permission keys.
+   - Add role-to-permission mapping.
+   - Mention that API-level permission enforcement is now active.
+
+11. Verification:
+   - Run build for shared, API, and web.
+   - Fix all TypeScript/backend errors.
+   - Provide summary of changed files and permission behavior.
