@@ -687,6 +687,58 @@ stockRouter.get("/supplier-suggestion", requireRole([Role.OWNER, Role.MANAGER]),
   return res.json({ suggestion });
 }));
 
+stockRouter.get("/trend", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), asyncHandler(async (req, res) => {
+  const workspaceId = getWorkspaceId(req);
+  if (!workspaceId) return res.status(403).json({ error: "Workspace access required" });
+
+  const locationId = await getActiveLocationId(req, workspaceId);
+
+  const daysRaw = typeof req.query.days === "string" ? parseInt(req.query.days, 10) : 30;
+  const days = Number.isFinite(daysRaw) && daysRaw > 0 && daysRaw <= 365 ? daysRaw : 30;
+
+  const fromDate = new Date();
+  fromDate.setDate(fromDate.getDate() - (days - 1));
+  fromDate.setHours(0, 0, 0, 0);
+
+  const movements = await prisma.stockMovement.findMany({
+    where: {
+      workspaceId,
+      locationId,
+      type: { in: [StockMovementType.STOCK_IN, StockMovementType.STOCK_OUT] },
+      createdAt: { gte: fromDate },
+    },
+    select: {
+      type: true,
+      quantity: true,
+      createdAt: true,
+    },
+    orderBy: { createdAt: "asc" },
+  });
+
+  const dayMap = new Map<string, { stockIn: number; stockOut: number }>();
+  for (let i = 0; i < days; i++) {
+    const d = new Date(fromDate);
+    d.setDate(fromDate.getDate() + i);
+    const key = d.toISOString().slice(0, 10);
+    dayMap.set(key, { stockIn: 0, stockOut: 0 });
+  }
+
+  for (const m of movements) {
+    const key = m.createdAt.toISOString().slice(0, 10);
+    const entry = dayMap.get(key);
+    if (!entry) continue;
+    if (m.type === StockMovementType.STOCK_IN) {
+      entry.stockIn += m.quantity;
+    } else if (m.type === StockMovementType.STOCK_OUT) {
+      entry.stockOut += m.quantity;
+    }
+  }
+
+  const data = [...dayMap.entries()].map(([date, vals]) => ({ date, ...vals }));
+
+  return res.json({ data, days });
+}));
+
 stockRouter.get("/price-history", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
   const workspaceId = getWorkspaceId(req);
   if (!workspaceId) return res.status(403).json({ error: "Workspace access required" });

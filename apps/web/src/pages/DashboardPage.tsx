@@ -1,11 +1,21 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { getAlerts } from "../api/alerts";
-import { getStockMovements, getStockSummary } from "../api/stock";
+import { getStockMovements, getStockSummary, getStockTrend } from "../api/stock";
 import { useAuth } from "../context/AuthContext";
 import { useLocation } from "../context/LocationContext";
 import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
-import type { AlertsResponse, StockMovement, StockSummaryItem } from "../types";
+import type { AlertsResponse, StockMovement, StockSummaryItem, StockTrendDataPoint } from "../types";
 import { formatCurrency } from "../utils/currency";
 import { getSuggestedReorderQuantity } from "../utils/reorder";
 import {
@@ -89,6 +99,8 @@ export function DashboardPage() {
   const [wastageLastWeek, setWastageLastWeek] = useState(0);
   const [topItems, setTopItems] = useState<WastedItem[]>([]);
   const [usageMovements, setUsageMovements] = useState<StockMovement[]>([]);
+  const [trendDays, setTrendDays] = useState<7 | 14 | 30>(30);
+  const [trendData, setTrendData] = useState<StockTrendDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -155,6 +167,18 @@ export function DashboardPage() {
     }
     void load();
   }, [canAccessManagement, activeLocationId]);
+
+  useEffect(() => {
+    async function loadTrend() {
+      try {
+        const res = await getStockTrend(trendDays);
+        setTrendData(res.data);
+      } catch {
+        setTrendData([]);
+      }
+    }
+    void loadTrend();
+  }, [trendDays, activeLocationId]);
 
   if (loading) {
     return (
@@ -315,6 +339,17 @@ export function DashboardPage() {
         </div>
       )}
 
+      </DashboardGroup>
+
+      <DashboardGroup
+        title="Movement Trends"
+        helper="Daily stock in vs stock out quantities"
+      >
+        <StockTrendChart
+          data={trendData}
+          days={trendDays}
+          onDaysChange={setTrendDays}
+        />
       </DashboardGroup>
 
       <DashboardGroup
@@ -606,6 +641,88 @@ export function DashboardPage() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function StockTrendChart({
+  data,
+  days,
+  onDaysChange,
+}: {
+  data: StockTrendDataPoint[];
+  days: 7 | 14 | 30;
+  onDaysChange: (d: 7 | 14 | 30) => void;
+}) {
+  const hasData = data.some((d) => d.stockIn > 0 || d.stockOut > 0);
+
+  const formatted = data.map((d) => ({
+    ...d,
+    label: new Date(d.date + "T00:00:00").toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    }),
+  }));
+
+  const tickInterval = days === 7 ? 0 : days === 14 ? 1 : 4;
+
+  return (
+    <div className="trend-chart-section">
+      <div className="trend-chart-header">
+        <div className="trend-chart-range-btns">
+          {([7, 14, 30] as const).map((d) => (
+            <button
+              key={d}
+              className={`trend-range-btn${days === d ? " trend-range-btn--active" : ""}`}
+              onClick={() => onDaysChange(d)}
+            >
+              {d}d
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {!hasData ? (
+        <div className="empty-state empty-state--compact">
+          No stock movements in the last {days} days.
+        </div>
+      ) : (
+        <div className="trend-chart-wrap">
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={formatted} margin={{ top: 4, right: 8, left: 0, bottom: 0 }} barCategoryGap="30%">
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+              <XAxis
+                dataKey="label"
+                tick={{ fontSize: 11, fill: "var(--color-text-muted)" }}
+                axisLine={false}
+                tickLine={false}
+                interval={tickInterval}
+              />
+              <YAxis
+                tick={{ fontSize: 11, fill: "var(--color-text-muted)" }}
+                axisLine={false}
+                tickLine={false}
+                width={36}
+              />
+              <Tooltip
+                contentStyle={{
+                  background: "var(--color-surface)",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: "8px",
+                  fontSize: "12px",
+                }}
+                cursor={{ fill: "var(--color-border-light)" }}
+              />
+              <Legend
+                wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }}
+                formatter={(value) => (value === "stockIn" ? "Stock In" : "Stock Out")}
+              />
+              <Bar dataKey="stockIn" name="stockIn" fill="var(--color-green)" radius={[3, 3, 0, 0]} maxBarSize={28} />
+              <Bar dataKey="stockOut" name="stockOut" fill="var(--color-primary)" radius={[3, 3, 0, 0]} maxBarSize={28} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </div>
   );
 }

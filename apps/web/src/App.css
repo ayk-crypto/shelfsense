@@ -11219,6 +11219,65 @@ tr.row--wastage td:first-child {
   margin-bottom: 18px;
 }
 
+/* =============================================
+   Stock Trend Chart
+   ============================================= */
+.trend-chart-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.trend-chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.trend-chart-range-btns {
+  display: flex;
+  gap: 4px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 3px;
+}
+
+.trend-range-btn {
+  padding: 4px 12px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.trend-range-btn:hover {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.trend-range-btn--active {
+  background: var(--color-surface);
+  color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.trend-chart-wrap {
+  width: 100%;
+  overflow-x: auto;
+  min-height: 240px;
+}
+
+@media (max-width: 640px) {
+  .trend-chart-wrap {
+    min-width: 320px;
+  }
+}
+
 .stock-count-detail-table-wrap { overflow-x: auto; }
 
 .stock-count-detail-table {

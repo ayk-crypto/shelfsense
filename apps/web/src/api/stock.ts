@@ -7,6 +7,7 @@ import type {
   StockOutInput,
   StockSummaryResponse,
   StockTransferInput,
+  StockTrendResponse,
   SupplierSuggestionResponse,
 } from "../types";
 import { apiClient } from "./client";
@@ -55,4 +56,8 @@ export async function getPriceHistory(itemId: string, limit?: number): Promise<P
   const params = new URLSearchParams({ itemId });
   if (limit) params.set("limit", String(limit));
   return apiClient.get<PriceHistoryResponse>(`/stock/price-history?${params.toString()}`);
+}
+
+export async function getStockTrend(days: number = 30): Promise<StockTrendResponse> {
+  return apiClient.get<StockTrendResponse>(`/stock/trend?days=${days}`);
 }

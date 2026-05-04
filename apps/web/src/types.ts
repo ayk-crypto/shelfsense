@@ -398,6 +398,17 @@ export interface StockMovementFilters {
   toDate?: string;
 }
 
+export interface StockTrendDataPoint {
+  date: string;
+  stockIn: number;
+  stockOut: number;
+}
+
+export interface StockTrendResponse {
+  data: StockTrendDataPoint[];
+  days: number;
+}
+
 export type StockCountStatus = "DRAFT" | "FINALIZED";
 
 export interface StockCountStockItem {
