@@ -126,7 +126,7 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), as
         minStockLevel: item.minStockLevel,
       };
     })
-    .filter((item) => item.quantity <= item.minStockLevel);
+    .filter((item) => item.minStockLevel !== null && item.quantity <= item.minStockLevel);
 
   const dayStart = new Date(now);
   dayStart.setHours(0, 0, 0, 0);

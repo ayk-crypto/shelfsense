@@ -211,13 +211,18 @@ stockRouter.post("/out", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]),
           throw new StockConflictError();
         }
 
+        const wastageReasons = new Set(["wastage", "damaged", "expired"]);
+        const movementType = input.reason && wastageReasons.has(input.reason)
+          ? StockMovementType.WASTAGE
+          : StockMovementType.STOCK_OUT;
+
         const movement = await tx.stockMovement.create({
           data: {
             workspaceId,
             locationId,
             itemId,
             batchId: batch.id,
-            type: StockMovementType.STOCK_OUT,
+            type: movementType,
             quantity: deductedQuantity,
             unitCost: batch.unitCost,
             reason: input.reason,
@@ -508,7 +513,7 @@ stockRouter.get("/summary", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR
       unit: item.unit,
       totalQuantity,
       minStockLevel: item.minStockLevel,
-      isLowStock: totalQuantity <= item.minStockLevel,
+      isLowStock: item.minStockLevel !== null && totalQuantity <= item.minStockLevel,
       totalValue,
       nearestExpiryDate,
     };

@@ -8,7 +8,7 @@ export const auditLogsRouter = Router();
 
 auditLogsRouter.use(requireAuth);
 
-auditLogsRouter.get("/", requireRole([Role.OWNER]), asyncHandler(async (req, res) => {
+auditLogsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
   const workspaceId = req.user?.workspaceId ?? null;
 
   if (!workspaceId) {

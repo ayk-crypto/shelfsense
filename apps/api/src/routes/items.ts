@@ -213,7 +213,7 @@ itemsRouter.get("/:id/batches-detail", requireRole([Role.OWNER, Role.MANAGER, Ro
     .sort((first, second) => first.getTime() - second.getTime())[0] ?? null;
 
   const itemStatuses = {
-    isLowStock: totalCurrentStock <= item.minStockLevel,
+    isLowStock: item.minStockLevel !== null && totalCurrentStock <= item.minStockLevel,
     hasExpired: activeBatches.some((batch) => batch.expiryStatus === "EXPIRED"),
     hasExpiringSoon: activeBatches.some((batch) => batch.expiryStatus === "EXPIRING_SOON"),
   };

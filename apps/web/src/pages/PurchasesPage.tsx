@@ -104,6 +104,9 @@ export function PurchasesPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [receivePurchaseTarget, setReceivePurchaseTarget] = useState<Purchase | null>(null);
   const [detailPurchase, setDetailPurchase] = useState<Purchase | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<Purchase | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelling, setCancelling] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [filters, setFilters] = useState<PurchaseFilters>({});
 
@@ -182,15 +185,24 @@ export function PurchasesPage() {
     }
   }
 
-  async function handleCancel(purchase: Purchase) {
-    const reason = window.prompt("Cancellation reason (optional)") ?? undefined;
+  function handleCancel(purchase: Purchase) {
+    setCancelTarget(purchase);
+    setCancelReason("");
+  }
+
+  async function confirmCancel() {
+    if (!cancelTarget) return;
+    setCancelling(true);
     try {
-      const res = await cancelPurchase(purchase.id, reason);
+      const res = await cancelPurchase(cancelTarget.id, cancelReason.trim() || undefined);
       showToast("Purchase cancelled", "success");
       setDetailPurchase(res.purchase);
+      setCancelTarget(null);
       await load(filters);
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Failed to cancel purchase", "error");
+    } finally {
+      setCancelling(false);
     }
   }
 
@@ -374,6 +386,42 @@ export function PurchasesPage() {
             await refreshDetail(purchase.id);
           }}
         />
+      )}
+
+      {cancelTarget && (
+        <div className="modal-overlay" onClick={() => setCancelTarget(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">Cancel Purchase</h2>
+              <button className="modal-close" onClick={() => setCancelTarget(null)} aria-label="Close">×</button>
+            </div>
+            <div className="modal-body">
+              <p style={{ marginBottom: "var(--space-3)" }}>
+                Cancel purchase from <strong>{cancelTarget.supplier.name}</strong>? This cannot be undone.
+              </p>
+              <label className="form-label">Reason (optional)</label>
+              <input
+                className="form-input"
+                type="text"
+                placeholder="e.g. Supplier out of stock"
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="btn btn--ghost" onClick={() => setCancelTarget(null)}>Back</button>
+              <button
+                type="button"
+                className="btn btn--danger"
+                disabled={cancelling}
+                onClick={() => { void confirmCancel(); }}
+              >
+                {cancelling ? "Cancelling..." : "Cancel Purchase"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <div className="toast-stack">

@@ -235,7 +235,7 @@ reportsRouter.get(
     const movements = await prisma.stockMovement.findMany({
       where: {
         workspaceId,
-        type: "STOCK_OUT",
+        type: { in: ["STOCK_OUT", "WASTAGE"] },
         ...(f.locationId ? { locationId: f.locationId } : {}),
         ...(f.itemId ? { itemId: f.itemId } : {}),
         ...(dr ? { createdAt: dr } : {}),

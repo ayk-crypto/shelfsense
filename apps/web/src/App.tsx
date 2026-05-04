@@ -262,7 +262,7 @@ export function App() {
             />
             <Route
               path="/activity"
-              element={<RoleRoute allowedRoles={["OWNER"]}><ActivityPage /></RoleRoute>}
+              element={<RoleRoute allowedRoles={["OWNER", "MANAGER"]}><ActivityPage /></RoleRoute>}
             />
             <Route
               path="/locations"
