@@ -1,0 +1,215 @@
+Redesign the ShelfSense dashboard and sidebar into a more polished, premium SaaS experience.
+
+Current issue:
+The app is functional and clean, but the dashboard feels too pale, flat, generic, and too long for the amount of insight it provides. It should feel more like a modern inventory SaaS product, not a basic internal admin panel.
+
+Brand direction:
+- Product: ShelfSense
+- Purpose: inventory, expiry tracking, stock movement, reorder suggestions, operational visibility
+- Style: modern SaaS, clean, professional, mobile-first
+- Inspiration: BoxHero-style simplicity, but with better dashboard UX
+- Keep the UI light and clean, but improve contrast, hierarchy, spacing, and card design
+- Use a calm SaaS palette with indigo/blue-violet accents, soft green for stock-in/success, soft red for stock-out/wastage, amber for expiry/warnings
+- Avoid Windows-XP-style buttons, harsh borders, and overly pale low-contrast text
+
+Main goals:
+1. Make the dashboard feel premium, sharper, and more actionable.
+2. Improve visual hierarchy so the user immediately sees what matters.
+3. Reduce unnecessary empty space and oversized empty panels.
+4. Make the “Today” page truly operational and action-driven.
+5. Improve sidebar grouping, labels, icons, and active state.
+6. Ensure everything is fully responsive on mobile, tablet, and desktop.
+
+Dashboard redesign requirements:
+
+1. Page header
+- Rename page title from “Today’s operations” to “Today”
+- Subtitle should be: “Your inventory snapshot and priority actions.”
+- Keep email verification banner, but make it visually softer and more polished.
+- Top action buttons should remain visible: Scan, Stock Out, Stock In.
+- Stock In and Stock Out buttons should be visually stronger, modern, and not flat/old-looking.
+
+2. KPI cards
+Redesign top KPI cards with better hierarchy:
+- Total Inventory Value
+- Total Items
+- Low Stock Items
+- Expiring Soon
+- Wastage Value
+
+Requirements:
+- Larger and darker metric numbers
+- Better spacing inside cards
+- Subtle icon containers
+- Meaningful status colors:
+  - Low stock = amber/red accent
+  - Expiring soon = amber accent
+  - Wastage = red accent
+  - Stock value/items = primary/neutral accent
+- Add small helper text where useful, e.g. “Across all locations”, “Needs attention”, “This week”
+- Cards should look modern, not plain table cells.
+
+3. Main content layout
+Replace the long stacked layout with a more balanced dashboard layout.
+
+Recommended desktop layout:
+- Row 1: KPI cards
+- Row 2:
+  - Left: Stock Movement Trends chart, taking around 65% width
+  - Right: Quick Actions / Operational Shortcuts, taking around 35% width
+- Row 3:
+  - Left: Needs Attention / Alert Summary
+  - Right: Reorder Suggestions
+- Row 4:
+  - Left: Recent Activity
+  - Right: Expiring Soon or Slow-Moving Stock
+- Bottom: Compact Inventory Summary table, not huge
+
+On mobile:
+- All sections should stack cleanly
+- KPI cards should become 2-column or 1-column depending screen size
+- Tables should convert to mobile cards or horizontally scroll gracefully
+- Sidebar should collapse into mobile navigation / drawer if current layout supports it
+
+4. Movement Trends chart
+Improve chart section:
+- Make the chart visually stronger and easier to read
+- Keep 7d / 14d / 30d range filters, but style them like modern segmented controls
+- Add small summary stats above or beside chart:
+  - Stock In
+  - Stock Out
+  - Net Movement
+- Empty/low-data chart should still look intentional, not broken or sparse
+- Improve legend styling
+
+5. Quick Actions card
+Add a dedicated “Quick Actions” card on the dashboard with:
+- Scan barcode
+- Add Stock
+- Use / Stock Out
+- Add New Item
+- View Alerts
+
+Each action should be shown as a clean button/list item with icon, title, and short description.
+Example:
+- “Add Stock” — “Record new purchase or received stock”
+- “Stock Out” — “Record usage, sale, wastage, or adjustment”
+- “Scan Barcode” — “Find or update an item quickly”
+
+6. Needs Attention section
+Rename “Action Required” to “Needs Attention”.
+Make it compact and useful.
+
+Show:
+- Low stock count
+- Expiring soon count
+- Expired count
+- Wastage today/this week if available
+
+Empty state should say:
+“No urgent stock issues detected.”
+
+Do not use oversized empty cards.
+
+7. Reorder Suggestions
+Make the reorder card more useful:
+- If suggestions exist, show item name, current stock, min level, suggested reorder quantity, and reason.
+- If none exist, show:
+“No urgent reorders right now.”
+- Add a small CTA: “Review inventory”
+
+8. Insights / forecast sections
+Do not show huge empty panels for Usage Insights and Stock Forecast.
+If there is not enough data:
+- Hide these sections, or
+- Show them as compact cards with a clear empty state.
+
+Avoid large blank areas that make the product feel unfinished.
+
+9. Slow-Moving Stock and Inventory Summary
+Make these more compact and polished.
+- Slow-moving stock should be a compact list/table with item, in-stock qty, unit, and last movement.
+- Inventory Summary should be compact and placed near the bottom.
+- Improve status badges: OK, Low, Expiring, Expired.
+- Badges should have better color, padding, and readable contrast.
+
+10. Sidebar redesign
+Improve sidebar without changing the app structure.
+
+Group navigation items using section labels:
+
+Overview
+- Today
+- Daily Ops
+
+Inventory
+- Inventory
+- Stock In
+- Stock Out
+- Stock Activity
+- Alerts
+
+Procurement
+- Suppliers
+- Purchases
+
+Workspace
+- Reports
+- Team
+- Activity
+- Locations
+
+Account
+- Plan
+- Settings
+
+Requirements:
+- Active state should be stronger and more premium.
+- Icons should be consistent, slightly clearer, and aligned.
+- Section labels should be small uppercase muted text.
+- Sidebar should feel less like a basic menu and more like a SaaS workspace navigation.
+- Keep workspace name and subtitle at the top.
+- Improve bottom user profile area with cleaner spacing, avatar, name, email, and optional notification icon.
+- Ensure sidebar does not feel cramped on small screens.
+
+11. Copy improvements
+Replace generic copy with clearer, more product-oriented text.
+
+Use these labels:
+- “Today” instead of “Today’s operations”
+- “Your inventory snapshot and priority actions.”
+- “Key inventory metrics” instead of “Current inventory health at a glance”
+- “Needs Attention” instead of “Action Required”
+- “No urgent stock issues detected.” instead of “Everything looks clear right now.”
+- “No urgent reorders right now.” instead of “No reorder suggestions right now.”
+- “Recent usage trends” instead of “Trends and cost patterns from your recent activity”
+- “Stock movement” instead of “Movement Trends” if it sounds better in UI
+
+12. Visual design details
+- Use softer shadows and better card radius.
+- Reduce harsh borders.
+- Increase text contrast for important labels and numbers.
+- Use consistent spacing scale.
+- Use modern button states: hover, active, disabled.
+- Use polished empty states with small icon + short helpful text.
+- Avoid too much purple everywhere; use accent colors only where meaningful.
+- Ensure the design remains professional for restaurants, pharmacies, small warehouses, and retail shops.
+
+13. Technical requirements
+- Do not break existing API integrations.
+- Preserve existing dashboard data sources and business logic.
+- Only refactor UI components where needed.
+- Keep TypeScript clean.
+- Avoid hardcoded fake business data unless used only for empty-state placeholders.
+- Ensure build passes.
+- Ensure responsive layout works properly.
+- Keep accessibility in mind: readable contrast, focus states, button labels.
+
+Deliverables:
+- Updated dashboard page UI
+- Updated sidebar/navigation UI
+- Updated dashboard copy
+- Better empty states
+- Better responsive behavior
+- No breaking changes to existing routes or backend
+- Final build should pass without TypeScript errors

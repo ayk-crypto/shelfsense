@@ -202,7 +202,7 @@ If `SMTP_HOST` is absent in production, the API logs a configuration error and s
 ## Known Limitations
 
 - Forecasting is based on simple recent-usage calculations, not demand modelling.
-- Reports are generated client-side and may need server-side exports for larger datasets.
+- Reports are generated server-side with a 1,000 row cap per request; apply date or category filters to narrow large datasets.
 - Multi-location support filters core stock flows but operational edge cases should be tested with real branch data.
 - The app assumes trusted workspace administration by OWNER users.
 - There is no file-attachment support for supplier invoices or purchase documents.
