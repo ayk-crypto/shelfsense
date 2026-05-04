@@ -1,0 +1,69 @@
+Now implement authentication production-readiness for ShelfSense.
+
+Goal:
+Add password reset and email verification so ShelfSense is safer for controlled pilot users.
+
+Part A — Password Reset
+1. Add forgot password endpoint.
+2. Add reset password endpoint.
+3. Add reset token model/table if needed.
+4. Reset token must be securely generated, expire within 15–60 minutes, and be single-use.
+5. Store reset token hashed if practical.
+6. Add frontend Forgot Password page.
+7. Add frontend Reset Password page.
+8. Add “Forgot password?” link on login page.
+9. Forgot password response must not reveal whether the email exists.
+10. In development, if SMTP is not configured, log the reset link safely for testing.
+11. In production, send reset email through configured SMTP/email service only.
+
+Part B — Email Verification
+1. Add emailVerified field or equivalent to users.
+2. After signup, generate email verification token.
+3. Add verify email endpoint.
+4. Add resend verification endpoint.
+5. Add frontend Verify Email page.
+6. Add resend verification UX.
+7. Token should be secure, expiring, and single-use.
+8. In development, if SMTP is not configured, log verification link safely for testing.
+9. Do not break existing demo/seeded users. Mark seeded/demo users verified or handle clearly.
+10. Add user-friendly states for verified, expired, invalid, and already verified.
+
+Part C — Auth Protection
+1. Add stricter rate limiting for:
+   - login
+   - forgot password
+   - reset password
+   - resend verification
+2. Add temporary cooldown after repeated failed login attempts if practical.
+3. Avoid leaking sensitive details in error messages.
+4. Log security events:
+   - login success/failure
+   - password reset requested
+   - password reset completed
+   - verification sent
+   - verification completed
+
+Part D — Email/SMTP
+1. Add SMTP environment variables to env examples:
+   - SMTP_HOST
+   - SMTP_PORT
+   - SMTP_USER
+   - SMTP_PASS
+   - SMTP_FROM
+   - APP_BASE_URL or WEB_BASE_URL
+2. Create a reusable email service.
+3. If SMTP is missing in development, log links for testing.
+4. If SMTP is missing in production, fail safely and log configuration error without exposing tokens to user.
+
+Part E — Verification
+1. Run safe migration.
+2. Run build for shared, API, and web.
+3. Test:
+   - signup creates unverified user
+   - verification link works
+   - resend verification works
+   - forgot password works
+   - reset password works
+   - expired/invalid token behavior works
+   - existing login still works
+4. Update README/docs with the new auth flows and required env variables.
