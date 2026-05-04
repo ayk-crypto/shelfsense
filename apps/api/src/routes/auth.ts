@@ -56,72 +56,75 @@ authRouter.post("/register", asyncHandler(async (req, res) => {
     return res.status(400).json({ error: "Password must be 128 characters or fewer" });
   }
 
-  const existingUser = await prisma.user.findUnique({ where: { email: trimmedEmail }, select: { id: true } });
-  if (existingUser) {
-    return res.status(409).json({ error: "Email is already registered" });
-  }
-
-  const hashedPassword = await bcrypt.hash(password, 12);
-  const workspaceDisplayName = trimmedWorkspaceName || `${trimmedName}'s Workspace`;
   const { hash: tokenHash, raw: rawToken } = generateToken();
   const tokenExpiry = new Date(Date.now() + VERIFY_TOKEN_TTL_MS);
+  const workspaceDisplayName = trimmedWorkspaceName || `${trimmedName}'s Workspace`;
 
+  let currentStep = "check_existing_user";
   let result: { user: { id: string; name: string; email: string; createdAt: Date }; workspace: { id: string } };
 
-  let currentStep = "init";
   try {
+    const existingUser = await prisma.user.findUnique({ where: { email: trimmedEmail }, select: { id: true } });
+    if (existingUser) {
+      return res.status(409).json({ error: "Email is already registered" });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 12);
+
     result = await prisma.$transaction(async (tx) => {
       currentStep = "create_user";
+      logger.info("[AUTH] register: creating user");
       const user = await tx.user.create({
         data: { name: trimmedName, email: trimmedEmail, password: hashedPassword },
         select: { id: true, name: true, email: true, createdAt: true },
       });
 
       currentStep = "create_workspace";
+      logger.info("[AUTH] register: creating workspace");
       const workspace = await tx.workspace.create({
         data: { name: workspaceDisplayName, ownerId: user.id },
         select: { id: true },
       });
 
       currentStep = "create_location";
+      logger.info("[AUTH] register: creating default location");
       await tx.location.create({ data: { workspaceId: workspace.id, name: "Main Branch" } });
 
       currentStep = "create_membership";
+      logger.info("[AUTH] register: creating membership");
       await tx.membership.create({ data: { userId: user.id, workspaceId: workspace.id, role: Role.OWNER } });
 
       currentStep = "create_email_verif_token";
+      logger.info("[AUTH] register: creating email verification token");
       await tx.emailVerifToken.create({ data: { userId: user.id, tokenHash, expiresAt: tokenExpiry } });
 
       return { user, workspace };
     });
   } catch (err) {
+    const prismaErr = err instanceof Prisma.PrismaClientKnownRequestError ? err : undefined;
     const prismaCode =
-      err instanceof Prisma.PrismaClientKnownRequestError ? err.code
-      : err instanceof Prisma.PrismaClientInitializationError ? (err.errorCode ?? "INIT_ERROR")
-      : undefined;
+      prismaErr?.code
+      ?? (err instanceof Prisma.PrismaClientInitializationError ? (err.errorCode ?? "INIT_ERROR") : undefined);
+    const meta = prismaErr?.meta as Record<string, unknown> | undefined;
 
     logger.error("[AUTH] register failed", {
       step: currentStep,
+      prismaCode,
+      meta: meta ?? null,
       error: err instanceof Error ? err.message : String(err),
       stack: err instanceof Error ? err.stack : undefined,
-      prismaCode,
     });
 
     if (isUniqueConstraintError(err)) {
       return res.status(409).json({ error: "Email is already registered" });
     }
     if (isPrismaConnectionError(err)) {
-      return res.status(503).json({ error: "Database is temporarily unavailable. Please try again in a moment." });
+      return res.status(503).json({
+        error: "Database is temporarily unavailable. Please try again in a moment.",
+        code: "DB_UNAVAILABLE",
+      });
     }
     if (isMissingTableError(err)) {
-      const meta = err instanceof Prisma.PrismaClientKnownRequestError ? err.meta : undefined;
-      logger.error("[AUTH] register blocked — schema not fully migrated", {
-        step: currentStep,
-        prismaCode,
-        missingTable: (meta as Record<string, unknown> | undefined)?.table,
-        missingColumn: (meta as Record<string, unknown> | undefined)?.column_name,
-        action: "Run: npx prisma migrate deploy",
-      });
       return res.status(503).json({
         error: "Service is not fully initialised. Please try again shortly.",
         code: "SCHEMA_NOT_READY",
