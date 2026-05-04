@@ -1,0 +1,50 @@
+2026-05-04T18:05:23.804676604Z src/routes/auth.ts(2,24): error TS7016: Could not find a declaration file for module 'express'. '/opt/render/project/src/node_modules/express/index.js' implicitly has an 'any' type.
+2026-05-04T18:05:23.804679914Z   Try `npm i --save-dev @types/express` if it exists or add a new declaration (.d.ts) file containing `declare module 'express';`
+2026-05-04T18:05:23.804682004Z src/routes/auth.ts(4,17): error TS7016: Could not find a declaration file for module 'jsonwebtoken'. '/opt/render/project/src/node_modules/jsonwebtoken/index.js' implicitly has an 'any' type.
+2026-05-04T18:05:23.804684064Z   Try `npm i --save-dev @types/jsonwebtoken` if it exists or add a new declaration (.d.ts) file containing `declare module 'jsonwebtoken';`
+2026-05-04T18:05:23.804693315Z src/routes/auth.ts(28,17): error TS7006: Parameter '_req' implicitly has an 'any' type.
+2026-05-04T18:05:23.804698515Z src/routes/auth.ts(28,23): error TS7006: Parameter 'res' implicitly has an 'any' type.
+2026-05-04T18:05:23.804742626Z src/routes/auth.ts(28,28): error TS7006: Parameter 'next' implicitly has an 'any' type.
+2026-05-04T18:05:23.804747346Z src/routes/auth.ts(245,37): error TS7006: Parameter 'req' implicitly has an 'any' type.
+2026-05-04T18:05:23.804758336Z src/routes/auth.ts(245,42): error TS7006: Parameter 'res' implicitly has an 'any' type.
+2026-05-04T18:05:23.804772167Z src/routes/items.ts(1,24): error TS7016: Could not find a declaration file for module 'express'. '/opt/render/project/src/node_modules/express/index.js' implicitly has an 'any' type.
+2026-05-04T18:05:23.804778047Z   Try `npm i --save-dev @types/express` if it exists or add a new declaration (.d.ts) file containing `declare module 'express';`
+2026-05-04T18:05:23.804783977Z src/routes/locations.ts(2,24): error TS7016: Could not find a declaration file for module 'express'. '/opt/render/project/src/node_modules/express/index.js' implicitly has an 'any' type.
+2026-05-04T18:05:23.804788127Z   Try `npm i --save-dev @types/express` if it exists or add a new declaration (.d.ts) file containing `declare module 'express';`
+2026-05-04T18:05:23.804818198Z src/routes/notifications.ts(1,24): error TS7016: Could not find a declaration file for module 'express'. '/opt/render/project/src/node_modules/express/index.js' implicitly has an 'any' type.
+2026-05-04T18:05:23.804822318Z   Try `npm i --save-dev @types/express` if it exists or add a new declaration (.d.ts) file containing `declare module 'express';`
+2026-05-04T18:05:23.804825188Z src/routes/onboarding.ts(1,24): error TS7016: Could not find a declaration file for module 'express'. '/opt/render/project/src/node_modules/express/index.js' implicitly has an 'any' type.
+2026-05-04T18:05:23.804828298Z   Try `npm i --save-dev @types/express` if it exists or add a new declaration (.d.ts) file containing `declare module 'express';`
+2026-05-04T18:05:23.804848559Z src/routes/plan.ts(1,24): error TS7016: Could not find a declaration file for module 'express'. '/opt/render/project/src/node_modules/express/index.js' implicitly has an 'any' type.
+2026-05-04T18:05:23.804852359Z   Try `npm i --save-dev @types/express` if it exists or add a new declaration (.d.ts) file containing `declare module 'express';`
+2026-05-04T18:05:23.804855279Z src/routes/purchases.ts(2,38): error TS7016: Could not find a declaration file for module 'express'. '/opt/render/project/src/node_modules/express/index.js' implicitly has an 'any' type.
+2026-05-04T18:05:23.804858219Z   Try `npm i --save-dev @types/express` if it exists or add a new declaration (.d.ts) file containing `declare module 'express';`
+2026-05-04T18:05:23.80489894Z src/routes/reorder-suggestions.ts(2,38): error TS7016: Could not find a declaration file for module 'express'. '/opt/render/project/src/node_modules/express/index.js' implicitly has an 'any' type.
+2026-05-04T18:05:23.80490422Z   Try `npm i --save-dev @types/express` if it exists or add a new declaration (.d.ts) file containing `declare module 'express';`
+2026-05-04T18:05:23.804906961Z src/routes/reports.ts(1,24): error TS7016: Could not find a declaration file for module 'express'. '/opt/render/project/src/node_modules/express/index.js' implicitly has an 'any' type.
+2026-05-04T18:05:23.804910671Z   Try `npm i --save-dev @types/express` if it exists or add a new declaration (.d.ts) file containing `declare module 'express';`
+2026-05-04T18:05:23.804918301Z src/routes/reports.ts(2,31): error TS7016: Could not find a declaration file for module 'express'. '/opt/render/project/src/node_modules/express/index.js' implicitly has an 'any' type.
+2026-05-04T18:05:23.804922971Z   Try `npm i --save-dev @types/express` if it exists or add a new declaration (.d.ts) file containing `declare module 'express';`
+2026-05-04T18:05:23.805004823Z src/routes/stock-counts.ts(2,38): error TS7016: Could not find a declaration file for module 'express'. '/opt/render/project/src/node_modules/express/index.js' implicitly has an 'any' type.
+2026-05-04T18:05:23.805016594Z   Try `npm i --save-dev @types/express` if it exists or add a new declaration (.d.ts) file containing `declare module 'express';`
+2026-05-04T18:05:23.805019114Z src/routes/stock.ts(2,38): error TS7016: Could not find a declaration file for module 'express'. '/opt/render/project/src/node_modules/express/index.js' implicitly has an 'any' type.
+2026-05-04T18:05:23.805021604Z   Try `npm i --save-dev @types/express` if it exists or add a new declaration (.d.ts) file containing `declare module 'express';`
+2026-05-04T18:05:23.805049435Z src/routes/suppliers.ts(1,24): error TS7016: Could not find a declaration file for module 'express'. '/opt/render/project/src/node_modules/express/index.js' implicitly has an 'any' type.
+2026-05-04T18:05:23.805054055Z   Try `npm i --save-dev @types/express` if it exists or add a new declaration (.d.ts) file containing `declare module 'express';`
+2026-05-04T18:05:23.805057385Z src/routes/team.ts(2,24): error TS7016: Could not find a declaration file for module 'express'. '/opt/render/project/src/node_modules/express/index.js' implicitly has an 'any' type.
+2026-05-04T18:05:23.805060945Z   Try `npm i --save-dev @types/express` if it exists or add a new declaration (.d.ts) file containing `declare module 'express';`
+2026-05-04T18:05:23.805064615Z src/routes/workspace.ts(2,24): error TS7016: Could not find a declaration file for module 'express'. '/opt/render/project/src/node_modules/express/index.js' implicitly has an 'any' type.
+2026-05-04T18:05:23.805068115Z   Try `npm i --save-dev @types/express` if it exists or add a new declaration (.d.ts) file containing `declare module 'express';`
+2026-05-04T18:05:23.805140257Z src/utils/async-handler.ts(1,54): error TS7016: Could not find a declaration file for module 'express'. '/opt/render/project/src/node_modules/express/index.js' implicitly has an 'any' type.
+2026-05-04T18:05:23.805145967Z   Try `npm i --save-dev @types/express` if it exists or add a new declaration (.d.ts) file containing `declare module 'express';`
+2026-05-04T18:05:23.80522296Z src/utils/locations.ts(1,30): error TS7016: Could not find a declaration file for module 'express'. '/opt/render/project/src/node_modules/express/index.js' implicitly has an 'any' type.
+2026-05-04T18:05:23.80522877Z   Try `npm i --save-dev @types/express` if it exists or add a new declaration (.d.ts) file containing `declare module 'express';`
+2026-05-04T18:05:23.847678339Z npm error Lifecycle script `build` failed with error:
+2026-05-04T18:05:23.847782222Z npm error code 2
+2026-05-04T18:05:23.847873625Z npm error path /opt/render/project/src/apps/api
+2026-05-04T18:05:23.847998288Z npm error workspace @shelfsense/api@0.1.0
+2026-05-04T18:05:23.848106701Z npm error location /opt/render/project/src/apps/api
+2026-05-04T18:05:23.848211104Z npm error command failed
+2026-05-04T18:05:23.848399789Z npm error command sh -c prisma generate && tsc -b
+2026-05-04T18:05:23.889878121Z ==> Build failed 😞
+2026-05-04T18:05:23.889896412Z ==> Common ways to troubleshoot your deploy: https://render.com/docs/troubleshooting-deploys
