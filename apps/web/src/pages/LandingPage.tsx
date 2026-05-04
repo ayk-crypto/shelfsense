@@ -147,8 +147,8 @@ const FEATURES = [
     ),
     color: "#6366f1",
     bg: "#eef2ff",
-    title: "Real-time inventory",
-    desc: "Always know exactly what you have. Stock levels update instantly as your team records movements, purchases, and adjustments.",
+    title: "Always know what you have",
+    desc: "Stock levels update the moment your team records a movement, purchase, or adjustment — no more guessing, no end-of-day reconciliation.",
   },
   {
     icon: (
@@ -162,8 +162,8 @@ const FEATURES = [
     ),
     color: "#ef4444",
     bg: "#fef2f2",
-    title: "Expiry date tracking",
-    desc: "Never let stock expire unnoticed. Get automatic alerts before items reach their best-before date — days or weeks in advance.",
+    title: "Catch expiry before it costs you",
+    desc: "Get automatic alerts days or weeks before items expire. Stop writing off stock you didn't know was about to go bad.",
   },
   {
     icon: (
@@ -174,8 +174,8 @@ const FEATURES = [
     ),
     color: "#10b981",
     bg: "#ecfdf5",
-    title: "Multi-location",
-    desc: "Run multiple stores, warehouses, or storage rooms from a single dashboard. Transfer stock between locations in seconds.",
+    title: "Manage every site from one place",
+    desc: "Run multiple stores, warehouses, or kitchens from a single dashboard. Transfer stock between locations in seconds — no emails, no calls.",
   },
   {
     icon: (
@@ -188,8 +188,8 @@ const FEATURES = [
     ),
     color: "#f59e0b",
     bg: "#fffbeb",
-    title: "Purchase orders",
-    desc: "Create POs, track them from draft to received, and have stock levels update automatically when deliveries arrive.",
+    title: "Restock without the back-and-forth",
+    desc: "Create purchase orders, track them from draft to received, and watch stock levels update automatically when deliveries arrive.",
   },
   {
     icon: (
@@ -202,8 +202,8 @@ const FEATURES = [
     ),
     color: "#3b82f6",
     bg: "#eff6ff",
-    title: "Team access control",
-    desc: "Invite your team and assign roles — Owner, Manager, or Operator. Control exactly who can view, record, or manage stock.",
+    title: "Your team, with the right access",
+    desc: "Invite staff and set their role — Owner, Manager, or Operator. Everyone sees what they need, nothing they don't.",
   },
   {
     icon: (
@@ -216,8 +216,26 @@ const FEATURES = [
     ),
     color: "#8b5cf6",
     bg: "#f5f3ff",
-    title: "Reports & analytics",
-    desc: "8 built-in reports covering wastage costs, supplier spend, stock aging, expiry losses, and more — all exportable to CSV.",
+    title: "See where money is being lost",
+    desc: "8 built-in reports covering wastage costs, supplier spend, stock aging, and expiry losses — all exportable to CSV in one click.",
+  },
+];
+
+const WHO_FOR = [
+  {
+    emoji: "🍽️",
+    title: "Restaurants & cafes",
+    desc: "Track ingredients by batch, catch expiry before service, and stop over-ordering. ShelfSense is built around the way food businesses actually work.",
+  },
+  {
+    emoji: "🛒",
+    title: "Retail stores",
+    desc: "Know your stock levels across every shelf and location. Get low-stock alerts before customers notice, and reorder with a single purchase order.",
+  },
+  {
+    emoji: "🏭",
+    title: "Warehouses & suppliers",
+    desc: "Manage high volumes across multiple storage areas. Transfer stock between locations, track inbound deliveries, and keep your team in sync.",
   },
 ];
 
@@ -226,7 +244,7 @@ const PRICING = [
     tier: "Free",
     price: "0",
     period: "forever",
-    desc: "Perfect for getting started with inventory basics.",
+    desc: "Everything you need to replace your spreadsheet and get started.",
     color: "#64748b",
     bg: "#f8fafc",
     highlight: false,
@@ -236,7 +254,7 @@ const PRICING = [
     tier: "Basic",
     price: "19",
     period: "/ month",
-    desc: "For growing businesses with more complex needs.",
+    desc: "For growing businesses that need more items, locations, and team members.",
     color: "#6366f1",
     bg: "#eef2ff",
     highlight: true,
@@ -246,7 +264,7 @@ const PRICING = [
     tier: "Pro",
     price: "49",
     period: "/ month",
-    desc: "Unlimited scale for serious inventory operations.",
+    desc: "Unlimited scale for operations that can't afford gaps in visibility.",
     color: "#7c3aed",
     bg: "#f5f3ff",
     highlight: false,
@@ -277,24 +295,24 @@ export function LandingPage() {
           <div className="lp-hero-copy">
             <div className="lp-hero-eyebrow">Inventory management, simplified</div>
             <h1 className="lp-hero-headline">
-              Know exactly what you have,
-              <span className="lp-hero-headline-accent"> before it runs out.</span>
+              Stop losing money to
+              <span className="lp-hero-headline-accent"> expired stock and empty shelves.</span>
             </h1>
             <p className="lp-hero-sub">
-              ShelfSense tracks your stock, expiry dates, and team access across all your locations — in real time, without the spreadsheet chaos.
+              ShelfSense gives restaurants, retail stores, and warehouses a real-time view of their stock, expiry dates, and team activity — across every location, without the spreadsheets.
             </p>
             <div className="lp-hero-actions">
               <button type="button" className="lp-btn lp-btn--hero-primary" onClick={handlePrimaryCta}>
                 {isAuthenticated ? "Go to dashboard →" : "Start for free →"}
               </button>
               <button type="button" className="lp-btn lp-btn--hero-ghost" onClick={() => scrollTo("features")}>
-                See features ↓
+                See how it works ↓
               </button>
             </div>
             <div className="lp-hero-trust">
               <span className="lp-hero-trust-item">✓ No credit card required</span>
-              <span className="lp-hero-trust-item">✓ Setup in 2 minutes</span>
-              <span className="lp-hero-trust-item">✓ Free tier always free</span>
+              <span className="lp-hero-trust-item">✓ Free during preview</span>
+              <span className="lp-hero-trust-item">✓ Set up in minutes</span>
             </div>
           </div>
 
@@ -308,10 +326,10 @@ export function LandingPage() {
       <section className="lp-stats-bar">
         <div className="lp-container lp-stats-inner">
           {[
-            { value: "50+", label: "Businesses using ShelfSense" },
-            { value: "10k+", label: "Items tracked daily" },
             { value: "8", label: "Built-in analytics reports" },
-            { value: "99.9%", label: "Uptime SLA" },
+            { value: "CSV", label: "One-click data export" },
+            { value: "Free", label: "During the preview period" },
+            { value: "< 5 min", label: "To set up your workspace" },
           ].map((s) => (
             <div key={s.label} className="lp-stat">
               <span className="lp-stat-value">{s.value}</span>
@@ -325,10 +343,10 @@ export function LandingPage() {
       <section className="lp-features" id="features">
         <div className="lp-container">
           <div className="lp-section-header">
-            <div className="lp-section-eyebrow">Everything you need</div>
-            <h2 className="lp-section-title">Built for the way real businesses work</h2>
+            <div className="lp-section-eyebrow">How it works</div>
+            <h2 className="lp-section-title">Everything you need to run a tighter operation</h2>
             <p className="lp-section-sub">
-              From corner shops to multi-site operations — ShelfSense adapts to your workflow, not the other way around.
+              From a single shop to a multi-site operation — ShelfSense gives you the visibility to make better decisions, faster.
             </p>
           </div>
 
@@ -346,21 +364,46 @@ export function LandingPage() {
         </div>
       </section>
 
+      {/* ── Who it's for ──────────────────────────── */}
+      <section className="lp-showcase" id="who">
+        <div className="lp-container">
+          <div className="lp-section-header">
+            <div className="lp-section-eyebrow">Who it's for</div>
+            <h2 className="lp-section-title">Built for businesses that live and die by their stock</h2>
+            <p className="lp-section-sub">
+              If expired products, empty shelves, or missed reorders cost you time or money, ShelfSense was made for you.
+            </p>
+          </div>
+
+          <div className="lp-features-grid">
+            {WHO_FOR.map((w) => (
+              <div key={w.title} className="lp-feature-card">
+                <div className="lp-feature-icon" style={{ background: "#f8fafc", color: "#334155", fontSize: "1.5rem" }}>
+                  {w.emoji}
+                </div>
+                <h3 className="lp-feature-title">{w.title}</h3>
+                <p className="lp-feature-desc">{w.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ── Product deep-dive ─────────────────────── */}
       <section className="lp-showcase">
         <div className="lp-container lp-showcase-inner">
           <div className="lp-showcase-copy">
             <div className="lp-section-eyebrow">See it in action</div>
-            <h2 className="lp-showcase-title">Everything on one screen</h2>
+            <h2 className="lp-showcase-title">Alerts before problems become losses</h2>
             <p className="lp-showcase-desc">
-              Your entire inventory, low-stock alerts, and expiry warnings — visible at a glance. No hunting through tabs or scrolling endless reports.
+              ShelfSense watches your stock around the clock. When something needs attention — a low-stock item, a batch about to expire — you hear about it before it becomes a problem.
             </p>
             <ul className="lp-showcase-list">
               {[
-                "Color-coded stock status badges",
-                "Inline expiry date display per batch",
-                "Instant low-stock alert count in the nav",
-                "Quick stock-in and stock-out from any row",
+                "Color-coded stock status so issues are obvious at a glance",
+                "Expiry alerts days or weeks before the date hits",
+                "Low-stock warnings with your own reorder thresholds",
+                "Daily or instant email digests for your whole team",
               ].map((item) => (
                 <li key={item} className="lp-showcase-list-item">
                   <span className="lp-showcase-check">
@@ -373,7 +416,7 @@ export function LandingPage() {
               ))}
             </ul>
             <button type="button" className="lp-btn lp-btn--outline" onClick={handlePrimaryCta}>
-              {isAuthenticated ? "Open your dashboard" : "Try it free"}
+              {isAuthenticated ? "Open your dashboard" : "Try it free — no card needed"}
             </button>
           </div>
           <div className="lp-showcase-visual">
@@ -407,15 +450,15 @@ export function LandingPage() {
         <div className="lp-container">
           <div className="lp-section-header">
             <div className="lp-section-eyebrow">Simple pricing</div>
-            <h2 className="lp-section-title">Plans that grow with your business</h2>
+            <h2 className="lp-section-title">Start free. Pay only when you're ready to grow.</h2>
             <p className="lp-section-sub">
-              Start free, no card needed. Upgrade when you need more items, locations, or team members.
+              No credit card required. No setup fees. No contracts. Upgrade only if you need more items, locations, or team members.
             </p>
           </div>
 
           <div className="lp-pricing-note">
             <span className="lp-pricing-note-icon">🎉</span>
-            All plans are free during our preview period — billing activates when payments go live.
+            All plans are free during the preview period — billing only activates when payments go live.
           </div>
 
           <div className="lp-pricing-grid">
@@ -448,8 +491,13 @@ export function LandingPage() {
                   style={plan.highlight ? { background: plan.color } : { borderColor: plan.color, color: plan.color }}
                   onClick={handlePrimaryCta}
                 >
-                  {isAuthenticated ? "Open dashboard" : plan.price === "0" ? "Get started free" : "Start free trial"}
+                  {isAuthenticated ? "Open dashboard" : "Get started free"}
                 </button>
+                {!isAuthenticated && (
+                  <p style={{ textAlign: "center", fontSize: "0.75rem", color: "#94a3b8", marginTop: "0.5rem" }}>
+                    No credit card required
+                  </p>
+                )}
               </div>
             ))}
           </div>
@@ -460,8 +508,10 @@ export function LandingPage() {
       <section className="lp-cta">
         <div className="lp-cta-bg" aria-hidden />
         <div className="lp-container lp-cta-inner">
-          <h2 className="lp-cta-title">Ready to take control of your inventory?</h2>
-          <p className="lp-cta-sub">Join businesses that have replaced their spreadsheets with ShelfSense. No setup fees, no contracts.</p>
+          <h2 className="lp-cta-title">Your stock is costing you more than you think.</h2>
+          <p className="lp-cta-sub">
+            Every expired product, every emergency reorder, every stockout is a cost that ShelfSense helps you avoid. Set up your workspace in minutes — free, no card needed.
+          </p>
           <div className="lp-cta-actions">
             <button type="button" className="lp-btn lp-btn--cta-primary" onClick={handlePrimaryCta}>
               {isAuthenticated ? "Back to dashboard →" : "Create your free account →"}
@@ -479,18 +529,25 @@ export function LandingPage() {
           <div className="lp-footer-brand">
             <span className="lp-nav-logo-mark lp-footer-logo-mark">S</span>
             <span className="lp-nav-logo-text lp-footer-logo-text">ShelfSense</span>
-            <p className="lp-footer-tagline">Smart inventory for modern businesses.</p>
+            <p className="lp-footer-tagline">Inventory management for businesses that can't afford blind spots.</p>
           </div>
           <div className="lp-footer-links">
             <div className="lp-footer-col">
               <span className="lp-footer-col-title">Product</span>
               <button type="button" className="lp-footer-link" onClick={() => scrollTo("features")}>Features</button>
               <button type="button" className="lp-footer-link" onClick={() => scrollTo("pricing")}>Pricing</button>
+              <button type="button" className="lp-footer-link" onClick={() => scrollTo("who")}>Who it's for</button>
             </div>
             <div className="lp-footer-col">
               <span className="lp-footer-col-title">Account</span>
-              <Link to="/signup" className="lp-footer-link">Sign up</Link>
+              <Link to="/signup" className="lp-footer-link">Sign up free</Link>
               <Link to="/login" className="lp-footer-link">Sign in</Link>
+            </div>
+            <div className="lp-footer-col">
+              <span className="lp-footer-col-title">Legal</span>
+              <Link to="/privacy" className="lp-footer-link">Privacy policy</Link>
+              <Link to="/terms" className="lp-footer-link">Terms of service</Link>
+              <a href="mailto:hello@shelfsense.com" className="lp-footer-link">Contact us</a>
             </div>
           </div>
         </div>
