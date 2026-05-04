@@ -1,4 +1,8 @@
--- AlterTable
+-- AlterTable: add updatedAt to PurchaseItem if it does not yet exist, then remove
+-- the DB-level default (Prisma's @updatedAt is managed by the client, not the DB).
+-- On a fresh DB, PurchaseItem was created without updatedAt (migration 20260501113000);
+-- this ADD COLUMN IF NOT EXISTS is idempotent on any DB that already has the column.
+ALTER TABLE "PurchaseItem" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
 ALTER TABLE "PurchaseItem" ALTER COLUMN "updatedAt" DROP DEFAULT;
 
 -- AlterTable
