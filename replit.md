@@ -65,7 +65,7 @@ This is an npm workspaces monorepo with three packages:
 - **VerifyEmailPage** (`/verify-email`) — confirms email verification token
 - **Onboarding** (`/onboarding`) — 5-step wizard: Workspace Setup, Add First Item, Add Initial Stock, Add Supplier, All Set summary + Go to Dashboard
 - **Dashboard page** — summary stat cards + expiring-soon inventory table + cost analysis
-- **Items page** (`/items`) — list all items; Add Item modal; Stock In / Stock Out modals per row; inline toast notifications; bulk actions; barcode scanner
+- **Items page** (`/items`) — list all items; Add Item modal; Stock In / Stock Out modals per row; inline toast notifications; bulk actions; barcode scanner. Table actions: "+ In" (green), "− Out" (red), three-dot More menu (grouped Stock/Item/Danger sections with dividers). KPI summary pills ("active", "low stock", "archived") are clickable filters. Category shown as badge; stock quantity formatted to 2 decimal places.
 - **Movements page** (`/movements`) — stock movement log with filters
 - **Suppliers page** (`/suppliers`) — supplier list with Add Supplier modal
 - **Purchases page** (`/purchases`) — PO lifecycle (DRAFT→ORDERED→RECEIVED); New PO modal without batch/expiry (set at receive time); PO detail shows ordered value column; supplier suggestion + unit cost auto-fill on item select

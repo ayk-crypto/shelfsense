@@ -8226,6 +8226,139 @@ tr.row--wastage td:first-child {
   color: #15803d;
 }
 
+/* ── More-menu: section header and divider ── */
+.row-action-menu-section {
+  padding: 4px 10px 2px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  user-select: none;
+  pointer-events: none;
+}
+
+.row-action-menu-divider {
+  height: 1px;
+  background: #f1f5f9;
+  margin: 4px 6px;
+}
+
+/* ── Three-dot icon inside the trigger button ── */
+.row-action-menu-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  display: block;
+}
+
+/* ── Mobile card panel: opens upward ── */
+.row-action-menu-panel--card {
+  bottom: calc(100% + 6px);
+  top: auto;
+  left: 0;
+  right: auto;
+}
+
+/* ── Inventory action buttons (In / Out) ── */
+.btn--action-in {
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+  font-weight: 700;
+}
+.btn--action-in:hover:not(:disabled) {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #15803d;
+}
+
+.btn--action-out {
+  background: #fff1f2;
+  color: #e11d48;
+  border: 1px solid #fecdd3;
+  font-weight: 700;
+}
+.btn--action-out:hover:not(:disabled) {
+  background: #ffe4e6;
+  border-color: #fda4af;
+  color: #be123c;
+}
+
+/* ── KPI summary pills (clickable) ── */
+.inv-kpi-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 3px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: #f8fafc;
+  color: var(--color-text-muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.inv-kpi-pill strong {
+  color: var(--color-text);
+  font-weight: 700;
+}
+.inv-kpi-pill:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary-dark);
+  background: var(--color-primary-light);
+}
+.inv-kpi-pill--selected {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+}
+.inv-kpi-pill--warn:hover,
+.inv-kpi-pill--warn.inv-kpi-pill--selected {
+  border-color: #fbbf24;
+  background: #fffbeb;
+  color: #92400e;
+}
+.inv-kpi-pill--active {
+  border-color: #cbd5e1;
+  background: #f1f5f9;
+  color: #475569;
+}
+
+/* ── Category badge inside item meta line ── */
+.cat-badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  font-size: 11.5px;
+  font-weight: 600;
+  border: 1px solid #c7d2fe;
+}
+.cat-badge--none {
+  background: #f1f5f9;
+  color: #94a3b8;
+  border-color: #e2e8f0;
+  font-style: italic;
+}
+
+/* ── SKU label ── */
+.item-sku-label {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #f8fafc;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 500;
+  border: 1px solid #e2e8f0;
+  font-family: ui-monospace, monospace;
+}
+
 /* ── Muted (archived) rows ── */
 .is-muted td {
   opacity: 0.55;

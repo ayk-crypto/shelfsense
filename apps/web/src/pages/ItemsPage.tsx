@@ -233,24 +233,6 @@ export function ItemsPage() {
     setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 3500);
   }
 
-  async function quickAdjust(item: Item, delta: number) {
-    setBusy((prev) => new Set(prev).add(item.id));
-    try {
-      if (delta > 0) {
-        await stockIn({ itemId: item.id, quantity: delta, note: "Quick adjustment" });
-      } else {
-        await stockOut({ itemId: item.id, quantity: -delta, reason: "manual_adjustment", note: "Quick adjustment" });
-      }
-      const sign = delta > 0 ? "+" : "";
-      showToast(`${sign}${delta} ${item.unit} — ${item.name}`, "success");
-      void refreshSummary();
-      if (delta < 0) void refreshUsageInsights();
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : "Action failed", "error");
-    } finally {
-      setBusy((prev) => { const s = new Set(prev); s.delete(item.id); return s; });
-    }
-  }
 
   async function refreshSummary() {
     try {
@@ -444,9 +426,30 @@ export function ItemsPage() {
 
       <div className="inventory-command-panel">
         <div className="inventory-kpis" aria-live="polite">
-          <span><strong>{activeCount}</strong> active</span>
-          <span><strong>{lowStockCount}</strong> low stock</span>
-          {showArchived ? <span><strong>{filteredArchivedCount}</strong> archived shown</span> : <span><strong>{archivedCount}</strong> archived hidden</span>}
+          <button
+            type="button"
+            className={`inv-kpi-pill${statusFilter === "all" ? " inv-kpi-pill--selected" : ""}`}
+            onClick={() => { setStatusFilter("all"); }}
+            title="Show all active items"
+          >
+            <strong>{activeCount}</strong> active
+          </button>
+          <button
+            type="button"
+            className={`inv-kpi-pill inv-kpi-pill--warn${statusFilter === "low" ? " inv-kpi-pill--selected" : ""}`}
+            onClick={() => setStatusFilter(statusFilter === "low" ? "all" : "low")}
+            title="Toggle low stock filter"
+          >
+            <strong>{lowStockCount}</strong> low stock
+          </button>
+          <button
+            type="button"
+            className={`inv-kpi-pill${showArchived ? " inv-kpi-pill--active" : ""}`}
+            onClick={() => setShowArchived((v) => { if (v && statusFilter === "archived") setStatusFilter("all"); return !v; })}
+            title={showArchived ? "Hide archived items" : "Show archived items"}
+          >
+            <strong>{archivedCount}</strong> archived
+          </button>
         </div>
 
         <div className="inventory-filters">
@@ -661,8 +664,10 @@ export function ItemsPage() {
                           )}
                         </span>
                         <span className="item-meta-line">
-                          {item.category || "Uncategorized"}
-                          {item.sku ? ` / SKU ${item.sku}` : ""}
+                          <span className={`cat-badge${!item.category ? " cat-badge--none" : ""}`}>
+                            {item.category || "Uncategorized"}
+                          </span>
+                          {item.sku && <span className="item-sku-label">SKU {item.sku}</span>}
                         </span>
                         {s?.isLowStock && (
                           <span className="reorder-hint">
@@ -691,9 +696,9 @@ export function ItemsPage() {
                       )}
                       <td className="td-unit">{item.unit}</td>
                       <td className="text-right td-num">
-                        {s !== undefined ? s.totalQuantity : "—"}
+                        {s !== undefined ? formatNumber(s.totalQuantity) : "—"}
                       </td>
-                      <td className="text-right td-num">
+                      <td className="text-right td-num td-value">
                         {s !== undefined ? formatCurrency(s.totalValue, currency) : "—"}
                       </td>
                       <td>
@@ -702,21 +707,20 @@ export function ItemsPage() {
                       <td className="td-actions">
                         {item.isActive && canManageStock && (
                           <button
-                            className="btn btn--sm btn--ghost btn--green-text"
-                            onClick={() => {
-                              setPendingCommandAction(null);
-                              setStockInItem(item);
-                            }}
+                            type="button"
+                            className="btn btn--sm btn--action-in"
+                            onClick={() => { setPendingCommandAction(null); setStockInItem(item); }}
                           >
                             + In
                           </button>
                         )}
                         {item.isActive && (
                           <button
-                            className="btn btn--sm btn--ghost btn--red-text"
+                            type="button"
+                            className="btn btn--sm btn--action-out"
                             onClick={() => setStockOutItem(item)}
                           >
-                            - Out
+                            − Out
                           </button>
                         )}
                         <div className="row-action-menu">
@@ -725,65 +729,51 @@ export function ItemsPage() {
                             className="btn btn--sm btn--secondary row-action-menu-trigger"
                             aria-haspopup="menu"
                             aria-expanded={openActionMenuItemId === item.id}
-                            onClick={() => setOpenActionMenuItemId((current) => current === item.id ? null : item.id)}
+                            onClick={() => setOpenActionMenuItemId((cur) => cur === item.id ? null : item.id)}
                           >
-                            More
+                            <svg className="row-action-menu-icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                              <circle cx="4" cy="10" r="1.5" /><circle cx="10" cy="10" r="1.5" /><circle cx="16" cy="10" r="1.5" />
+                            </svg>
                           </button>
                           {openActionMenuItemId === item.id && (
                             <div className="row-action-menu-panel" role="menu">
-                              {item.isActive && canManageStock && (
-                                <div className="row-action-menu-quick" aria-label={`Quick adjust ${item.name}`}>
-                                  {([1, 5] as const).map((n) => (
-                                    <button
-                                      key={`+${n}`}
-                                      className="btn btn--xs btn--quick btn--quick-in"
-                                      disabled={busy.has(item.id)}
-                                      onClick={() => { setOpenActionMenuItemId(null); void quickAdjust(item, n); }}
-                                      title={`Add ${n} ${item.unit}`}
-                                    >+{n}</button>
-                                  ))}
-                                  {([1, 5] as const).map((n) => (
-                                    <button
-                                      key={`-${n}`}
-                                      className="btn btn--xs btn--quick btn--quick-out"
-                                      disabled={busy.has(item.id)}
-                                      onClick={() => { setOpenActionMenuItemId(null); void quickAdjust(item, -n); }}
-                                      title={`Deduct ${n} ${item.unit}`}
-                                    >-{n}</button>
-                                  ))}
-                                </div>
-                              )}
+                              <div className="row-action-menu-section">Stock</div>
                               {item.isActive && canManageStock && (
                                 <button className="row-action-menu-item" role="menuitem" onClick={() => { setOpenActionMenuItemId(null); setAdjustItem(item); }}>
                                   Adjust quantity
                                 </button>
                               )}
+                              <button className="row-action-menu-item" role="menuitem" onClick={() => { setOpenActionMenuItemId(null); navigate(`/items/${item.id}/batches`); }}>
+                                Batch details
+                              </button>
                               {item.isActive && canManageStock && locations.length > 1 && (
                                 <button className="row-action-menu-item" role="menuitem" onClick={() => { setOpenActionMenuItemId(null); setPendingCommandAction(null); setTransferItem(item); }}>
                                   Transfer
                                 </button>
                               )}
-                              <button className="row-action-menu-item" role="menuitem" onClick={() => { setOpenActionMenuItemId(null); setBarcodeItem(item); }}>
-                                Barcode
-                              </button>
-                              <button className="row-action-menu-item" role="menuitem" onClick={() => { setOpenActionMenuItemId(null); navigate(`/items/${item.id}/batches`); }}>
-                                Batch details
-                              </button>
+                              <div className="row-action-menu-divider" />
+                              <div className="row-action-menu-section">Item</div>
                               {canManageStock && (
                                 <button className="row-action-menu-item" role="menuitem" onClick={() => { setOpenActionMenuItemId(null); setEditingItem(item); }}>
                                   Edit item
                                 </button>
                               )}
+                              <button className="row-action-menu-item" role="menuitem" onClick={() => { setOpenActionMenuItemId(null); setBarcodeItem(item); }}>
+                                Barcode
+                              </button>
                               {canManageStock && (
-                                item.isActive ? (
-                                  <button className="row-action-menu-item row-action-menu-item--danger" role="menuitem" disabled={busy.has(item.id)} onClick={() => { setOpenActionMenuItemId(null); void handleArchiveItem(item); }}>
-                                    Archive
-                                  </button>
-                                ) : (
-                                  <button className="row-action-menu-item row-action-menu-item--success" role="menuitem" disabled={busy.has(item.id)} onClick={() => { setOpenActionMenuItemId(null); void handleReactivateItem(item); }}>
-                                    Reactivate
-                                  </button>
-                                )
+                                <>
+                                  <div className="row-action-menu-divider" />
+                                  {item.isActive ? (
+                                    <button className="row-action-menu-item row-action-menu-item--danger" role="menuitem" disabled={busy.has(item.id)} onClick={() => { setOpenActionMenuItemId(null); void handleArchiveItem(item); }}>
+                                      Archive
+                                    </button>
+                                  ) : (
+                                    <button className="row-action-menu-item row-action-menu-item--success" role="menuitem" disabled={busy.has(item.id)} onClick={() => { setOpenActionMenuItemId(null); void handleReactivateItem(item); }}>
+                                      Reactivate
+                                    </button>
+                                  )}
+                                </>
                               )}
                             </div>
                           )}
@@ -832,7 +822,11 @@ export function ItemsPage() {
                   <div className="item-card-meta">
                     <span className="item-card-stat">
                       <span className="item-card-stat-label">Category</span>
-                      <span className="item-card-stat-value">{item.category || "Uncategorized"}</span>
+                      <span className="item-card-stat-value">
+                        <span className={`cat-badge${!item.category ? " cat-badge--none" : ""}`}>
+                          {item.category || "Uncategorized"}
+                        </span>
+                      </span>
                     </span>
                     {item.barcode && (
                       <span className="item-card-stat">
@@ -879,97 +873,75 @@ export function ItemsPage() {
                     </p>
                   )}
                   <div className="item-card-actions">
-                    <div className="quick-btns quick-btns--card">
-                      {item.isActive && canManageStock && ([1, 5] as const).map((n) => (
-                        <button
-                          key={`+${n}`}
-                          className="btn btn--xs btn--quick btn--quick-in"
-                          disabled={busy.has(item.id)}
-                          onClick={() => { void quickAdjust(item, n); }}
-                          title={`Add ${n} ${item.unit}`}
-                        >+{n}</button>
-                      ))}
-                      {item.isActive && ([1, 5] as const).map((n) => (
-                        <button
-                          key={`-${n}`}
-                          className="btn btn--xs btn--quick btn--quick-out"
-                          disabled={busy.has(item.id)}
-                          onClick={() => { void quickAdjust(item, -n); }}
-                          title={`Deduct ${n} ${item.unit}`}
-                        >−{n}</button>
-                      ))}
-                    </div>
-                    <div className="item-card-modal-actions">
-                      {item.isActive && canManageStock && (
-                        <button
-                          className="btn btn--sm btn--ghost btn--green-text item-card-btn"
-                          onClick={() => setStockInItem(item)}
-                        >
-                          + Stock In
-                        </button>
-                      )}
-                      {item.isActive && (
+                    {item.isActive && canManageStock && (
                       <button
-                        className="btn btn--sm btn--ghost btn--red-text item-card-btn"
+                        type="button"
+                        className="btn btn--sm btn--action-in"
+                        onClick={() => setStockInItem(item)}
+                      >
+                        + In
+                      </button>
+                    )}
+                    {item.isActive && (
+                      <button
+                        type="button"
+                        className="btn btn--sm btn--action-out"
                         onClick={() => setStockOutItem(item)}
                       >
-                        − Use / Deduct
+                        − Out
                       </button>
-                      )}
-                      {item.isActive && canManageStock && (
-                        <button
-                          className="btn btn--sm btn--ghost btn--accent-text item-card-btn"
-                          onClick={() => setAdjustItem(item)}
-                        >
-                        ≡ Set Quantity
-                        </button>
-                      )}
-                      {item.isActive && canManageStock && locations.length > 1 && (
-                        <button
-                          className="btn btn--sm btn--ghost item-card-btn"
-                          onClick={() => { setPendingCommandAction(null); setTransferItem(item); }}
-                        >
-                          Transfer
-                        </button>
-                      )}
+                    )}
+                    <div className="row-action-menu">
                       <button
-                        className="btn btn--sm btn--ghost item-card-btn"
-                        onClick={() => setBarcodeItem(item)}
+                        type="button"
+                        className="btn btn--sm btn--secondary row-action-menu-trigger"
+                        aria-haspopup="menu"
+                        aria-expanded={openActionMenuItemId === item.id}
+                        onClick={() => setOpenActionMenuItemId((cur) => cur === item.id ? null : item.id)}
                       >
-                        Barcode
+                        More
                       </button>
-                      <button
-                        className="btn btn--sm btn--ghost item-card-btn"
-                        onClick={() => navigate(`/items/${item.id}/batches`)}
-                      >
-                        Batch Details
-                      </button>
-                      {canManageStock && (
-                        <button
-                          className="btn btn--sm btn--ghost item-card-btn"
-                          onClick={() => setEditingItem(item)}
-                        >
-                          Edit
-                        </button>
-                      )}
-                      {canManageStock && (
-                        item.isActive ? (
-                          <button
-                            className="btn btn--sm btn--ghost btn--red-text item-card-btn"
-                            disabled={busy.has(item.id)}
-                            onClick={() => { void handleArchiveItem(item); }}
-                          >
-                            Archive
+                      {openActionMenuItemId === item.id && (
+                        <div className="row-action-menu-panel row-action-menu-panel--card" role="menu">
+                          <div className="row-action-menu-section">Stock</div>
+                          {item.isActive && canManageStock && (
+                            <button className="row-action-menu-item" role="menuitem" onClick={() => { setOpenActionMenuItemId(null); setAdjustItem(item); }}>
+                              Adjust quantity
+                            </button>
+                          )}
+                          <button className="row-action-menu-item" role="menuitem" onClick={() => { setOpenActionMenuItemId(null); navigate(`/items/${item.id}/batches`); }}>
+                            Batch details
                           </button>
-                        ) : (
-                          <button
-                            className="btn btn--sm btn--ghost btn--green-text item-card-btn"
-                            disabled={busy.has(item.id)}
-                            onClick={() => { void handleReactivateItem(item); }}
-                          >
-                            Reactivate
+                          {item.isActive && canManageStock && locations.length > 1 && (
+                            <button className="row-action-menu-item" role="menuitem" onClick={() => { setOpenActionMenuItemId(null); setPendingCommandAction(null); setTransferItem(item); }}>
+                              Transfer
+                            </button>
+                          )}
+                          <div className="row-action-menu-divider" />
+                          <div className="row-action-menu-section">Item</div>
+                          {canManageStock && (
+                            <button className="row-action-menu-item" role="menuitem" onClick={() => { setOpenActionMenuItemId(null); setEditingItem(item); }}>
+                              Edit item
+                            </button>
+                          )}
+                          <button className="row-action-menu-item" role="menuitem" onClick={() => { setOpenActionMenuItemId(null); setBarcodeItem(item); }}>
+                            Barcode
                           </button>
-                        )
+                          {canManageStock && (
+                            <>
+                              <div className="row-action-menu-divider" />
+                              {item.isActive ? (
+                                <button className="row-action-menu-item row-action-menu-item--danger" role="menuitem" disabled={busy.has(item.id)} onClick={() => { setOpenActionMenuItemId(null); void handleArchiveItem(item); }}>
+                                  Archive
+                                </button>
+                              ) : (
+                                <button className="row-action-menu-item row-action-menu-item--success" role="menuitem" disabled={busy.has(item.id)} onClick={() => { setOpenActionMenuItemId(null); void handleReactivateItem(item); }}>
+                                  Reactivate
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
