@@ -2,7 +2,7 @@ import { PurchaseStatus, Role, StockMovementType } from "../generated/prisma/enu
 import { Router, type Request } from "express";
 import { Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../db/prisma.js";
-import { requireAuth, requireRole } from "../middleware/auth.js";
+import { requireActiveWorkspace, requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { logAction } from "../utils/audit-log.js";
 import { assertActiveLocation, assertActiveLocations, getActiveLocationId } from "../utils/locations.js";
@@ -10,6 +10,7 @@ import { assertActiveLocation, assertActiveLocations, getActiveLocationId } from
 export const purchasesRouter = Router();
 
 purchasesRouter.use(requireAuth);
+purchasesRouter.use(requireActiveWorkspace);
 
 const purchaseInclude = {
   supplier: {

@@ -2,13 +2,14 @@ import { Router } from "express";
 import { Role } from "../generated/prisma/enums.js";
 import { Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../db/prisma.js";
-import { requireAuth, requireRole } from "../middleware/auth.js";
+import { requireActiveWorkspace, requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { PLAN_LIMITS, isAtLimit, type PlanTier } from "../utils/plan-limits.js";
 
 export const itemsRouter = Router();
 
 itemsRouter.use(requireAuth);
+itemsRouter.use(requireActiveWorkspace);
 
 const MAX_ITEM_NAME_LENGTH = 160;
 const MAX_ITEM_UNIT_LENGTH = 32;

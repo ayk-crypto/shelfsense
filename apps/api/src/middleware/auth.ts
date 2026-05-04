@@ -121,6 +121,34 @@ export function requirePlatformAdmin(
   return next();
 }
 
+export async function requireActiveWorkspace(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") {
+    return next();
+  }
+
+  const workspaceId = req.user?.workspaceId;
+  if (!workspaceId) return next();
+
+  const workspace = await prisma.workspace.findUnique({
+    where: { id: workspaceId },
+    select: { suspended: true, suspendReason: true },
+  });
+
+  if (workspace?.suspended) {
+    return res.status(403).json({
+      error: "This workspace has been suspended. Contact support to restore access.",
+      code: "WORKSPACE_SUSPENDED",
+      reason: workspace.suspendReason ?? undefined,
+    });
+  }
+
+  return next();
+}
+
 function getBearerToken(req: Request) {
   const header = req.header("authorization");
 

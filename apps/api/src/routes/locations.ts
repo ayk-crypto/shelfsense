@@ -2,7 +2,7 @@ import { Role } from "../generated/prisma/enums.js";
 import { Router } from "express";
 import { Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../db/prisma.js";
-import { requireAuth, requireRole } from "../middleware/auth.js";
+import { requireActiveWorkspace, requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { ensureDefaultLocation } from "../utils/locations.js";
 import { PLAN_LIMITS, isAtLimit, type PlanTier } from "../utils/plan-limits.js";
@@ -10,6 +10,7 @@ import { PLAN_LIMITS, isAtLimit, type PlanTier } from "../utils/plan-limits.js";
 export const locationsRouter = Router();
 
 locationsRouter.use(requireAuth);
+locationsRouter.use(requireActiveWorkspace);
 
 locationsRouter.get("/", asyncHandler(async (req, res) => {
   const workspaceId = req.user?.workspaceId ?? null;

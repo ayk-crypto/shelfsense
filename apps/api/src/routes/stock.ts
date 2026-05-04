@@ -2,7 +2,7 @@ import { Role, StockMovementType } from "../generated/prisma/enums.js";
 import { Router, type Request } from "express";
 import { Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../db/prisma.js";
-import { requireAuth, requireRole } from "../middleware/auth.js";
+import { requireActiveWorkspace, requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { logAction } from "../utils/audit-log.js";
 import { assertActiveLocation, assertActiveLocations, getActiveLocationId } from "../utils/locations.js";
@@ -10,6 +10,7 @@ import { assertActiveLocation, assertActiveLocations, getActiveLocationId } from
 export const stockRouter = Router();
 
 stockRouter.use(requireAuth);
+stockRouter.use(requireActiveWorkspace);
 
 stockRouter.post("/in", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
   const workspaceId = getWorkspaceId(req);
