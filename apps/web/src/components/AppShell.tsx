@@ -556,42 +556,59 @@ function OfflineNotice() {
 }
 
 function EmailVerifyBanner({ email }: { email: string }) {
-  const [sent, setSent] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<"idle" | "loading" | "sent" | "error">("idle");
 
   async function handleResend() {
-    setLoading(true);
+    setStatus("loading");
     try {
       await resendVerification();
-      setSent(true);
+      setStatus("sent");
     } catch {
-      // silent — user can try again
-    } finally {
-      setLoading(false);
+      setStatus("error");
     }
+  }
+
+  if (status === "sent") {
+    return (
+      <div className="verify-banner verify-banner--success" role="status">
+        <div className="verify-banner-icon-wrap verify-banner-icon-wrap--success">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        </div>
+        <span className="verify-banner-text">
+          Email sent to <strong>{email}</strong> — check your inbox (and spam folder).
+        </span>
+      </div>
+    );
   }
 
   return (
     <div className="verify-banner" role="status">
-      <svg className="verify-banner-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-        <polyline points="22,6 12,13 2,6" />
-      </svg>
+      <div className="verify-banner-icon-wrap">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+          <polyline points="22,6 12,13 2,6" />
+        </svg>
+      </div>
       <span className="verify-banner-text">
-        {sent
-          ? <>Verification email sent to <strong>{email}</strong>. Check your inbox.</>
-          : <>Please verify your email address to unlock all features.</>}
+        Please verify your email address to unlock all features.
+        {status === "error" && (
+          <span className="verify-banner-error"> Couldn't send — please try again.</span>
+        )}
       </span>
-      {!sent && (
-        <button
-          type="button"
-          className="verify-banner-btn"
-          onClick={() => { void handleResend(); }}
-          disabled={loading}
-        >
-          {loading ? "Sending…" : "Resend email"}
-        </button>
-      )}
+      <button
+        type="button"
+        className="verify-banner-btn"
+        onClick={() => { void handleResend(); }}
+        disabled={status === "loading"}
+      >
+        {status === "loading" ? (
+          <><span className="btn-spinner btn-spinner--xs" /> Sending…</>
+        ) : (
+          status === "error" ? "Try again" : "Resend email"
+        )}
+      </button>
     </div>
   );
 }

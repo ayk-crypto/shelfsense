@@ -1,0 +1,88 @@
+Redesign the ShelfSense sidebar for better SaaS UX and clearer navigation.
+
+Current issue:
+The sidebar is clean but too flat. All menu items appear at the same level, making it harder for users to quickly understand workflows. Improve grouping, hierarchy, active states, responsive behavior, and overall polish without breaking routes.
+
+Requirements:
+
+1. Group navigation items using section headers:
+- Today should remain at the top as the main daily dashboard link.
+- OPERATIONS:
+  - Daily Ops
+  - Stock In
+  - Stock Out
+  - Stock Activity
+- INVENTORY:
+  - Items
+  - Alerts
+- PURCHASING:
+  - Suppliers
+  - Purchases
+- INSIGHTS:
+  - Reports
+  - Activity
+- WORKSPACE:
+  - Team
+  - Locations
+  - Plan
+  - Settings
+
+2. Rename the sidebar label “Inventory” to “Items”.
+Do not change the existing route unless necessary. Only change the displayed label.
+
+3. Add section headings:
+- Small uppercase
+- Muted color
+- Letter spacing
+- Good spacing above/below
+- Should not feel cluttered
+
+4. Improve active state:
+- Use a soft primary/indigo background
+- Add a left accent bar or clear selected indicator
+- Active icon should use primary color
+- Active label should be semibold and darker
+- Hover state should be subtle and polished
+
+5. Improve icons:
+- Keep consistent line icon style
+- Use meaningful icons
+- Stock In icon can remain green
+- Stock Out icon can remain red
+- Other icons should use neutral muted color unless active
+
+6. Add optional badges where data is available:
+- Alerts count badge
+- Pending purchases count if available
+- Plan badge such as Free, Trial, Pro if available
+Do not hardcode fake counts. Only show if data exists.
+
+7. Improve workspace header:
+- Make the active workspace name more prominent.
+- Show subtitle like “Inventory workspace”.
+- Keep ShelfSense branding visible but avoid making the header feel duplicated.
+- Ensure the logo/avatar looks clean and premium.
+
+8. Improve bottom user/profile area:
+- Show avatar, user name, role if available, and shortened email.
+- Make notification and logout/profile actions visually balanced.
+- Avoid cramped layout.
+- Add hover states and accessible labels.
+
+9. Responsive behavior:
+- On mobile, sidebar should collapse into drawer or be hidden behind a menu button.
+- On tablet/desktop, keep sidebar fixed.
+- If existing app supports collapsed sidebar, preserve it.
+- Ensure long sidebar does not overflow badly; allow internal scrolling if needed.
+
+10. Super admin condition:
+- If logged-in user has platformRole SUPER_ADMIN, show an additional section:
+  PLATFORM:
+  - Platform Admin
+Normal users must not see this item.
+
+11. Technical:
+- Do not break existing routes or API calls.
+- Keep TypeScript clean.
+- Reuse existing auth/user/workspace data where possible.
+- Ensure build passes.
