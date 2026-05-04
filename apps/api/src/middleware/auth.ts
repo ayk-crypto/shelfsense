@@ -41,6 +41,7 @@ export async function requireAuth(
         id: true,
         name: true,
         email: true,
+        emailVerified: true,
         memberships: {
           where: { isActive: true },
           orderBy: { createdAt: "asc" },
@@ -69,6 +70,7 @@ export async function requireAuth(
       id: user.id,
       name: user.name,
       email: user.email,
+      emailVerified: user.emailVerified,
       workspaceId: membership?.workspaceId ?? null,
       role: membership?.role ?? null,
       customRoleId: membership?.customRoleId ?? null,

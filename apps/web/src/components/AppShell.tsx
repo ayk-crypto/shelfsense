@@ -2,6 +2,7 @@ import { type FormEvent, useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { getAlerts } from "../api/alerts";
 import { getNotifications, markAllNotificationsRead, markNotificationRead } from "../api/notifications";
+import { resendVerification } from "../api/auth";
 import { useAuth } from "../context/AuthContext";
 import { useLocation } from "../context/LocationContext";
 import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
@@ -399,6 +400,7 @@ export function AppShell() {
 
         <main className="page-content">
           {!isOnline && <OfflineNotice />}
+          {user && user.emailVerified === false && <EmailVerifyBanner email={user.email} />}
           <Outlet />
         </main>
       </div>
@@ -534,6 +536,47 @@ function OfflineNotice() {
     <div className="offline-notice" role="status">
       <strong>You appear offline.</strong>
       <span>Cached screens may still open, but live inventory data needs the server.</span>
+    </div>
+  );
+}
+
+function EmailVerifyBanner({ email }: { email: string }) {
+  const [sent, setSent] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  async function handleResend() {
+    setLoading(true);
+    try {
+      await resendVerification();
+      setSent(true);
+    } catch {
+      // silent — user can try again
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="verify-banner" role="status">
+      <svg className="verify-banner-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+        <polyline points="22,6 12,13 2,6" />
+      </svg>
+      <span className="verify-banner-text">
+        {sent
+          ? <>Verification email sent to <strong>{email}</strong>. Check your inbox.</>
+          : <>Please verify your email address to unlock all features.</>}
+      </span>
+      {!sent && (
+        <button
+          type="button"
+          className="verify-banner-btn"
+          onClick={() => { void handleResend(); }}
+          disabled={loading}
+        >
+          {loading ? "Sending…" : "Resend email"}
+        </button>
+      )}
     </div>
   );
 }

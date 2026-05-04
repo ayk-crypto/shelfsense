@@ -5,6 +5,7 @@ export interface AuthUser {
   id: string;
   name: string;
   email: string;
+  emailVerified: boolean;
   workspaceId: string | null;
   role: Role | null;
   customRoleId: string | null;

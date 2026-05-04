@@ -29,6 +29,7 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), as
       notifyLowStock: true,
       notifyExpiringSoon: true,
       notifyExpired: true,
+      emailAlertsEnabled: true,
       emailLowStock: true,
       emailExpiringSoon: true,
       emailExpired: true,
@@ -127,13 +128,24 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), as
     })
     .filter((item) => item.quantity <= item.minStockLevel);
 
-  const newAlerts = await generateAlertNotifications({
+  const dayStart = new Date(now);
+  dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(dayStart);
+  dayEnd.setDate(dayStart.getDate() + 1);
+
+  const workspaceEmailEligibility = (workspace?.emailAlertsEnabled ?? false)
+    ? await getWorkspaceEmailEligibility(workspaceId, dayStart, dayEnd)
+    : { lowStockUnsent: false, expiringSoonUnsent: false, expiredUnsent: false };
+
+  await generateAlertNotifications({
     workspaceId,
     userId,
     lowStock,
     expiringSoon,
     expired,
     now,
+    dayStart,
+    dayEnd,
     preferences: {
       notifyLowStock: workspace?.notifyLowStock ?? true,
       notifyExpiringSoon: workspace?.notifyExpiringSoon ?? true,
@@ -142,17 +154,22 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), as
   });
 
   const ownerEmail = workspace?.owner?.email;
-  if (ownerEmail) {
+  if (ownerEmail && (workspace?.emailAlertsEnabled ?? false)) {
     const emailPayload = {
       ownerEmail,
       workspaceName: workspace?.name ?? "Your Workspace",
-      lowStock: (workspace?.emailLowStock ?? false) && newAlerts.hasNewLowStock ? lowStock : [],
-      expiringSoon: (workspace?.emailExpiringSoon ?? false) && newAlerts.hasNewExpiringSoon
-        ? expiringSoon.map((b) => ({ itemName: b.item.name, batchNo: b.batchNo, expiryDate: b.expiryDate }))
-        : [],
-      expired: (workspace?.emailExpired ?? false) && newAlerts.hasNewExpired
-        ? expired.map((b) => ({ itemName: b.item.name, batchNo: b.batchNo, expiryDate: b.expiryDate }))
-        : [],
+      lowStock:
+        (workspace?.emailLowStock ?? false) && workspaceEmailEligibility.lowStockUnsent
+          ? lowStock
+          : [],
+      expiringSoon:
+        (workspace?.emailExpiringSoon ?? false) && workspaceEmailEligibility.expiringSoonUnsent
+          ? expiringSoon.map((b) => ({ itemName: b.item.name, batchNo: b.batchNo, expiryDate: b.expiryDate }))
+          : [],
+      expired:
+        (workspace?.emailExpired ?? false) && workspaceEmailEligibility.expiredUnsent
+          ? expired.map((b) => ({ itemName: b.item.name, batchNo: b.batchNo, expiryDate: b.expiryDate }))
+          : [],
     };
     const hasAnyEmail =
       emailPayload.lowStock.length > 0 ||
@@ -209,6 +226,8 @@ interface AlertNotificationInput {
     };
   }>;
   now: Date;
+  dayStart: Date;
+  dayEnd: Date;
   preferences: {
     notifyLowStock: boolean;
     notifyExpiringSoon: boolean;
@@ -236,7 +255,8 @@ async function generateAlertNotifications({
   lowStock,
   expiringSoon,
   expired,
-  now,
+  dayStart,
+  dayEnd,
   preferences,
 }: AlertNotificationInput): Promise<AlertNotificationResult> {
   const candidates: NotificationCandidate[] = [
@@ -272,11 +292,6 @@ async function generateAlertNotifications({
   if (candidates.length === 0) {
     return { hasNewLowStock: false, hasNewExpiringSoon: false, hasNewExpired: false };
   }
-
-  const dayStart = new Date(now);
-  dayStart.setHours(0, 0, 0, 0);
-  const dayEnd = new Date(dayStart);
-  dayEnd.setDate(dayStart.getDate() + 1);
 
   const newByType = { LOW_STOCK: false, EXPIRY_SOON: false, EXPIRED_STOCK: false };
 
@@ -321,6 +336,29 @@ async function generateAlertNotifications({
     hasNewLowStock: newByType.LOW_STOCK,
     hasNewExpiringSoon: newByType.EXPIRY_SOON,
     hasNewExpired: newByType.EXPIRED_STOCK,
+  };
+}
+
+async function getWorkspaceEmailEligibility(
+  workspaceId: string,
+  dayStart: Date,
+  dayEnd: Date,
+): Promise<{ lowStockUnsent: boolean; expiringSoonUnsent: boolean; expiredUnsent: boolean }> {
+  const [lowStockCount, expiringSoonCount, expiredCount] = await Promise.all([
+    prisma.notification.count({
+      where: { workspaceId, type: "LOW_STOCK", createdAt: { gte: dayStart, lt: dayEnd } },
+    }),
+    prisma.notification.count({
+      where: { workspaceId, type: "EXPIRY_SOON", createdAt: { gte: dayStart, lt: dayEnd } },
+    }),
+    prisma.notification.count({
+      where: { workspaceId, type: "EXPIRED_STOCK", createdAt: { gte: dayStart, lt: dayEnd } },
+    }),
+  ]);
+  return {
+    lowStockUnsent: lowStockCount === 0,
+    expiringSoonUnsent: expiringSoonCount === 0,
+    expiredUnsent: expiredCount === 0,
   };
 }
 
