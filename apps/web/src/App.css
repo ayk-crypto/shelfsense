@@ -13701,6 +13701,42 @@ body {
   line-height: 1.5;
 }
 
+.fp-success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+  padding: 28px 16px;
+}
+
+.fp-success-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: #f0fdf4;
+  color: #16a34a;
+  flex-shrink: 0;
+}
+
+.fp-success-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.fp-success-body {
+  font-size: 14px;
+  color: var(--color-text-muted);
+  line-height: 1.6;
+  margin: 0;
+  max-width: 280px;
+}
+
 /* Field label row (label + right-aligned link) */
 
 .field-label-row {

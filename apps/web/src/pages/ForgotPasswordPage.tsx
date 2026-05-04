@@ -32,16 +32,16 @@ export function ForgotPasswordPage() {
         </div>
 
         {submitted ? (
-          <div className="auth-notice auth-notice--success">
-            <svg viewBox="0 0 20 20" fill="currentColor" className="auth-notice-icon">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-            </svg>
-            <div>
-              <p className="auth-notice-title">Check your inbox</p>
-              <p className="auth-notice-body">
-                If <strong>{email}</strong> is registered, a reset link has been sent. Check your spam folder if you don't see it within a minute.
-              </p>
+          <div className="fp-success">
+            <div className="fp-success-icon">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
             </div>
+            <p className="fp-success-title">Check your inbox</p>
+            <p className="fp-success-body">
+              If <strong>{email}</strong> is registered, a reset link has been sent. Check your spam folder if you don't see it within a minute.
+            </p>
           </div>
         ) : (
           <form className="login-form" onSubmit={handleSubmit} noValidate>
