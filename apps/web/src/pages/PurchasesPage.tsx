@@ -10,6 +10,7 @@ import {
 } from "../api/purchases";
 import { getItems } from "../api/items";
 import { getLocations } from "../api/locations";
+import { getPriceHistory, getSupplierSuggestion } from "../api/stock";
 import { getSuppliers } from "../api/suppliers";
 import { useLocation } from "../context/LocationContext";
 import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
@@ -48,8 +49,8 @@ interface PurchaseLineDraft {
   itemId: string;
   quantity: string;
   unitCost: string;
-  expiryDate: string;
-  batchNo: string;
+  lastCost?: number | null;
+  metaLoading?: boolean;
 }
 
 interface ReceiveLineDraft {
@@ -63,7 +64,7 @@ interface ReceiveLineDraft {
 }
 
 function newLine(): PurchaseLineDraft {
-  return { key: ++lineSeq, itemId: "", quantity: "", unitCost: "", expiryDate: "", batchNo: "" };
+  return { key: ++lineSeq, itemId: "", quantity: "", unitCost: "" };
 }
 
 function fmt(value: number, currency: string) {
@@ -441,12 +442,11 @@ function PurchaseDetailModal({
               <thead>
                 <tr>
                   <th>Item</th>
-                  <th className="text-right">Ordered</th>
-                  <th className="text-right">Received</th>
+                  <th className="text-right">Ordered qty</th>
+                  <th className="text-right">Received qty</th>
                   <th className="text-right">Remaining</th>
-                  <th className="text-right">Unit Cost</th>
-                  <th>Batch</th>
-                  <th>Expiry</th>
+                  <th className="text-right">Est. unit cost</th>
+                  <th className="text-right">Ordered value</th>
                 </tr>
               </thead>
               <tbody>
@@ -457,8 +457,7 @@ function PurchaseDetailModal({
                     <td className="text-right td-num">{line.receivedQuantity}</td>
                     <td className="text-right td-num">{line.remainingQuantity}</td>
                     <td className="text-right td-num">{fmt(line.unitCost, currency)}</td>
-                    <td>{line.batchNo ?? "-"}</td>
-                    <td>{fmtDate(line.expiryDate)}</td>
+                    <td className="text-right td-num">{fmt(line.orderedValue, currency)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -496,6 +495,28 @@ function NewPurchaseModal({
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState("");
   const [lines, setLines] = useState<PurchaseLineDraft[]>([newLine()]);
   const [saving, setSaving] = useState(false);
+  const [supplierSuggestion, setSupplierSuggestion] = useState<{ id: string; name: string } | null>(null);
+
+  async function handleItemChange(key: number, itemId: string) {
+    setLines((prev) => prev.map((l) => l.key === key ? { ...l, itemId, lastCost: undefined, metaLoading: !!itemId } : l));
+    if (!itemId) return;
+    try {
+      const [suggRes, priceRes] = await Promise.all([
+        getSupplierSuggestion(itemId),
+        getPriceHistory(itemId, 1),
+      ]);
+      const lastCost = priceRes.history[0]?.unitCost ?? null;
+      setLines((prev) => prev.map((l) => {
+        if (l.key !== key) return l;
+        return { ...l, metaLoading: false, lastCost, unitCost: l.unitCost || (lastCost != null ? String(lastCost) : "") };
+      }));
+      if (suggRes.suggestion && !supplierId) {
+        setSupplierSuggestion(suggRes.suggestion);
+      }
+    } catch {
+      setLines((prev) => prev.map((l) => l.key === key ? { ...l, metaLoading: false } : l));
+    }
+  }
 
   function updateLine(key: number, patch: Partial<PurchaseLineDraft>) {
     setLines((current) => current.map((line) => line.key === key ? { ...line, ...patch } : line));
@@ -525,8 +546,6 @@ function NewPurchaseModal({
         itemId: line.itemId,
         quantity: numberValue(line.quantity)!,
         unitCost: numberValue(line.unitCost)!,
-        expiryDate: line.expiryDate || undefined,
-        batchNo: line.batchNo || undefined,
       })),
     };
 
@@ -570,6 +589,11 @@ function NewPurchaseModal({
                   {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
                 </select>
               </label>
+              {supplierSuggestion && !supplierId && (
+                <button type="button" className="pur-supplier-hint" onClick={() => { setSupplierId(supplierSuggestion.id); setSupplierSuggestion(null); }}>
+                  Suggested: {supplierSuggestion.name} — tap to use
+                </button>
+              )}
               <label className="form-group">
                 <span className="form-label">Purchase date</span>
                 <input className="form-input" type="date" value={date} onChange={(event) => setDate(event.target.value)} />
@@ -585,26 +609,27 @@ function NewPurchaseModal({
               <div className="purchase-lines-title-row">
                 <div>
                   <span className="purchase-lines-label">Line items</span>
-                  <p>Item, quantity, cost, and batch details for this order.</p>
+                  <p>Batch numbers and expiry dates are added when you receive the goods.</p>
                 </div>
                 <button type="button" className="btn btn--ghost btn--sm purchase-add-line-btn" onClick={() => setLines((current) => [...current, newLine()])}>Add Line</button>
               </div>
               <div className="purchase-line purchase-line--lifecycle purchase-line--header">
-                <span>Item</span><span>Qty</span><span>Unit cost</span><span>Expiry</span><span>Batch</span><span>Total</span><span />
+                <span>Item</span><span>Qty</span><span>Unit cost</span><span>Total</span><span />
               </div>
               {lines.map((line) => {
                 const quantity = numberValue(line.quantity) ?? 0;
                 const unitCost = numberValue(line.unitCost) ?? 0;
                 return (
                   <div key={line.key} className="purchase-line purchase-line--lifecycle">
-                    <select aria-label="Item" className="form-input form-select" value={line.itemId} onChange={(event) => updateLine(line.key, { itemId: event.target.value })}>
+                    <select aria-label="Item" className="form-input form-select" value={line.itemId} onChange={(event) => { void handleItemChange(line.key, event.target.value); }}>
                       <option value="">Select item</option>
                       {items.map((item) => <option key={item.id} value={item.id}>{item.name} / {item.unit}</option>)}
                     </select>
                     <input aria-label="Quantity" className="form-input" type="number" min="0.01" step="0.01" value={line.quantity} onChange={(event) => updateLine(line.key, { quantity: event.target.value })} placeholder="0" />
-                    <input aria-label="Unit cost" className="form-input" type="number" min="0" step="0.01" value={line.unitCost} onChange={(event) => updateLine(line.key, { unitCost: event.target.value })} placeholder="0.00" />
-                    <input aria-label="Expiry date" className="form-input" type="date" value={line.expiryDate} onChange={(event) => updateLine(line.key, { expiryDate: event.target.value })} />
-                    <input aria-label="Batch number" className="form-input" value={line.batchNo} onChange={(event) => updateLine(line.key, { batchNo: event.target.value })} placeholder="Batch no." />
+                    <div className="pur-line-cost-cell">
+                      <input aria-label="Unit cost" className="form-input" type="number" min="0" step="0.01" value={line.unitCost} onChange={(event) => updateLine(line.key, { unitCost: event.target.value })} placeholder="0.00" />
+                      {line.lastCost != null && <span className="pur-cost-hint">Last: {fmt(line.lastCost, currency)}</span>}
+                    </div>
                     <span className="purchase-line-total">{fmt(quantity * unitCost, currency)}</span>
                     <button type="button" className="purchase-line-remove" onClick={() => removeLine(line.key)} disabled={lines.length === 1} aria-label="Remove line">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -655,8 +680,8 @@ function ReceivePurchaseModal({
         purchaseItemId: line.id,
         receivedQuantity: String(line.remainingQuantity),
         locationId: defaultLocationId || purchase.location.id,
-        expiryDate: toDateInput(line.expiryDate),
-        batchNo: line.batchNo ?? "",
+        expiryDate: "",
+        batchNo: "",
         unitCost: String(line.unitCost),
         notes: "",
       })),

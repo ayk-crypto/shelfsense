@@ -16,6 +16,8 @@ This is an npm workspaces monorepo with three packages:
 - **Backend**: Node.js, Express, TypeScript (run with `tsx`)
 - **Database**: PostgreSQL (Replit built-in) with Prisma ORM
 - **Auth**: JWT (`jsonwebtoken`) + `bcryptjs`
+- **Email**: `nodemailer` (console transport in dev, SMTP in prod)
+- **Logging**: `winston` (JSON in prod, colorized in dev)
 
 ## Design System (as of May 2026 redesign)
 
@@ -32,12 +34,13 @@ This is an npm workspaces monorepo with three packages:
 
 - Multi-tenant architecture with Workspaces
 - User roles: OWNER, MANAGER, OPERATOR (route-level access control via Prisma `Role` enum)
-- Custom roles system: named roles (e.g. "Chef", "Cashier") with `baseRole` (MANAGER|OPERATOR) for API security + `permissions` JSON array for UI gating; stored in `CustomRole` table; assigned via `Membership.customRoleId`
+- Custom roles system: named roles with `baseRole` + `permissions` JSON; stored in `CustomRole` table; assigned via `Membership.customRoleId`
 - Inventory item tracking (SKU, barcode, unit, min stock level, expiry tracking)
 - Stock batch management with expiry dates
 - Stock movement tracking (STOCK_IN, STOCK_OUT, WASTAGE, ADJUSTMENT)
 - Supplier contact management (name, phone, notes)
-- Purchase recording with multi-line items (auto-increments stock via STOCK_IN movements)
+- **Purchase Order lifecycle**: DRAFT → ORDERED → PARTIALLY_RECEIVED → RECEIVED/CANCELLED; batch/expiry set at receive time only; supplier+cost intelligence auto-fills PO lines
+- **Stock In two modes**: Direct (ad-hoc batches with supplier/cost/expiry) + Receive Against PO (links open POs, uses purchase receive endpoint)
 - Barcode scanning via html5-qrcode (lazy-loaded, halves main bundle)
 - Notifications system (unread count, mark-all-read)
 - Location selector (multi-location per workspace)
@@ -46,17 +49,22 @@ This is an npm workspaces monorepo with three packages:
 - Team management (invite / role change / remove)
 - Activity log with filters
 - Settings page (workspace name, notifications toggles)
+- **Auth security**: account lockout after 5 failed logins (15 min), forgot/reset password (SHA-256 hashed tokens, 60 min TTL), email verification (24 h TTL), rate limiting on all auth endpoints
 
 ## Frontend Integration (`apps/web`)
 
-- **Login page** — email/password form with "Fill demo credentials" helper
-- **Signup page** — workspace + user creation
+- **Login page** — email/password form; "Forgot password?" link; account lockout UI
+- **Signup page** — workspace + user creation; redirects to `/verify-email?sent=1`
+- **ForgotPasswordPage** (`/forgot-password`) — sends reset email
+- **ResetPasswordPage** (`/reset-password`) — validates token, sets new password
+- **VerifyEmailPage** (`/verify-email`) — confirms email verification token
 - **Onboarding** — multi-step setup flow
 - **Dashboard page** — summary stat cards + expiring-soon inventory table + cost analysis
 - **Items page** (`/items`) — list all items; Add Item modal; Stock In / Stock Out modals per row; inline toast notifications; bulk actions; barcode scanner
 - **Movements page** (`/movements`) — stock movement log with filters
 - **Suppliers page** (`/suppliers`) — supplier list with Add Supplier modal
-- **Purchases page** (`/purchases`) — purchase history; New Purchase modal with multi-line items
+- **Purchases page** (`/purchases`) — PO lifecycle (DRAFT→ORDERED→RECEIVED); New PO modal without batch/expiry (set at receive time); PO detail shows ordered value column; supplier suggestion + unit cost auto-fill on item select
+- **Stock In page** (`/stock-in`) — mode toggle: **Direct Stock In** (ad-hoc batches with supplier/cost intelligence) or **Receive Against PO** (select open PO, fill receive qty/batch/expiry per line, submits to purchase receive endpoint)
 - **Reports page** (`/reports`) — filterable reports with CSV export
 - **Alerts page** (`/alerts`) — low-stock and expiry alerts grouped by severity
 - **Team page** (`/team`) — two-tab layout: Members (list + role management) + Custom Roles (role builder); OWNER only
@@ -83,6 +91,9 @@ This is an npm workspaces monorepo with three packages:
 - `DATABASE_URL` — PostgreSQL connection string (managed by Replit)
 - `PORT` — API port (set to 3000)
 - `JWT_SECRET` — JWT signing secret (defaults to "development-secret" in dev)
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` — email sending (optional; console fallback in dev)
+- `EMAIL_FROM` — sender address for auth emails (optional; defaults to `noreply@shelfsense.app`)
+- `APP_URL` — public base URL for email links (optional; defaults to `http://localhost:5000`)
 
 ## Database
 

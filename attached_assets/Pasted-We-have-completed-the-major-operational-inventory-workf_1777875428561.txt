@@ -1,0 +1,134 @@
+We have completed the major operational inventory workflows for ShelfSense. Now shift focus to Production Readiness Sprint.
+
+Goal:
+Prepare ShelfSense for controlled pilot usage and later paid SaaS readiness.
+
+Important:
+Do not add random new product features in this sprint. Focus on security, permissions, reliability, monitoring, and production basics.
+
+Sprint 1 Scope:
+1. Password reset flow
+2. Email verification flow
+3. API-level permission enforcement review
+4. Auth rate limiting and account protection
+5. Centralized backend logging foundation
+6. Error handling review
+7. Backup/restore documentation
+8. CI/build verification checklist
+
+Part A — Password Reset
+
+Requirements:
+1. Add forgot password endpoint.
+2. Add reset password endpoint.
+3. Add reset token model/table if needed.
+4. Reset token should:
+   - Be securely generated.
+   - Be stored hashed if possible.
+   - Expire after a reasonable time, e.g. 15–60 minutes.
+   - Be single-use.
+5. Add frontend Forgot Password page.
+6. Add frontend Reset Password page.
+7. Login page should include “Forgot password?” link.
+8. In development, if SMTP is not configured, log the reset link safely to console for testing.
+9. In production, send reset email only through configured SMTP/email service.
+10. Do not reveal whether an email exists in forgot password response.
+
+Part B — Email Verification
+
+Requirements:
+1. Add email verification token model/table if needed.
+2. New users should have emailVerified or equivalent field.
+3. After signup, generate verification token.
+4. Add verify email endpoint.
+5. Add resend verification endpoint.
+6. Add frontend Verify Email page.
+7. Add “resend verification email” UX.
+8. In development, log verification link safely if SMTP is not configured.
+9. Do not block existing seeded/demo users from login unless handled clearly.
+10. Add clear user-facing messages for verified, expired, invalid, and already verified states.
+
+Part C — API-Level Permission Enforcement Review
+
+Requirements:
+1. Review all existing API routes.
+2. Identify routes currently protected only by base roles.
+3. Create or improve permission middleware that can enforce fine-grained permissions from custom roles.
+4. Apply permission checks to sensitive routes, especially:
+   - Team/user management
+   - Custom role management
+   - Items create/edit/archive/reactivate
+   - Stock In
+   - Stock Out
+   - Stock Count finalize
+   - Purchase create/order/receive/cancel
+   - Supplier create/edit/delete
+   - Transfers
+   - Reports/export
+   - Workspace settings
+5. Ensure UI restrictions are backed by API restrictions.
+6. Add safe default behavior: deny if permission is missing or unclear.
+7. Keep Owner access intact.
+8. Keep Manager/Operator defaults aligned with current app behavior.
+9. Add documentation mapping roles/permissions to major actions.
+
+Part D — Auth Rate Limiting and Account Protection
+
+Requirements:
+1. Add stricter rate limiting for:
+   - Login
+   - Forgot password
+   - Reset password
+   - Resend verification
+2. Consider IP + email-based throttling for auth-sensitive actions.
+3. Add account lockout or temporary cooldown after repeated failed login attempts if practical.
+4. Ensure errors are user-friendly and do not leak sensitive information.
+
+Part E — Logging and Error Handling
+
+Requirements:
+1. Add centralized backend logger if not already present.
+2. Ensure request ID is included in logs where available.
+3. Log important security and business events:
+   - Login success/failure
+   - Password reset requested
+   - Password reset completed
+   - Email verification sent/completed
+   - Permission denied
+   - Purchase receiving
+   - Stock count finalization
+4. Review error handling so frontend receives clean error messages.
+5. Avoid leaking stack traces or sensitive tokens in production.
+
+Part F — Backup/Restore Documentation
+
+Requirements:
+1. Add a production operations document, e.g. docs/production-readiness.md.
+2. Document:
+   - Required environment variables
+   - Database backup approach for PostgreSQL/Neon
+   - Restore process at high level
+   - Migration process
+   - SMTP/email configuration
+   - Recommended deployment checks
+   - Rollback considerations
+3. Mention that database reset must not be used in production.
+4. Mention how to handle Prisma checksum drift safely.
+
+Part G — Verification
+
+Requirements:
+1. Run database migration safely.
+2. Run build for shared, API, and web.
+3. Fix all TypeScript/backend errors.
+4. Smoke test:
+   - Existing login still works
+   - Forgot password flow works in development
+   - Reset password invalid/expired token behavior works
+   - Signup generates verification token
+   - Verify email works
+   - Resend verification works
+   - Operator cannot access sensitive APIs directly
+   - Manager/Owner permissions still work
+5. Update README and docs with the new auth/security features.
+6. Provide a final summary of files changed and any manual environment variables required.

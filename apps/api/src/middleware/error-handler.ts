@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
+import { logger } from "../lib/logger.js";
 
 type HttpError = Error & {
   status?: number;
@@ -27,15 +28,21 @@ function getMessage(error: unknown, status: number) {
 
 export function errorHandler(
   error: unknown,
-  _req: Request,
+  req: Request,
   res: Response,
   _next: NextFunction,
 ) {
-  console.error(error);
   const status = getStatus(error);
-  const response: { error: string } = {
-    error: getMessage(error, status),
-  };
+  const message = getMessage(error, status);
 
-  res.status(status).json(response);
+  if (status >= 500) {
+    logger.error("Unhandled error", {
+      method: req.method,
+      path: req.path,
+      status,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  res.status(status).json({ error: message });
 }

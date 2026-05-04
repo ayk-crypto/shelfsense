@@ -65,9 +65,6 @@ purchasesRouter.post("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(
     return res.status(400).json({ error: "Quantity must be greater than zero and unit cost cannot be negative" });
   }
 
-  const invalidLineDate = input.items.find((item) => item.expiryDate === "invalid");
-  if (invalidLineDate) return res.status(400).json({ error: "Line expiry date must be valid" });
-
   const supplier = await prisma.supplier.findFirst({
     where: { id: input.supplierId, workspaceId },
     select: { id: true, name: true },
@@ -86,8 +83,6 @@ purchasesRouter.post("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(
     quantity: item.quantity!,
     unitCost: item.unitCost!,
     total: item.quantity! * item.unitCost!,
-    expiryDate: item.expiryDate instanceof Date ? item.expiryDate : null,
-    batchNo: item.batchNo ?? null,
   }));
   const totalAmount = lines.reduce((total, line) => total + line.total, 0);
   const purchaseDate = input.date instanceof Date ? input.date : new Date();
@@ -112,8 +107,6 @@ purchasesRouter.post("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(
             receivedQuantity: 0,
             unitCost: line.unitCost,
             total: line.total,
-            expiryDate: line.expiryDate,
-            batchNo: line.batchNo,
           })),
         },
       },
@@ -156,6 +149,22 @@ purchasesRouter.get("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(a
         gte: filters.fromDate,
         lte: filters.toDate,
       },
+    },
+    orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+    include: purchaseInclude,
+  });
+
+  return res.json({ purchases: purchases.map(mapPurchaseRecord) });
+}));
+
+purchasesRouter.get("/open", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
+  const workspaceId = getWorkspaceId(req);
+  if (!workspaceId) return res.status(403).json({ error: "Workspace access required" });
+
+  const purchases = await prisma.purchase.findMany({
+    where: {
+      workspaceId,
+      status: { in: [PurchaseStatus.ORDERED, PurchaseStatus.PARTIALLY_RECEIVED] },
     },
     orderBy: [{ date: "desc" }, { createdAt: "desc" }],
     include: purchaseInclude,
@@ -303,10 +312,8 @@ purchasesRouter.post("/:id/receive", requireRole([Role.OWNER, Role.MANAGER]), as
         }
 
         const effectiveUnitCost = line.unitCost ?? purchaseItem.unitCost;
-        const expiryDate = line.expiryDate instanceof Date
-          ? line.expiryDate
-          : purchaseItem.expiryDate;
-        const batchNo = line.batchNo ?? purchaseItem.batchNo;
+        const expiryDate = line.expiryDate instanceof Date ? line.expiryDate : null;
+        const batchNo = line.batchNo ?? null;
 
         const batch = await tx.stockBatch.create({
           data: {
@@ -436,16 +443,12 @@ function parsePurchaseItemInput(value: unknown) {
     itemId?: unknown;
     quantity?: unknown;
     unitCost?: unknown;
-    expiryDate?: unknown;
-    batchNo?: unknown;
   };
 
   return {
     itemId: parseOptionalString(input.itemId),
     quantity: parseOptionalNumber(input.quantity),
     unitCost: parseOptionalNumber(input.unitCost),
-    expiryDate: parseOptionalDate(input.expiryDate),
-    batchNo: parseNullableString(input.batchNo),
   };
 }
 

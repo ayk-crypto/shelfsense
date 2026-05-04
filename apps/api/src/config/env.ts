@@ -35,4 +35,11 @@ export const env = {
   port: Number(process.env.PORT ?? 4000),
   nodeEnv: process.env.NODE_ENV ?? "development",
   corsAllowedOrigins: parseCsv(process.env.CORS_ALLOWED_ORIGINS) ?? defaultCorsAllowedOrigins,
+  smtpHost: process.env.SMTP_HOST,
+  smtpPort: Number(process.env.SMTP_PORT ?? 587),
+  smtpUser: process.env.SMTP_USER,
+  smtpPass: process.env.SMTP_PASS,
+  emailFrom: process.env.EMAIL_FROM ?? "no-reply@shelfsense.app",
+  emailFromName: process.env.EMAIL_FROM_NAME ?? "ShelfSense",
+  appUrl: process.env.APP_URL ?? "http://localhost:5000",
 };

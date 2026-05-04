@@ -12122,7 +12122,7 @@ body {
 }
 
 .purchase-line--lifecycle {
-  grid-template-columns: minmax(220px, 1.5fr) minmax(90px, 0.55fr) minmax(110px, 0.65fr) minmax(130px, 0.75fr) minmax(110px, 0.65fr) minmax(110px, 0.65fr) 34px;
+  grid-template-columns: minmax(220px, 1.5fr) minmax(90px, 0.55fr) minmax(140px, 0.75fr) minmax(110px, 0.65fr) 34px;
 }
 
 .receive-line {
@@ -12334,9 +12334,7 @@ body {
   grid-template-columns:
     minmax(240px, 1.6fr)
     minmax(86px, 0.55fr)
-    minmax(110px, 0.65fr)
-    minmax(145px, 0.75fr)
-    minmax(128px, 0.7fr)
+    minmax(150px, 0.8fr)
     minmax(120px, 0.7fr)
     34px;
   gap: 8px;
@@ -12826,4 +12824,249 @@ body {
   .reorder-stock-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* =============================================
+   Auth notice banners (ForgotPassword / VerifyEmail / ResetPassword)
+   ============================================= */
+
+.auth-notice {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 16px 18px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  margin-bottom: 20px;
+}
+
+.auth-notice--success {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.auth-notice--error {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.auth-notice--info {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.auth-notice-icon {
+  font-size: 22px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.auth-notice-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: 4px;
+}
+
+.auth-notice-body {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+/* Field label row (label + right-aligned link) */
+
+.field-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.field-label-link {
+  font-size: 12px;
+  color: var(--color-primary);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.field-label-link:hover {
+  text-decoration: underline;
+}
+
+/* =============================================
+   Purchase order creation — supplier/cost intelligence
+   ============================================= */
+
+.pur-supplier-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #4f46e5;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.pur-supplier-hint:hover {
+  background: #e0e7ff;
+}
+
+.pur-line-cost-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pur-cost-hint {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  padding-left: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* =============================================
+   Stock In — mode toggle (Direct vs Receive Against PO)
+   ============================================= */
+
+.stock-entry-mode-toggle {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  overflow: hidden;
+  align-self: flex-start;
+  margin-bottom: 20px;
+  flex-shrink: 0;
+}
+
+.stock-entry-mode-btn {
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+  border-right: 1px solid var(--color-border);
+}
+
+.stock-entry-mode-btn:last-child {
+  border-right: none;
+}
+
+.stock-entry-mode-btn:hover:not(.stock-entry-mode-btn--active) {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.stock-entry-mode-btn--active {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+/* =============================================
+   Stock In — PO receive mode section
+   ============================================= */
+
+.po-receive-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.po-receive-loading {
+  padding: 24px;
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+
+.po-receive-empty {
+  padding: 32px 24px;
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  border: 1px dashed var(--color-border);
+  border-radius: 10px;
+}
+
+.po-receive-empty p {
+  margin: 0 0 6px;
+}
+
+.po-receive-link {
+  color: var(--color-primary);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.po-receive-link:hover {
+  text-decoration: underline;
+}
+
+.po-receive-selector {
+  max-width: 520px;
+}
+
+.po-receive-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.po-receive-summary {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 12px 16px;
+  background: #f8fafc;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 13px;
+  color: var(--color-text-muted);
+  flex-wrap: wrap;
+}
+
+.po-receive-summary strong {
+  color: var(--color-text);
+}
+
+.po-receive-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--color-border);
+  background: #f8fafc;
+  flex-wrap: wrap;
+}
+
+.po-receive-result {
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 6px;
+  flex: 1;
+}
+
+.po-receive-result--success {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.po-receive-result--error {
+  color: #991b1b;
+  background: #fee2e2;
 }

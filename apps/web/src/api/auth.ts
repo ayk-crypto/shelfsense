@@ -13,3 +13,19 @@ export async function register(data: {
 }): Promise<LoginResponse> {
   return apiClient.post<LoginResponse>("/auth/register", data, false);
 }
+
+export async function forgotPassword(email: string): Promise<{ message: string }> {
+  return apiClient.post<{ message: string }>("/auth/forgot-password", { email }, false);
+}
+
+export async function resetPassword(token: string, password: string): Promise<{ message: string }> {
+  return apiClient.post<{ message: string }>("/auth/reset-password", { token, password }, false);
+}
+
+export async function verifyEmail(token: string): Promise<{ message: string }> {
+  return apiClient.post<{ message: string }>("/auth/verify-email", { token }, false);
+}
+
+export async function resendVerification(): Promise<{ message: string }> {
+  return apiClient.post<{ message: string }>("/auth/resend-verification", {});
+}

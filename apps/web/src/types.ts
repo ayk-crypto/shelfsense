@@ -52,6 +52,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  emailVerified?: boolean;
   createdAt: string;
   workspaceId?: string | null;
   role?: Role | null;
@@ -592,8 +593,6 @@ export interface CreatePurchaseLineInput {
   itemId: string;
   quantity: number;
   unitCost: number;
-  expiryDate?: string;
-  batchNo?: string;
 }
 
 export interface CreatePurchaseInput {

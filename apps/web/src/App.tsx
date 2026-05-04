@@ -11,6 +11,7 @@ import { DailyOperationsPage } from "./pages/DailyOperationsPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ItemsPage } from "./pages/ItemsPage";
 import { LocationsPage } from "./pages/LocationsPage";
+import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MovementsPage } from "./pages/MovementsPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
@@ -18,7 +19,9 @@ import { PurchasesPage } from "./pages/PurchasesPage";
 import { ReorderSuggestionsPage } from "./pages/ReorderSuggestionsPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { SignupPage } from "./pages/SignupPage";
+import { VerifyEmailPage } from "./pages/VerifyEmailPage";
 import { StockCountPage } from "./pages/StockCountPage";
 import { StockInPage } from "./pages/StockInPage";
 import { StockOutPage } from "./pages/StockOutPage";
@@ -183,6 +186,16 @@ export function App() {
               </PublicRoute>
             }
           />
+          <Route
+            path="/forgot-password"
+            element={
+              <PublicRoute>
+                <ForgotPasswordPage />
+              </PublicRoute>
+            }
+          />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
           <Route
             element={
               <ProtectedRoute>

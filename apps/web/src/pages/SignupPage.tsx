@@ -43,7 +43,7 @@ export function SignupPage() {
         workspaceName: form.workspaceName.trim() || undefined,
       });
       saveAuth(data.user, data.token);
-      navigate("/dashboard", { replace: true });
+      navigate(`/verify-email?sent=1&email=${encodeURIComponent(form.email.trim())}`, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Signup failed. Please try again.");
     } finally {

@@ -9,6 +9,10 @@ import type {
 } from "../types";
 import { apiClient } from "./client";
 
+export async function getOpenPurchases(): Promise<PurchasesResponse> {
+  return apiClient.get<PurchasesResponse>("/purchases/open");
+}
+
 export async function getPurchases(filters: PurchaseFilters = {}): Promise<PurchasesResponse> {
   const params = new URLSearchParams();
   if (filters.status) params.set("status", filters.status);

@@ -70,17 +70,38 @@ app.use(
   }),
 );
 
-app.use(
-  "/auth",
-  rateLimit({
-    windowMs: 15 * 60 * 1000,
-    limit: 20,
-    standardHeaders: "draft-8",
-    legacyHeaders: false,
-    message: { error: "Too many authentication attempts. Please try again later." },
-    skip: () => env.nodeEnv === "test",
-  }),
-);
+const authRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { error: "Too many authentication attempts. Please try again later." },
+  skip: () => env.nodeEnv === "test",
+});
+
+const loginRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { error: "Too many login attempts. Please try again later." },
+  skip: () => env.nodeEnv === "test",
+});
+
+const forgotPasswordRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { error: "Too many password reset requests. Please try again later." },
+  skip: () => env.nodeEnv === "test",
+});
+
+app.use("/auth", authRateLimit);
+app.use("/auth/login", loginRateLimit);
+app.use("/auth/forgot-password", forgotPasswordRateLimit);
+app.use("/auth/reset-password", forgotPasswordRateLimit);
+app.use("/auth/resend-verification", forgotPasswordRateLimit);
 
 app.use(express.json({ limit: "1mb" }));
 

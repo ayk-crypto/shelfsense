@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { getItems } from "../api/items";
+import { getLocations } from "../api/locations";
+import { getOpenPurchases, receivePurchase } from "../api/purchases";
 import { getPriceHistory, getSupplierSuggestion, stockIn } from "../api/stock";
 import { getSuppliers } from "../api/suppliers";
+import { useLocation } from "../context/LocationContext";
 import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
-import type { Item, Supplier } from "../types";
+import type { Item, Location, Purchase, Supplier } from "../types";
 import { formatCurrency } from "../utils/currency";
 
 interface BatchRow {
@@ -27,6 +30,20 @@ interface RowResult {
   batchNo: string;
   status: "success" | "error";
   error?: string;
+}
+
+interface PoReceiveLineDraft {
+  purchaseItemId: string;
+  itemName: string;
+  itemUnit: string;
+  remainingQty: number;
+  trackExpiry: boolean;
+  receivedQuantity: string;
+  locationId: string;
+  expiryDate: string;
+  batchNo: string;
+  unitCost: string;
+  notes: string;
 }
 
 function generateBatchNo(rows: BatchRow[], itemId: string): string {
@@ -52,16 +69,28 @@ export function StockInPage() {
   const [results, setResults] = useState<RowResult[] | null>(null);
   const [touched, setTouched] = useState(false);
 
+  const { activeLocationId: defaultLocationId } = useLocation();
+  const [locations, setLocations] = useState<Location[]>([]);
+  const [mode, setMode] = useState<"direct" | "po">("direct");
+  const [openPOs, setOpenPOs] = useState<Purchase[]>([]);
+  const [poLoading, setPoLoading] = useState(false);
+  const [selectedPoId, setSelectedPoId] = useState("");
+  const [selectedPo, setSelectedPo] = useState<Purchase | null>(null);
+  const [poReceiveLines, setPoReceiveLines] = useState<PoReceiveLineDraft[]>([]);
+  const [poSubmitting, setPoSubmitting] = useState(false);
+  const [poResult, setPoResult] = useState<{ type: "success" | "error"; msg: string } | null>(null);
+
   const searchRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     async function load() {
       try {
-        const [itemsRes, suppliersRes] = await Promise.all([getItems(), getSuppliers()]);
+        const [itemsRes, suppliersRes, locationsRes] = await Promise.all([getItems(), getSuppliers(), getLocations()]);
         const activeItems = itemsRes.items.filter((i) => i.isActive);
         setAllItems(activeItems);
         setSuppliers(suppliersRes.suppliers);
+        setLocations(locationsRes.locations);
 
         const itemId = searchParams.get("itemId");
         const query = searchParams.get("q")?.trim().toLowerCase();
@@ -227,6 +256,85 @@ export function StockInPage() {
     setTouched(false);
   }
 
+  async function switchMode(newMode: "direct" | "po") {
+    setMode(newMode);
+    setPoResult(null);
+    if (newMode === "po" && openPOs.length === 0) {
+      setPoLoading(true);
+      try {
+        const res = await getOpenPurchases();
+        setOpenPOs(res.purchases);
+      } catch {
+        setOpenPOs([]);
+      } finally {
+        setPoLoading(false);
+      }
+    }
+  }
+
+  function handlePoSelect(poId: string) {
+    setSelectedPoId(poId);
+    setPoResult(null);
+    const po = openPOs.find((p) => p.id === poId) ?? null;
+    setSelectedPo(po);
+    if (!po) { setPoReceiveLines([]); return; }
+    setPoReceiveLines(
+      po.purchaseItems
+        .filter((item) => item.remainingQuantity > 0)
+        .map((item) => ({
+          purchaseItemId: item.id,
+          itemName: item.item.name,
+          itemUnit: item.item.unit,
+          remainingQty: item.remainingQuantity,
+          trackExpiry: item.item.trackExpiry,
+          receivedQuantity: String(item.remainingQuantity),
+          locationId: defaultLocationId || (locations[0]?.id ?? ""),
+          expiryDate: "",
+          batchNo: "",
+          unitCost: String(item.unitCost),
+          notes: "",
+        }))
+    );
+  }
+
+  function updatePoLine(purchaseItemId: string, patch: Partial<PoReceiveLineDraft>) {
+    setPoReceiveLines((prev) => prev.map((l) => l.purchaseItemId === purchaseItemId ? { ...l, ...patch } : l));
+  }
+
+  async function handlePoReceiveSubmit() {
+    if (!selectedPo) return;
+    const validLines = poReceiveLines.filter((l) => (parseFloat(l.receivedQuantity) || 0) > 0);
+    if (validLines.length === 0) {
+      setPoResult({ type: "error", msg: "Enter at least one received quantity." });
+      return;
+    }
+    setPoSubmitting(true);
+    setPoResult(null);
+    try {
+      await receivePurchase(selectedPo.id, {
+        lines: validLines.map((l) => ({
+          purchaseItemId: l.purchaseItemId,
+          receivedQuantity: parseFloat(l.receivedQuantity),
+          locationId: l.locationId || undefined,
+          expiryDate: l.expiryDate || undefined,
+          batchNo: l.batchNo || undefined,
+          unitCost: parseFloat(l.unitCost) || undefined,
+          notes: l.notes || undefined,
+        })),
+      });
+      setPoResult({ type: "success", msg: "Receipt confirmed. Stock has been updated." });
+      const res = await getOpenPurchases();
+      setOpenPOs(res.purchases);
+      setSelectedPoId("");
+      setSelectedPo(null);
+      setPoReceiveLines([]);
+    } catch (err) {
+      setPoResult({ type: "error", msg: err instanceof Error ? err.message : "Failed to record receipt." });
+    } finally {
+      setPoSubmitting(false);
+    }
+  }
+
   function isRowValid(row: BatchRow) {
     const qty = parseFloat(row.qty);
     if (!qty || qty <= 0) return false;
@@ -292,8 +400,12 @@ export function StockInPage() {
             </svg>
             Stock In
           </div>
-          <h1 className="page-title">Record Stock In</h1>
-          <p className="page-subtitle">Add items to stock with batch numbers, costs, expiry dates, and supplier info. Use <strong>+ Add batch</strong> on any row to record multiple batches for the same item.</p>
+          <h1 className="page-title">Stock In</h1>
+          <p className="page-subtitle">
+            {mode === "direct"
+              ? <>Add items directly to stock with batch numbers, costs, expiry dates, and supplier info. Use <strong>+ Add batch</strong> on any row to record multiple batches.</>
+              : "Receive goods against an open Purchase Order. Stock batches are created only when you confirm receipt."}
+          </p>
         </div>
         {rows.length > 0 && (
           <div className="stock-entry-tally">
@@ -310,6 +422,88 @@ export function StockInPage() {
         )}
       </div>
 
+      <div className="stock-entry-mode-toggle">
+        <button
+          type="button"
+          className={`stock-entry-mode-btn${mode === "direct" ? " stock-entry-mode-btn--active" : ""}`}
+          onClick={() => void switchMode("direct")}
+        >
+          Direct Stock In
+        </button>
+        <button
+          type="button"
+          className={`stock-entry-mode-btn${mode === "po" ? " stock-entry-mode-btn--active" : ""}`}
+          onClick={() => void switchMode("po")}
+        >
+          Receive Against PO
+        </button>
+      </div>
+
+      {mode === "po" ? (
+        <div className="po-receive-section">
+          {poLoading ? (
+            <div className="po-receive-loading">Loading open purchase orders…</div>
+          ) : openPOs.length === 0 ? (
+            <div className="po-receive-empty">
+              <p>No open purchase orders found.</p>
+              <p>Go to <a className="po-receive-link" href="/purchases">Purchases</a>, create a draft PO, and mark it as Ordered to receive here.</p>
+            </div>
+          ) : (
+            <>
+              <div className="form-group po-receive-selector">
+                <label className="form-label">Select Purchase Order</label>
+                <select className="form-input form-select" value={selectedPoId} onChange={(e) => handlePoSelect(e.target.value)}>
+                  <option value="">Choose an open PO to receive against…</option>
+                  {openPOs.map((po) => (
+                    <option key={po.id} value={po.id}>
+                      {po.supplier.name} — {po.remainingQuantity} unit{po.remainingQuantity !== 1 ? "s" : ""} remaining (#{po.id.slice(-6).toUpperCase()})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {selectedPo && poReceiveLines.length > 0 && (
+                <div className="po-receive-form">
+                  <div className="po-receive-summary">
+                    <span><strong>{selectedPo.supplier.name}</strong></span>
+                    <span>Ordered: {selectedPo.orderedQuantity}</span>
+                    <span>Received so far: {selectedPo.receivedQuantity}</span>
+                    <span>Remaining: <strong>{selectedPo.remainingQuantity}</strong></span>
+                  </div>
+                  <div className="purchase-line receive-line receive-line--header">
+                    <span>Item</span><span>Remaining</span><span>Receive qty</span><span>Branch</span><span>Expiry</span><span>Batch</span><span>Unit cost</span><span>Notes</span>
+                  </div>
+                  {poReceiveLines.map((line) => (
+                    <div key={line.purchaseItemId} className="purchase-line receive-line">
+                      <span className="td-name">{line.itemName} <span className="td-unit">/ {line.itemUnit}</span></span>
+                      <span>{line.remainingQty}</span>
+                      <input className="form-input" type="number" min="0" max={line.remainingQty} step="0.01" value={line.receivedQuantity} onChange={(e) => updatePoLine(line.purchaseItemId, { receivedQuantity: e.target.value })} />
+                      <select className="form-input form-select" value={line.locationId} onChange={(e) => updatePoLine(line.purchaseItemId, { locationId: e.target.value })}>
+                        {locations.map((loc) => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
+                      </select>
+                      {line.trackExpiry ? (
+                        <input className="form-input" type="date" value={line.expiryDate} onChange={(e) => updatePoLine(line.purchaseItemId, { expiryDate: e.target.value })} />
+                      ) : (
+                        <span className="stock-entry-na">—</span>
+                      )}
+                      <input className="form-input" value={line.batchNo} onChange={(e) => updatePoLine(line.purchaseItemId, { batchNo: e.target.value })} placeholder="Optional" />
+                      <input className="form-input" type="number" min="0" step="0.01" value={line.unitCost} onChange={(e) => updatePoLine(line.purchaseItemId, { unitCost: e.target.value })} />
+                      <input className="form-input" value={line.notes} onChange={(e) => updatePoLine(line.purchaseItemId, { notes: e.target.value })} placeholder="Optional" />
+                    </div>
+                  ))}
+                  <p className="purchase-receive-hint">Stock batches are created only when you confirm receipt below.</p>
+                  <div className="po-receive-footer">
+                    {poResult && <div className={`po-receive-result po-receive-result--${poResult.type}`}>{poResult.msg}</div>}
+                    <button type="button" className="btn btn--primary" onClick={() => void handlePoReceiveSubmit()} disabled={poSubmitting}>
+                      {poSubmitting ? "Receiving…" : "Confirm Receipt"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      ) : (
+        <>
       {results && (
         <div className={`stock-entry-results ${allSucceeded ? "stock-entry-results--success" : "stock-entry-results--partial"}`}>
           <div className="stock-entry-results-icon">
@@ -596,6 +790,8 @@ export function StockInPage() {
             <p>Use the search above to find items and add them to this stock-in entry.</p>
           </div>
         )
+      )}
+      </>
       )}
     </div>
   );

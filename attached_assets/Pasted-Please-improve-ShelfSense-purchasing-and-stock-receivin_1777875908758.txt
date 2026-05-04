@@ -1,0 +1,134 @@
+Please improve ShelfSense purchasing and stock receiving UX by separating Direct Stock In from Receive Against Purchase Order.
+
+Current product direction:
+Purchase Order should represent what we planned to buy.
+Receive Items should represent what physically arrived.
+Direct Stock In should remain available for quick/manual receiving when there is no formal purchase order.
+
+Part A — Purchase Order UX
+
+1. Purchase creation should include Supplier as a required field.
+2. Purchase draft/order should include:
+   - Supplier
+   - Purchase date
+   - Expected delivery date
+   - Item
+   - Ordered quantity
+   - Estimated unit cost
+   - Estimated total
+   - Optional notes
+3. Purchase draft/order should NOT ask for:
+   - Batch number
+   - Expiry date
+   - Actual received quantity
+4. Stock should not increase during Draft or Ordered status.
+5. Stock should increase only through receiving.
+
+Part B — Receive Items from Purchase Order
+
+1. On purchase detail page, add/keep a clear “Receive Items” action.
+2. When receiving from a purchase order, auto-fill:
+   - Supplier
+   - Purchase reference
+   - Ordered items
+   - Ordered quantity
+   - Already received quantity
+   - Remaining quantity
+   - Ordered/estimated unit cost
+3. User should only confirm or enter:
+   - Received quantity
+   - Location/branch
+   - Batch number
+   - Expiry date
+   - Actual unit cost if changed
+   - Invoice number if supported
+   - Notes if needed
+4. Allow partial receiving.
+5. Prevent receiving more than remaining quantity.
+6. After receiving:
+   - Create stock batch
+   - Create STOCK_IN movement
+   - Update received quantity
+   - Update purchase status to Partially Received or Received
+   - Create audit log entry
+
+Part C — Direct Stock In UX
+
+1. Keep Direct Stock In available for situations where there is no purchase order.
+2. Add Supplier field to Direct Stock In.
+3. Supplier should be optional or required based on current product decision, but recommended as optional for small businesses.
+4. Add optional “Link to Purchase Order” selector if practical.
+5. If user selects a purchase order in Stock In:
+   - Switch the flow into Receive Against Purchase Order mode
+   - Auto-fill supplier and purchase items
+   - Ask user to confirm received quantity, batch, expiry, location, and cost
+6. If no purchase order is selected:
+   - Allow manual stock in with supplier, item, quantity, cost, batch, expiry, location, and notes.
+
+Part D — Supplier Intelligence
+
+1. When user selects an item in Purchase Order or Direct Stock In, auto-suggest supplier based on history.
+2. Suggested supplier priority:
+   - Preferred supplier for item if field exists
+   - Last supplier used for this item
+   - Most frequent supplier for this item
+   - Supplier from selected purchase order
+3. Show suggestion in a helpful way, for example:
+   “Suggested supplier: ABC Traders — last used for this item”
+4. Do not force the suggestion. User must be able to change supplier.
+
+Part E — Unit Cost Intelligence
+
+1. When user selects an item, auto-fill estimated unit cost.
+2. Cost priority:
+   - Last received unit cost for this item
+   - Last purchase order unit cost
+   - Item default cost if available
+   - Otherwise blank or 0
+3. Cost must remain editable.
+
+Part F — UX Rules
+
+1. Do not force users to create purchase orders for every stock-in.
+2. Keep Direct Stock In fast for restaurants and small shops.
+3. Keep Receive Against Purchase Order structured for proper purchasing control.
+4. Use clear labels:
+   - “Create Purchase Order”
+   - “Receive Items”
+   - “Direct Stock In”
+   - “Receive Against Purchase Order”
+5. Make the UI mobile-friendly.
+6. Add clear loading, empty, and error states.
+
+Part G — Backend/API
+
+1. Ensure purchases remain workspace-scoped.
+2. Ensure supplier IDs are validated.
+3. Ensure location IDs are validated.
+4. Ensure receiving is transactional.
+5. Prevent receiving cancelled purchases.
+6. Prevent receiving more than ordered remaining quantity.
+7. Ensure direct stock-in can store supplier reference if supported.
+8. Ensure stock movements and batches can reference supplier and purchase where practical.
+9. Do not break:
+   - Stock Out
+   - FIFO deduction
+   - Stock Count
+   - Batch Detail View
+   - Reorder-to-Purchase
+   - Reports
+   - Alerts
+   - Audit Logs
+
+Part H — Verification
+
+1. Run build for shared, API, and web.
+2. Create a purchase order with supplier and items, without expiry/batch.
+3. Confirm stock does not increase at Draft or Ordered stage.
+4. Receive items from purchase order and add batch/expiry at receiving stage.
+5. Confirm stock increases only after receiving.
+6. Confirm partial receiving works.
+7. Confirm Direct Stock In still works without purchase order.
+8. Confirm Direct Stock In can include supplier.
+9. Confirm supplier and unit cost suggestions work where data exists.
+10. Confirm audit logs and stock movements are correct.

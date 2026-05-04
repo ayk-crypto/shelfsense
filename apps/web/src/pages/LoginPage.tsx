@@ -69,7 +69,10 @@ export function LoginPage() {
           </div>
 
           <div className="field">
-            <label className="field-label" htmlFor="password">Password</label>
+            <div className="field-label-row">
+              <label className="field-label" htmlFor="password">Password</label>
+              <Link to="/forgot-password" className="field-label-link">Forgot password?</Link>
+            </div>
             <input
               id="password"
               type="password"
