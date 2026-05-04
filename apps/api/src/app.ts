@@ -48,8 +48,8 @@ app.use(
         return;
       }
 
-      // Allow all Replit dev/preview domains
-      if (origin.match(/^https?:\/\/.+\.replit\.dev(:\d+)?$/)) {
+      // Allow Replit dev/preview domains in non-production environments only
+      if (env.nodeEnv !== "production" && origin.match(/^https?:\/\/.+\.replit\.dev(:\d+)?$/)) {
         callback(null, true);
         return;
       }
