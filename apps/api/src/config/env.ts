@@ -30,7 +30,7 @@ function getEmailFrom() {
   return (
     process.env.SMTP_FROM ??
     process.env.EMAIL_FROM ??
-    "no-reply@shelfsense.app"
+    "noreply@shelfsenseapp.com"
   );
 }
 

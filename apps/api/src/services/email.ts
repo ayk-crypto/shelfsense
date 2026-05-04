@@ -22,7 +22,10 @@ function buildTransporter() {
 }
 
 const FROM_NAME = process.env.EMAIL_FROM_NAME ?? "ShelfSense";
-const FROM_ADDRESS = process.env.EMAIL_FROM ?? "no-reply@shelfsense.app";
+const FROM_ADDRESS = process.env.EMAIL_FROM ?? "noreply@shelfsenseapp.com";
+// SMTP_FROM may be a full RFC 5322 string e.g. "ShelfSense <noreply@shelfsenseapp.com>".
+// Use it directly when set so Render's env var is respected as-is.
+const FROM = process.env.SMTP_FROM ?? `"${FROM_NAME}" <${FROM_ADDRESS}>`;
 const APP_URL = process.env.APP_URL ?? "http://localhost:5000";
 
 async function dispatchMail(opts: {
@@ -47,7 +50,7 @@ async function dispatchMail(opts: {
   }
 
   await transporter.sendMail({
-    from: `"${FROM_NAME}" <${FROM_ADDRESS}>`,
+    from: FROM,
     to: opts.to,
     subject: opts.subject,
     text: opts.text,
