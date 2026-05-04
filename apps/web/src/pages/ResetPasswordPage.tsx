@@ -20,14 +20,15 @@ export function ResetPasswordPage() {
             <span className="login-logo-icon">S</span>
             <h1 className="login-logo-text">Invalid link</h1>
           </div>
-          <div className="auth-notice auth-notice--error">
-            <svg viewBox="0 0 20 20" fill="currentColor" className="auth-notice-icon">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-            </svg>
-            <div>
-              <p className="auth-notice-title">Missing reset token</p>
-              <p className="auth-notice-body">This link is invalid. Please request a new password reset.</p>
+          <div className="fp-success">
+            <div className="fp-success-icon fp-success-icon--error">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
             </div>
+            <p className="fp-success-title">Missing reset token</p>
+            <p className="fp-success-body">This link is invalid. Please request a new password reset.</p>
           </div>
           <p className="auth-switch">
             <Link to="/forgot-password">Request new reset link</Link>
@@ -69,14 +70,14 @@ export function ResetPasswordPage() {
             <span className="login-logo-icon">S</span>
             <h1 className="login-logo-text">Password updated</h1>
           </div>
-          <div className="auth-notice auth-notice--success">
-            <svg viewBox="0 0 20 20" fill="currentColor" className="auth-notice-icon">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-            </svg>
-            <div>
-              <p className="auth-notice-title">Password changed successfully</p>
-              <p className="auth-notice-body">You can now sign in with your new password.</p>
+          <div className="fp-success">
+            <div className="fp-success-icon">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
             </div>
+            <p className="fp-success-title">Password changed successfully</p>
+            <p className="fp-success-body">You can now sign in with your new password.</p>
           </div>
           <button
             className="btn btn--primary btn--full"

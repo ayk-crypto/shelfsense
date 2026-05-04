@@ -13722,6 +13722,11 @@ body {
   flex-shrink: 0;
 }
 
+.fp-success-icon--error {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
 .fp-success-title {
   font-size: 17px;
   font-weight: 700;
