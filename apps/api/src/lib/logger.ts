@@ -34,3 +34,15 @@ export function logAuthEvent(
 ) {
   logger.info(`[AUTH] ${event}`, meta);
 }
+
+export function logRequest(meta: {
+  requestId?: string;
+  method: string;
+  path: string;
+  status: number;
+  durationMs: number;
+  userId?: string | null;
+  workspaceId?: string | null;
+}) {
+  logger.info("[REQUEST]", meta);
+}

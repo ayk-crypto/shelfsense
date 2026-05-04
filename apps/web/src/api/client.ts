@@ -70,11 +70,15 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
 
   if (!res.ok) {
-    throw new Error(
+    const apiMessage =
       (data as { error?: string; message?: string }).error ??
-        (data as { error?: string; message?: string }).message ??
-        "Request failed",
-    );
+      (data as { error?: string; message?: string }).message ??
+      "Request failed";
+    const requestId = res.headers.get("x-request-id");
+    const err = new Error(apiMessage) as Error & { requestId?: string; status?: number };
+    err.requestId = requestId ?? undefined;
+    err.status = res.status;
+    throw err;
   }
 
   return data as T;

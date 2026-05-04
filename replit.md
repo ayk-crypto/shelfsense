@@ -17,7 +17,7 @@ This is an npm workspaces monorepo with three packages:
 - **Database**: PostgreSQL (Replit built-in) with Prisma ORM
 - **Auth**: JWT (`jsonwebtoken`) + `bcryptjs`
 - **Email**: `nodemailer` (console transport in dev, SMTP in prod)
-- **Logging**: `winston` (JSON in prod, colorized in dev)
+- **Logging**: `winston` (JSON in prod, colorized in dev); per-request structured logging with `requestId`, `userId`, `workspaceId`, `durationMs`
 
 ## Design System (as of May 2026 redesign)
 
@@ -72,7 +72,7 @@ This is an npm workspaces monorepo with three packages:
 - **Locations page** (`/locations`) — location CRUD (OWNER only)
 - **Settings page** (`/settings`) — workspace settings and notification preferences
 - **App shell** — responsive layout: sidebar on desktop (≥768px), bottom nav + topbar on mobile
-- **API client** — `src/api/client.ts` fetch wrapper injects Bearer token automatically
+- **API client** — `src/api/client.ts` fetch wrapper injects Bearer token automatically; captures `X-Request-Id` from responses and attaches it to thrown `Error` objects as `.requestId`
 - **Auth** — JWT stored in `localStorage` under `shelfsense_token`; `AuthContext` provides `user`, `saveAuth`, `logout`
 - **Routing** — `ProtectedRoute` redirects unauthenticated users to `/login`; role-based guards per page
 - **Vite proxy** — all API routes proxied to `http://127.0.0.1:3000`
@@ -110,6 +110,14 @@ npm run dev:web          # start frontend (port 5000)
 npm run dev:api          # start API (port 3000)
 npm run dev              # start both concurrently
 ```
+
+## Production Operations
+
+See [docs/production-readiness.md](docs/production-readiness.md) for:
+- Security checklist, deployment checklist, and SMTP setup
+- Auth flow reference (password reset, email verification)
+- Logging and monitoring considerations (request IDs, health/readiness endpoints)
+- Database backup/restore and rollback instructions
 
 ## Deployment
 

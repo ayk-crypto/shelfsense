@@ -9,7 +9,10 @@ This document summarises the current product surface and the remaining work need
 - Email verification flow — hashed token (SHA-256), 24-hour TTL, single-use, resend endpoint.
 - Account lockout after 5 failed login attempts (15-minute cooldown, DB-backed).
 - Per-endpoint rate limiting: login 10/15 min, forgot-password / reset-password / resend-verification 5/15 min, global 300/15 min.
-- Structured logging via Winston (JSON in production, colorised in development) with `logAuthEvent` and `logSecurityEvent` helpers.
+- Structured logging via Winston (JSON in production, colorised in development) with `logAuthEvent`, `logSecurityEvent`, and `logRequest` helpers.
+- Per-request structured logging: every HTTP request emits a `[REQUEST]` log line with `requestId`, `method`, `path`, `status`, `durationMs`, `userId`, and `workspaceId`.
+- Request ID middleware: every response includes an `X-Request-Id` header (UUID v4); the ID is echoed in error response bodies and forwarded to the frontend `Error` object.
+- Error responses include a machine-readable `code` field (e.g. `NOT_FOUND`, `UNAUTHORIZED`, `INTERNAL_ERROR`) and the `requestId`.
 - Email service (nodemailer) — SMTP in production, safe console fallback in development.
 - Workspace-aware multi-tenant data model.
 - Role-based access control: OWNER, MANAGER, OPERATOR with `requireRole` middleware.
@@ -47,7 +50,7 @@ This document summarises the current product surface and the remaining work need
 - No CAPTCHA or adaptive brute-force protection beyond account lockout.
 - No formal automated test suite or CI gate.
 - No metrics, distributed tracing, or external error-tracking integration (e.g. Sentry).
-- No backup and restore automation in the repository.
+- No automated backup scheduling in the repository (manual steps documented in the Logging and Monitoring section).
 - No deployment-specific hardening guide for TLS termination or secret rotation.
 - No background job system for scheduled expiry checks or push notifications.
 - No edit/delete flows for team members or locations.
@@ -132,12 +135,35 @@ If `SMTP_HOST` is absent in production, the API logs a configuration error and s
 ## Logging and Monitoring Considerations
 
 - Structured JSON request logging is active in production via Winston.
+- Every request receives a unique `X-Request-Id` header (UUID v4). The request ID is propagated to structured log lines, error response bodies, and the frontend `Error` object's `.requestId` property.
+- Per-request structured log lines include: `requestId`, `method`, `path`, `status`, `durationMs`, `userId`, `workspaceId`.
 - Auth events (login success/fail, lockout, password reset, email verification) are logged via `logAuthEvent`.
 - Permission-denied responses are logged via `logSecurityEvent`.
-- Add an external error-tracking service (e.g. Sentry) to capture uncaught exceptions and rejected promises.
+- Error response bodies include a machine-readable `code` field (e.g. `"NOT_FOUND"`, `"UNAUTHORIZED"`, `"INTERNAL_ERROR"`) alongside `error` and `requestId`.
+- Health check: `GET /api/health` — returns `{ "status": "ok" }`.
+- Readiness check: `GET /api/ready` — checks database connectivity, returns 503 if the database is unavailable.
+- Add an external error-tracking service (e.g. Sentry) to capture uncaught exceptions and rejected promises. Pass `requestId` as a tag for cross-referencing logs.
 - Monitor API latency, error rate, and database connection failures.
-- Add health checks for API uptime and database connectivity.
 - Alert on migration failures, elevated 500 responses, and database capacity limits.
+
+### Rolling back a bad deployment
+
+1. Revert the application code to the previous release tag.
+2. If the deployment included a Prisma migration, run `npx prisma migrate resolve --rolled-back <migration-name>` on the production database to mark it as rolled back, then apply a corrective migration.
+3. For data-destructive migrations, restore from the pre-migration database backup before running the rollback migration.
+4. Verify `GET /api/ready` returns 200 after restoring.
+
+### Database backup and restore
+
+| Task | Command |
+|---|---|
+| Manual backup (Neon) | Use the Neon Console → Branches → Create branch (point-in-time) |
+| Export via pg_dump | `pg_dump $DATABASE_URL -Fc -f shelfsense_$(date +%Y%m%d).dump` |
+| Restore from dump | `pg_restore -d $DATABASE_URL -Fc shelfsense_<date>.dump` |
+| Apply migrations | `cd apps/api && npx prisma migrate deploy` |
+
+- Test restores against a non-production database before relying on them in an incident.
+- Take a backup before every migration that adds or removes required columns, changes enums, or alters relations.
 
 ## Known Limitations
 

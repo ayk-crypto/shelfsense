@@ -1140,6 +1140,25 @@ body {
   gap: 14px;
 }
 
+.widget-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--color-red-light);
+  color: var(--color-red);
+  border: 1px solid #fca5a5;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.widget-error svg {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+}
+
 .dashboard-group-header {
   display: flex;
   flex-direction: column;

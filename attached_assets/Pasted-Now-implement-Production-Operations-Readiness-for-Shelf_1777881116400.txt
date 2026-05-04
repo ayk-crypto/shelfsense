@@ -1,0 +1,115 @@
+Now implement Production Operations Readiness for ShelfSense.
+
+Goal:
+Add reliable logging, safer error handling, operational documentation, and backup/restore guidance for controlled pilot and future production usage.
+
+Part A — Centralized Backend Logging
+1. Review current backend logging.
+2. Add or improve a centralized logger utility.
+3. Logs should include:
+   - timestamp
+   - level
+   - request ID if available
+   - user ID if authenticated
+   - workspace ID if available
+   - route/method
+   - action/event name where useful
+4. Log important events:
+   - login success/failure
+   - password reset requested/completed
+   - email verification sent/completed
+   - permission denied
+   - stock count finalized
+   - purchase received
+   - purchase cancelled
+   - direct stock in
+   - stock out
+   - supplier create/update/delete
+   - item archive/reactivate
+5. Do not log passwords, tokens, reset links, verification links, or sensitive secrets.
+
+Part B — Error Handling Review
+1. Review global error middleware.
+2. Ensure production errors do not expose stack traces.
+3. Ensure API returns clean JSON errors:
+   - message
+   - code
+   - requestId if available
+4. Frontend should display useful errors instead of generic “Request failed” where practical.
+5. Keep the page layout visible if only one dashboard/report widget fails.
+6. Add safe handling for common API errors:
+   - 400 validation error
+   - 401 unauthorized
+   - 403 forbidden
+   - 404 not found
+   - 409 conflict
+   - 429 rate limited
+   - 500 server error
+
+Part C — Request ID
+1. Ensure every request has a request ID.
+2. Return request ID in response header.
+3. Include request ID in backend logs.
+4. Include request ID in frontend error details where practical.
+
+Part D — Health and Readiness
+1. Review health/readiness endpoints.
+2. Health endpoint should confirm API is running.
+3. Readiness endpoint should check database connectivity.
+4. Do not expose sensitive configuration.
+
+Part E — Production Operations Documentation
+Create/update:
+
+`docs/production-readiness.md`
+
+Include:
+1. Required environment variables:
+   - DATABASE_URL
+   - JWT_SECRET
+   - WEB_BASE_URL / APP_BASE_URL
+   - SMTP_HOST
+   - SMTP_PORT
+   - SMTP_USER
+   - SMTP_PASS
+   - SMTP_FROM
+   - CORS_ALLOWED_ORIGINS
+2. Database migration process:
+   - Use deploy-safe migrations.
+   - Do not use destructive reset in production.
+   - How to handle Prisma checksum drift safely.
+3. PostgreSQL/Neon backup approach:
+   - scheduled backups
+   - point-in-time recovery if available
+   - manual export option
+4. Restore process high level:
+   - restore to staging first
+   - verify data
+   - run migrations carefully
+   - switch production only after validation
+5. Deployment checklist:
+   - env variables set
+   - migration applied
+   - build passed
+   - health/readiness passed
+   - SMTP tested
+   - CORS checked
+   - auth flows tested
+6. Rollback considerations:
+   - code rollback
+   - database rollback cautions
+   - backup before risky migrations
+7. Monitoring recommendations:
+   - API logs
+   - error tracking
+   - uptime monitoring
+   - database monitoring
+   - storage/backups
+
+Part F — Verification
+1. Run build for shared, API, and web.
+2. Confirm health/readiness endpoints work.
+3. Trigger one controlled API error and confirm clean error response.
+4. Confirm backend logs include request ID.
+5. Confirm no sensitive tokens/secrets are logged.
+6. Update README with link to production readiness document.

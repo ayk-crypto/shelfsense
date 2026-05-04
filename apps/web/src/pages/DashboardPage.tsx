@@ -103,6 +103,11 @@ export function DashboardPage() {
   const [trendData, setTrendData] = useState<StockTrendDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [widgetErrors, setWidgetErrors] = useState<{
+    alerts: string | null;
+    wastage: string | null;
+    usage: string | null;
+  }>({ alerts: null, wastage: null, usage: null });
 
   useEffect(() => {
     async function load() {
@@ -136,29 +141,61 @@ export function DashboardPage() {
         const usageRange = getLastSevenDaysRange();
 
         const [
-          summaryRes,
-          alertsRes,
+          summaryResult,
+          alertsResult,
           wastageResToday,
           wastageResWeek,
           wastageResLastWeek,
-          usageRes,
-        ] =
-          await Promise.all([
-            getStockSummary(),
-            getAlerts(),
-            getStockMovements({ type: "WASTAGE", fromDate: todayStr, toDate: todayStr }),
-            getStockMovements({ type: "WASTAGE", fromDate: thisWeekStartStr, toDate: todayStr }),
-            getStockMovements({ type: "WASTAGE", fromDate: lastWeekStartStr, toDate: lastWeekEndStr }),
-            getStockMovements({ type: "STOCK_OUT", ...usageRange }),
-          ]);
+          usageResult,
+        ] = await Promise.allSettled([
+          getStockSummary(),
+          getAlerts(),
+          getStockMovements({ type: "WASTAGE", fromDate: todayStr, toDate: todayStr }),
+          getStockMovements({ type: "WASTAGE", fromDate: thisWeekStartStr, toDate: todayStr }),
+          getStockMovements({ type: "WASTAGE", fromDate: lastWeekStartStr, toDate: lastWeekEndStr }),
+          getStockMovements({ type: "STOCK_OUT", ...usageRange }),
+        ]);
 
-        setSummary(summaryRes.summary);
-        setAlerts(alertsRes);
-        setWastageToday(sumWastageValue(wastageResToday.movements));
-        setWastageWeek(sumWastageValue(wastageResWeek.movements));
-        setWastageLastWeek(sumWastageValue(wastageResLastWeek.movements));
-        setTopItems(topWastedItems(wastageResWeek.movements, 3));
-        setUsageMovements(usageRes.movements);
+        if (summaryResult.status === "fulfilled") {
+          setSummary(summaryResult.value.summary);
+        } else {
+          throw summaryResult.reason;
+        }
+
+        const nextWidgetErrors = { alerts: null as string | null, wastage: null as string | null, usage: null as string | null };
+
+        if (alertsResult.status === "fulfilled") {
+          setAlerts(alertsResult.value);
+        } else {
+          setAlerts(EMPTY_ALERTS);
+          nextWidgetErrors.alerts = alertsResult.reason instanceof Error ? alertsResult.reason.message : "Failed to load alerts";
+        }
+
+        const todayOk = wastageResToday.status === "fulfilled";
+        const weekOk = wastageResWeek.status === "fulfilled";
+        const lastWeekOk = wastageResLastWeek.status === "fulfilled";
+
+        if (todayOk || weekOk || lastWeekOk) {
+          setWastageToday(todayOk ? sumWastageValue(wastageResToday.value.movements) : 0);
+          setWastageWeek(weekOk ? sumWastageValue(wastageResWeek.value.movements) : 0);
+          setWastageLastWeek(lastWeekOk ? sumWastageValue(wastageResLastWeek.value.movements) : 0);
+          setTopItems(weekOk ? topWastedItems(wastageResWeek.value.movements, 3) : []);
+        } else {
+          setWastageToday(0);
+          setWastageWeek(0);
+          setWastageLastWeek(0);
+          setTopItems([]);
+          nextWidgetErrors.wastage = "Failed to load wastage data";
+        }
+
+        if (usageResult.status === "fulfilled") {
+          setUsageMovements(usageResult.value.movements);
+        } else {
+          setUsageMovements([]);
+          nextWidgetErrors.usage = usageResult.reason instanceof Error ? usageResult.reason.message : "Failed to load usage data";
+        }
+
+        setWidgetErrors(nextWidgetErrors);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load dashboard data");
       } finally {
@@ -243,6 +280,16 @@ export function DashboardPage() {
         title="Overview"
         helper="Current inventory health at a glance"
       >
+      {widgetErrors.wastage && (
+        <div className="widget-error">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          Could not load wastage data. {widgetErrors.wastage}
+        </div>
+      )}
       <div className="stat-grid">
         <div className="stat-card">
           <div className="stat-icon stat-icon--blue">
@@ -356,6 +403,16 @@ export function DashboardPage() {
         title="Action Required"
         helper="Items that need attention"
       >
+      {widgetErrors.alerts && (
+        <div className="widget-error">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          Could not load alert data. {widgetErrors.alerts}
+        </div>
+      )}
       {canAccessManagement && (
         <div className={`alert-summary ${totalAlertCount > 0 ? "alert-summary--active" : ""}`}>
           <div>
@@ -456,6 +513,17 @@ export function DashboardPage() {
         title="Insights"
         helper="Trends and cost patterns from your recent activity"
       >
+
+      {widgetErrors.usage && (
+        <div className="widget-error">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          Could not load usage data. {widgetErrors.usage}
+        </div>
+      )}
 
       {canAccessManagement && (
       <div className="section usage-section">

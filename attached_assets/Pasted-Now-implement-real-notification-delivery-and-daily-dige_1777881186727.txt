@@ -1,0 +1,95 @@
+Now implement real notification delivery and daily digest for ShelfSense.
+
+Goal:
+Move from in-app alerts to real email notifications and scheduled alerts.
+
+Part A — Email Notification System
+
+1. Use existing SMTP configuration.
+2. Create reusable email service.
+3. Support sending:
+   - Low stock alerts
+   - Expiring soon alerts
+   - Daily digest summary
+
+4. Email content should include:
+   - Workspace name
+   - Item names
+   - Quantities
+   - Expiry dates
+   - Clear subject lines:
+     - "Low Stock Alert"
+     - "Expiring Items Alert"
+     - "Daily Inventory Summary"
+
+Part B — Notification Preferences
+
+1. Extend existing preferences if needed:
+   - lowStockEnabled
+   - expiringSoonEnabled
+   - dailyDigestEnabled
+2. Allow user/workspace to control:
+   - Enable/disable each alert type
+3. Respect preferences when sending emails.
+
+Part C — Background Jobs
+
+1. Add scheduled jobs using a simple scheduler (e.g. node-cron).
+2. Jobs required:
+
+   Low stock job:
+   - Runs every few hours
+   - Finds items below minimum stock
+   - Sends alert email if enabled
+   - Avoid duplicate spam (do not send repeatedly for same unchanged item)
+
+   Expiry job:
+   - Runs every few hours or daily
+   - Finds items expiring soon
+   - Sends alert if enabled
+
+   Daily digest job:
+   - Runs once per day
+   - Includes:
+     - low stock items
+     - expiring soon items
+     - expired items
+   - Send one summary email per workspace/user
+
+3. Ensure jobs are safe:
+   - Workspace scoped
+   - Handle errors gracefully
+   - Do not crash server
+
+Part D — Anti-Spam Logic
+
+1. Avoid sending duplicate alerts:
+   - Track last sent timestamp per item/workspace/type
+2. Do not resend same alert too frequently.
+3. Only send when:
+   - New condition triggered OR
+   - Daily digest time reached
+
+Part E — UI
+
+1. Do not change major UI.
+2. Ensure existing notification preferences page works with backend.
+3. Show clear message if email is not configured in development.
+
+Part F — Verification
+
+1. Run build for shared, API, and web.
+2. Test:
+   - Low stock triggers email
+   - Expiring items trigger email
+   - Daily digest email works
+   - Preferences enable/disable works
+3. If SMTP not configured:
+   - Log email content safely for testing
+
+Part G — Documentation
+
+1. Update README:
+   - Explain notification system
+   - Required SMTP variables
+   - How scheduling works

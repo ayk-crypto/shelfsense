@@ -310,6 +310,17 @@ itemsRouter.patch("/:id", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(
     where: { id: req.params.id, workspaceId },
   });
 
+  await prisma.auditLog.create({
+    data: {
+      userId: req.user!.userId,
+      workspaceId,
+      action: "UPDATE_ITEM",
+      entity: "Item",
+      entityId: req.params.id,
+      meta: JSON.stringify({ itemName: item?.name }),
+    },
+  });
+
   return res.json({ item });
 }));
 

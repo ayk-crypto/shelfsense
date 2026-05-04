@@ -6,6 +6,8 @@ import type { HealthResponse } from "@shelfsense/shared";
 import { env } from "./config/env.js";
 import { prisma } from "./db/prisma.js";
 import { errorHandler } from "./middleware/error-handler.js";
+import { requestIdMiddleware } from "./middleware/request-id.js";
+import { logRequest } from "./lib/logger.js";
 import { alertsRouter } from "./routes/alerts.js";
 import { auditLogsRouter } from "./routes/audit-logs.js";
 import { authRouter } from "./routes/auth.js";
@@ -24,6 +26,24 @@ import { workspaceRouter } from "./routes/workspace.js";
 export const app = express();
 
 app.set("trust proxy", 1);
+
+app.use(requestIdMiddleware);
+
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on("finish", () => {
+    logRequest({
+      requestId: req.requestId,
+      method: req.method,
+      path: req.path,
+      status: res.statusCode,
+      durationMs: Date.now() - start,
+      userId: req.user?.userId ?? null,
+      workspaceId: req.user?.workspaceId ?? null,
+    });
+  });
+  next();
+});
 
 class ForbiddenOriginError extends Error {
   status = 403;
@@ -139,7 +159,9 @@ app.use("/suppliers", suppliersRouter);
 app.use("/purchases", purchasesRouter);
 app.use("/reorder-suggestions", reorderSuggestionsRouter);
 app.use("/team", teamRouter);
-app.use((_req, res) => {
-  res.status(404).json({ error: "Route not found" });
+app.use((req, res) => {
+  const body: Record<string, unknown> = { error: "Route not found", code: "NOT_FOUND" };
+  if (req.requestId) body.requestId = req.requestId;
+  res.status(404).json(body);
 });
 app.use(errorHandler);
