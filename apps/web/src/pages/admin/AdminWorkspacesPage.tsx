@@ -110,7 +110,7 @@ export function AdminWorkspacesPage() {
                   <th>Workspace</th>
                   <th>Owner</th>
                   <th>Plan</th>
-                  <th>Status</th>
+                  <th>Health</th>
                   <th>Users</th>
                   <th>Items</th>
                   <th>Created</th>
@@ -128,11 +128,7 @@ export function AdminWorkspacesPage() {
                       <div className="admin-muted">{ws.owner.email}</div>
                     </td>
                     <td><span className={`admin-plan-badge admin-plan-badge--${ws.plan.toLowerCase()}`}>{ws.plan}</span></td>
-                    <td>
-                      {ws.suspended
-                        ? <span className="admin-status-badge admin-status-badge--suspended">Suspended</span>
-                        : <span className="admin-status-badge admin-status-badge--active">Active</span>}
-                    </td>
+                    <td><HealthBadge health={(ws as AdminWorkspace & { health?: string }).health} /></td>
                     <td>{ws.memberCount}</td>
                     <td>{ws.itemCount}</td>
                     <td className="admin-muted">{formatDate(ws.createdAt)}</td>
@@ -166,6 +162,20 @@ export function AdminWorkspacesPage() {
       )}
     </div>
   );
+}
+
+function HealthBadge({ health }: { health?: string }) {
+  if (!health) return <span className="admin-muted">—</span>;
+  const colorMap: Record<string, string> = {
+    "Healthy": "active",
+    "Suspended": "suspended",
+    "Payment Due": "red",
+    "Trial Ending Soon": "yellow",
+    "Setup Incomplete": "yellow",
+    "Inactive": "gray",
+  };
+  const color = colorMap[health] ?? "gray";
+  return <span className={`admin-status-badge admin-status-badge--${color}`}>{health}</span>;
 }
 
 function formatDate(iso: string) {

@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import { logger } from "../lib/logger.js";
+import { prisma } from "../db/prisma.js";
 
 const isDev = process.env.NODE_ENV !== "production";
 
@@ -33,29 +34,78 @@ async function dispatchMail(opts: {
   subject: string;
   text: string;
   html: string;
+  type?: string;
+  workspaceId?: string;
   devMeta?: Record<string, unknown>;
 }): Promise<void> {
+  const emailType = opts.type ?? "UNKNOWN";
+  const provider = isDev ? "DEV_LOG" : (process.env.SMTP_HOST ? "SMTP" : "none");
+
   if (isDev) {
     logger.info(`[EMAIL:DEV] ${opts.subject}`, { to: opts.to, ...opts.devMeta });
+    await prisma.emailLog.create({
+      data: {
+        type: emailType,
+        recipient: opts.to,
+        subject: opts.subject,
+        status: "SENT",
+        provider,
+        workspaceId: opts.workspaceId ?? null,
+      },
+    }).catch(() => {/* non-fatal */});
     return;
   }
 
   const transporter = buildTransporter();
   if (!transporter) {
-    logger.warn("[EMAIL] SMTP not configured — email not sent", {
-      to: opts.to,
-      subject: opts.subject,
-    });
+    logger.warn("[EMAIL] SMTP not configured — email not sent", { to: opts.to, subject: opts.subject });
+    await prisma.emailLog.create({
+      data: {
+        type: emailType,
+        recipient: opts.to,
+        subject: opts.subject,
+        status: "FAILED",
+        provider: "none",
+        errorMessage: "SMTP not configured",
+        workspaceId: opts.workspaceId ?? null,
+      },
+    }).catch(() => {/* non-fatal */});
     return;
   }
 
-  await transporter.sendMail({
-    from: FROM,
-    to: opts.to,
-    subject: opts.subject,
-    text: opts.text,
-    html: opts.html,
-  });
+  try {
+    await transporter.sendMail({
+      from: FROM,
+      to: opts.to,
+      subject: opts.subject,
+      text: opts.text,
+      html: opts.html,
+    });
+    await prisma.emailLog.create({
+      data: {
+        type: emailType,
+        recipient: opts.to,
+        subject: opts.subject,
+        status: "SENT",
+        provider,
+        workspaceId: opts.workspaceId ?? null,
+      },
+    }).catch(() => {/* non-fatal */});
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await prisma.emailLog.create({
+      data: {
+        type: emailType,
+        recipient: opts.to,
+        subject: opts.subject,
+        status: "FAILED",
+        provider,
+        errorMessage: msg,
+        workspaceId: opts.workspaceId ?? null,
+      },
+    }).catch(() => {/* non-fatal */});
+    throw err;
+  }
 }
 
 /* ── Auth emails ─────────────────────────────────────────────────────── */
@@ -63,11 +113,14 @@ async function dispatchMail(opts: {
 export async function sendPasswordResetEmail(
   to: string,
   rawToken: string,
+  workspaceId?: string,
 ): Promise<void> {
   const link = `${APP_URL}/reset-password?token=${rawToken}`;
   await dispatchMail({
     to,
     subject: "Reset your ShelfSense password",
+    type: "PASSWORD_RESET",
+    workspaceId,
     text: [
       "You requested a password reset for your ShelfSense account.",
       "",
@@ -91,11 +144,14 @@ export async function sendPasswordResetEmail(
 export async function sendEmailVerificationEmail(
   to: string,
   rawToken: string,
+  workspaceId?: string,
 ): Promise<void> {
   const link = `${APP_URL}/verify-email?token=${rawToken}`;
   await dispatchMail({
     to,
     subject: "Verify your ShelfSense email address",
+    type: "EMAIL_VERIFICATION",
+    workspaceId,
     text: [
       "Welcome to ShelfSense! Please verify your email address.",
       "",
@@ -182,15 +238,17 @@ function buildExpiredSection(batches: AlertEmailPayload["expired"]) {
 }
 
 export async function sendLowStockAlertEmail(
-  payload: Pick<AlertEmailPayload, "ownerEmail" | "workspaceName" | "lowStock">,
+  payload: Pick<AlertEmailPayload, "ownerEmail" | "workspaceName" | "lowStock"> & { workspaceId?: string },
 ): Promise<void> {
-  const { ownerEmail, workspaceName, lowStock } = payload;
+  const { ownerEmail, workspaceName, lowStock, workspaceId } = payload;
   if (lowStock.length === 0) return;
 
   const s = buildLowStockSection(lowStock);
   await dispatchMail({
     to: ownerEmail,
     subject: `Low Stock Alert — ${workspaceName}`,
+    type: "LOW_STOCK_ALERT",
+    workspaceId,
     text: [
       `Low stock alert for ${workspaceName}:`,
       "",
@@ -204,9 +262,9 @@ export async function sendLowStockAlertEmail(
 }
 
 export async function sendExpirySoonAlertEmail(
-  payload: Pick<AlertEmailPayload, "ownerEmail" | "workspaceName" | "expiringSoon" | "expired">,
+  payload: Pick<AlertEmailPayload, "ownerEmail" | "workspaceName" | "expiringSoon" | "expired"> & { workspaceId?: string },
 ): Promise<void> {
-  const { ownerEmail, workspaceName, expiringSoon, expired } = payload;
+  const { ownerEmail, workspaceName, expiringSoon, expired, workspaceId } = payload;
   if (expiringSoon.length === 0 && expired.length === 0) return;
 
   const textParts: string[] = [];
@@ -226,6 +284,8 @@ export async function sendExpirySoonAlertEmail(
   await dispatchMail({
     to: ownerEmail,
     subject: `Expiring Items Alert — ${workspaceName}`,
+    type: "EXPIRY_ALERT",
+    workspaceId,
     text: [
       `Expiry alert for ${workspaceName}:`,
       "",
@@ -238,8 +298,8 @@ export async function sendExpirySoonAlertEmail(
   });
 }
 
-export async function sendDailyDigestEmail(payload: AlertEmailPayload): Promise<void> {
-  const { ownerEmail, workspaceName, lowStock, expiringSoon, expired } = payload;
+export async function sendDailyDigestEmail(payload: AlertEmailPayload & { workspaceId?: string }): Promise<void> {
+  const { ownerEmail, workspaceName, lowStock, expiringSoon, expired, workspaceId } = payload;
   if (lowStock.length === 0 && expiringSoon.length === 0 && expired.length === 0) return;
 
   const textParts: string[] = [];
@@ -264,6 +324,8 @@ export async function sendDailyDigestEmail(payload: AlertEmailPayload): Promise<
   await dispatchMail({
     to: ownerEmail,
     subject: `Daily Inventory Summary — ${workspaceName}`,
+    type: "DAILY_DIGEST",
+    workspaceId,
     text: [
       `Daily inventory summary for ${workspaceName}:`,
       "",
@@ -276,8 +338,8 @@ export async function sendDailyDigestEmail(payload: AlertEmailPayload): Promise<
   });
 }
 
-export async function sendAlertDigestEmail(payload: AlertEmailPayload): Promise<void> {
-  const { ownerEmail, workspaceName, lowStock, expiringSoon, expired } = payload;
+export async function sendAlertDigestEmail(payload: AlertEmailPayload & { workspaceId?: string }): Promise<void> {
+  const { ownerEmail, workspaceName, lowStock, expiringSoon, expired, workspaceId } = payload;
 
   const textParts: string[] = [];
   const htmlParts: string[] = [];
@@ -304,6 +366,8 @@ export async function sendAlertDigestEmail(payload: AlertEmailPayload): Promise<
   await dispatchMail({
     to: ownerEmail,
     subject,
+    type: "ALERT_DIGEST",
+    workspaceId,
     text: [
       `Inventory alert summary for ${workspaceName}:`,
       "",

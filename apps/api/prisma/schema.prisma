@@ -47,27 +47,100 @@ enum PurchaseStatus {
   CANCELLED
 }
 
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  EXPIRED
+  SUSPENDED
+  CANCELLED
+  MANUAL_REVIEW
+}
+
+enum BillingCycle {
+  MONTHLY
+  ANNUAL
+  MANUAL
+  CUSTOM
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+enum BillingCycleRestriction {
+  ANY
+  MONTHLY
+  ANNUAL
+}
+
+enum CouponDurationType {
+  ONCE
+  REPEATING
+  FOREVER
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CARD_MANUAL
+  EASYPAISA
+  JAZZCASH
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+enum EmailLogStatus {
+  QUEUED
+  SENT
+  FAILED
+}
+
+enum AnnouncementSeverity {
+  INFO
+  SUCCESS
+  WARNING
+  CRITICAL
+}
+
+enum AnnouncementTarget {
+  ALL
+  PLAN
+  WORKSPACE
+}
+
 model User {
-  id                    String                   @id @default(uuid()) @db.Uuid
+  id                    String          @id @default(uuid()) @db.Uuid
   name                  String
-  email                 String                   @unique
+  email                 String          @unique
   password              String
-  emailVerified         Boolean                  @default(false)
-  isDisabled            Boolean                  @default(false)
-  platformRole          PlatformRole             @default(USER)
-  passwordResetRequired Boolean                  @default(false)
-  failedLoginAttempts   Int                      @default(0)
+  emailVerified         Boolean         @default(false)
+  isDisabled            Boolean         @default(false)
+  platformRole          PlatformRole    @default(USER)
+  passwordResetRequired Boolean         @default(false)
+  failedLoginAttempts   Int             @default(0)
   lockedUntil           DateTime?
-  createdAt             DateTime                 @default(now())
-  ownedSpaces           Workspace[]              @relation("WorkspaceOwner")
+  createdAt             DateTime        @default(now())
+  ownedSpaces           Workspace[]     @relation("WorkspaceOwner")
   memberships           Membership[]
   auditLogs             AuditLog[]
   notifications         Notification[]
-  createdStockCounts    StockCount[]             @relation("StockCountCreatedBy")
-  finalizedStockCounts  StockCount[]             @relation("StockCountFinalizedBy")
+  createdStockCounts    StockCount[]    @relation("StockCountCreatedBy")
+  finalizedStockCounts  StockCount[]    @relation("StockCountFinalizedBy")
   passwordResetTokens   PasswordResetToken[]
   emailVerifTokens      EmailVerifToken[]
   adminAuditLogs        AdminAuditLog[]
+  recordedPayments      Payment[]
+  updatedEmailTemplates EmailTemplate[]
+  createdAnnouncements  Announcement[]
 }
 
 model PasswordResetToken {
@@ -97,48 +170,50 @@ model EmailVerifToken {
 }
 
 model Workspace {
-  id             String          @id @default(uuid()) @db.Uuid
-  name           String
-  currency       String          @default("PKR")
-  lowStockMultiplier Float       @default(2)
-  expiryAlertDays Int            @default(7)
-  ownerPhone     String?
-  notifyLowStock Boolean         @default(true)
-  notifyExpiringSoon Boolean     @default(true)
-  notifyExpired  Boolean         @default(true)
-  whatsappAlertsEnabled Boolean  @default(false)
-  emailAlertsEnabled Boolean     @default(false)
-  pushAlertsEnabled Boolean      @default(false)
-  emailLowStock      Boolean     @default(false)
-  emailExpiringSoon  Boolean     @default(false)
-  emailExpired       Boolean     @default(false)
-  dailyDigestEnabled Boolean     @default(false)
-  lastScheduledLowStockEmailAt    DateTime?
-  lastScheduledExpirySoonEmailAt  DateTime?
-  lastDailyDigestSentAt           DateTime?
-  onboardingCompleted Boolean    @default(false)
-  onboardingStep   Int             @default(0)
-  businessType   String?
-  plan           PlanTier    @default(FREE)
-  suspended      Boolean         @default(false)
-  suspendedAt    DateTime?
-  suspendReason  String?
-  trialEndsAt    DateTime?
-  subscriptionStatus String?
-  ownerId        String          @db.Uuid
-  createdAt      DateTime        @default(now())
-  owner          User            @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  memberships    Membership[]
-  locations      Location[]
-  items          Item[]
-  stockBatches StockBatch[]
-  stockMovements StockMovement[]
-  suppliers      Supplier[]
-  purchases      Purchase[]
-  auditLogs      AuditLog[]
-  notifications  Notification[]
-  customRoles    CustomRole[]
-  stockCounts     StockCount[]
+  id                             String      @id @default(uuid()) @db.Uuid
+  name                           String
+  currency                       String      @default("PKR")
+  lowStockMultiplier             Float       @default(2)
+  expiryAlertDays                Int         @default(7)
+  ownerPhone                     String?
+  notifyLowStock                 Boolean     @default(true)
+  notifyExpiringSoon             Boolean     @default(true)
+  notifyExpired                  Boolean     @default(true)
+  whatsappAlertsEnabled          Boolean     @default(false)
+  emailAlertsEnabled             Boolean     @default(false)
+  pushAlertsEnabled              Boolean     @default(false)
+  emailLowStock                  Boolean     @default(false)
+  emailExpiringSoon              Boolean     @default(false)
+  emailExpired                   Boolean     @default(false)
+  dailyDigestEnabled             Boolean     @default(false)
+  lastScheduledLowStockEmailAt   DateTime?
+  lastScheduledExpirySoonEmailAt DateTime?
+  lastDailyDigestSentAt          DateTime?
+  onboardingCompleted            Boolean     @default(false)
+  onboardingStep                 Int         @default(0)
+  businessType                   String?
+  plan                           PlanTier    @default(FREE)
+  suspended                      Boolean     @default(false)
+  suspendedAt                    DateTime?
+  suspendReason                  String?
+  trialEndsAt                    DateTime?
+  subscriptionStatus             String?
+  ownerId                        String      @db.Uuid
+  createdAt                      DateTime    @default(now())
+  owner                          User        @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  memberships                    Membership[]
+  locations                      Location[]
+  items                          Item[]
+  stockBatches                   StockBatch[]
+  stockMovements                 StockMovement[]
+  suppliers                      Supplier[]
+  purchases                      Purchase[]
+  auditLogs                      AuditLog[]
+  notifications                  Notification[]
+  customRoles                    CustomRole[]
+  stockCounts                    StockCount[]
+  subscriptions                  Subscription[]
+  payments                       Payment[]
 }
 
 model Notification {
@@ -193,7 +268,7 @@ model Location {
   stockBatches   StockBatch[]
   stockMovements StockMovement[]
   purchases      Purchase[]
-  stockCounts     StockCount[]
+  stockCounts    StockCount[]
 
   @@index([workspaceId])
   @@index([workspaceId, isActive])
@@ -236,23 +311,23 @@ model Membership {
 }
 
 model Item {
-  id             String          @id @default(uuid()) @db.Uuid
-  name           String
-  sku            String?
-  barcode        String?
-  unit           String
-  category       String?
-  minStockLevel  Float           @default(0)
-  trackExpiry    Boolean         @default(false)
-  isActive       Boolean         @default(true)
-  archivedAt     DateTime?
-  workspaceId    String          @db.Uuid
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  workspace      Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  stockBatches   StockBatch[]
-  stockMovements StockMovement[]
-  purchaseItems  PurchaseItem[]
+  id              String          @id @default(uuid()) @db.Uuid
+  name            String
+  sku             String?
+  barcode         String?
+  unit            String
+  category        String?
+  minStockLevel   Float           @default(0)
+  trackExpiry     Boolean         @default(false)
+  isActive        Boolean         @default(true)
+  archivedAt      DateTime?
+  workspaceId     String          @db.Uuid
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  workspace       Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  stockBatches    StockBatch[]
+  stockMovements  StockMovement[]
+  purchaseItems   PurchaseItem[]
   stockCountItems StockCountItem[]
 
   @@index([workspaceId])
@@ -337,18 +412,18 @@ model StockCount {
 }
 
 model StockCountItem {
-  id              String     @id @default(uuid()) @db.Uuid
-  stockCountId    String     @db.Uuid
-  itemId          String     @db.Uuid
-  itemName        String
-  unit            String
-  systemQuantity  Float
+  id               String     @id @default(uuid()) @db.Uuid
+  stockCountId     String     @db.Uuid
+  itemId           String     @db.Uuid
+  itemName         String
+  unit             String
+  systemQuantity   Float
   physicalQuantity Float
-  variance        Float
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
-  stockCount      StockCount @relation(fields: [stockCountId], references: [id], onDelete: Cascade)
-  item            Item       @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  variance         Float
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  stockCount       StockCount @relation(fields: [stockCountId], references: [id], onDelete: Cascade)
+  item             Item       @relation(fields: [itemId], references: [id], onDelete: Restrict)
 
   @@unique([stockCountId, itemId])
   @@index([stockCountId])
@@ -356,15 +431,15 @@ model StockCountItem {
 }
 
 model Supplier {
-  id           String       @id @default(uuid()) @db.Uuid
-  name         String
-  phone        String?
-  notes        String?
-  workspaceId  String       @db.Uuid
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  workspace    Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  purchases    Purchase[]
+  id          String       @id @default(uuid()) @db.Uuid
+  name        String
+  phone       String?
+  notes       String?
+  workspaceId String       @db.Uuid
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  purchases   Purchase[]
   stockBatches StockBatch[]
 
   @@index([workspaceId])
@@ -399,19 +474,19 @@ model Purchase {
 }
 
 model PurchaseItem {
-  id               String   @id @default(uuid()) @db.Uuid
-  purchaseId       String   @db.Uuid
-  itemId           String   @db.Uuid
+  id               String    @id @default(uuid()) @db.Uuid
+  purchaseId       String    @db.Uuid
+  itemId           String    @db.Uuid
   quantity         Float
-  receivedQuantity Float    @default(0)
+  receivedQuantity Float     @default(0)
   unitCost         Float
   total            Float
   expiryDate       DateTime?
   batchNo          String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  purchase         Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
-  item             Item     @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  purchase         Purchase  @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  item             Item      @relation(fields: [itemId], references: [id], onDelete: Restrict)
 
   @@index([purchaseId])
   @@index([itemId])
@@ -430,5 +505,188 @@ model AdminAuditLog {
   @@index([adminId])
   @@index([action])
   @@index([entity])
+  @@index([createdAt])
+}
+
+// ── Platform admin models ─────────────────────────────────────────────
+
+model Plan {
+  id                        String    @id @default(uuid()) @db.Uuid
+  name                      String
+  code                      String    @unique
+  description               String?
+  monthlyPrice              Float     @default(0)
+  annualPrice               Float     @default(0)
+  currency                  String    @default("PKR")
+  trialDays                 Int       @default(0)
+  maxUsers                  Int?
+  maxLocations              Int?
+  maxItems                  Int?
+  maxSuppliers              Int?
+  maxPurchasesPerMonth      Int?
+  maxStockMovementsPerMonth Int?
+  enableExpiryTracking      Boolean   @default(true)
+  enableBarcodeScanning     Boolean   @default(true)
+  enableReports             Boolean   @default(true)
+  enableAdvancedReports     Boolean   @default(false)
+  enablePurchases           Boolean   @default(true)
+  enableSuppliers           Boolean   @default(true)
+  enableTeamManagement      Boolean   @default(true)
+  enableCustomRoles         Boolean   @default(false)
+  enableEmailAlerts         Boolean   @default(true)
+  enableDailyOps            Boolean   @default(true)
+  isPublic                  Boolean   @default(true)
+  isActive                  Boolean   @default(true)
+  sortOrder                 Int       @default(0)
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+  subscriptions             Subscription[]
+  couponPlans               CouponPlan[]
+
+  @@index([isActive])
+  @@index([sortOrder])
+}
+
+model Subscription {
+  id                 String             @id @default(uuid()) @db.Uuid
+  workspaceId        String             @db.Uuid
+  planId             String             @db.Uuid
+  status             SubscriptionStatus @default(TRIAL)
+  billingCycle       BillingCycle       @default(MANUAL)
+  currency           String             @default("PKR")
+  amount             Float              @default(0)
+  trialEndsAt        DateTime?
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  nextRenewalAt      DateTime?
+  couponId           String?            @db.Uuid
+  manualNotes        String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  workspace          Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  plan               Plan               @relation(fields: [planId], references: [id])
+  coupon             Coupon?            @relation(fields: [couponId], references: [id], onDelete: SetNull)
+  payments           Payment[]
+
+  @@index([workspaceId])
+  @@index([status])
+  @@index([planId])
+}
+
+model Coupon {
+  id                      String                  @id @default(uuid()) @db.Uuid
+  code                    String                  @unique
+  name                    String
+  description             String?
+  discountType            DiscountType
+  discountValue           Float
+  currency                String                  @default("PKR")
+  validFrom               DateTime?
+  validUntil              DateTime?
+  maxRedemptions          Int?
+  redemptionsUsed         Int                     @default(0)
+  billingCycleRestriction BillingCycleRestriction @default(ANY)
+  durationType            CouponDurationType      @default(ONCE)
+  durationMonths          Int?
+  isActive                Boolean                 @default(true)
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
+  couponPlans             CouponPlan[]
+  subscriptions           Subscription[]
+
+  @@index([isActive])
+  @@index([code])
+}
+
+model CouponPlan {
+  couponId String @db.Uuid
+  planId   String @db.Uuid
+  coupon   Coupon @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  plan     Plan   @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@id([couponId, planId])
+}
+
+model Payment {
+  id               String        @id @default(uuid()) @db.Uuid
+  workspaceId      String        @db.Uuid
+  subscriptionId   String?       @db.Uuid
+  amount           Float
+  currency         String        @default("PKR")
+  paymentMethod    PaymentMethod @default(OTHER)
+  referenceNumber  String?
+  status           PaymentStatus @default(PENDING)
+  paidAt           DateTime?
+  notes            String?
+  recordedByUserId String        @db.Uuid
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  workspace        Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  subscription     Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  recordedBy       User          @relation(fields: [recordedByUserId], references: [id])
+
+  @@index([workspaceId])
+  @@index([status])
+  @@index([subscriptionId])
+  @@index([createdAt])
+}
+
+model EmailTemplate {
+  id              String    @id @default(uuid()) @db.Uuid
+  key             String    @unique
+  name            String
+  subject         String
+  htmlBody        String
+  textBody        String
+  enabled         Boolean   @default(true)
+  variables       Json      @default("[]")
+  updatedByUserId String?   @db.Uuid
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  updatedBy       User?     @relation(fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([key])
+  @@index([enabled])
+}
+
+model EmailLog {
+  id                String         @id @default(uuid()) @db.Uuid
+  type              String
+  recipient         String
+  subject           String
+  status            EmailLogStatus @default(SENT)
+  provider          String?
+  providerMessageId String?
+  errorMessage      String?
+  workspaceId       String?        @db.Uuid
+  userId            String?        @db.Uuid
+  createdAt         DateTime       @default(now())
+
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
+  @@index([workspaceId])
+  @@index([recipient])
+}
+
+model Announcement {
+  id                String               @id @default(uuid()) @db.Uuid
+  title             String
+  message           String
+  severity          AnnouncementSeverity @default(INFO)
+  targetType        AnnouncementTarget   @default(ALL)
+  targetPlanId      String?              @db.Uuid
+  targetWorkspaceId String?              @db.Uuid
+  startsAt          DateTime?
+  endsAt            DateTime?
+  dismissible       Boolean              @default(true)
+  isActive          Boolean              @default(true)
+  createdByUserId   String               @db.Uuid
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  createdBy         User                 @relation(fields: [createdByUserId], references: [id])
+
+  @@index([isActive])
+  @@index([targetType])
   @@index([createdAt])
 }

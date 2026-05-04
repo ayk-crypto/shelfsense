@@ -1,6 +1,103 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 
+type NavItemProps = { to: string; end?: boolean; icon: React.ReactNode; label: string };
+
+function NavItem({ to, end, icon, label }: NavItemProps) {
+  return (
+    <NavLink
+      to={to}
+      end={end}
+      className={({ isActive }) => `admin-nav-item ${isActive ? "admin-nav-item--active" : ""}`}
+    >
+      <span className="admin-nav-icon">{icon}</span>
+      {label}
+    </NavLink>
+  );
+}
+
+const icons = {
+  dashboard: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+      <rect x="14" y="14" width="7" height="7" rx="1" />
+    </svg>
+  ),
+  workspaces: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+      <polyline points="9 22 9 12 15 12 15 22" />
+    </svg>
+  ),
+  users: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  ),
+  plans: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+    </svg>
+  ),
+  coupons: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+      <line x1="7" y1="7" x2="7.01" y2="7" />
+    </svg>
+  ),
+  subscriptions: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+    </svg>
+  ),
+  payments: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
+      <line x1="1" y1="10" x2="23" y2="10" />
+    </svg>
+  ),
+  emailTemplates: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+      <polyline points="22,6 12,13 2,6" />
+    </svg>
+  ),
+  emailLogs: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  ),
+  announcements: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+      <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+      <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+    </svg>
+  ),
+  activity: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M3 3v18h18" />
+      <path d="M7 14l4-4 3 3 5-6" />
+    </svg>
+  ),
+  system: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 .6 1.65 1.65 0 0 0-.4 1.07V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-.4-1.07 1.65 1.65 0 0 0-1-.6 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-.6-1 1.65 1.65 0 0 0-1.07-.4H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.07-.4 1.65 1.65 0 0 0 .6-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-.6 1.65 1.65 0 0 0 .4-1.07V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 .4 1.07 1.65 1.65 0 0 0 1 .6 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 .6 1 1.65 1.65 0 0 0 1.07.4H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.07.4z" />
+    </svg>
+  ),
+  back: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M19 12H5M12 5l-7 7 7 7" />
+    </svg>
+  ),
+};
+
 export function AdminLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -24,70 +121,32 @@ export function AdminLayout() {
         </div>
 
         <nav className="admin-nav">
-          <NavLink to="/admin" end className={({ isActive }) => `admin-nav-item ${isActive ? "admin-nav-item--active" : ""}`}>
-            <svg className="admin-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="3" width="7" height="7" rx="1" />
-              <rect x="14" y="3" width="7" height="7" rx="1" />
-              <rect x="3" y="14" width="7" height="7" rx="1" />
-              <rect x="14" y="14" width="7" height="7" rx="1" />
-            </svg>
-            Overview
-          </NavLink>
-          <NavLink to="/admin/workspaces" className={({ isActive }) => `admin-nav-item ${isActive ? "admin-nav-item--active" : ""}`}>
-            <svg className="admin-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-              <polyline points="9 22 9 12 15 12 15 22" />
-            </svg>
-            Workspaces
-          </NavLink>
-          <NavLink to="/admin/users" className={({ isActive }) => `admin-nav-item ${isActive ? "admin-nav-item--active" : ""}`}>
-            <svg className="admin-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-              <circle cx="9" cy="7" r="4" />
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-            </svg>
-            Users
-          </NavLink>
+          <NavItem to="/admin" end icon={icons.dashboard} label="Overview" />
+
+          <p className="admin-nav-section">Tenants</p>
+          <NavItem to="/admin/workspaces" icon={icons.workspaces} label="Workspaces" />
+          <NavItem to="/admin/users" icon={icons.users} label="Users" />
 
           <p className="admin-nav-section">Billing</p>
-          <NavLink to="/admin/plans" className={({ isActive }) => `admin-nav-item ${isActive ? "admin-nav-item--active" : ""}`}>
-            <svg className="admin-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-            </svg>
-            Plans
-          </NavLink>
-          <NavLink to="/admin/billing" className={({ isActive }) => `admin-nav-item ${isActive ? "admin-nav-item--active" : ""}`}>
-            <svg className="admin-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
-              <line x1="1" y1="10" x2="23" y2="10" />
-            </svg>
-            Billing
-          </NavLink>
+          <NavItem to="/admin/plans" icon={icons.plans} label="Plans" />
+          <NavItem to="/admin/coupons" icon={icons.coupons} label="Coupons" />
+          <NavItem to="/admin/subscriptions" icon={icons.subscriptions} label="Subscriptions" />
+          <NavItem to="/admin/payments" icon={icons.payments} label="Payments" />
+
+          <p className="admin-nav-section">Communications</p>
+          <NavItem to="/admin/email-templates" icon={icons.emailTemplates} label="Email Templates" />
+          <NavItem to="/admin/email-logs" icon={icons.emailLogs} label="Email Logs" />
+          <NavItem to="/admin/announcements" icon={icons.announcements} label="Announcements" />
 
           <p className="admin-nav-section">System</p>
-          <NavLink to="/admin/activity" className={({ isActive }) => `admin-nav-item ${isActive ? "admin-nav-item--active" : ""}`}>
-            <svg className="admin-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M3 3v18h18" />
-              <path d="M7 14l4-4 3 3 5-6" />
-            </svg>
-            Audit Logs
-          </NavLink>
-          <NavLink to="/admin/system" className={({ isActive }) => `admin-nav-item ${isActive ? "admin-nav-item--active" : ""}`}>
-            <svg className="admin-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 .6 1.65 1.65 0 0 0-.4 1.07V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-.4-1.07 1.65 1.65 0 0 0-1-.6 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-.6-1 1.65 1.65 0 0 0-1.07-.4H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.07-.4 1.65 1.65 0 0 0 .6-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-.6 1.65 1.65 0 0 0 .4-1.07V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 .4 1.07 1.65 1.65 0 0 0 1 .6 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 .6 1 1.65 1.65 0 0 0 1.07.4H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.07.4z" />
-            </svg>
-            System
-          </NavLink>
+          <NavItem to="/admin/activity" icon={icons.activity} label="Audit Logs" />
+          <NavItem to="/admin/system" icon={icons.system} label="System Health" />
 
           {user?.workspaceId && (
             <>
               <p className="admin-nav-section">Account</p>
               <NavLink to="/dashboard" className="admin-nav-item admin-nav-item--back">
-                <svg className="admin-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M19 12H5M12 5l-7 7 7 7" />
-                </svg>
+                <span className="admin-nav-icon">{icons.back}</span>
                 Back to Workspace
               </NavLink>
             </>

@@ -163,6 +163,50 @@ export function AdminWorkspaceDetailPage() {
         </div>
       </div>
 
+      {/* Subscription Panel */}
+      {ws.subscription && (
+        <div className="admin-section">
+          <div className="admin-section-header">
+            <h2 className="admin-section-title">Active Subscription</h2>
+            <Link to="/admin/subscriptions" className="admin-section-link">View all subscriptions →</Link>
+          </div>
+          <div className="admin-detail-grid">
+            <div className="admin-detail-card">
+              <h3 className="admin-detail-card-title">Subscription</h3>
+              <dl className="admin-dl">
+                <dt>Plan</dt><dd>{ws.subscription.plan?.name ?? "—"} <span className="admin-badge admin-badge--gray">{ws.subscription.plan?.code}</span></dd>
+                <dt>Status</dt><dd><span className={`admin-status-badge admin-status-badge--${ws.subscription.status === "ACTIVE" ? "active" : "yellow"}`}>{ws.subscription.status?.replace(/_/g, " ")}</span></dd>
+                <dt>Billing</dt><dd>{ws.subscription.billingCycle}</dd>
+                <dt>Amount</dt><dd>{ws.subscription.currency} {ws.subscription.amount?.toLocaleString()}/mo</dd>
+                {ws.subscription.trialEndsAt && <><dt>Trial Ends</dt><dd>{formatDate(ws.subscription.trialEndsAt)}</dd></>}
+                {ws.subscription.currentPeriodEnd && <><dt>Period End</dt><dd>{formatDate(ws.subscription.currentPeriodEnd)}</dd></>}
+                {ws.subscription.nextRenewalAt && <><dt>Next Renewal</dt><dd>{formatDate(ws.subscription.nextRenewalAt)}</dd></>}
+                {ws.subscription.coupon && <><dt>Coupon</dt><dd><code className="admin-code">{ws.subscription.coupon.code}</code> {ws.subscription.coupon.name}</dd></>}
+                {ws.subscription.manualNotes && <><dt>Notes</dt><dd className="admin-muted">{ws.subscription.manualNotes}</dd></>}
+              </dl>
+            </div>
+            {ws.payments && ws.payments.length > 0 && (
+              <div className="admin-detail-card">
+                <h3 className="admin-detail-card-title">Recent Payments</h3>
+                <table className="admin-table">
+                  <thead><tr><th>Date</th><th>Amount</th><th>Method</th><th>Status</th></tr></thead>
+                  <tbody>
+                    {ws.payments.slice(0, 5).map((p) => (
+                      <tr key={p.id}>
+                        <td className="admin-muted">{p.paidAt ? formatDate(p.paidAt) : "—"}</td>
+                        <td>{p.currency} {p.amount?.toLocaleString()}</td>
+                        <td className="admin-muted">{p.paymentMethod?.replace(/_/g, " ")}</td>
+                        <td><span className={`admin-status-badge admin-status-badge--${p.status === "PAID" ? "active" : "yellow"}`}>{p.status}</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="admin-section">
         <h2 className="admin-section-title">Members</h2>
         <div className="admin-table-wrap">

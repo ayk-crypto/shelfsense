@@ -114,7 +114,27 @@ const demoItems = [
   },
 ];
 
+const DEFAULT_PLANS = [
+  { name: "Free", code: "FREE", description: "Get started with basic inventory tracking.", monthlyPrice: 0, annualPrice: 0, trialDays: 0, maxUsers: 2, maxLocations: 1, maxItems: 100, maxSuppliers: 10, enableExpiryTracking: true, enableBarcodeScanning: false, enableReports: true, enableAdvancedReports: false, enablePurchases: false, enableSuppliers: false, enableTeamManagement: false, enableCustomRoles: false, enableEmailAlerts: false, enableDailyOps: false, isPublic: true, sortOrder: 0 },
+  { name: "Starter", code: "STARTER", description: "Perfect for small teams managing one location.", monthlyPrice: 1500, annualPrice: 15000, trialDays: 14, maxUsers: 5, maxLocations: 2, maxItems: 500, maxSuppliers: 50, enableExpiryTracking: true, enableBarcodeScanning: true, enableReports: true, enableAdvancedReports: false, enablePurchases: true, enableSuppliers: true, enableTeamManagement: true, enableCustomRoles: false, enableEmailAlerts: true, enableDailyOps: true, isPublic: true, sortOrder: 1 },
+  { name: "Pro", code: "PRO", description: "Full-featured plan for growing businesses.", monthlyPrice: 3500, annualPrice: 35000, trialDays: 14, maxUsers: 20, maxLocations: 10, maxItems: 5000, maxSuppliers: null, enableExpiryTracking: true, enableBarcodeScanning: true, enableReports: true, enableAdvancedReports: true, enablePurchases: true, enableSuppliers: true, enableTeamManagement: true, enableCustomRoles: true, enableEmailAlerts: true, enableDailyOps: true, isPublic: true, sortOrder: 2 },
+  { name: "Business", code: "BUSINESS", description: "Unlimited scale for enterprise operations.", monthlyPrice: 8000, annualPrice: 80000, trialDays: 14, maxUsers: null, maxLocations: null, maxItems: null, maxSuppliers: null, enableExpiryTracking: true, enableBarcodeScanning: true, enableReports: true, enableAdvancedReports: true, enablePurchases: true, enableSuppliers: true, enableTeamManagement: true, enableCustomRoles: true, enableEmailAlerts: true, enableDailyOps: true, isPublic: true, sortOrder: 3 },
+  { name: "Custom", code: "CUSTOM", description: "Tailored plan with custom pricing and limits.", monthlyPrice: 0, annualPrice: 0, trialDays: 0, maxUsers: null, maxLocations: null, maxItems: null, maxSuppliers: null, enableExpiryTracking: true, enableBarcodeScanning: true, enableReports: true, enableAdvancedReports: true, enablePurchases: true, enableSuppliers: true, enableTeamManagement: true, enableCustomRoles: true, enableEmailAlerts: true, enableDailyOps: true, isPublic: false, sortOrder: 4 },
+] as const;
+
+async function seedPlans() {
+  for (const plan of DEFAULT_PLANS) {
+    await prisma.plan.upsert({
+      where: { code: plan.code },
+      update: { name: plan.name, description: plan.description, sortOrder: plan.sortOrder },
+      create: plan,
+    });
+  }
+  console.log("Default plans seeded.");
+}
+
 async function main() {
+  await seedPlans();
   const hashedPassword = await bcrypt.hash(demoUser.password, 12);
   const hashedOperatorPassword = await bcrypt.hash(demoOperatorUser.password, 12);
 

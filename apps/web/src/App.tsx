@@ -7,8 +7,13 @@ import { AdminUsersPage } from "./pages/admin/AdminUsersPage";
 import { AdminUserDetailPage } from "./pages/admin/AdminUserDetailPage";
 import { AdminActivityPage } from "./pages/admin/AdminActivityPage";
 import { AdminPlansPage } from "./pages/admin/AdminPlansPage";
-import { AdminBillingPage } from "./pages/admin/AdminBillingPage";
-import { AdminSystemPage } from "./pages/admin/AdminSystemPage";
+import { AdminCouponsPage } from "./pages/admin/AdminCouponsPage";
+import { AdminSubscriptionsPage } from "./pages/admin/AdminSubscriptionsPage";
+import { AdminPaymentsPage } from "./pages/admin/AdminPaymentsPage";
+import { AdminEmailTemplatesPage } from "./pages/admin/AdminEmailTemplatesPage";
+import { AdminEmailLogsPage } from "./pages/admin/AdminEmailLogsPage";
+import { AdminAnnouncementsPage } from "./pages/admin/AdminAnnouncementsPage";
+import { AdminSystemHealthPage } from "./pages/admin/AdminSystemHealthPage";
 import { getOnboardingStatus } from "./api/onboarding";
 import { getWorkspaceSettings } from "./api/workspace";
 import { AppShell } from "./components/AppShell";
@@ -388,8 +393,13 @@ export function App() {
             <Route path="users/:id" element={<AdminUserDetailPage />} />
             <Route path="activity" element={<AdminActivityPage />} />
             <Route path="plans" element={<AdminPlansPage />} />
-            <Route path="billing" element={<AdminBillingPage />} />
-            <Route path="system" element={<AdminSystemPage />} />
+            <Route path="coupons" element={<AdminCouponsPage />} />
+            <Route path="subscriptions" element={<AdminSubscriptionsPage />} />
+            <Route path="payments" element={<AdminPaymentsPage />} />
+            <Route path="email-templates" element={<AdminEmailTemplatesPage />} />
+            <Route path="email-logs" element={<AdminEmailLogsPage />} />
+            <Route path="announcements" element={<AdminAnnouncementsPage />} />
+            <Route path="system" element={<AdminSystemHealthPage />} />
           </Route>
           <Route path="/" element={<LandingPage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

@@ -888,10 +888,15 @@ export interface AdminOverviewStats {
   suspendedWorkspaces: number;
   trialWorkspaces: number;
   paidWorkspaces: number;
+  expiredWorkspaces: number;
+  trialEndingSoon: number;
+  setupIncomplete: number;
   totalUsers: number;
   verifiedUsers: number;
   unverifiedUsers: number;
   newSignupsThisWeek: number;
+  estimatedMrr: number;
+  failedEmails24h: number;
 }
 
 export interface AdminAuditLog {
@@ -907,6 +912,20 @@ export interface AdminAuditLog {
 export interface AdminOverview {
   overview: AdminOverviewStats;
   recentActivity: AdminAuditLog[];
+  recentWorkspaces: Array<{
+    id: string;
+    name: string;
+    plan: string;
+    createdAt: string;
+    owner: { email: string; name: string };
+  }>;
+  recentUsers: Array<{
+    id: string;
+    name: string;
+    email: string;
+    emailVerified: boolean;
+    createdAt: string;
+  }>;
 }
 
 export interface AdminWorkspace {
@@ -964,6 +983,27 @@ export interface AdminWorkspaceDetail {
     stockMovementCount: number;
     purchaseCount: number;
     supplierCount: number;
+    subscription?: {
+      id: string;
+      status: string;
+      billingCycle: string;
+      amount: number | null;
+      currency: string;
+      trialEndsAt: string | null;
+      currentPeriodEnd: string | null;
+      nextRenewalAt: string | null;
+      manualNotes: string | null;
+      plan?: { id: string; name: string; code: string } | null;
+      coupon?: { id: string; code: string; name: string } | null;
+    } | null;
+    payments?: Array<{
+      id: string;
+      amount: number | null;
+      currency: string;
+      status: string;
+      paymentMethod: string | null;
+      paidAt: string | null;
+    }>;
   };
   recentActivity: Array<{
     id: string;
@@ -1023,4 +1063,179 @@ export interface AdminUserDetail {
 export interface AdminAuditLogsResponse {
   logs: AdminAuditLog[];
   pagination: AdminPagination;
+}
+
+// ── Plans ────────────────────────────────────────────────────────────────────
+
+export interface AdminPlan {
+  id: string;
+  name: string;
+  code: string;
+  description: string;
+  monthlyPrice: number;
+  annualPrice: number;
+  currency: string;
+  trialDays: number;
+  maxUsers: number | null;
+  maxLocations: number | null;
+  maxItems: number | null;
+  maxSuppliers: number | null;
+  enableExpiryTracking: boolean;
+  enableBarcodeScanning: boolean;
+  enableReports: boolean;
+  enableAdvancedReports: boolean;
+  enablePurchases: boolean;
+  enableSuppliers: boolean;
+  enableTeamManagement: boolean;
+  enableCustomRoles: boolean;
+  enableEmailAlerts: boolean;
+  enableDailyOps: boolean;
+  isPublic: boolean;
+  isActive: boolean;
+  sortOrder: number;
+  subscriptionCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ── Coupons ──────────────────────────────────────────────────────────────────
+
+export interface AdminCoupon {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  discountType: "PERCENTAGE" | "FIXED_AMOUNT";
+  discountValue: number;
+  currency: string;
+  validFrom: string | null;
+  validUntil: string | null;
+  maxRedemptions: number | null;
+  redemptionsUsed: number;
+  billingCycleRestriction: "ANY" | "MONTHLY" | "ANNUAL";
+  durationType: "ONCE" | "REPEATING" | "FOREVER";
+  durationMonths: number | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+// ── Subscriptions ─────────────────────────────────────────────────────────────
+
+export interface AdminSubscription {
+  id: string;
+  workspaceId: string;
+  planId: string;
+  status: string;
+  billingCycle: string;
+  currency: string;
+  amount: number;
+  trialEndsAt: string | null;
+  currentPeriodStart: string | null;
+  currentPeriodEnd: string | null;
+  nextRenewalAt: string | null;
+  couponId: string | null;
+  manualNotes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  plan: { id: string; name: string; code: string };
+  coupon: { id: string; code: string; name: string; discountType: string; discountValue: number } | null;
+  workspace: { id: string; name: string; owner: { email: string } };
+  payments?: AdminPayment[];
+}
+
+export interface AdminSubscriptionsResponse {
+  subscriptions: AdminSubscription[];
+  pagination: AdminPagination;
+}
+
+// ── Payments ──────────────────────────────────────────────────────────────────
+
+export interface AdminPayment {
+  id: string;
+  workspaceId: string;
+  amount: number;
+  currency: string;
+  paymentMethod: string;
+  status: string;
+  paidAt: string | null;
+  referenceNumber: string | null;
+  notes: string | null;
+  createdAt: string;
+  workspace: { id: string; name: string };
+  recordedBy?: { name: string } | null;
+}
+
+export interface AdminPaymentsResponse {
+  payments: AdminPayment[];
+  pagination: AdminPagination;
+}
+
+// ── Email Templates ───────────────────────────────────────────────────────────
+
+export interface AdminEmailTemplate {
+  id: string | null;
+  key: string;
+  name: string;
+  subject: string;
+  htmlBody: string;
+  textBody: string;
+  enabled: boolean;
+  variables: string[] | null;
+  updatedAt: string | null;
+  updatedBy: { id: string; name: string } | null;
+  isDefault: boolean;
+}
+
+// ── Email Logs ────────────────────────────────────────────────────────────────
+
+export interface AdminEmailLog {
+  id: string;
+  type: string;
+  recipient: string;
+  subject: string;
+  status: string;
+  provider: string | null;
+  errorMessage: string | null;
+  workspaceId: string | null;
+  createdAt: string;
+}
+
+export interface AdminEmailLogsResponse {
+  logs: AdminEmailLog[];
+  pagination: AdminPagination;
+}
+
+// ── Announcements ─────────────────────────────────────────────────────────────
+
+export interface AdminAnnouncement {
+  id: string;
+  title: string;
+  message: string;
+  severity: "INFO" | "SUCCESS" | "WARNING" | "CRITICAL";
+  targetType: "ALL" | "PLAN" | "WORKSPACE";
+  targetPlanId: string | null;
+  targetWorkspaceId: string | null;
+  startsAt: string | null;
+  endsAt: string | null;
+  dismissible: boolean;
+  isActive: boolean;
+  createdAt: string;
+  createdBy?: { id: string; name: string } | null;
+}
+
+// ── System Health ─────────────────────────────────────────────────────────────
+
+export interface AdminSystemHealth {
+  api: { status: string; timestamp: string };
+  database: { status: "ok" | "error"; latencyMs: number | null };
+  email: {
+    configured: boolean;
+    provider: string;
+    failedLast24h: number;
+    totalSent: number;
+    lastSentAt: string | null;
+    lastSentType: string | null;
+  };
+  scheduler: { status: string };
+  build: { nodeVersion: string; env: string };
 }
