@@ -1018,10 +1018,10 @@ export function ItemsPage() {
           item={stockInItem}
           onClose={() => setStockInItem(null)}
           onSuccess={() => {
-            const name = stockInItem.name;
             setStockInItem(null);
-            showToast(`Stock added for "${name}"`, "success");
+            showToast("Stock added successfully.", "success");
             void refreshSummary();
+            void refreshUsageInsights();
           }}
           onError={(msg) => showToast(msg, "error")}
         />
@@ -1032,9 +1032,8 @@ export function ItemsPage() {
           item={stockOutItem}
           onClose={() => setStockOutItem(null)}
           onSuccess={() => {
-            const name = stockOutItem.name;
             setStockOutItem(null);
-            showToast(`Stock deducted from "${name}"`, "success");
+            showToast("Stock deducted successfully.", "success");
             void refreshSummary();
             void refreshUsageInsights();
           }}
@@ -2012,7 +2011,7 @@ function StockInModal({
       });
       onSuccess();
     } catch (err) {
-      onError(err instanceof Error ? err.message : "Failed to record stock in");
+      onError(err instanceof Error && err.message ? err.message : "Unable to update stock. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -2130,7 +2129,7 @@ function StockOutModal({
       });
       onSuccess();
     } catch (err) {
-      onError(err instanceof Error ? err.message : "Failed to record stock out");
+      onError(err instanceof Error && err.message ? err.message : "Unable to update stock. Please try again.");
     } finally {
       setSaving(false);
     }
