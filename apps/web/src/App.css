@@ -14699,23 +14699,32 @@ body {
     gap: 16px;
   }
 
+  /* Nav becomes a horizontal scrolling chip strip */
   .rpt-nav {
     width: 100%;
     flex-direction: row;
-    flex-wrap: wrap;
-    gap: 4px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 6px;
     position: static;
     padding: 8px;
   }
 
+  .rpt-nav::-webkit-scrollbar {
+    display: none;
+  }
+
   .rpt-nav-btn {
-    flex: 1 1 auto;
-    min-width: 0;
-    padding: 7px 10px;
-    font-size: 12px;
+    flex: 0 0 auto;
+    white-space: nowrap;
+    padding: 7px 14px;
+    font-size: 13px;
     justify-content: center;
     text-align: center;
     gap: 6px;
+    border-radius: 999px;
   }
 
   .rpt-nav-dot {
@@ -14744,6 +14753,10 @@ body {
     min-width: calc(50% - 4px);
   }
 
+  .rpt-filter-actions {
+    flex-wrap: wrap;
+  }
+
   .rpt-summary {
     gap: 8px;
   }
@@ -14759,16 +14772,47 @@ body {
 
 @media (max-width: 600px) {
   .rpt-nav-btn {
-    font-size: 11px;
-    padding: 6px 8px;
+    font-size: 12.5px;
+    padding: 7px 13px;
   }
 
   .rpt-filter-field {
     min-width: 100%;
+    width: 100%;
+  }
+
+  .rpt-filter-input {
+    height: 40px;
+    font-size: 16px; /* prevents iOS zoom on focus */
+  }
+
+  .rpt-filter-actions {
+    flex-direction: column;
+  }
+
+  .rpt-filter-actions .btn {
+    width: 100%;
+    justify-content: center;
   }
 
   .rpt-stat-card {
-    min-width: 100%;
+    min-width: calc(50% - 4px);
+  }
+
+  .rpt-stat-value {
+    font-size: 19px;
+  }
+
+  .rpt-report-head {
+    padding: 14px;
+  }
+
+  .rpt-filters {
+    padding: 12px;
+  }
+
+  .rpt-state-block {
+    padding: 40px 16px;
   }
 }
 
