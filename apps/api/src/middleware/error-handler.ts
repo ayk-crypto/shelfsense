@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
+import { Prisma } from "../generated/prisma/client.js";
 import { logger } from "../lib/logger.js";
 
 type HttpError = Error & {
@@ -40,6 +41,12 @@ function getCode(status: number) {
   return STATUS_CODES[status] ?? (status >= 500 ? "INTERNAL_ERROR" : "REQUEST_FAILED");
 }
 
+function getPrismaCode(error: unknown): string | undefined {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) return error.code;
+  if (error instanceof Prisma.PrismaClientInitializationError) return error.errorCode ?? "INIT_ERROR";
+  return undefined;
+}
+
 export function errorHandler(
   error: unknown,
   req: Request,
@@ -57,6 +64,8 @@ export function errorHandler(
       path: req.path,
       status,
       error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      prismaCode: getPrismaCode(error),
     });
   }
 

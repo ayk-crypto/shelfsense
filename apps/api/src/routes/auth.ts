@@ -6,7 +6,7 @@ import { Prisma } from "../generated/prisma/client.js";
 import { Role } from "../generated/prisma/enums.js";
 import { env } from "../config/env.js";
 import { prisma } from "../db/prisma.js";
-import { logAuthEvent, logSecurityEvent } from "../lib/logger.js";
+import { logAuthEvent, logSecurityEvent, logger } from "../lib/logger.js";
 import { requireAuth } from "../middleware/auth.js";
 import { sendEmailVerificationEmail, sendPasswordResetEmail } from "../services/email.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -68,27 +68,53 @@ authRouter.post("/register", asyncHandler(async (req, res) => {
 
   let result: { user: { id: string; name: string; email: string; createdAt: Date }; workspace: { id: string } };
 
+  let currentStep = "init";
   try {
     result = await prisma.$transaction(async (tx) => {
+      currentStep = "create_user";
       const user = await tx.user.create({
         data: { name: trimmedName, email: trimmedEmail, password: hashedPassword },
         select: { id: true, name: true, email: true, createdAt: true },
       });
 
+      currentStep = "create_workspace";
       const workspace = await tx.workspace.create({
         data: { name: workspaceDisplayName, ownerId: user.id },
         select: { id: true },
       });
 
+      currentStep = "create_location";
       await tx.location.create({ data: { workspaceId: workspace.id, name: "Main Branch" } });
+
+      currentStep = "create_membership";
       await tx.membership.create({ data: { userId: user.id, workspaceId: workspace.id, role: Role.OWNER } });
+
+      currentStep = "create_email_verif_token";
       await tx.emailVerifToken.create({ data: { userId: user.id, tokenHash, expiresAt: tokenExpiry } });
 
       return { user, workspace };
     });
   } catch (err) {
+    const prismaCode =
+      err instanceof Prisma.PrismaClientKnownRequestError ? err.code
+      : err instanceof Prisma.PrismaClientInitializationError ? (err.errorCode ?? "INIT_ERROR")
+      : undefined;
+
+    logger.error("[AUTH] register failed", {
+      step: currentStep,
+      error: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+      prismaCode,
+    });
+
     if (isUniqueConstraintError(err)) {
       return res.status(409).json({ error: "Email is already registered" });
+    }
+    if (isPrismaConnectionError(err)) {
+      return res.status(503).json({ error: "Database is temporarily unavailable. Please try again in a moment." });
+    }
+    if (isMissingTableError(err)) {
+      return res.status(503).json({ error: "Service is not fully initialised. Please try again shortly." });
     }
     throw err;
   }
@@ -352,6 +378,23 @@ function isValidEmail(value: string) {
 
 function isUniqueConstraintError(err: unknown) {
   return err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
+}
+
+/** DB unreachable / auth failed / timed out */
+function isPrismaConnectionError(err: unknown) {
+  if (err instanceof Prisma.PrismaClientInitializationError) return true;
+  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    return ["P1000", "P1001", "P1002", "P1008", "P1017"].includes(err.code);
+  }
+  return false;
+}
+
+/** Schema not migrated — table or column missing */
+function isMissingTableError(err: unknown) {
+  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    return ["P2021", "P2022"].includes(err.code);
+  }
+  return false;
 }
 
 function parseRegisterInput(body: unknown) {
