@@ -1,0 +1,85 @@
+Refactor Platform Admin UX and access separation professionally.
+
+Current issue:
+Platform Admin currently appears inside the normal workspace sidebar for a user who is also a workspace owner. This mixes customer workspace operations with SaaS owner administration. I want a professional SaaS separation.
+
+Target behavior:
+1. Normal workspace users should only see workspace/customer navigation.
+2. Platform Admin should be a separate experience with its own layout/sidebar.
+3. A SUPER_ADMIN user should not need to belong to any workspace.
+4. Platform Admin should be accessible at /admin for now.
+5. Later it may move to admin.shelfsenseapp.com, so keep routing clean.
+
+Requirements:
+
+1. Separate layouts
+- Keep existing workspace app layout for normal routes:
+  /dashboard
+  /items
+  /stock-in
+  /stock-out
+  /alerts
+  /reports
+  /settings
+- Create a separate PlatformAdminLayout for:
+  /admin
+  /admin/workspaces
+  /admin/workspaces/:id
+  /admin/users
+  /admin/users/:id
+  /admin/activity
+  /admin/plans
+  /admin/system
+
+2. Separate admin sidebar
+The admin sidebar should show only platform-level items:
+- Overview
+- Workspaces
+- Users
+- Plans
+- Billing
+- Audit Logs
+- System
+- Back to Workspace
+
+Do not show inventory operational links inside the admin sidebar.
+
+3. Hide Platform Admin from normal workspace sidebar
+- Remove the PLATFORM section from the normal workspace sidebar.
+- Instead, if the logged-in user has platformRole SUPER_ADMIN, show a subtle “Platform Admin” option only in the user profile menu or top-right account menu.
+- Normal users must never see it.
+
+4. Super admin without workspace
+- Ensure SUPER_ADMIN can log in even if they are not a member of any workspace.
+- If a SUPER_ADMIN has no workspace, redirect them to /admin instead of forcing onboarding/workspace creation.
+- Normal users without workspace should still go through normal onboarding/workspace creation.
+
+5. Role separation
+- platformRole controls SaaS/admin access.
+- Membership role controls workspace access.
+- Do not mix these two.
+- Workspace Owner is not automatically Platform Admin.
+- Platform Admin is not automatically Workspace Owner.
+
+6. Admin account recommendation
+- Document that production should use a separate admin account such as admin@shelfsenseapp.com with platformRole SUPER_ADMIN.
+- My normal workspace user should remain platformRole USER.
+
+7. Route protection
+- /admin routes require platformRole SUPER_ADMIN or SUPPORT_ADMIN where appropriate.
+- Workspace routes require valid workspace membership.
+- Normal workspace users must not access /admin by typing the URL.
+- SUPER_ADMIN without workspace must still access /admin.
+
+8. API behavior
+- Keep /admin API routes protected by requirePlatformAdmin.
+- Workspace APIs should continue requiring workspace membership.
+- Super admin should not bypass workspace APIs unless using a clearly logged support/impersonation feature.
+
+9. Audit logging
+- All platform admin actions must continue logging to AdminAuditLog.
+- If “Back to Workspace” or impersonation is added later, impersonation must be clearly logged.
+
+10. Build
+- Ensure TypeScript build passes.
+- Do not break existing workspace dashboard, login, signup, or admin pages.

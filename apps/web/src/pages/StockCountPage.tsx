@@ -19,11 +19,7 @@ interface CountLine {
 
 export function StockCountPage() {
   const { id } = useParams();
-
-  if (id) {
-    return <StockCountDetail id={id} />;
-  }
-
+  if (id) return <StockCountDetail id={id} />;
   return <StockCountWorkspace />;
 }
 
@@ -51,7 +47,6 @@ function StockCountWorkspace() {
 
   useEffect(() => {
     let cancelled = false;
-
     async function loadData() {
       if (!selectedLocationId) return;
       setLoading(true);
@@ -71,19 +66,15 @@ function StockCountWorkspace() {
         if (!cancelled) setLoading(false);
       }
     }
-
     void loadData();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [selectedLocationId]);
 
   const itemById = useMemo(
     () => new Map(stockItems.map((item) => [item.id, item])),
     [stockItems],
   );
-
-  const selectedItemIds = useMemo(() => new Set(lines.map((line) => line.itemId)), [lines]);
+  const selectedItemIds = useMemo(() => new Set(lines.map((l) => l.itemId)), [lines]);
   const filteredItems = useMemo(() => {
     const term = query.trim().toLowerCase();
     return stockItems
@@ -92,7 +83,7 @@ function StockCountWorkspace() {
         if (!term) return true;
         return [item.name, item.sku, item.barcode, item.category]
           .filter(Boolean)
-          .some((value) => value!.toLowerCase().includes(term));
+          .some((v) => v!.toLowerCase().includes(term));
       })
       .slice(0, 8);
   }, [query, selectedItemIds, stockItems]);
@@ -105,63 +96,39 @@ function StockCountWorkspace() {
     return { ...line, item, physicalQuantity, systemQuantity, variance };
   });
 
-  const totalVariance = countedLines.reduce((total, line) => total + line.variance, 0);
-  const nonZeroVarianceCount = countedLines.filter((line) => roundQuantity(line.variance) !== 0).length;
+  const totalVariance = countedLines.reduce((t, l) => t + l.variance, 0);
+  const nonZeroVarianceCount = countedLines.filter((l) => roundQuantity(l.variance) !== 0).length;
 
   function addItem(item: StockCountStockItem) {
-    setLines((current) => [
-      ...current,
-      { itemId: item.id, physicalQuantity: formatQuantity(item.systemQuantity) },
-    ]);
+    setLines((cur) => [...cur, { itemId: item.id, physicalQuantity: formatQuantity(item.systemQuantity) }]);
     setQuery("");
     setMessage(null);
   }
 
   function updateLine(itemId: string, physicalQuantity: string) {
-    setLines((current) =>
-      current.map((line) => line.itemId === itemId ? { ...line, physicalQuantity } : line),
-    );
+    setLines((cur) => cur.map((l) => l.itemId === itemId ? { ...l, physicalQuantity } : l));
   }
 
   function removeLine(itemId: string) {
-    setLines((current) => current.filter((line) => line.itemId !== itemId));
+    setLines((cur) => cur.filter((l) => l.itemId !== itemId));
   }
 
   async function handleSaveDraft(e?: FormEvent) {
     e?.preventDefault();
     if (!selectedLocationId || saving) return;
-
     const payloadItems = countedLines
-      .filter((line) => line.item)
-      .map((line) => ({
-        itemId: line.itemId,
-        physicalQuantity: roundQuantity(line.physicalQuantity),
-      }));
-
-    if (payloadItems.length === 0) {
-      setError("Add at least one item before saving a draft.");
-      return;
-    }
-
+      .filter((l) => l.item)
+      .map((l) => ({ itemId: l.itemId, physicalQuantity: roundQuantity(l.physicalQuantity) }));
+    if (payloadItems.length === 0) { setError("Add at least one item before saving a draft."); return; }
     setSaving(true);
     setError(null);
+    setMessage(null);
     try {
       const res = draftId
-        ? await updateStockCount(draftId, {
-            locationId: selectedLocationId,
-            note: note.trim() || null,
-            items: payloadItems,
-          })
-        : await createStockCount({
-            locationId: selectedLocationId,
-            note: note.trim() || null,
-            items: payloadItems,
-          });
+        ? await updateStockCount(draftId, { locationId: selectedLocationId, note: note.trim() || null, items: payloadItems })
+        : await createStockCount({ locationId: selectedLocationId, note: note.trim() || null, items: payloadItems });
       setDraftId(res.count.id);
-      setLines(res.count.items.map((item) => ({
-        itemId: item.itemId,
-        physicalQuantity: formatQuantity(item.physicalQuantity),
-      })));
+      setLines(res.count.items.map((item) => ({ itemId: item.itemId, physicalQuantity: formatQuantity(item.physicalQuantity) })));
       setCounts((await getStockCounts()).counts);
       setMessage("Draft saved. Managers and owners can finalize when the count is reviewed.");
     } catch (err) {
@@ -175,6 +142,7 @@ function StockCountWorkspace() {
     if (!draftId || finalizing || !canFinalize) return;
     setFinalizing(true);
     setError(null);
+    setMessage(null);
     try {
       await finalizeStockCount(draftId);
       setMessage("Stock count finalized and adjustment movements posted.");
@@ -195,153 +163,226 @@ function StockCountWorkspace() {
 
   return (
     <div className="stock-count-page">
-      <section className="stock-count-hero">
-        <div>
+      {/* ── Page header ── */}
+      <div className="sc-header">
+        <div className="sc-header-left">
           <span className="daily-ops-kicker">Cycle Count</span>
           <h1 className="page-title">Count stock and post variance adjustments</h1>
-          <p className="page-subtitle">
-            Select a branch, add items, enter the physical count, then save a draft or finalize after review.
-          </p>
+          <p className="page-subtitle">Select a branch, add items, enter physical counts, then save a draft or finalize.</p>
         </div>
-        <div className="stock-count-summary-strip" aria-label="Current count summary">
-          <Metric label="Lines" value={String(lines.length)} />
-          <Metric label="Variances" value={String(nonZeroVarianceCount)} />
-          <Metric label="Net" value={formatSigned(totalVariance)} tone={varianceTone(totalVariance)} />
+        <div className="sc-metrics">
+          <ScMetric label="Lines" value={String(lines.length)} />
+          <ScMetric label="Variances" value={String(nonZeroVarianceCount)} tone={nonZeroVarianceCount > 0 ? "negative" : "zero"} />
+          <ScMetric label="Net" value={formatSigned(totalVariance)} tone={varianceTone(totalVariance)} />
         </div>
-      </section>
+      </div>
 
-      {error && <div className="alert alert--error">{error}</div>}
-      {message && <div className="alert alert--success">{message}</div>}
+      {error && (
+        <div className="alert alert--error" role="alert">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          {error}
+        </div>
+      )}
+      {message && (
+        <div className="alert alert--success" role="status">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          {message}
+        </div>
+      )}
 
-      <form className="stock-count-workspace" onSubmit={handleSaveDraft}>
-        <section className="stock-count-panel stock-count-panel--setup">
-          <div className="stock-count-panel-head">
+      <form className="sc-workspace" onSubmit={handleSaveDraft}>
+        {/* ── Left: Setup panel ── */}
+        <aside className="sc-panel sc-panel--setup">
+          <div className="sc-panel-head">
             <div>
-              <h2>Count setup</h2>
-              <p>Counts are saved against one branch/location.</p>
+              <h2 className="sc-panel-title">Count setup</h2>
+              <p className="sc-panel-sub">Counts are saved against one branch/location.</p>
             </div>
-            {draftId && <span className="stock-count-status stock-count-status--draft">Draft saved</span>}
+            {draftId && (
+              <span className="stock-count-status stock-count-status--draft">
+                <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor" aria-hidden="true"><circle cx="4" cy="4" r="4" /></svg>
+                Draft saved
+              </span>
+            )}
           </div>
 
-          <label className="form-field">
-            <span>Location / branch</span>
-            <select
-              value={selectedLocationId}
-              onChange={(e) => {
-                setSelectedLocationId(e.target.value);
-                setLines([]);
-                setDraftId(null);
-                setMessage(null);
-              }}
-            >
-              {locations.map((location) => (
-                <option key={location.id} value={location.id}>{location.name}</option>
-              ))}
-            </select>
-          </label>
+          <div className="sc-setup-fields">
+            <div className="form-group">
+              <label className="form-label" htmlFor="sc-location">Location / branch</label>
+              <select
+                id="sc-location"
+                className="form-select"
+                value={selectedLocationId}
+                onChange={(e) => {
+                  setSelectedLocationId(e.target.value);
+                  setLines([]);
+                  setDraftId(null);
+                  setMessage(null);
+                }}
+              >
+                {locations.map((loc) => (
+                  <option key={loc.id} value={loc.id}>{loc.name}</option>
+                ))}
+              </select>
+            </div>
 
-          <label className="form-field">
-            <span>Count note</span>
-            <textarea
-              rows={3}
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Evening freezer count, weekly dry-store cycle count..."
-            />
-          </label>
-
-          <div className="stock-count-search">
-            <label className="form-field">
-              <span>Search inventory items</span>
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search name, SKU, barcode, category..."
+            <div className="form-group">
+              <label className="form-label" htmlFor="sc-note">Count note <span className="form-label-opt">(optional)</span></label>
+              <textarea
+                id="sc-note"
+                className="form-input sc-note-textarea"
+                rows={3}
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Evening freezer count, weekly dry-store cycle count…"
               />
-            </label>
-            <div className="stock-count-search-results">
+            </div>
+          </div>
+
+          {/* ── Item search ── */}
+          <div className="sc-search-section">
+            <div className="form-group">
+              <label className="form-label" htmlFor="sc-search">Add items to count</label>
+              <div className="sc-search-input-wrap">
+                <svg className="sc-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+                </svg>
+                <input
+                  id="sc-search"
+                  className="form-input sc-search-input"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search by name, SKU, barcode, category…"
+                  autoComplete="off"
+                />
+              </div>
+            </div>
+
+            <div className="sc-search-results">
               {loading ? (
-                <p>Loading item stock...</p>
+                <div className="sc-search-hint">
+                  <span className="btn-spinner btn-spinner--xs" />
+                  Loading items…
+                </div>
+              ) : query.trim() === "" ? (
+                <div className="sc-search-hint">Start typing to search items</div>
               ) : filteredItems.length === 0 ? (
-                <p>No matching items to add.</p>
+                <div className="sc-search-hint">No matching items found</div>
               ) : (
                 filteredItems.map((item) => (
-                  <button key={item.id} type="button" onClick={() => addItem(item)}>
-                    <span>
-                      <strong>{item.name}</strong>
-                      <em>{item.sku || item.barcode || item.category || "Inventory item"}</em>
-                    </span>
-                    <span>{formatQuantity(item.systemQuantity)} {item.unit}</span>
+                  <button key={item.id} type="button" className="sc-item-result" onClick={() => addItem(item)}>
+                    <div className="sc-item-result-info">
+                      <strong className="sc-item-result-name">{item.name}</strong>
+                      <span className="sc-item-result-meta">
+                        {[item.category, item.sku].filter(Boolean).join(" · ") || "Inventory item"}
+                      </span>
+                    </div>
+                    <div className="sc-item-result-right">
+                      <span className="sc-item-result-qty">{formatQuantity(item.systemQuantity)} {item.unit}</span>
+                      <svg className="sc-item-result-add" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <circle cx="12" cy="12" r="10" /><path d="M12 8v8M8 12h8" />
+                      </svg>
+                    </div>
                   </button>
                 ))
               )}
             </div>
           </div>
-        </section>
+        </aside>
 
-        <section className="stock-count-panel stock-count-panel--lines">
-          <div className="stock-count-panel-head">
+        {/* ── Right: Counted items panel ── */}
+        <section className="sc-panel sc-panel--lines">
+          <div className="sc-panel-head">
             <div>
-              <h2>Counted items</h2>
-              <p>Physical count minus system quantity becomes the variance.</p>
+              <h2 className="sc-panel-title">Counted items</h2>
+              <p className="sc-panel-sub">
+                {countedLines.length === 0
+                  ? "Add items from the search panel to start this count."
+                  : `${countedLines.length} item${countedLines.length === 1 ? "" : "s"} added — physical count minus system quantity becomes the variance.`}
+              </p>
             </div>
-            <div className="stock-count-actions">
-              <button type="submit" className="btn btn--secondary" disabled={saving || lines.length === 0}>
-                {saving ? "Saving..." : draftId ? "Update Draft" : "Save Draft"}
+            <div className="sc-panel-actions">
+              <button
+                type="submit"
+                className="btn btn--secondary btn--sm"
+                disabled={saving || lines.length === 0}
+              >
+                {saving ? <><span className="btn-spinner btn-spinner--xs" /> Saving…</> : draftId ? "Update Draft" : "Save Draft"}
               </button>
               <button
                 type="button"
-                className="btn btn--primary"
+                className="btn btn--primary btn--sm"
                 disabled={!draftId || !canFinalize || finalizing}
-                onClick={handleFinalize}
-                title={canFinalize ? undefined : "Only managers and owners can finalize stock counts"}
+                onClick={() => { void handleFinalize(); }}
+                title={!canFinalize ? "Only managers and owners can finalize stock counts" : undefined}
               >
-                {finalizing ? "Finalizing..." : "Finalize Count"}
+                {finalizing ? <><span className="btn-spinner btn-spinner--xs" /> Finalizing…</> : "Finalize Count"}
               </button>
             </div>
           </div>
 
           {countedLines.length === 0 ? (
-            <div className="stock-count-empty-state">
-              <strong>No items selected yet</strong>
-              <span>Add items from the search panel to start counting this branch.</span>
+            <div className="sc-empty">
+              <svg className="sc-empty-icon" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+              </svg>
+              <p className="sc-empty-title">No items added yet</p>
+              <p className="sc-empty-sub">Search for items on the left to add them to this cycle count.</p>
             </div>
           ) : (
-            <div className="stock-count-line-list">
+            <div className="sc-line-list">
+              <div className="sc-line-header">
+                <span>Item</span>
+                <span>System qty</span>
+                <span>Physical count</span>
+                <span>Variance</span>
+                <span />
+              </div>
               {countedLines.map((line) => (
-                <article key={line.itemId} className="stock-count-line">
-                  <div className="stock-count-line-main">
-                    <strong>{line.item?.name ?? "Unknown item"}</strong>
-                    <span>System: {formatQuantity(line.systemQuantity)} {line.item?.unit}</span>
+                <div key={line.itemId} className="sc-line">
+                  <div className="sc-line-info">
+                    <strong className="sc-line-name">{line.item?.name ?? "Unknown item"}</strong>
+                    <span className="sc-line-unit">{line.item?.category ?? line.item?.unit ?? ""}</span>
                   </div>
-                  <label>
-                    <span>Physical</span>
+                  <div className="sc-line-system">
+                    <span className="sc-line-system-val">{formatQuantity(line.systemQuantity)}</span>
+                    <span className="sc-line-system-unit">{line.item?.unit}</span>
+                  </div>
+                  <div className="sc-line-physical">
                     <input
+                      className="form-input sc-line-input"
                       type="number"
                       min="0"
                       step="0.001"
                       value={line.physicalQuantity}
                       onChange={(e) => updateLine(line.itemId, e.target.value)}
+                      aria-label={`Physical quantity for ${line.item?.name}`}
                     />
-                  </label>
+                  </div>
                   <VarianceBadge value={line.variance} unit={line.item?.unit ?? ""} />
-                  <button type="button" className="icon-btn" onClick={() => removeLine(line.itemId)} aria-label="Remove item">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M18 6 6 18" />
-                      <path d="m6 6 12 12" />
+                  <button
+                    type="button"
+                    className="sc-line-remove"
+                    onClick={() => removeLine(line.itemId)}
+                    aria-label={`Remove ${line.item?.name}`}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M18 6 6 18" /><path d="m6 6 12 12" />
                     </svg>
                   </button>
-                </article>
+                </div>
               ))}
             </div>
           )}
         </section>
       </form>
 
-      <StockCountHistory
-        counts={counts}
-        onOpen={(countId) => navigate(`/stock-count/${countId}`)}
-      />
+      {/* ── History ── */}
+      <StockCountHistory counts={counts} onOpen={(id) => navigate(`/stock-count/${id}`)} />
     </div>
   );
 }
@@ -361,10 +402,7 @@ function StockCountDetail({ id }: { id: string }) {
       setLoading(true);
       try {
         const res = await getStockCount(id);
-        if (!cancelled) {
-          setCount(res.count);
-          setError(null);
-        }
+        if (!cancelled) { setCount(res.count); setError(null); }
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load stock count");
       } finally {
@@ -372,9 +410,7 @@ function StockCountDetail({ id }: { id: string }) {
       }
     }
     void loadCount();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [id]);
 
   async function handleFinalize() {
@@ -395,7 +431,7 @@ function StockCountDetail({ id }: { id: string }) {
     return (
       <div className="page-loading">
         <div className="spinner" />
-        <p>Loading stock count...</p>
+        <p>Loading stock count…</p>
       </div>
     );
   }
@@ -408,61 +444,62 @@ function StockCountDetail({ id }: { id: string }) {
     );
   }
 
-  const totalVariance = count.items.reduce((total, item) => total + item.variance, 0);
+  const totalVariance = count.items.reduce((t, item) => t + item.variance, 0);
 
   return (
     <div className="stock-count-page">
-      <section className="stock-count-hero">
-        <div>
+      <div className="sc-header">
+        <div className="sc-header-left">
           <span className="daily-ops-kicker">Stock Count Detail</span>
           <h1 className="page-title">{count.location.name} count</h1>
           <p className="page-subtitle">
             Created by {count.createdBy.name} on {formatDateTime(count.createdAt)}.
           </p>
         </div>
-        <div className="stock-count-detail-actions">
+        <div className="sc-detail-actions">
           <span className={`stock-count-status stock-count-status--${count.status.toLowerCase()}`}>
+            <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor" aria-hidden="true"><circle cx="4" cy="4" r="4" /></svg>
             {formatStatus(count.status)}
           </span>
-          <button type="button" className="btn btn--secondary" onClick={() => navigate("/stock-count")}>Back to Counts</button>
+          <button type="button" className="btn btn--ghost btn--sm" onClick={() => navigate("/stock-count")}>
+            ← Back
+          </button>
           {count.status === "DRAFT" && (
             <button
               type="button"
-              className="btn btn--primary"
+              className="btn btn--primary btn--sm"
               disabled={!canFinalize || finalizing}
-              onClick={handleFinalize}
+              onClick={() => { void handleFinalize(); }}
             >
-              {finalizing ? "Finalizing..." : "Finalize Count"}
+              {finalizing ? <><span className="btn-spinner btn-spinner--xs" /> Finalizing…</> : "Finalize Count"}
             </button>
           )}
         </div>
-      </section>
+      </div>
 
-      <section className="stock-count-detail-grid">
+      {error && <div className="alert alert--error">{error}</div>}
+
+      <div className="sc-detail-stats">
         <DetailStat label="Location" value={count.location.name} />
         <DetailStat label="Created by" value={count.createdBy.name} />
         <DetailStat label="Status" value={formatStatus(count.status)} />
         <DetailStat label="Net variance" value={formatSigned(totalVariance)} tone={varianceTone(totalVariance)} />
-        <DetailStat label="Finalized by" value={count.finalizedBy?.name ?? "Not finalized"} />
-        <DetailStat label="Finalized date" value={count.finalizedAt ? formatDateTime(count.finalizedAt) : "Not finalized"} />
-      </section>
+        <DetailStat label="Finalized by" value={count.finalizedBy?.name ?? "—"} />
+        <DetailStat label="Finalized" value={count.finalizedAt ? formatDateTime(count.finalizedAt) : "—"} />
+      </div>
 
       {count.note && (
-        <section className="stock-count-panel">
-          <div className="stock-count-panel-head">
-            <div>
-              <h2>Count note</h2>
-              <p>{count.note}</p>
-            </div>
-          </div>
-        </section>
+        <div className="sc-panel sc-detail-note">
+          <p className="sc-panel-title">Count note</p>
+          <p className="sc-panel-sub">{count.note}</p>
+        </div>
       )}
 
-      <section className="stock-count-panel">
-        <div className="stock-count-panel-head">
+      <div className="sc-panel">
+        <div className="sc-panel-head">
           <div>
-            <h2>Counted items</h2>
-            <p>{count.items.length} items counted in this cycle count.</p>
+            <h2 className="sc-panel-title">Counted items</h2>
+            <p className="sc-panel-sub">{count.items.length} item{count.items.length === 1 ? "" : "s"} counted in this cycle count.</p>
           </div>
         </div>
         <div className="stock-count-detail-table-wrap">
@@ -470,8 +507,8 @@ function StockCountDetail({ id }: { id: string }) {
             <thead>
               <tr>
                 <th>Item</th>
-                <th>System</th>
-                <th>Physical</th>
+                <th>System qty</th>
+                <th>Physical qty</th>
                 <th>Variance</th>
               </tr>
             </thead>
@@ -490,72 +527,75 @@ function StockCountDetail({ id }: { id: string }) {
             </tbody>
           </table>
         </div>
-      </section>
+      </div>
     </div>
   );
 }
 
 type StockCountSummary = Awaited<ReturnType<typeof getStockCounts>>["counts"][number];
 
-function StockCountHistory({
-  counts,
-  onOpen,
-}: {
-  counts: StockCountSummary[];
-  onOpen: (id: string) => void;
-}) {
+function StockCountHistory({ counts, onOpen }: { counts: StockCountSummary[]; onOpen: (id: string) => void }) {
   return (
-    <section className="stock-count-panel">
-      <div className="stock-count-panel-head">
+    <div className="sc-panel sc-history">
+      <div className="sc-panel-head">
         <div>
-          <h2>Stock Count History</h2>
-          <p>Review drafts and finalized cycle counts.</p>
+          <h2 className="sc-panel-title">Count history</h2>
+          <p className="sc-panel-sub">Review saved drafts and finalized cycle counts.</p>
         </div>
       </div>
       {counts.length === 0 ? (
-        <div className="stock-count-empty-state">
-          <strong>No stock counts yet</strong>
-          <span>Saved drafts and finalized counts will appear here.</span>
+        <div className="sc-empty sc-empty--inline">
+          <svg className="sc-empty-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" />
+          </svg>
+          <p className="sc-empty-title">No counts yet</p>
+          <p className="sc-empty-sub">Saved drafts and finalized counts will appear here.</p>
         </div>
       ) : (
-        <div className="stock-count-history-list">
+        <div className="sc-history-list">
           {counts.map((count) => {
-            const varianceTotal = count.items.reduce((total, item) => total + item.variance, 0);
+            const varianceTotal = count.items.reduce((t, item) => t + item.variance, 0);
             return (
-              <button key={count.id} type="button" onClick={() => onOpen(count.id)}>
-                <span>
-                  <strong>{count.location.name}</strong>
-                  <em>{count.createdBy.name} - {formatDateTime(count.createdAt)}</em>
-                </span>
-                <span className={`stock-count-status stock-count-status--${count.status.toLowerCase()}`}>
-                  {formatStatus(count.status)}
-                </span>
-                <span className={`stock-count-history-variance stock-count-history-variance--${varianceTone(varianceTotal)}`}>
-                  {formatSigned(varianceTotal)}
-                </span>
+              <button key={count.id} type="button" className="sc-history-row" onClick={() => onOpen(count.id)}>
+                <div className="sc-history-row-info">
+                  <strong className="sc-history-location">{count.location.name}</strong>
+                  <span className="sc-history-meta">{count.createdBy.name} · {formatDateTime(count.createdAt)}</span>
+                </div>
+                <div className="sc-history-row-right">
+                  <span className={`stock-count-status stock-count-status--${count.status.toLowerCase()}`}>
+                    <svg width="6" height="6" viewBox="0 0 8 8" fill="currentColor" aria-hidden="true"><circle cx="4" cy="4" r="4" /></svg>
+                    {formatStatus(count.status)}
+                  </span>
+                  <span className={`sc-variance-pill sc-variance-pill--${varianceTone(varianceTotal)}`}>
+                    {formatSigned(varianceTotal)}
+                  </span>
+                  <svg className="sc-history-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="m9 18 6-6-6-6" />
+                  </svg>
+                </div>
               </button>
             );
           })}
         </div>
       )}
-    </section>
+    </div>
   );
 }
 
-function Metric({ label, value, tone = "neutral" }: { label: string; value: string; tone?: "positive" | "negative" | "zero" | "neutral" }) {
+function ScMetric({ label, value, tone = "neutral" }: { label: string; value: string; tone?: "positive" | "negative" | "zero" | "neutral" }) {
   return (
-    <div className={`stock-count-metric stock-count-metric--${tone}`}>
-      <span>{label}</span>
-      <strong>{value}</strong>
+    <div className={`sc-metric sc-metric--${tone}`}>
+      <span className="sc-metric-label">{label}</span>
+      <strong className="sc-metric-value">{value}</strong>
     </div>
   );
 }
 
 function DetailStat({ label, value, tone = "neutral" }: { label: string; value: string; tone?: "positive" | "negative" | "zero" | "neutral" }) {
   return (
-    <div className={`stock-count-detail-stat stock-count-detail-stat--${tone}`}>
-      <span>{label}</span>
-      <strong>{value}</strong>
+    <div className={`sc-detail-stat sc-detail-stat--${tone}`}>
+      <span className="sc-detail-stat-label">{label}</span>
+      <strong className="sc-detail-stat-value">{value}</strong>
     </div>
   );
 }
@@ -564,7 +604,7 @@ function VarianceBadge({ value, unit }: { value: number; unit: string }) {
   const rounded = roundQuantity(value);
   const tone = varianceTone(rounded);
   return (
-    <span className={`stock-count-variance stock-count-variance--${tone}`}>
+    <span className={`sc-variance-pill sc-variance-pill--${tone}`}>
       {formatSigned(rounded)} {unit}
     </span>
   );
