@@ -582,16 +582,25 @@ function OfflineNotice() {
   );
 }
 
+type ResendStatus = "idle" | "loading" | "sent" | "error_auth" | "error_provider" | "error";
+
 function EmailVerifyBanner({ email }: { email: string }) {
-  const [status, setStatus] = useState<"idle" | "loading" | "sent" | "error">("idle");
+  const [status, setStatus] = useState<ResendStatus>("idle");
 
   async function handleResend() {
     setStatus("loading");
     try {
       await resendVerification();
       setStatus("sent");
-    } catch {
-      setStatus("error");
+    } catch (err) {
+      const status = (err as { status?: number }).status;
+      if (status === 401) {
+        setStatus("error_auth");
+      } else if (status === 503 || status === 502) {
+        setStatus("error_provider");
+      } else {
+        setStatus("error_provider");
+      }
     }
   }
 
@@ -604,11 +613,30 @@ function EmailVerifyBanner({ email }: { email: string }) {
           </svg>
         </div>
         <span className="verify-banner-text">
-          Email sent to <strong>{email}</strong> — check your inbox (and spam folder).
+          Verification email sent. Check your inbox (and spam folder).
         </span>
       </div>
     );
   }
+
+  if (status === "error_auth") {
+    return (
+      <div className="verify-banner verify-banner--error" role="alert">
+        <div className="verify-banner-icon-wrap verify-banner-icon-wrap--error">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+        </div>
+        <span className="verify-banner-text">
+          Please sign in again to resend the verification email.
+        </span>
+      </div>
+    );
+  }
+
+  const errorMsg = (status === "error_provider" || status === "error")
+    ? "Unable to send verification email right now. Please try again later."
+    : null;
 
   return (
     <div className="verify-banner" role="status">
@@ -620,8 +648,8 @@ function EmailVerifyBanner({ email }: { email: string }) {
       </div>
       <span className="verify-banner-text">
         Please verify your email address to unlock all features.
-        {status === "error" && (
-          <span className="verify-banner-error"> Couldn't send — please try again.</span>
+        {errorMsg && (
+          <span className="verify-banner-error"> {errorMsg}</span>
         )}
       </span>
       <button
@@ -633,7 +661,7 @@ function EmailVerifyBanner({ email }: { email: string }) {
         {status === "loading" ? (
           <><span className="btn-spinner btn-spinner--xs" /> Sending…</>
         ) : (
-          status === "error" ? "Try again" : "Resend email"
+          (status === "error_provider" || status === "error") ? "Try again" : "Resend email"
         )}
       </button>
     </div>

@@ -2699,6 +2699,12 @@ body {
   color: #15803d;
 }
 
+.verify-banner--error {
+  border-color: #fecaca;
+  background: #fff1f2;
+  color: #b91c1c;
+}
+
 .verify-banner-icon-wrap {
   display: flex;
   align-items: center;
@@ -2714,6 +2720,11 @@ body {
 .verify-banner-icon-wrap--success {
   background: #dcfce7;
   color: #16a34a;
+}
+
+.verify-banner-icon-wrap--error {
+  background: #fee2e2;
+  color: #dc2626;
 }
 
 .verify-banner-text {
