@@ -8,6 +8,7 @@ import { prisma } from "./db/prisma.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import { requestIdMiddleware } from "./middleware/request-id.js";
 import { logRequest } from "./lib/logger.js";
+import { checkSchemaReadiness } from "./lib/schema-readiness.js";
 import { alertsRouter } from "./routes/alerts.js";
 import { auditLogsRouter } from "./routes/audit-logs.js";
 import { authRouter } from "./routes/auth.js";
@@ -133,18 +134,30 @@ app.get("/api/health", (_req, res) => {
 });
 
 app.get("/api/ready", async (_req, res) => {
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-    return res.json({
-      status: "ready",
-      database: "ok",
-    });
-  } catch {
+  const result = await checkSchemaReadiness();
+
+  if (!result.dbReachable) {
     return res.status(503).json({
       status: "not_ready",
       database: "unavailable",
+      schema: "unknown",
     });
   }
+
+  if (!result.ready) {
+    return res.status(503).json({
+      status: "not_ready",
+      database: "ok",
+      schema: "not_migrated",
+      missingTables: result.missingTables,
+    });
+  }
+
+  return res.json({
+    status: "ready",
+    database: "ok",
+    schema: "ok",
+  });
 });
 
 app.use("/auth", authRouter);

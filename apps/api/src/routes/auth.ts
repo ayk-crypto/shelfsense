@@ -114,7 +114,18 @@ authRouter.post("/register", asyncHandler(async (req, res) => {
       return res.status(503).json({ error: "Database is temporarily unavailable. Please try again in a moment." });
     }
     if (isMissingTableError(err)) {
-      return res.status(503).json({ error: "Service is not fully initialised. Please try again shortly." });
+      const meta = err instanceof Prisma.PrismaClientKnownRequestError ? err.meta : undefined;
+      logger.error("[AUTH] register blocked — schema not fully migrated", {
+        step: currentStep,
+        prismaCode,
+        missingTable: (meta as Record<string, unknown> | undefined)?.table,
+        missingColumn: (meta as Record<string, unknown> | undefined)?.column_name,
+        action: "Run: npx prisma migrate deploy",
+      });
+      return res.status(503).json({
+        error: "Service is not fully initialised. Please try again shortly.",
+        code: "SCHEMA_NOT_READY",
+      });
     }
     throw err;
   }
