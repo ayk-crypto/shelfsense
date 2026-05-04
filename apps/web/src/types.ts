@@ -123,6 +123,7 @@ export interface WorkspaceSettingsResponse {
 
 export interface OnboardingStatus {
   onboardingCompleted: boolean;
+  currentStep: number;
   hasItems: boolean;
   hasSuppliers: boolean;
   hasLocations: boolean;

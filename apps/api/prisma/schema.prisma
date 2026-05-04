@@ -107,6 +107,7 @@ model Workspace {
   lastScheduledExpirySoonEmailAt  DateTime?
   lastDailyDigestSentAt           DateTime?
   onboardingCompleted Boolean    @default(false)
+  onboardingStep   Int             @default(0)
   businessType   String?
   plan           PlanTier    @default(FREE)
   ownerId        String          @db.Uuid

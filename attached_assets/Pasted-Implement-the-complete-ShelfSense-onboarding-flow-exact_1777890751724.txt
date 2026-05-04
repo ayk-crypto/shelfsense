@@ -1,0 +1,75 @@
+Implement the complete ShelfSense onboarding flow exactly as defined:
+
+1. New signup redirects to /onboarding.
+2. If onboarding is incomplete, redirect app/dashboard access to /onboarding.
+3. Existing demo/seed users should not be blocked.
+4. Add progress tracking:
+   - currentStep
+   - completedSteps
+   - onboardingCompleted
+   - resume after refresh.
+
+Onboarding steps:
+1. Workspace Setup
+   - Business name
+   - Business type: Restaurant, Retail, Pharmacy, Warehouse, Other
+
+2. Business Profile
+   - Main branch/location name
+   - Default currency PKR
+   - Optional business phone
+
+3. Units & Categories
+   - Suggested units: kg, gram, liter, ml, pcs, carton, packet, bottle
+   - Suggested categories: Meat, Dairy, Vegetables, Beverages, Dry Goods, Packaging, Cleaning
+   - User can accept, edit, add, or skip.
+
+4. Add First Items
+   - Quick add 3–5 items
+   - Fields: item name, unit, category, minimum stock, expiry tracking yes/no
+   - Allow skip.
+
+5. Add Initial Stock
+   - Add opening stock for onboarding items
+   - Fields: item, quantity, unit cost optional, expiry date optional, batch number optional
+   - Allow skip.
+
+6. Completion
+   - Show success message
+   - CTA: Go to Dashboard
+   - Mark onboardingCompleted = true.
+
+UX:
+- Clean SaaS-style layout
+- Progress bar
+- Mobile-friendly
+- Save progress after each step
+- Clear skip buttons
+- Do not overwhelm user
+
+Backend:
+- Add/update onboarding endpoints:
+  - GET onboarding state
+  - PATCH onboarding progress
+  - POST complete onboarding
+- Auth protected
+- Workspace scoped
+- Plan limits should apply with friendly messages.
+
+Do not break:
+- Auth
+- Workspace
+- Inventory
+- Stock workflows
+- Units/categories
+- Locations
+- Plan limits
+- Demo user access
+
+Verification:
+- Run build for shared, API, and web.
+- Test new signup → onboarding → dashboard.
+- Test refresh during onboarding.
+- Test skip optional steps.
+- Test direct /dashboard access before onboarding completion.
+- Test demo user still works.

@@ -1088,6 +1088,302 @@ body {
   line-height: 1.4;
 }
 
+/* ── Onboarding: 6-step additions ─────────────────────────────────────────── */
+
+.ob-step-subtitle {
+  font-size: 13.5px;
+  color: var(--color-text-muted);
+  margin: 2px 0 0;
+  line-height: 1.5;
+}
+
+/* Chip / tag selector */
+.ob-chip-section {
+  margin-top: 20px;
+}
+
+.ob-chip-section + .ob-chip-section {
+  margin-top: 24px;
+}
+
+.ob-chip-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.ob-chip-section-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.ob-chip-section-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ob-chip-link {
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  font-size: 12px;
+  color: var(--color-primary);
+  cursor: pointer;
+  font-weight: 500;
+  font-family: inherit;
+}
+.ob-chip-link:hover { text-decoration: underline; }
+
+.ob-chip-link-sep {
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.ob-chips-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ob-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1.5px solid var(--color-border);
+  background: #f8fafc;
+  color: var(--color-text-muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s, color 0.12s;
+  font-family: inherit;
+}
+.ob-chip:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: var(--color-primary-light);
+}
+.ob-chip--active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.ob-add-custom {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.ob-add-custom-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.ob-add-custom-btn {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Multi-item list */
+.ob-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.ob-item-row {
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  background: #fafbff;
+}
+
+.ob-item-row-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.ob-item-row-num {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.ob-item-row-remove {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-family: inherit;
+  line-height: 1;
+}
+.ob-item-row-remove:hover { background: #fee2e2; color: #dc2626; }
+
+.ob-item-row-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+@media (min-width: 640px) {
+  .ob-item-row-grid {
+    grid-template-columns: 2fr 1fr 1fr 1fr auto;
+    align-items: end;
+  }
+}
+
+.ob-item-expiry {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ob-expiry-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.ob-expiry-val {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+/* Toggle switch */
+.ob-toggle-label {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.ob-toggle-input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.ob-toggle-track {
+  width: 38px;
+  height: 22px;
+  border-radius: 999px;
+  background: #cbd5e1;
+  position: relative;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+
+.ob-toggle-input:checked + .ob-toggle-track {
+  background: var(--color-primary);
+}
+
+.ob-toggle-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  transition: transform 0.15s;
+}
+
+.ob-toggle-input:checked + .ob-toggle-track .ob-toggle-thumb {
+  transform: translateX(16px);
+}
+
+/* Add item button */
+.ob-add-item-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  padding: 7px 14px;
+  border: 1.5px dashed var(--color-primary);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.12s;
+}
+.ob-add-item-btn:hover {
+  background: var(--color-primary-light);
+}
+
+/* Stock entry list */
+.ob-stock-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.ob-stock-row {
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  background: #fafbff;
+}
+
+.ob-stock-row-header {
+  margin-bottom: 12px;
+}
+
+.ob-stock-item-name {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.ob-stock-row-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+@media (min-width: 640px) {
+  .ob-stock-row-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* Summary row done state */
+.onboarding-summary-row--done {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+.onboarding-summary-row--done .onboarding-check {
+  color: var(--color-green, #16a34a);
+}
+.onboarding-check {
+  font-size: 14px;
+  font-weight: 700;
+  color: #94a3b8;
+  min-width: 18px;
+}
+
 .onboarding-finish-icon {
   font-size: 48px;
   text-align: center;

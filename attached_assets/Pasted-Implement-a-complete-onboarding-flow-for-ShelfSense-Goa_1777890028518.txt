@@ -1,0 +1,97 @@
+Implement a complete onboarding flow for ShelfSense.
+
+Goal:
+After signup, guide new users through the minimum setup needed before they reach the dashboard.
+
+Flow:
+1. Workspace Setup
+2. Business Profile
+3. Units & Categories
+4. Add First Items
+5. Add Initial Stock
+6. Completion
+
+Requirements:
+1. After new signup, redirect user to /onboarding.
+2. If onboarding is incomplete, prevent direct access to dashboard/app pages and redirect to /onboarding.
+3. Existing demo/seed users should not be blocked.
+4. Add onboarding progress tracking:
+   - currentStep
+   - completedSteps
+   - onboardingCompleted
+   - allow resume if user refreshes or leaves midway.
+
+Step 1 — Workspace Setup:
+- Workspace/business name
+- Business type:
+  - Restaurant
+  - Retail
+  - Pharmacy
+  - Warehouse
+  - Other
+
+Step 2 — Business Profile:
+- Main branch/location name
+- Currency default, keep PKR as default
+- Optional business phone
+
+Step 3 — Units & Categories:
+- Show default suggested units:
+  - kg, gram, liter, ml, pcs, carton, packet, bottle
+- Show default suggested categories:
+  - Meat, Dairy, Vegetables, Beverages, Dry Goods, Packaging, Cleaning
+- User can accept defaults, edit, add, or skip.
+
+Step 4 — Add First Items:
+- Quick add 3–5 items.
+- Minimal fields:
+  - Item name
+  - Unit
+  - Category
+  - Minimum stock
+  - Expiry tracking yes/no
+- Also allow skip.
+
+Step 5 — Add Initial Stock:
+- Let user add opening stock for items created in onboarding.
+- Fields:
+  - Item
+  - Quantity
+  - Unit cost optional
+  - Expiry date optional if expiry tracking enabled
+  - Batch number optional
+- Also allow skip.
+
+Step 6 — Completion:
+- Show success message.
+- CTA: Go to Dashboard.
+- Mark onboardingCompleted = true.
+
+UX:
+- Clean SaaS-style onboarding layout.
+- Progress bar.
+- Step title and short explanation.
+- Mobile-friendly.
+- Save progress after each step.
+- Clear skip buttons where allowed.
+- Do not overwhelm user.
+
+Backend/API:
+- Add/update onboarding endpoints if needed:
+  - GET onboarding state
+  - PATCH onboarding progress
+  - POST complete onboarding
+- Workspace-scoped.
+- Auth protected.
+
+Compatibility:
+- Do not break existing auth, workspace, inventory, stock, units, categories, locations, or plan limits.
+- Plan limits should apply during onboarding too, but user-friendly messages should be shown.
+
+Verification:
+- Run build for shared, API, and web.
+- Test new signup → onboarding → dashboard.
+- Test refresh during onboarding.
+- Test skip optional steps.
+- Test direct /dashboard access before onboarding completion redirects to onboarding.
+- Test demo user still works.
