@@ -1,11 +1,11 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { createItem } from "../api/items";
-import { createLocation } from "../api/locations";
+import { getLocations } from "../api/locations";
 import { completeOnboarding } from "../api/onboarding";
-import { createTeamUser } from "../api/team";
+import { stockIn } from "../api/stock";
+import { createSupplier } from "../api/suppliers";
 import { updateWorkspaceSettings } from "../api/workspace";
-import type { OnboardingStatus, Role, WorkspaceSettings } from "../types";
+import type { Location, OnboardingStatus, WorkspaceSettings } from "../types";
 
 interface OnboardingPageProps {
   settings: WorkspaceSettings;
@@ -14,8 +14,14 @@ interface OnboardingPageProps {
   onSettingsUpdated: (settings: WorkspaceSettings) => void;
 }
 
-const CURRENCY_OPTIONS = ["PKR"];
-const STEPS = ["Business Setup", "Branch Setup", "Add Items", "Invite Team", "Finish"];
+const BUSINESS_TYPES = [
+  { value: "restaurant", label: "Restaurant", icon: "🍽️", desc: "Food service & kitchen" },
+  { value: "retail", label: "Retail Store", icon: "🛍️", desc: "Shop & storefront" },
+  { value: "pharmacy", label: "Pharmacy", icon: "💊", desc: "Medical & health supplies" },
+  { value: "other", label: "Other", icon: "📦", desc: "Any other business type" },
+];
+
+const STEP_LABELS = ["Workspace", "Add Item", "Add Stock", "Add Supplier", "All Set!"];
 
 export function OnboardingPage({
   settings,
@@ -23,123 +29,103 @@ export function OnboardingPage({
   onComplete,
   onSettingsUpdated,
 }: OnboardingPageProps) {
-  const navigate = useNavigate();
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [businessForm, setBusinessForm] = useState({
-    name: settings.name,
-    currency: settings.currency,
-    expiryAlertDays: String(settings.expiryAlertDays),
-  });
-  const [branchName, setBranchName] = useState("");
-  const [branchDone, setBranchDone] = useState(status.hasLocations);
-  const [itemForm, setItemForm] = useState({
-    name: "",
-    unit: "pcs",
-    category: "",
-    minStockLevel: "0",
-    trackExpiry: false,
-  });
-  const [itemDone, setItemDone] = useState(status.hasItems);
-  const [teamForm, setTeamForm] = useState({
-    name: "",
-    email: "",
-    password: "",
-    role: "OPERATOR" as Exclude<Role, "OWNER">,
-  });
-  const [teamDone, setTeamDone] = useState(false);
 
-  const progress = Math.round(((step + 1) / STEPS.length) * 100);
+  const [businessName, setBusinessName] = useState(settings.name);
+  const [businessType, setBusinessType] = useState<string>(settings.businessType ?? "");
 
-  function next() {
+  const [itemName, setItemName] = useState("");
+  const [itemUnit, setItemUnit] = useState("pcs");
+  const [createdItemId, setCreatedItemId] = useState<string | null>(null);
+  const [itemAdded, setItemAdded] = useState(status.hasItems);
+
+  const [stockQty, setStockQty] = useState("");
+  const [stockCost, setStockCost] = useState("");
+  const [stockLocationId, setStockLocationId] = useState("");
+  const [locations, setLocations] = useState<Location[]>([]);
+  const [stockAdded, setStockAdded] = useState(false);
+
+  const [supplierName, setSupplierName] = useState("");
+  const [supplierPhone, setSupplierPhone] = useState("");
+  const [supplierAdded, setSupplierAdded] = useState(status.hasSuppliers);
+
+  const [workspaceSaved, setWorkspaceSaved] = useState(false);
+
+  const progress = Math.round(((step + 1) / STEP_LABELS.length) * 100);
+
+  useEffect(() => {
+    if (step === 2 && createdItemId) {
+      getLocations()
+        .then((res) => {
+          const active = res.locations.filter((l) => l.isActive);
+          setLocations(active);
+          if (active.length > 0 && !stockLocationId) {
+            setStockLocationId(active[0].id);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [step, createdItemId]);
+
+  function goNext() {
     setError(null);
-    setStep((current) => Math.min(current + 1, STEPS.length - 1));
+    setStep((s) => Math.min(s + 1, STEP_LABELS.length - 1));
   }
 
-  function back() {
+  function goBack() {
     setError(null);
-    setStep((current) => Math.max(current - 1, 0));
+    setStep((s) => Math.max(s - 1, 0));
   }
 
-  async function saveBusinessAndContinue() {
-    const expiryAlertDays = Number(businessForm.expiryAlertDays);
-
-    if (!businessForm.name.trim()) {
+  async function handleWorkspaceSetup() {
+    if (!businessName.trim()) {
       setError("Business name is required.");
       return;
     }
-
-    if (!Number.isInteger(expiryAlertDays) || expiryAlertDays < 0) {
-      setError("Expiry alert days cannot be negative.");
+    if (!businessType) {
+      setError("Please select a business type to continue.");
       return;
     }
-
     setSaving(true);
     setError(null);
     try {
       const res = await updateWorkspaceSettings({
-        name: businessForm.name.trim(),
-        currency: businessForm.currency,
-        expiryAlertDays,
+        name: businessName.trim(),
+        businessType,
       });
       onSettingsUpdated(res.settings);
-      next();
+      setWorkspaceSaved(true);
+      goNext();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save business setup.");
+      setError(err instanceof Error ? err.message : "Failed to save workspace settings.");
     } finally {
       setSaving(false);
     }
   }
 
-  async function addBranchAndContinue() {
-    if (!branchName.trim()) {
-      next();
+  async function handleAddItem() {
+    if (!itemName.trim()) {
+      goNext();
       return;
     }
-
+    if (!itemUnit.trim()) {
+      setError("Unit is required when adding an item.");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
-      await createLocation({ name: branchName.trim() });
-      setBranchDone(true);
-      next();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to add branch.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function addItemAndContinue() {
-    if (!itemForm.name.trim()) {
-      next();
-      return;
-    }
-
-    const minStockLevel = Number(itemForm.minStockLevel);
-    if (!itemForm.unit.trim()) {
-      setError("Item unit is required.");
-      return;
-    }
-
-    if (!Number.isFinite(minStockLevel) || minStockLevel < 0) {
-      setError("Minimum stock level cannot be negative.");
-      return;
-    }
-
-    setSaving(true);
-    setError(null);
-    try {
-      await createItem({
-        name: itemForm.name.trim(),
-        unit: itemForm.unit.trim(),
-        category: itemForm.category.trim() || undefined,
-        minStockLevel,
-        trackExpiry: itemForm.trackExpiry,
+      const res = await createItem({
+        name: itemName.trim(),
+        unit: itemUnit.trim(),
+        minStockLevel: 0,
+        trackExpiry: false,
       });
-      setItemDone(true);
-      next();
+      setCreatedItemId(res.item.id);
+      setItemAdded(true);
+      goNext();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to add item.");
     } finally {
@@ -147,49 +133,76 @@ export function OnboardingPage({
     }
   }
 
-  async function inviteUserAndContinue() {
-    const anyTeamField = teamForm.name.trim() || teamForm.email.trim() || teamForm.password.trim();
-    if (!anyTeamField) {
-      next();
+  async function handleAddStock() {
+    if (!createdItemId || !stockQty.trim()) {
+      goNext();
       return;
     }
-
-    if (!teamForm.name.trim() || !teamForm.email.trim() || !teamForm.password.trim()) {
-      setError("Name, email, and password are required to invite a team member.");
+    const qty = Number(stockQty);
+    if (!Number.isFinite(qty) || qty <= 0) {
+      setError("Quantity must be a positive number.");
       return;
     }
-
+    const cost = stockCost.trim() ? Number(stockCost) : undefined;
+    if (cost !== undefined && (!Number.isFinite(cost) || cost < 0)) {
+      setError("Unit cost must be a valid non-negative number.");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
-      await createTeamUser({
-        name: teamForm.name.trim(),
-        email: teamForm.email.trim(),
-        password: teamForm.password,
-        role: teamForm.role,
+      await stockIn({
+        itemId: createdItemId,
+        quantity: qty,
+        unitCost: cost,
+        ...(stockLocationId ? { locationId: stockLocationId } : {}),
+        note: "Opening stock — onboarding",
       });
-      setTeamDone(true);
-      next();
+      setStockAdded(true);
+      goNext();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to invite team member.");
+      setError(err instanceof Error ? err.message : "Failed to add stock.");
     } finally {
       setSaving(false);
     }
   }
 
-  async function finish() {
+  async function handleAddSupplier() {
+    if (!supplierName.trim()) {
+      goNext();
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await createSupplier({
+        name: supplierName.trim(),
+        phone: supplierPhone.trim() || undefined,
+      });
+      setSupplierAdded(true);
+      goNext();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to add supplier.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleFinish() {
     setSaving(true);
     setError(null);
     try {
       await completeOnboarding();
       onComplete();
-      navigate("/dashboard", { replace: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to finish onboarding.");
+      setError(err instanceof Error ? err.message : "Failed to complete setup.");
     } finally {
       setSaving(false);
     }
   }
+
+  const businessTypeLabel =
+    BUSINESS_TYPES.find((t) => t.value === businessType)?.label ?? businessType;
 
   return (
     <main className="onboarding-shell">
@@ -197,58 +210,77 @@ export function OnboardingPage({
         <div className="onboarding-brand">
           <span className="onboarding-logo">SS</span>
           <div>
-            <h1>ShelfSense setup</h1>
-            <p>Let's get your workspace ready in a few small steps.</p>
+            <h1 className="onboarding-brand-title">ShelfSense setup</h1>
+            <p className="onboarding-brand-sub">Let's get your workspace ready in a few quick steps.</p>
           </div>
         </div>
 
-        <div className="onboarding-progress" aria-label={`Step ${step + 1} of ${STEPS.length}`}>
+        <div className="onboarding-progress" aria-label={`Step ${step + 1} of ${STEP_LABELS.length}`}>
           <div className="onboarding-progress-head">
-            <span>{STEPS[step]}</span>
-            <strong>{step + 1}/{STEPS.length}</strong>
+            <span className="onboarding-step-label">{STEP_LABELS[step]}</span>
+            <strong className="onboarding-step-count">{step + 1} / {STEP_LABELS.length}</strong>
           </div>
           <div className="onboarding-progress-track">
             <span style={{ width: `${progress}%` }} />
           </div>
+          <div className="onboarding-dots">
+            {STEP_LABELS.map((_, i) => (
+              <span
+                key={i}
+                className={
+                  "onboarding-dot" +
+                  (i < step ? " onboarding-dot--done" : i === step ? " onboarding-dot--active" : "")
+                }
+              />
+            ))}
+          </div>
         </div>
 
-        {error && <div className="alert alert--error onboarding-error">{error}</div>}
+        {error && (
+          <div className="alert alert--error onboarding-error" role="alert">
+            {error}
+          </div>
+        )}
 
         {step === 0 && (
           <div className="onboarding-step">
-            <h2>Business Setup</h2>
-            <p>These basics appear across reports, alerts, and workspace settings.</p>
+            <h2>Tell us about your business</h2>
+            <p>These details personalise your ShelfSense experience.</p>
+
             <div className="form-group">
-              <label className="form-label">Business name</label>
+              <label className="form-label" htmlFor="ob-biz-name">
+                Business name <span className="onboarding-required">*</span>
+              </label>
               <input
+                id="ob-biz-name"
                 className="form-input"
-                value={businessForm.name}
-                onChange={(event) => setBusinessForm({ ...businessForm, name: event.target.value })}
+                value={businessName}
+                onChange={(e) => setBusinessName(e.target.value)}
+                placeholder="e.g. FreshMart, City Pharmacy, Al-Fatah"
+                autoFocus
               />
             </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label className="form-label">Currency</label>
-                <select
-                  className="form-select"
-                  value={businessForm.currency}
-                  onChange={(event) => setBusinessForm({ ...businessForm, currency: event.target.value })}
-                >
-                  {CURRENCY_OPTIONS.map((currency) => (
-                    <option key={currency} value={currency}>{currency}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Expiry alert days</label>
-                <input
-                  className="form-input"
-                  type="number"
-                  min={0}
-                  step={1}
-                  value={businessForm.expiryAlertDays}
-                  onChange={(event) => setBusinessForm({ ...businessForm, expiryAlertDays: event.target.value })}
-                />
+
+            <div className="form-group">
+              <label className="form-label">
+                Business type <span className="onboarding-required">*</span>
+              </label>
+              <div className="onboarding-type-grid">
+                {BUSINESS_TYPES.map((bt) => (
+                  <button
+                    key={bt.value}
+                    type="button"
+                    className={
+                      "onboarding-type-card" +
+                      (businessType === bt.value ? " onboarding-type-card--active" : "")
+                    }
+                    onClick={() => setBusinessType(bt.value)}
+                  >
+                    <span className="onboarding-type-icon">{bt.icon}</span>
+                    <span className="onboarding-type-name">{bt.label}</span>
+                    <span className="onboarding-type-desc">{bt.desc}</span>
+                  </button>
+                ))}
               </div>
             </div>
           </div>
@@ -256,179 +288,246 @@ export function OnboardingPage({
 
         {step === 1 && (
           <div className="onboarding-step">
-            <h2>Branch Setup</h2>
-            <p>Your workspace already has <strong>Main Branch</strong>. Add another branch now, or skip and do it later.</p>
-            {branchDone && <span className="onboarding-pill">Branch setup started</span>}
-            <div className="form-group">
-              <label className="form-label">Another branch name</label>
-              <input
-                className="form-input"
-                value={branchName}
-                onChange={(event) => setBranchName(event.target.value)}
-                placeholder="e.g. Gulberg Branch"
-              />
+            <h2>Add your first inventory item</h2>
+            <p>Start with one item — you can bulk-import more from the Items page later.</p>
+            {itemAdded && (
+              <div className="onboarding-pill onboarding-pill--success">
+                ✓ Item already in inventory
+              </div>
+            )}
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label" htmlFor="ob-item-name">Item name</label>
+                <input
+                  id="ob-item-name"
+                  className="form-input"
+                  value={itemName}
+                  onChange={(e) => setItemName(e.target.value)}
+                  placeholder="e.g. Milk, Paracetamol, Rice Bags"
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label" htmlFor="ob-item-unit">Unit</label>
+                <input
+                  id="ob-item-unit"
+                  className="form-input"
+                  value={itemUnit}
+                  onChange={(e) => setItemUnit(e.target.value)}
+                  placeholder="pcs, kg, ltr, box"
+                />
+              </div>
             </div>
+            <p className="onboarding-hint">Leave blank to skip — you can add items later.</p>
           </div>
         )}
 
         {step === 2 && (
           <div className="onboarding-step">
-            <h2>Add Items</h2>
-            <p>Add one starter item now, import from the Items page after setup, or skip for now.</p>
-            {itemDone && <span className="onboarding-pill">Inventory has at least one item</span>}
-            <div className="onboarding-action-grid">
-              <div className="onboarding-option onboarding-option--active">
-                <h3>Add item manually</h3>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label className="form-label">Item name</label>
-                    <input
-                      className="form-input"
-                      value={itemForm.name}
-                      onChange={(event) => setItemForm({ ...itemForm, name: event.target.value })}
-                      placeholder="e.g. Milk"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Unit</label>
-                    <input
-                      className="form-input"
-                      value={itemForm.unit}
-                      onChange={(event) => setItemForm({ ...itemForm, unit: event.target.value })}
-                      placeholder="pcs, kg, ltr"
-                    />
-                  </div>
+            <h2>Add opening stock</h2>
+            {!createdItemId ? (
+              <div className="onboarding-skip-notice">
+                <span className="onboarding-skip-icon">ℹ️</span>
+                <div>
+                  <strong>No item was added in the previous step.</strong>
+                  <p>You can add stock from <strong>Items → Stock In</strong> after completing setup.</p>
                 </div>
+              </div>
+            ) : (
+              <>
+                <p>
+                  How much <strong>{itemName}</strong> do you currently have?
+                </p>
+                {stockAdded && (
+                  <div className="onboarding-pill onboarding-pill--success">✓ Opening stock recorded</div>
+                )}
                 <div className="form-row">
                   <div className="form-group">
-                    <label className="form-label">Category</label>
+                    <label className="form-label" htmlFor="ob-stock-qty">Opening quantity</label>
                     <input
-                      className="form-input"
-                      value={itemForm.category}
-                      onChange={(event) => setItemForm({ ...itemForm, category: event.target.value })}
-                      placeholder="Optional"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Min stock level</label>
-                    <input
+                      id="ob-stock-qty"
                       className="form-input"
                       type="number"
                       min={0}
                       step="any"
-                      value={itemForm.minStockLevel}
-                      onChange={(event) => setItemForm({ ...itemForm, minStockLevel: event.target.value })}
+                      value={stockQty}
+                      onChange={(e) => setStockQty(e.target.value)}
+                      placeholder="e.g. 50"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="ob-stock-cost">Unit cost <span className="onboarding-optional">(optional)</span></label>
+                    <input
+                      id="ob-stock-cost"
+                      className="form-input"
+                      type="number"
+                      min={0}
+                      step="any"
+                      value={stockCost}
+                      onChange={(e) => setStockCost(e.target.value)}
+                      placeholder="e.g. 120"
                     />
                   </div>
                 </div>
-                <label className="form-group form-group--inline">
-                  <input
-                    type="checkbox"
-                    checked={itemForm.trackExpiry}
-                    onChange={(event) => setItemForm({ ...itemForm, trackExpiry: event.target.checked })}
-                  />
-                  <span className="form-label form-label--check">Track expiry for this item</span>
-                </label>
-              </div>
-              <div className="onboarding-option">
-                <h3>Import items via CSV/Excel</h3>
-                <p>Skip setup, then use <strong>Items / Import Items</strong> for bulk upload.</p>
-              </div>
-            </div>
+                {locations.length > 1 && (
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="ob-location">Location</label>
+                    <select
+                      id="ob-location"
+                      className="form-select"
+                      value={stockLocationId}
+                      onChange={(e) => setStockLocationId(e.target.value)}
+                    >
+                      {locations.map((loc) => (
+                        <option key={loc.id} value={loc.id}>{loc.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <p className="onboarding-hint">Leave quantity blank to skip.</p>
+              </>
+            )}
           </div>
         )}
 
         {step === 3 && (
           <div className="onboarding-step">
-            <h2>Invite Team</h2>
-            <p>Add a manager/operator now, or skip and invite people later from Team.</p>
-            {teamDone && <span className="onboarding-pill">Team member invited</span>}
+            <h2>Add a supplier</h2>
+            <p>Track where your stock comes from. You can skip this and add suppliers from the Suppliers page later.</p>
+            {supplierAdded && (
+              <div className="onboarding-pill onboarding-pill--success">✓ Supplier already added</div>
+            )}
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label">Name</label>
+                <label className="form-label" htmlFor="ob-sup-name">Supplier name</label>
                 <input
+                  id="ob-sup-name"
                   className="form-input"
-                  value={teamForm.name}
-                  onChange={(event) => setTeamForm({ ...teamForm, name: event.target.value })}
+                  value={supplierName}
+                  onChange={(e) => setSupplierName(e.target.value)}
+                  placeholder="e.g. Metro, Ahmed Traders, Al-Fatah"
                 />
               </div>
               <div className="form-group">
-                <label className="form-label">Email</label>
+                <label className="form-label" htmlFor="ob-sup-phone">
+                  Phone <span className="onboarding-optional">(optional)</span>
+                </label>
                 <input
+                  id="ob-sup-phone"
                   className="form-input"
-                  type="email"
-                  value={teamForm.email}
-                  onChange={(event) => setTeamForm({ ...teamForm, email: event.target.value })}
+                  type="tel"
+                  value={supplierPhone}
+                  onChange={(e) => setSupplierPhone(e.target.value)}
+                  placeholder="+92 300 1234567"
                 />
               </div>
             </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label className="form-label">Temporary password</label>
-                <input
-                  className="form-input"
-                  type="password"
-                  value={teamForm.password}
-                  onChange={(event) => setTeamForm({ ...teamForm, password: event.target.value })}
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Role</label>
-                <select
-                  className="form-select"
-                  value={teamForm.role}
-                  onChange={(event) => setTeamForm({ ...teamForm, role: event.target.value as Exclude<Role, "OWNER"> })}
-                >
-                  <option value="MANAGER">Manager</option>
-                  <option value="OPERATOR">Operator</option>
-                </select>
-              </div>
-            </div>
+            <p className="onboarding-hint">Leave blank to skip.</p>
           </div>
         )}
 
         {step === 4 && (
           <div className="onboarding-step onboarding-finish">
-            <h2>You're ready to run ShelfSense</h2>
-            <p>You can add more inventory, suppliers, team members, and alert preferences anytime from the main app.</p>
-            <div className="onboarding-summary">
-              <span>Business setup saved</span>
-              <span>{branchDone ? "Branch setup started" : "Branch skipped"}</span>
-              <span>{itemDone ? "Item added" : "Items skipped"}</span>
-              <span>{teamDone ? "Team invited" : "Team skipped"}</span>
-            </div>
+            <div className="onboarding-finish-icon" aria-hidden="true">🎉</div>
+            <h2>You're all set!</h2>
+            <p>Your ShelfSense workspace is ready. Here's a summary of what you've configured:</p>
+            <ul className="onboarding-summary">
+              <li className="onboarding-summary-row onboarding-summary-row--done">
+                <span className="onboarding-check">✓</span>
+                <span>
+                  Workspace <strong>{businessName}</strong>
+                  {businessTypeLabel ? ` · ${businessTypeLabel}` : ""}
+                </span>
+              </li>
+              <li className={`onboarding-summary-row${itemAdded ? " onboarding-summary-row--done" : ""}`}>
+                <span className="onboarding-check">{itemAdded ? "✓" : "–"}</span>
+                <span>{itemAdded ? `Item "${itemName || "added"}" created` : "No items added yet"}</span>
+              </li>
+              <li className={`onboarding-summary-row${stockAdded ? " onboarding-summary-row--done" : ""}`}>
+                <span className="onboarding-check">{stockAdded ? "✓" : "–"}</span>
+                <span>{stockAdded ? "Opening stock recorded" : "Stock setup skipped"}</span>
+              </li>
+              <li className={`onboarding-summary-row${supplierAdded ? " onboarding-summary-row--done" : ""}`}>
+                <span className="onboarding-check">{supplierAdded ? "✓" : "–"}</span>
+                <span>
+                  {supplierAdded
+                    ? `Supplier "${supplierName || "added"}" saved`
+                    : "No suppliers added yet"}
+                </span>
+              </li>
+            </ul>
+            <p className="onboarding-hint">You can add more items, stock, suppliers, and team members at any time.</p>
           </div>
         )}
 
         <div className="onboarding-footer">
-          <button type="button" className="btn btn--ghost" onClick={back} disabled={step === 0 || saving}>
-            Back
-          </button>
-          {step === 0 && (
-            <button type="button" className="btn btn--primary" onClick={() => { void saveBusinessAndContinue(); }} disabled={saving}>
-              {saving ? "Saving..." : "Continue"}
+          {step > 0 && (
+            <button
+              type="button"
+              className="btn btn--ghost"
+              onClick={goBack}
+              disabled={saving}
+            >
+              ← Back
             </button>
           )}
-          {step === 1 && (
-            <button type="button" className="btn btn--primary" onClick={() => { void addBranchAndContinue(); }} disabled={saving}>
-              {saving ? "Saving..." : branchName.trim() ? "Add branch" : "Skip for now"}
-            </button>
-          )}
-          {step === 2 && (
-            <button type="button" className="btn btn--primary" onClick={() => { void addItemAndContinue(); }} disabled={saving}>
-              {saving ? "Saving..." : itemForm.name.trim() ? "Add item" : "Skip for now"}
-            </button>
-          )}
-          {step === 3 && (
-            <button type="button" className="btn btn--primary" onClick={() => { void inviteUserAndContinue(); }} disabled={saving}>
-              {saving ? "Saving..." : teamForm.name.trim() || teamForm.email.trim() || teamForm.password.trim() ? "Invite user" : "Skip for now"}
-            </button>
-          )}
-          {step === 4 && (
-            <button type="button" className="btn btn--primary" onClick={() => { void finish(); }} disabled={saving}>
-              {saving ? "Finishing..." : "Go to Dashboard"}
-            </button>
-          )}
+
+          <div className="onboarding-footer-right">
+            {step === 0 && (
+              <button
+                type="button"
+                className="btn btn--primary onboarding-cta"
+                onClick={() => { void handleWorkspaceSetup(); }}
+                disabled={saving}
+              >
+                {saving ? "Saving…" : "Continue →"}
+              </button>
+            )}
+            {step === 1 && (
+              <button
+                type="button"
+                className="btn btn--primary onboarding-cta"
+                onClick={() => { void handleAddItem(); }}
+                disabled={saving}
+              >
+                {saving ? "Saving…" : itemName.trim() ? "Add Item & Continue →" : "Skip for now →"}
+              </button>
+            )}
+            {step === 2 && (
+              <button
+                type="button"
+                className="btn btn--primary onboarding-cta"
+                onClick={() => { void handleAddStock(); }}
+                disabled={saving}
+              >
+                {saving
+                  ? "Saving…"
+                  : createdItemId && stockQty.trim()
+                    ? "Add Stock & Continue →"
+                    : "Skip for now →"}
+              </button>
+            )}
+            {step === 3 && (
+              <button
+                type="button"
+                className="btn btn--primary onboarding-cta"
+                onClick={() => { void handleAddSupplier(); }}
+                disabled={saving}
+              >
+                {saving ? "Saving…" : supplierName.trim() ? "Add Supplier & Continue →" : "Skip for now →"}
+              </button>
+            )}
+            {step === 4 && (
+              <button
+                type="button"
+                className="btn btn--primary onboarding-cta"
+                onClick={() => { void handleFinish(); }}
+                disabled={saving}
+              >
+                {saving ? "Opening dashboard…" : "Go to Dashboard →"}
+              </button>
+            )}
+          </div>
         </div>
       </section>
     </main>

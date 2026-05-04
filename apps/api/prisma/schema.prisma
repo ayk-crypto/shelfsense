@@ -101,6 +101,7 @@ model Workspace {
   lastScheduledExpirySoonEmailAt  DateTime?
   lastDailyDigestSentAt           DateTime?
   onboardingCompleted Boolean    @default(false)
+  businessType   String?
   ownerId        String          @db.Uuid
   createdAt      DateTime        @default(now())
   owner          User            @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)

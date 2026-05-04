@@ -42,6 +42,7 @@ workspaceRouter.get("/settings", requireAuth, asyncHandler(async (req, res) => {
       lowStockMultiplier: true,
       expiryAlertDays: true,
       ownerPhone: true,
+      businessType: true,
       notifyLowStock: true,
       notifyExpiringSoon: true,
       notifyExpired: true,
@@ -109,6 +110,7 @@ workspaceRouter.patch("/settings", requireAuth, requireRole([Role.OWNER]), async
       lowStockMultiplier: true,
       expiryAlertDays: true,
       ownerPhone: true,
+      businessType: true,
       notifyLowStock: true,
       notifyExpiringSoon: true,
       notifyExpired: true,
@@ -184,6 +186,7 @@ function parseWorkspaceSettingsInput(body: unknown) {
     lowStockMultiplier?: unknown;
     expiryAlertDays?: unknown;
     ownerPhone?: unknown;
+    businessType?: unknown;
     notifyLowStock?: unknown;
     notifyExpiringSoon?: unknown;
     notifyExpired?: unknown;
@@ -202,6 +205,7 @@ function parseWorkspaceSettingsInput(body: unknown) {
     lowStockMultiplier: parseOptionalNumber(input.lowStockMultiplier),
     expiryAlertDays: parseOptionalInteger(input.expiryAlertDays),
     ownerPhone: parseOptionalNullableString(input.ownerPhone),
+    businessType: parseOptionalNullableString(input.businessType),
     notifyLowStock: parseOptionalBoolean(input.notifyLowStock),
     notifyExpiringSoon: parseOptionalBoolean(input.notifyExpiringSoon),
     notifyExpired: parseOptionalBoolean(input.notifyExpired),
@@ -248,6 +252,7 @@ function normalizeWorkspaceSettings(settings: {
   lowStockMultiplier: number | null;
   expiryAlertDays: number | null;
   ownerPhone: string | null;
+  businessType: string | null;
   notifyLowStock: boolean | null;
   notifyExpiringSoon: boolean | null;
   notifyExpired: boolean | null;
@@ -272,6 +277,7 @@ function normalizeWorkspaceSettings(settings: {
         ? settings.expiryAlertDays
         : DEFAULT_WORKSPACE_SETTINGS.expiryAlertDays,
     ownerPhone: settings.ownerPhone?.trim() || null,
+    businessType: settings.businessType?.trim() || null,
     notifyLowStock: settings.notifyLowStock ?? DEFAULT_WORKSPACE_SETTINGS.notifyLowStock,
     notifyExpiringSoon: settings.notifyExpiringSoon ?? DEFAULT_WORKSPACE_SETTINGS.notifyExpiringSoon,
     notifyExpired: settings.notifyExpired ?? DEFAULT_WORKSPACE_SETTINGS.notifyExpired,

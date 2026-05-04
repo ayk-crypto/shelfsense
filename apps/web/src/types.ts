@@ -104,6 +104,7 @@ export interface WorkspaceSettings {
   lowStockMultiplier: number;
   expiryAlertDays: number;
   ownerPhone: string | null;
+  businessType: string | null;
   notifyLowStock: boolean;
   notifyExpiringSoon: boolean;
   notifyExpired: boolean;
@@ -139,6 +140,7 @@ export interface UpdateWorkspaceSettingsInput {
   lowStockMultiplier?: number;
   expiryAlertDays?: number;
   ownerPhone?: string | null;
+  businessType?: string | null;
   notifyLowStock?: boolean;
   notifyExpiringSoon?: boolean;
   notifyExpired?: boolean;
@@ -328,6 +330,7 @@ export interface CreateItemInput {
 export interface StockInInput {
   itemId: string;
   quantity: number;
+  locationId?: string;
   unitCost?: number;
   expiryDate?: string;
   batchNo?: string;

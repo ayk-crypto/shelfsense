@@ -1,5 +1,6 @@
-import { Navigate, Route, BrowserRouter as Router, Routes } from "react-router-dom";
+import { Navigate, Route, BrowserRouter as Router, Routes, useNavigate } from "react-router-dom";
 import { getOnboardingStatus } from "./api/onboarding";
+import { getWorkspaceSettings } from "./api/workspace";
 import { AppShell } from "./components/AppShell";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { LocationProvider } from "./context/LocationContext";
@@ -28,7 +29,7 @@ import { StockOutPage } from "./pages/StockOutPage";
 import { SuppliersPage } from "./pages/SuppliersPage";
 import { TeamPage } from "./pages/TeamPage";
 import { useEffect, useState } from "react";
-import type { OnboardingStatus } from "./types";
+import type { OnboardingStatus, WorkspaceSettings } from "./types";
 import type { Role } from "./types";
 import "./App.css";
 
@@ -93,9 +94,9 @@ function AccessDenied() {
   );
 }
 
-function OwnerOnboardingGate({ children }: { children: React.ReactNode }) {
+function OnboardingGuard({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
-  const { settings, loading: settingsLoading, error: settingsError, setSettings } = useWorkspaceSettings();
+  const { loading: settingsLoading, error: settingsError } = useWorkspaceSettings();
   const [status, setStatus] = useState<OnboardingStatus | null>(null);
   const [loading, setLoading] = useState(user?.role === "OWNER");
   const [error, setError] = useState<string | null>(null);
@@ -138,12 +139,12 @@ function OwnerOnboardingGate({ children }: { children: React.ReactNode }) {
     return (
       <div className="page-loading">
         <div className="spinner" />
-        <p>Loading workspace setup...</p>
+        <p>Loading workspace…</p>
       </div>
     );
   }
 
-  if (error || settingsError || !status) {
+  if (error || settingsError) {
     return (
       <div className="page-error">
         <div className="alert alert--error">{error ?? settingsError ?? "Unable to load onboarding"}</div>
@@ -151,18 +152,76 @@ function OwnerOnboardingGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!status.onboardingCompleted) {
-    return (
-      <OnboardingPage
-        settings={settings}
-        status={status}
-        onSettingsUpdated={setSettings}
-        onComplete={() => setStatus((current) => current ? { ...current, onboardingCompleted: true } : current)}
-      />
-    );
+  if (!status?.onboardingCompleted) {
+    return <Navigate to="/onboarding" replace />;
   }
 
   return <>{children}</>;
+}
+
+function OnboardingPageWrapper() {
+  const navigate = useNavigate();
+  const [settings, setSettings] = useState<WorkspaceSettings | null>(null);
+  const [status, setStatus] = useState<OnboardingStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const [settingsRes, statusRes] = await Promise.all([
+          getWorkspaceSettings(),
+          getOnboardingStatus(),
+        ]);
+        if (cancelled) return;
+        if (statusRes.onboardingCompleted) {
+          navigate("/dashboard", { replace: true });
+          return;
+        }
+        setSettings(settingsRes.settings);
+        setStatus(statusRes);
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Failed to load setup data");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate]);
+
+  if (loading) {
+    return (
+      <div className="page-loading">
+        <div className="spinner" />
+        <p>Loading setup…</p>
+      </div>
+    );
+  }
+
+  if (error || !settings || !status) {
+    return (
+      <div className="page-error">
+        <div className="alert alert--error">{error ?? "Unable to load setup data"}</div>
+      </div>
+    );
+  }
+
+  return (
+    <OnboardingPage
+      settings={settings}
+      status={status}
+      onSettingsUpdated={setSettings}
+      onComplete={() => navigate("/dashboard", { replace: true })}
+    />
+  );
 }
 
 export function App() {
@@ -197,15 +256,25 @@ export function App() {
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
           <Route
+            path="/onboarding"
+            element={
+              <ProtectedRoute>
+                <WorkspaceRequiredRoute>
+                  <OnboardingPageWrapper />
+                </WorkspaceRequiredRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
             element={
               <ProtectedRoute>
                 <WorkspaceRequiredRoute>
                   <WorkspaceSettingsProvider>
-                    <OwnerOnboardingGate>
+                    <OnboardingGuard>
                       <LocationProvider>
                         <AppShell />
                       </LocationProvider>
-                    </OwnerOnboardingGate>
+                    </OnboardingGuard>
                   </WorkspaceSettingsProvider>
                 </WorkspaceRequiredRoute>
               </ProtectedRoute>

@@ -45,7 +45,7 @@ This is an npm workspaces monorepo with three packages:
 - Barcode scanning via html5-qrcode (lazy-loaded, halves main bundle)
 - Notifications system (unread count, mark-all-read)
 - Location selector (multi-location per workspace)
-- Onboarding flow for new workspaces
+- **Onboarding wizard** (5-step): Workspace Setup (name + `businessType` card selector: restaurant/retail/pharmacy/other) → Add First Item → Add Initial Stock → Add Supplier → All Set summary. Dedicated `/onboarding` route; `OnboardingGuard` redirects OWNER to `/onboarding` if `onboardingCompleted` is false; `OnboardingPageWrapper` fetches settings + status, short-circuits to dashboard if already complete.
 - **Server-side reports**: 8 analytics reports at `GET /reports/{type}` — Inventory Valuation, Wastage Cost, Usage by Item, Supplier Spend, Stock Aging, Expiry Loss, Adjustment Variance, Transfer History. Each supports `dateFrom/dateTo/locationId/category/supplierId` filters and `?format=csv` streaming export. Protected by `reports:export` permission (OWNER + MANAGER).
 - Reports page with CSV export
 - Team management (invite / role change / remove)
@@ -57,11 +57,11 @@ This is an npm workspaces monorepo with three packages:
 ## Frontend Integration (`apps/web`)
 
 - **Login page** — email/password form; "Forgot password?" link; account lockout UI
-- **Signup page** — workspace + user creation; redirects to `/verify-email?sent=1`
+- **Signup page** — workspace + user creation; redirects to `/onboarding` after signup
 - **ForgotPasswordPage** (`/forgot-password`) — sends reset email
 - **ResetPasswordPage** (`/reset-password`) — validates token, sets new password
 - **VerifyEmailPage** (`/verify-email`) — confirms email verification token
-- **Onboarding** — multi-step setup flow
+- **Onboarding** (`/onboarding`) — 5-step wizard: Workspace Setup, Add First Item, Add Initial Stock, Add Supplier, All Set summary + Go to Dashboard
 - **Dashboard page** — summary stat cards + expiring-soon inventory table + cost analysis
 - **Items page** (`/items`) — list all items; Add Item modal; Stock In / Stock Out modals per row; inline toast notifications; bulk actions; barcode scanner
 - **Movements page** (`/movements`) — stock movement log with filters
