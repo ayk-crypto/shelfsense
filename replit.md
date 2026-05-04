@@ -46,6 +46,7 @@ This is an npm workspaces monorepo with three packages:
 - Notifications system (unread count, mark-all-read)
 - Location selector (multi-location per workspace)
 - Onboarding flow for new workspaces
+- **Server-side reports**: 8 analytics reports at `GET /reports/{type}` — Inventory Valuation, Wastage Cost, Usage by Item, Supplier Spend, Stock Aging, Expiry Loss, Adjustment Variance, Transfer History. Each supports `dateFrom/dateTo/locationId/category/supplierId` filters and `?format=csv` streaming export. Protected by `reports:export` permission (OWNER + MANAGER).
 - Reports page with CSV export
 - Team management (invite / role change / remove)
 - Activity log with filters

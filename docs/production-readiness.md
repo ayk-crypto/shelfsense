@@ -30,10 +30,42 @@ This document summarises the current product surface and the remaining work need
 - Supplier management and Purchase Order lifecycle (DRAFT → ORDERED → PARTIALLY_RECEIVED → RECEIVED/CANCELLED).
 - Barcode label generation and camera scanning (html5-qrcode, lazy-loaded).
 - Dashboard overview, alert summary, reorder suggestions, usage insights, stock forecast, cost analysis, and wastage summary.
-- CSV report exports for stock summary, stock movements, and purchases.
+- Server-side business analytics reports with date, location, category, and supplier filters — see [Available Reports](#available-reports) below.
+- CSV export for all 8 reports, streamed from the API with auth token (no client-side generation).
+- Legacy CSV report exports for stock summary, stock movements, and purchases.
 - Audit logging for core item, stock, transfer, purchase, and supplier actions.
 - Notifications system (unread badge, mark-all-read, bell panel).
 - Persistent email-verification banner in the app shell for unverified users.
+
+## Available Reports
+
+All reports are served from `GET /reports/{type}` and require the `reports:export` permission (OWNER and MANAGER roles). Responses include `{ summary, rows, generatedAt }`. Append `?format=csv` to any endpoint to stream a CSV file instead.
+
+### Common filter parameters
+
+| Parameter    | Type   | Description                                              |
+|-------------|--------|----------------------------------------------------------|
+| `dateFrom`  | date   | ISO date (YYYY-MM-DD); filters on `createdAt` or `date` |
+| `dateTo`    | date   | ISO date (YYYY-MM-DD); inclusive upper bound             |
+| `locationId`| UUID   | Limit to a single workspace location                    |
+| `itemId`    | UUID   | Limit to a specific item                                |
+| `category`  | string | Exact match on `item.category`                          |
+| `supplierId`| UUID   | Supplier Spend only — limit to one supplier              |
+
+### Report endpoints
+
+| Endpoint                         | Description                                                                 |
+|----------------------------------|-----------------------------------------------------------------------------|
+| `GET /reports/inventory-valuation` | Current stock value — remaining quantity × unit cost, grouped by item. Summary: total items, quantity, value. |
+| `GET /reports/wastage-cost`       | WASTAGE movements aggregated by item — total qty wasted and imputed cost.  |
+| `GET /reports/usage`              | STOCK_OUT movements per item — consumption totals and last-used date.      |
+| `GET /reports/supplier-spend`     | Purchases (non-draft, non-cancelled) grouped by supplier — total spend, order count, avg order value. |
+| `GET /reports/stock-aging`        | Open batches sorted by age — highlights stale or slow-moving inventory.    |
+| `GET /reports/expiry-loss`        | Expired batches with remaining quantity — potential write-off value.        |
+| `GET /reports/adjustment-variance`| ADJUSTMENT movements per item — gains vs losses, net variance.             |
+| `GET /reports/transfers`          | TRANSFER_IN / TRANSFER_OUT movements — full history with location and note. |
+
+Row limit: 1,000 rows per request. For larger datasets, apply date or category filters to narrow the result set.
 
 ## MVP-Ready Areas
 
@@ -42,7 +74,7 @@ This document summarises the current product surface and the remaining work need
 - Core inventory workflows for small teams.
 - Owner, manager, and operator role separation in the UI and API.
 - Basic branch-level stock filtering and transfers.
-- Basic reporting through client-side CSV exports.
+- Server-side business analytics with 8 exportable reports and CSV streaming.
 - Clear demo accounts for evaluation and onboarding.
 
 ## Not Production-Ready Yet

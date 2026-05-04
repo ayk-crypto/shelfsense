@@ -708,3 +708,147 @@ export interface CreateReorderPurchasesResponse {
     }>;
   }>;
 }
+
+// ─── Reports ──────────────────────────────────────────────────────────────────
+
+export interface ReportParams {
+  dateFrom?: string;
+  dateTo?: string;
+  locationId?: string;
+  itemId?: string;
+  category?: string;
+  supplierId?: string;
+}
+
+export interface InventoryValuationRow {
+  itemId: string;
+  itemName: string;
+  category: string;
+  unit: string;
+  sku: string | null;
+  totalQuantity: number;
+  avgUnitCost: number;
+  totalValue: number;
+  batchCount: number;
+}
+export interface InventoryValuationResponse {
+  summary: { totalItems: number; totalQuantity: number; totalValue: number };
+  rows: InventoryValuationRow[];
+  generatedAt: string;
+}
+
+export interface WastageCostRow {
+  itemId: string;
+  itemName: string;
+  category: string;
+  unit: string;
+  totalQuantity: number;
+  totalValue: number;
+  movementCount: number;
+}
+export interface WastageCostResponse {
+  summary: { totalItems: number; totalQuantity: number; totalValue: number };
+  rows: WastageCostRow[];
+  generatedAt: string;
+}
+
+export interface UsageRow {
+  itemId: string;
+  itemName: string;
+  category: string;
+  unit: string;
+  totalQuantity: number;
+  movementCount: number;
+  lastUsed: string;
+}
+export interface UsageResponse {
+  summary: { totalItems: number; totalQuantity: number; totalMovements: number };
+  rows: UsageRow[];
+  generatedAt: string;
+}
+
+export interface SupplierSpendRow {
+  supplierId: string;
+  supplierName: string;
+  orderCount: number;
+  totalSpend: number;
+  avgOrderValue: number;
+  lastOrderDate: string | null;
+}
+export interface SupplierSpendResponse {
+  summary: { totalSuppliers: number; totalOrders: number; totalSpend: number };
+  rows: SupplierSpendRow[];
+  generatedAt: string;
+}
+
+export interface StockAgingRow {
+  batchId: string;
+  batchNo: string | null;
+  itemName: string;
+  category: string;
+  unit: string;
+  location: string;
+  originalQty: number;
+  remainingQty: number;
+  unitCost: number;
+  totalValue: number;
+  ageDays: number;
+  receivedAt: string;
+}
+export interface StockAgingResponse {
+  summary: { totalBatches: number; totalValue: number; avgAgeDays: number };
+  rows: StockAgingRow[];
+  generatedAt: string;
+}
+
+export interface ExpiryLossRow {
+  batchId: string;
+  batchNo: string | null;
+  itemName: string;
+  category: string;
+  unit: string;
+  location: string;
+  remainingQty: number;
+  unitCost: number;
+  potentialLoss: number;
+  expiryDate: string;
+  daysExpired: number;
+}
+export interface ExpiryLossResponse {
+  summary: { totalBatches: number; totalExpiredQty: number; totalPotentialLoss: number };
+  rows: ExpiryLossRow[];
+  generatedAt: string;
+}
+
+export interface AdjustmentVarianceRow {
+  itemId: string;
+  itemName: string;
+  category: string;
+  unit: string;
+  positiveAdj: number;
+  negativeAdj: number;
+  netVariance: number;
+  movementCount: number;
+}
+export interface AdjustmentVarianceResponse {
+  summary: { totalItems: number; totalPositive: number; totalNegative: number; netVariance: number };
+  rows: AdjustmentVarianceRow[];
+  generatedAt: string;
+}
+
+export interface TransferRow {
+  id: string;
+  createdAt: string;
+  itemName: string;
+  category: string;
+  unit: string;
+  type: "TRANSFER_IN" | "TRANSFER_OUT";
+  quantity: number;
+  location: string;
+  note: string | null;
+}
+export interface TransferHistoryResponse {
+  summary: { totalTransfers: number; totalInQty: number; totalOutQty: number };
+  rows: TransferRow[];
+  generatedAt: string;
+}
