@@ -321,19 +321,19 @@ export function AppShell() {
             </>
           )}
 
-          {/* PLATFORM — SUPER_ADMIN only */}
-          {user?.platformRole === "SUPER_ADMIN" && (
-            <>
-              <p className="nav-section-label">Platform</p>
-              <NavLink to="/admin" className={({ isActive }) => `nav-item nav-item--admin ${isActive ? "nav-item--active" : ""}`}>
-                <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                </svg>
-                Platform Admin
-              </NavLink>
-            </>
-          )}
         </nav>
+
+        {/* ── Platform Admin entry — SUPER_ADMIN only, shown above footer ── */}
+        {user?.platformRole === "SUPER_ADMIN" && (
+          <div className="sidebar-admin-entry">
+            <NavLink to="/admin" className="sidebar-admin-link">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
+              Platform Admin
+            </NavLink>
+          </div>
+        )}
 
         {/* ── User / footer ── */}
         <div className="sidebar-footer">

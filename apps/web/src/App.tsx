@@ -6,6 +6,9 @@ import { AdminWorkspaceDetailPage } from "./pages/admin/AdminWorkspaceDetailPage
 import { AdminUsersPage } from "./pages/admin/AdminUsersPage";
 import { AdminUserDetailPage } from "./pages/admin/AdminUserDetailPage";
 import { AdminActivityPage } from "./pages/admin/AdminActivityPage";
+import { AdminPlansPage } from "./pages/admin/AdminPlansPage";
+import { AdminBillingPage } from "./pages/admin/AdminBillingPage";
+import { AdminSystemPage } from "./pages/admin/AdminSystemPage";
 import { getOnboardingStatus } from "./api/onboarding";
 import { getWorkspaceSettings } from "./api/workspace";
 import { AppShell } from "./components/AppShell";
@@ -48,14 +51,22 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuth();
-  return isAuthenticated ? <Navigate to="/dashboard" replace /> : <>{children}</>;
+  const { isAuthenticated, user } = useAuth();
+  if (!isAuthenticated) return <>{children}</>;
+  if (user?.platformRole === "SUPER_ADMIN" && !user?.workspaceId) {
+    return <Navigate to="/admin" replace />;
+  }
+  return <Navigate to="/dashboard" replace />;
 }
 
 function WorkspaceRequiredRoute({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
 
   if (user?.workspaceId) return <>{children}</>;
+
+  if (user?.platformRole === "SUPER_ADMIN") {
+    return <Navigate to="/admin" replace />;
+  }
 
   function handleSignupRedirect() {
     logout();
@@ -376,6 +387,9 @@ export function App() {
             <Route path="users" element={<AdminUsersPage />} />
             <Route path="users/:id" element={<AdminUserDetailPage />} />
             <Route path="activity" element={<AdminActivityPage />} />
+            <Route path="plans" element={<AdminPlansPage />} />
+            <Route path="billing" element={<AdminBillingPage />} />
+            <Route path="system" element={<AdminSystemPage />} />
           </Route>
           <Route path="/" element={<LandingPage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

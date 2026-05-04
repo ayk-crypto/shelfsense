@@ -33,7 +33,7 @@ This is an npm workspaces monorepo with three packages:
 
 ## Key Features
 
-- **Platform Admin (SUPER_ADMIN)**: separate admin panel at `/admin` for SaaS owner — manage all workspaces, users, plans, billing status, audit logs. Role stored as `platformRole` on `User` (USER / SUPER_ADMIN / SUPPORT_ADMIN). Promote via `npm run make:super-admin -- email@example.com`.
+- **Platform Admin (SUPER_ADMIN)**: fully separated admin panel at `/admin` with its own layout/sidebar (dark navy `AdminLayout`), completely isolated from the customer workspace `AppShell`. Role stored as `platformRole` on `User` (USER / SUPER_ADMIN / SUPPORT_ADMIN). Promote via `npm run make:super-admin -- email@example.com`. Production recommendation: use a dedicated account (e.g. `admin@shelfsenseapp.com`) with `platformRole SUPER_ADMIN` that has no workspace membership. SUPER_ADMIN users without a workspace bypass the workspace-required guard and go straight to `/admin`. The "Platform Admin" link is hidden from the normal workspace sidebar nav and shown only as a subtle entry above the sidebar footer — invisible to regular workspace users. Admin sidebar shows: Overview, Workspaces, Users, Plans (stub), Billing (stub), Audit Logs, System (stub), and "Back to Workspace" (only shown if the admin user has a workspace). `platformRole` controls SaaS-level access; workspace `role` (OWNER/MANAGER/OPERATOR) controls workspace-level access — the two are fully independent.
 - Multi-tenant architecture with Workspaces
 - User roles: OWNER, MANAGER, OPERATOR (route-level access control via Prisma `Role` enum)
 - Custom roles system: named roles with `baseRole` + `permissions` JSON; stored in `CustomRole` table; assigned via `Membership.customRoleId`

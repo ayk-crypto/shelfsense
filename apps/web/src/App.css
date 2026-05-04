@@ -16405,6 +16405,42 @@ body {
   .lp-footer-links { flex-direction: column; gap: 28px; }
 }
 
+/* ── Sidebar Platform Admin entry (SUPER_ADMIN only, above footer) ── */
+.sidebar-admin-entry {
+  padding: 8px 12px;
+  border-top: 1px solid var(--color-border-light);
+}
+
+.sidebar-admin-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+  letter-spacing: 0.01em;
+}
+
+.sidebar-admin-link svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: #6366f1;
+}
+
+.sidebar-admin-link:hover {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.sidebar-admin-link:hover svg {
+  color: var(--color-primary);
+}
+
 /* ─── Platform Admin Shell ─────────────────────────────── */
 .admin-shell {
   display: flex;
@@ -16499,6 +16535,48 @@ body {
 .admin-nav-item--active {
   background: #1e293b;
   color: #6366f1;
+}
+
+.admin-nav-item--back {
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.admin-nav-item--back:hover {
+  background: #1e293b;
+  color: #94a3b8;
+}
+
+.admin-nav-section {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #475569;
+  padding: 12px 12px 4px;
+  margin: 0;
+}
+
+.admin-coming-soon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 80px 32px;
+  text-align: center;
+  color: var(--color-text-muted, #64748b);
+}
+
+.admin-coming-soon svg {
+  width: 40px;
+  height: 40px;
+  opacity: 0.35;
+  stroke: currentColor;
+}
+
+.admin-coming-soon p {
+  font-size: 14px;
 }
 
 .admin-nav-icon {

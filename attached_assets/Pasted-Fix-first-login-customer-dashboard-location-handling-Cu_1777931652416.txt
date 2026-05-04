@@ -1,0 +1,50 @@
+Fix first-login customer dashboard location handling.
+
+Current issue:
+When a new customer/workspace user logs in for the first time, the dashboard loads mostly empty and shows:
+“Location is archived or unavailable”
+
+This is a poor first-user experience. The customer should either see a usable dashboard with an active default location or a clear onboarding/setup state.
+
+Required investigation:
+1. Check workspace creation and signup/onboarding flow.
+2. Confirm that every new workspace gets one active default location, e.g. “Main Branch”.
+3. Confirm the default location is not archived.
+4. Confirm the frontend selected location comes from the logged-in user’s current workspace, not stale localStorage from another workspace.
+5. If localStorage has a selected locationId that does not belong to the current workspace or is archived, clear it and auto-select the first active location.
+6. Confirm the location dropdown only shows active locations by default.
+7. Confirm API calls using locationId reject archived locations only when appropriate.
+
+Required UX behavior:
+1. On dashboard load, if workspace has at least one active location:
+   - Auto-select the first/default active location.
+   - Load dashboard normally.
+2. If selected location is archived/unavailable:
+   - Clear selected location from state/localStorage.
+   - Auto-select another active location if available.
+   - Show a small toast:
+     “Your selected location was unavailable, so we switched to an active location.”
+3. If workspace has no active location:
+   - Do not show a blank dashboard.
+   - Show a friendly setup card:
+     Title: “Set up your first location”
+     Text: “Create a location to start tracking inventory.”
+     Button: “Create Main Branch”
+4. For new signup/workspace creation:
+   - Always create a default active location named “Main Branch”.
+   - Set it as the default/current location.
+5. Do not show “Location is archived or unavailable” as the only main dashboard content for a first-time customer.
+
+Also check:
+- Dashboard
+- Items
+- Stock In
+- Stock Out
+- Reports
+- Alerts
+These pages should handle missing/archived selected location consistently.
+
+Technical requirements:
+- Do not break existing location archive behavior.
+- Do not show archived locations as selectable unless user explicitly enables archived view.
+- Ensure TypeScript build passes.
