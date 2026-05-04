@@ -10,9 +10,12 @@ interface LocationContextValue {
   activeLocation: Location | null;
   activeLocationId: string;
   loading: boolean;
+  locationReady: boolean;
   error: string | null;
+  switchedLocation: boolean;
   setActiveLocationId: (locationId: string) => void;
   refreshLocations: () => Promise<void>;
+  clearSwitchedLocation: () => void;
 }
 
 const LocationContext = createContext<LocationContextValue | null>(null);
@@ -22,7 +25,9 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   const [locations, setLocations] = useState<Location[]>([]);
   const [activeLocationId, setActiveLocationIdState] = useState(getApiLocationId());
   const [loading, setLoading] = useState(false);
+  const [locationReady, setLocationReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [switchedLocation, setSwitchedLocation] = useState(false);
 
   const activeLocation = useMemo(
     () => locations.find((location) => location.id === activeLocationId) ?? locations[0] ?? null,
@@ -34,27 +39,47 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     setApiLocationId(locationId);
   }, []);
 
+  const clearSwitchedLocation = useCallback(() => setSwitchedLocation(false), []);
+
   const refreshLocations = useCallback(async () => {
     if (!isAuthenticated) {
       setLocations([]);
       setActiveLocationIdState("");
       setApiLocationId(null);
+      setLocationReady(false);
       return;
     }
 
     setLoading(true);
+
+    // Capture the previously stored location ID before clearing it.
+    // Clearing the API client variable immediately ensures that any API calls
+    // made by child components during this async fetch will NOT send a stale
+    // x-location-id header. The server will fall back to ensureDefaultLocation().
+    const priorId = getApiLocationId();
+    setApiLocationId(null);
+
     try {
       const res = await getLocations();
       setLocations(res.locations);
 
-      const savedLocationId = getApiLocationId();
-      const savedLocation = res.locations.find((location) => location.id === savedLocationId);
-      const mainBranch = res.locations.find((location) => location.name === "Main Branch");
+      // Validate the prior location against the active locations for this workspace.
+      const savedLocation = res.locations.find((loc) => loc.id === priorId);
+      const mainBranch = res.locations.find((loc) => loc.name === "Main Branch");
       const nextLocation = savedLocation ?? mainBranch ?? res.locations[0] ?? null;
 
       if (nextLocation) {
+        // If we had a location stored but it's no longer valid (archived or
+        // belongs to a different workspace), emit the switched flag for the UI.
+        if (priorId && priorId !== nextLocation.id) {
+          setSwitchedLocation(true);
+        }
         setActiveLocationIdState(nextLocation.id);
         setApiLocationId(nextLocation.id);
+      } else {
+        // No active locations found — clear everything cleanly.
+        setActiveLocationIdState("");
+        setApiLocationId(null);
       }
 
       setError(null);
@@ -62,6 +87,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
       setError(err instanceof Error ? err.message : "Failed to load locations");
     } finally {
       setLoading(false);
+      setLocationReady(true);
     }
   }, [isAuthenticated]);
 
@@ -74,9 +100,12 @@ export function LocationProvider({ children }: { children: ReactNode }) {
         activeLocation,
         activeLocationId: activeLocation?.id ?? activeLocationId,
         loading,
+        locationReady,
         error,
+        switchedLocation,
         setActiveLocationId,
         refreshLocations,
+        clearSwitchedLocation,
       }}
     >
       {children}

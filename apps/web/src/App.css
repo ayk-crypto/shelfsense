@@ -3371,6 +3371,11 @@ body {
   color: var(--color-red);
 }
 
+.toast--info {
+  background: #fffbeb;
+  color: #92400e;
+}
+
 /* =============================================
    Items Page — responsive table / cards
    ============================================= */

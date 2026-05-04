@@ -1,0 +1,688 @@
+Expand the ShelfSense Platform Admin into a more comprehensive SaaS owner control center.
+
+Context:
+ShelfSense is a multi-tenant inventory SaaS. The customer app runs at app.shelfsenseapp.com and the backend at api.shelfsenseapp.com. A basic Platform Admin module already exists with:
+- /admin overview
+- /admin/workspaces
+- /admin/workspaces/:id
+- /admin/users
+- /admin/users/:id
+- /admin/activity
+- AdminAuditLog
+- platformRole on User
+- Workspace subscription/suspension fields
+
+Current issue:
+The Platform Admin is too basic. It only shows simple counts and limited controls. I need it to become a professional SaaS control center where I can manage customers, users, subscriptions, plans/packages, coupons, email templates, announcements, and platform health.
+
+Important:
+Do this as Phase 1. Keep it stable. Do not break customer app login/signup/workspace/inventory flows.
+
+PHASE 1 GOALS:
+1. Improve Platform Admin dashboard with more actionable SaaS metrics.
+2. Add Plans & Packages management.
+3. Add Subscription control for workspaces.
+4. Add Coupons/Promotions management.
+5. Add Email Template management.
+6. Add Announcements management.
+7. Improve Workspace detail page with more controls and customer health insights.
+8. Improve admin navigation/sidebar structure.
+9. Keep all admin actions audited.
+
+--------------------------------------------------
+1. Platform Admin Navigation
+--------------------------------------------------
+
+Update Platform Admin sidebar to this structure:
+
+Overview
+
+CUSTOMERS
+- Workspaces
+- Users
+- Subscriptions
+
+BILLING
+- Plans & Packages
+- Coupons
+- Payments
+
+COMMUNICATIONS
+- Email Templates
+- Announcements
+- Email Logs
+
+CONTROL CENTER
+- Feature Flags
+- System Health
+- Audit Logs
+- Settings
+
+For Phase 1:
+Implement pages/routes for:
+- /admin
+- /admin/workspaces
+- /admin/workspaces/:id
+- /admin/users
+- /admin/users/:id
+- /admin/subscriptions
+- /admin/plans
+- /admin/coupons
+- /admin/payments
+- /admin/email-templates
+- /admin/announcements
+- /admin/email-logs
+- /admin/system-health
+- /admin/activity
+
+If some pages are not fully functional yet, show a polished “Coming soon” or minimal placeholder, but build full functionality for Plans, Coupons, Email Templates, Announcements, and improved Subscription controls.
+
+Do not show customer inventory sidebar inside Platform Admin.
+
+--------------------------------------------------
+2. Improved Platform Overview Dashboard
+--------------------------------------------------
+
+Upgrade /admin overview with these cards/sections:
+
+Top metrics:
+- Total Workspaces
+- Active Workspaces
+- Suspended Workspaces
+- Total Users
+- Verified Users
+- Unverified Users
+- Trial Accounts
+- Paid Accounts
+- Expired/Past Due Accounts
+- New Signups last 7 days
+- Estimated MRR
+- Failed Emails last 7 days
+
+Customer health:
+- Setup incomplete workspaces
+- Inactive workspaces
+- Trial ending soon
+- Workspaces with no stock movement
+
+Recent activity:
+- Recent new workspaces
+- Recent users
+- Recent admin audit actions
+- Recent failed emails if available
+
+Make the dashboard more insightful and action-oriented, not just basic count cards.
+
+If exact MRR/payment data is not available yet, calculate Estimated MRR from workspace plan assignment and plan monthly price. If unavailable, show Rs 0 with clear empty state.
+
+--------------------------------------------------
+3. Plans & Packages Management
+--------------------------------------------------
+
+Create database model for Plan/Package if not already present.
+
+Plan fields:
+- id
+- name
+- code
+- description
+- monthlyPrice
+- annualPrice
+- currency, default PKR
+- trialDays
+- maxUsers
+- maxLocations
+- maxItems
+- maxSuppliers
+- maxPurchasesPerMonth
+- maxStockMovementsPerMonth
+- enableExpiryTracking
+- enableBarcodeScanning
+- enableReports
+- enableAdvancedReports
+- enablePurchases
+- enableSuppliers
+- enableTeamManagement
+- enableCustomRoles
+- enableEmailAlerts
+- enableDailyOps
+- isPublic
+- isActive
+- sortOrder
+- createdAt
+- updatedAt
+
+Default plans:
+- Free
+- Starter
+- Pro
+- Business
+- Custom
+
+Admin features:
+- List plans
+- Create plan
+- Edit plan
+- Archive/deactivate plan
+- Set public/private
+- Set limits
+- Enable/disable features
+- Sort plans
+
+Routes:
+Backend:
+- GET /admin/plans
+- POST /admin/plans
+- GET /admin/plans/:id
+- PATCH /admin/plans/:id
+- PATCH /admin/plans/:id/status
+
+Frontend:
+- /admin/plans
+- Plan create/edit modal or page
+
+Audit log:
+Every create/edit/archive action should write AdminAuditLog.
+
+Important:
+Do not break existing workspace subscriptionStatus fields. If existing simple plan fields exist, migrate carefully or map them.
+
+--------------------------------------------------
+4. Workspace Subscription Control
+--------------------------------------------------
+
+Improve Workspace detail page with a Subscription panel.
+
+Show:
+- Current plan
+- Billing cycle: monthly/annual/manual/custom
+- Subscription status: TRIAL, ACTIVE, PAST_DUE, EXPIRED, SUSPENDED, CANCELLED, MANUAL_REVIEW
+- Trial end date
+- Current period start/end
+- Next renewal date
+- Amount
+- Currency
+- Coupon applied
+- Payment status
+- Notes
+
+Actions:
+- Change plan
+- Extend trial
+- Set subscription status
+- Set next renewal date
+- Add grace period
+- Apply coupon
+- Remove coupon
+- Suspend workspace
+- Reactivate workspace
+- Add admin note
+
+If a formal Subscription table does not exist, create one or implement a clean workspace subscription model. Prefer a dedicated Subscription table if reasonable.
+
+Suggested Subscription fields:
+- id
+- workspaceId
+- planId
+- status
+- billingCycle
+- currency
+- amount
+- trialEndsAt
+- currentPeriodStart
+- currentPeriodEnd
+- nextRenewalAt
+- couponId
+- manualNotes
+- createdAt
+- updatedAt
+
+Backend routes:
+- GET /admin/subscriptions
+- GET /admin/subscriptions/:id
+- PATCH /admin/subscriptions/:id
+- POST /admin/workspaces/:id/subscription
+- PATCH /admin/workspaces/:id/subscription
+
+Frontend:
+- /admin/subscriptions list
+- subscription panel inside /admin/workspaces/:id
+
+Audit:
+All subscription changes must be logged.
+
+--------------------------------------------------
+5. Coupons / Promotions
+--------------------------------------------------
+
+Create Coupon model.
+
+Fields:
+- id
+- code
+- name
+- description
+- discountType: PERCENTAGE or FIXED_AMOUNT
+- discountValue
+- currency, default PKR
+- validFrom
+- validUntil
+- maxRedemptions
+- redemptionsUsed
+- appliesToPlanIds or relation table
+- billingCycleRestriction: ANY, MONTHLY, ANNUAL
+- durationType: ONCE, REPEATING, FOREVER
+- durationMonths
+- isActive
+- createdAt
+- updatedAt
+
+Admin features:
+- Create coupon
+- Edit coupon
+- Disable/enable coupon
+- View redemptions count
+- Apply coupon manually to workspace/subscription
+- Remove coupon from workspace/subscription
+
+Routes:
+Backend:
+- GET /admin/coupons
+- POST /admin/coupons
+- GET /admin/coupons/:id
+- PATCH /admin/coupons/:id
+- PATCH /admin/coupons/:id/status
+- POST /admin/workspaces/:id/apply-coupon
+- POST /admin/workspaces/:id/remove-coupon
+
+Frontend:
+- /admin/coupons
+- Coupon create/edit modal
+- Apply coupon from workspace detail page
+
+Audit:
+All coupon actions must be logged.
+
+Validation:
+- Coupon codes should be uppercase and unique.
+- Do not allow invalid discount values.
+- Percentage should be 1–100.
+- Fixed amount should be positive.
+
+--------------------------------------------------
+6. Manual Payments
+--------------------------------------------------
+
+Add a basic manual payment record system for early SaaS billing before payment gateway integration.
+
+Payment fields:
+- id
+- workspaceId
+- subscriptionId optional
+- amount
+- currency
+- paymentMethod: CASH, BANK_TRANSFER, CARD_MANUAL, EASYPAISA, JAZZCASH, OTHER
+- referenceNumber
+- status: PENDING, PAID, FAILED, REFUNDED, CANCELLED
+- paidAt
+- notes
+- recordedByUserId
+- createdAt
+- updatedAt
+
+Admin features:
+- Add manual payment from workspace detail
+- View payment history
+- Mark payment paid/pending/refunded
+- Link payment to subscription if applicable
+
+Routes:
+- GET /admin/payments
+- POST /admin/payments
+- GET /admin/payments/:id
+- PATCH /admin/payments/:id
+
+Frontend:
+- /admin/payments
+- Payment panel inside workspace detail
+
+Audit:
+Record all payment actions.
+
+--------------------------------------------------
+7. Email Templates
+--------------------------------------------------
+
+Add editable email templates.
+
+Templates needed:
+- EMAIL_VERIFICATION
+- PASSWORD_RESET
+- WORKSPACE_INVITATION
+- WELCOME
+- TRIAL_STARTED
+- TRIAL_ENDING_SOON
+- SUBSCRIPTION_ACTIVATED
+- SUBSCRIPTION_EXPIRING
+- SUBSCRIPTION_EXPIRED
+- PAYMENT_RECEIVED
+- LOW_STOCK_ALERT
+- EXPIRING_STOCK_ALERT
+
+Fields:
+- id
+- key
+- name
+- subject
+- htmlBody
+- textBody
+- enabled
+- variables JSON/list
+- createdAt
+- updatedAt
+- updatedByUserId
+
+Admin features:
+- List templates
+- Edit subject/html/text
+- Preview template
+- Send test email
+- Reset to default
+- Enable/disable template
+
+Supported variables:
+- {{userName}}
+- {{workspaceName}}
+- {{appUrl}}
+- {{verificationLink}}
+- {{resetLink}}
+- {{trialEndDate}}
+- {{planName}}
+- {{supportEmail}}
+
+Routes:
+Backend:
+- GET /admin/email-templates
+- GET /admin/email-templates/:key
+- PATCH /admin/email-templates/:key
+- POST /admin/email-templates/:key/test
+- POST /admin/email-templates/:key/reset
+
+Frontend:
+- /admin/email-templates
+- Template edit page/modal
+- Preview panel
+- Send test email field
+
+Security:
+- Do not allow script tags in HTML template.
+- Do not expose SMTP_PASS or provider secrets.
+- Keep fallback defaults if DB template is missing.
+
+Important:
+Update the email sending service to use these templates where appropriate, starting with:
+- EMAIL_VERIFICATION
+- PASSWORD_RESET
+- WELCOME
+If all templates cannot be wired now, at least build the admin CRUD and wire verification/password reset.
+
+Audit:
+Log template updates and test sends.
+
+--------------------------------------------------
+8. Email Logs
+--------------------------------------------------
+
+Add or improve email logging.
+
+EmailLog fields:
+- id
+- type
+- recipient
+- subject
+- status: QUEUED, SENT, FAILED
+- provider
+- providerMessageId
+- errorMessage sanitized
+- workspaceId optional
+- userId optional
+- createdAt
+
+Routes:
+- GET /admin/email-logs
+- GET /admin/email-logs/:id
+
+Frontend:
+- /admin/email-logs
+Columns:
+- Date
+- Type
+- Recipient
+- Subject
+- Status
+- Provider
+- Error summary
+
+Whenever an app email is sent, create an EmailLog.
+Do not log secrets.
+
+--------------------------------------------------
+9. Announcements / In-App Notices
+--------------------------------------------------
+
+Create Announcement model.
+
+Fields:
+- id
+- title
+- message
+- severity: INFO, SUCCESS, WARNING, CRITICAL
+- targetType: ALL, PLAN, WORKSPACE
+- targetPlanId optional
+- targetWorkspaceId optional
+- startsAt
+- endsAt
+- dismissible
+- isActive
+- createdByUserId
+- createdAt
+- updatedAt
+
+Admin features:
+- Create announcement
+- Edit announcement
+- Disable announcement
+- Target all users, a plan, or a workspace
+- Set start/end date
+- Set severity
+- Dismissible yes/no
+
+Routes:
+Backend admin:
+- GET /admin/announcements
+- POST /admin/announcements
+- GET /admin/announcements/:id
+- PATCH /admin/announcements/:id
+- PATCH /admin/announcements/:id/status
+
+Customer app route:
+- GET /announcements/active
+This should return active announcements relevant to the current workspace/user.
+
+Frontend:
+- /admin/announcements
+- Show active announcements in customer app as banners if applicable.
+
+Audit:
+Log create/edit/disable.
+
+--------------------------------------------------
+10. Customer Health Insights
+--------------------------------------------------
+
+Improve Workspaces list and Workspace detail with health signals.
+
+Workspace health status:
+- Healthy
+- Setup Incomplete
+- Inactive
+- Trial Ending Soon
+- Payment Due
+- Suspended
+
+Calculate using:
+- has active location
+- has at least one item
+- has at least one stock movement
+- last activity date
+- owner email verified
+- subscription status
+- trial/subscription ending soon
+
+Workspace table columns:
+- Workspace name
+- Owner
+- Plan
+- Subscription status
+- Health
+- Users
+- Items
+- Locations
+- Last activity
+- Created date
+- Actions
+
+Workspace detail should show:
+- Setup checklist
+- Usage stats
+- Subscription panel
+- Members
+- Locations
+- Recent movements/activity
+- Admin notes/actions
+
+--------------------------------------------------
+11. Feature Flags / Plan Feature Access
+--------------------------------------------------
+
+For Phase 1, create a basic Feature Flags page.
+
+Global flags:
+- enablePurchases
+- enableSuppliers
+- enableReports
+- enableAdvancedReports
+- enableBarcodeScanning
+- enableEmailAlerts
+- enableDailyOps
+- enableStockCounts
+- maintenanceMode
+
+Allow:
+- View current global feature flags
+- Toggle global feature flags
+- Store in DB/settings table
+- Audit changes
+
+Do not deeply enforce all feature flags yet unless simple. But the data model and admin UI should exist.
+
+Route:
+- /admin/system-health or /admin/settings can include this
+or add:
+- /admin/feature-flags
+
+--------------------------------------------------
+12. System Health
+--------------------------------------------------
+
+Create /admin/system-health page.
+
+Show:
+- API status
+- Database status
+- Email configured status
+- Last successful email sent
+- Failed emails last 24h
+- Scheduler status if available
+- Recent API errors if available
+- App version/build info if available
+
+Backend:
+- GET /admin/system-health
+
+No secrets should be exposed.
+
+--------------------------------------------------
+13. UI/UX Requirements
+--------------------------------------------------
+
+Make Platform Admin feel like a professional SaaS control center.
+
+Design:
+- Keep dark/navy admin sidebar.
+- Use clean white/light content area.
+- Use cards, tables, filters, and action menus.
+- Add loading states, empty states, and error states.
+- Add search/filter on all list pages.
+- Use clear status badges:
+  - Active
+  - Trial
+  - Paid
+  - Past Due
+  - Suspended
+  - Disabled
+  - Failed
+  - Sent
+- Use confirmation dialogs for sensitive actions:
+  - suspend workspace
+  - disable user
+  - archive plan
+  - disable coupon
+  - change subscription status
+- Make tables responsive.
+
+--------------------------------------------------
+14. Security Requirements
+--------------------------------------------------
+
+Very important:
+- All /admin API routes must require platformRole SUPER_ADMIN.
+- SUPPORT_ADMIN can be added later, but for now default to SUPER_ADMIN unless already implemented.
+- Normal workspace owners must not access admin APIs.
+- Do not expose password hashes, reset tokens, verification tokens, JWT secrets, SMTP secrets, DATABASE_URL, or API keys.
+- Every create/update/delete/suspend/disable action must create AdminAuditLog.
+- Use soft delete/archive, not hard delete.
+- Admin actions should include actor user id, action type, target type, target id, metadata, timestamp.
+- Avoid impersonation in this phase unless it already exists securely.
+
+--------------------------------------------------
+15. Migration and Seeding
+--------------------------------------------------
+
+Create Prisma migrations for all schema changes.
+
+Seed or create default data:
+- Default plans: Free, Starter, Pro, Business, Custom
+- Default email templates
+- Default feature flags/settings
+
+Add safe idempotent seed logic so running it multiple times does not duplicate records.
+
+If there is already a seed script, extend it.
+If not, add an admin seed script.
+
+--------------------------------------------------
+16. Build and Deployment
+--------------------------------------------------
+
+Ensure:
+- npm run build passes for API.
+- npm run build passes for Web.
+- Prisma generate works.
+- Prisma migration is created.
+- Existing customer app routes still work.
+- Existing auth/signup/login/reset password/email verification flows still work.
+
+Do not remove existing data.
+Do not reset database.
+Do not break current deployed customer accounts.

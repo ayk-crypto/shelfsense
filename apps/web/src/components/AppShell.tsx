@@ -13,13 +13,17 @@ export function AppShell() {
   const { settings, loading: workspaceLoading } = useWorkspaceSettings();
   const {
     locations,
+    activeLocation,
     activeLocationId,
     loading: locationsLoading,
     setActiveLocationId,
+    switchedLocation,
+    clearSwitchedLocation,
   } = useLocation();
   const navigate = useNavigate();
   const [alertCount, setAlertCount] = useState(0);
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
+  const [showSwitchedToast, setShowSwitchedToast] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -93,6 +97,14 @@ export function AppShell() {
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  useEffect(() => {
+    if (!switchedLocation) return;
+    setShowSwitchedToast(true);
+    clearSwitchedLocation();
+    const timer = setTimeout(() => setShowSwitchedToast(false), 4500);
+    return () => clearTimeout(timer);
+  }, [switchedLocation, clearSwitchedLocation]);
 
   function handleLogout() {
     logout();
@@ -569,6 +581,20 @@ export function AppShell() {
           <span>Sign Out</span>
         </button>
       </nav>
+
+      {showSwitchedToast && (
+        <div className="toast-stack" aria-live="polite">
+          <div className="toast toast--info">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 10c0 7-9 12-9 12S3 17 3 10a9 9 0 1 1 18 0z" />
+              <circle cx="12" cy="10" r="3" />
+            </svg>
+            {activeLocation
+              ? `Switched to ${activeLocation.name} — your previous location was unavailable.`
+              : "Your previous location was unavailable. Switched to an active location."}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
