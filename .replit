@@ -75,3 +75,7 @@ PORT = "3000"
 deploymentTarget = "autoscale"
 run = ["bash", "-c", "node apps/api/dist/index.js"]
 build = ["bash", "-c", "npm install && npm run build"]
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 120000
