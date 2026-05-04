@@ -127,7 +127,7 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), as
     })
     .filter((item) => item.quantity <= item.minStockLevel);
 
-  await generateAlertNotifications({
+  const newAlerts = await generateAlertNotifications({
     workspaceId,
     userId,
     lowStock,
@@ -146,11 +146,11 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), as
     const emailPayload = {
       ownerEmail,
       workspaceName: workspace?.name ?? "Your Workspace",
-      lowStock: (workspace?.emailLowStock ?? false) ? lowStock : [],
-      expiringSoon: (workspace?.emailExpiringSoon ?? false)
+      lowStock: (workspace?.emailLowStock ?? false) && newAlerts.hasNewLowStock ? lowStock : [],
+      expiringSoon: (workspace?.emailExpiringSoon ?? false) && newAlerts.hasNewExpiringSoon
         ? expiringSoon.map((b) => ({ itemName: b.item.name, batchNo: b.batchNo, expiryDate: b.expiryDate }))
         : [],
-      expired: (workspace?.emailExpired ?? false)
+      expired: (workspace?.emailExpired ?? false) && newAlerts.hasNewExpired
         ? expired.map((b) => ({ itemName: b.item.name, batchNo: b.batchNo, expiryDate: b.expiryDate }))
         : [],
     };
@@ -224,6 +224,12 @@ interface NotificationCandidate {
   entityId: string;
 }
 
+interface AlertNotificationResult {
+  hasNewLowStock: boolean;
+  hasNewExpiringSoon: boolean;
+  hasNewExpired: boolean;
+}
+
 async function generateAlertNotifications({
   workspaceId,
   userId,
@@ -232,7 +238,7 @@ async function generateAlertNotifications({
   expired,
   now,
   preferences,
-}: AlertNotificationInput) {
+}: AlertNotificationInput): Promise<AlertNotificationResult> {
   const candidates: NotificationCandidate[] = [
     ...(preferences.notifyLowStock
       ? lowStock.map((item) => ({
@@ -263,12 +269,16 @@ async function generateAlertNotifications({
       : []),
   ];
 
-  if (candidates.length === 0) return;
+  if (candidates.length === 0) {
+    return { hasNewLowStock: false, hasNewExpiringSoon: false, hasNewExpired: false };
+  }
 
   const dayStart = new Date(now);
   dayStart.setHours(0, 0, 0, 0);
   const dayEnd = new Date(dayStart);
   dayEnd.setDate(dayStart.getDate() + 1);
+
+  const newByType = { LOW_STOCK: false, EXPIRY_SOON: false, EXPIRED_STOCK: false };
 
   await Promise.all(
     candidates.map(async (candidate) => {
@@ -300,8 +310,18 @@ async function generateAlertNotifications({
           entityId: candidate.entityId,
         },
       });
+
+      if (candidate.type === "LOW_STOCK") newByType.LOW_STOCK = true;
+      else if (candidate.type === "EXPIRY_SOON") newByType.EXPIRY_SOON = true;
+      else if (candidate.type === "EXPIRED_STOCK") newByType.EXPIRED_STOCK = true;
     }),
   );
+
+  return {
+    hasNewLowStock: newByType.LOW_STOCK,
+    hasNewExpiringSoon: newByType.EXPIRY_SOON,
+    hasNewExpired: newByType.EXPIRED_STOCK,
+  };
 }
 
 function formatQuantity(value: number) {
