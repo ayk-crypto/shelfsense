@@ -169,9 +169,10 @@ const EMPTY_STATE: ReportState = { data: null, loading: false, error: null };
 
 // ─── Utilities ─────────────────────────────────────────────────────────────
 
-function fmt(n: number, currency?: string): string {
-  if (currency) return `${currency} ${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+function fmt(n: number | undefined | null, currency?: string): string {
+  const v = n ?? 0;
+  if (currency) return `${currency} ${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return v.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
 function fmtDate(iso: string): string {
@@ -478,7 +479,7 @@ function ReportSummary({ data, reportId, currency }: { data: AnyReportResponse; 
     const s = (data as InventoryValuationResponse).summary;
     return (
       <div className="rpt-summary">
-        <StatCard label="Items" value={s.totalItems.toLocaleString()} />
+        <StatCard label="Items" value={(s.totalItems ?? 0).toLocaleString()} />
         <StatCard label="Total Quantity" value={fmt(s.totalQuantity)} />
         <StatCard label="Total Value" value={fmt(s.totalValue, c)} />
       </div>
@@ -488,7 +489,7 @@ function ReportSummary({ data, reportId, currency }: { data: AnyReportResponse; 
     const s = (data as WastageCostResponse).summary;
     return (
       <div className="rpt-summary">
-        <StatCard label="Items Wasted" value={s.totalItems.toLocaleString()} />
+        <StatCard label="Items Wasted" value={(s.totalItems ?? 0).toLocaleString()} />
         <StatCard label="Total Qty Wasted" value={fmt(s.totalQuantity)} />
         <StatCard label="Total Cost of Wastage" value={fmt(s.totalValue, c)} />
       </div>
@@ -498,9 +499,9 @@ function ReportSummary({ data, reportId, currency }: { data: AnyReportResponse; 
     const s = (data as UsageResponse).summary;
     return (
       <div className="rpt-summary">
-        <StatCard label="Items Used" value={s.totalItems.toLocaleString()} />
+        <StatCard label="Items Used" value={(s.totalItems ?? 0).toLocaleString()} />
         <StatCard label="Total Qty Used" value={fmt(s.totalQuantity)} />
-        <StatCard label="Stock-Out Events" value={s.totalMovements.toLocaleString()} />
+        <StatCard label="Stock-Out Events" value={(s.totalMovements ?? 0).toLocaleString()} />
       </div>
     );
   }
@@ -508,8 +509,8 @@ function ReportSummary({ data, reportId, currency }: { data: AnyReportResponse; 
     const s = (data as SupplierSpendResponse).summary;
     return (
       <div className="rpt-summary">
-        <StatCard label="Suppliers" value={s.totalSuppliers.toLocaleString()} />
-        <StatCard label="Total Orders" value={s.totalOrders.toLocaleString()} />
+        <StatCard label="Suppliers" value={(s.totalSuppliers ?? 0).toLocaleString()} />
+        <StatCard label="Total Orders" value={(s.totalOrders ?? 0).toLocaleString()} />
         <StatCard label="Total Spend" value={fmt(s.totalSpend, c)} />
       </div>
     );
@@ -518,9 +519,9 @@ function ReportSummary({ data, reportId, currency }: { data: AnyReportResponse; 
     const s = (data as StockAgingResponse).summary;
     return (
       <div className="rpt-summary">
-        <StatCard label="Open Batches" value={s.totalBatches.toLocaleString()} />
+        <StatCard label="Open Batches" value={(s.totalBatches ?? 0).toLocaleString()} />
         <StatCard label="Total Value" value={fmt(s.totalValue, c)} />
-        <StatCard label="Avg Age" value={`${s.avgAgeDays} days`} />
+        <StatCard label="Avg Age" value={`${s.avgAgeDays ?? 0} days`} />
       </div>
     );
   }
@@ -528,7 +529,7 @@ function ReportSummary({ data, reportId, currency }: { data: AnyReportResponse; 
     const s = (data as ExpiryLossResponse).summary;
     return (
       <div className="rpt-summary">
-        <StatCard label="Expired Batches" value={s.totalBatches.toLocaleString()} />
+        <StatCard label="Expired Batches" value={(s.totalBatches ?? 0).toLocaleString()} />
         <StatCard label="Total Expired Qty" value={fmt(s.totalExpiredQty)} />
         <StatCard label="Potential Loss" value={fmt(s.totalPotentialLoss, c)} />
       </div>
@@ -536,10 +537,10 @@ function ReportSummary({ data, reportId, currency }: { data: AnyReportResponse; 
   }
   if (reportId === "adjustment-variance") {
     const s = (data as AdjustmentVarianceResponse).summary;
-    const net = s.netVariance;
+    const net = s.netVariance ?? 0;
     return (
       <div className="rpt-summary">
-        <StatCard label="Items Adjusted" value={s.totalItems.toLocaleString()} />
+        <StatCard label="Items Adjusted" value={(s.totalItems ?? 0).toLocaleString()} />
         <StatCard label="Total Gains" value={`+${fmt(s.totalPositive)}`} />
         <StatCard label="Total Losses" value={`-${fmt(s.totalNegative)}`} />
         <StatCard label="Net Variance" value={`${net >= 0 ? "+" : ""}${fmt(net)}`} />
@@ -550,7 +551,7 @@ function ReportSummary({ data, reportId, currency }: { data: AnyReportResponse; 
     const s = (data as TransferHistoryResponse).summary;
     return (
       <div className="rpt-summary">
-        <StatCard label="Total Transfers" value={s.totalTransfers.toLocaleString()} />
+        <StatCard label="Total Transfers" value={(s.totalTransfers ?? 0).toLocaleString()} />
         <StatCard label="Total In" value={fmt(s.totalInQty)} />
         <StatCard label="Total Out" value={fmt(s.totalOutQty)} />
       </div>
