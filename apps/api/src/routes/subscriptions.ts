@@ -228,6 +228,7 @@ const PLAN_TIER_MAP: Record<string, string> = {
 
 subscriptionsRouter.post(
   "/select-plan",
+  requireAuth,
   requireRole([Role.OWNER]),
   asyncHandler(async (req, res) => {
     const workspaceId = req.user?.workspaceId ?? null;
