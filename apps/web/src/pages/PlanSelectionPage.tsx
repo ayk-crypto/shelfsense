@@ -24,9 +24,12 @@ function formatLimit(val: number | null, label: string): string {
   return `Up to ${val.toLocaleString()} ${label}`;
 }
 
-function formatPrice(amount: number, currency: string): string {
-  if (amount === 0) return "Free";
-  return `${currency} ${amount.toLocaleString()}`;
+function CheckIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" className={className} aria-hidden="true">
+      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+    </svg>
+  );
 }
 
 function PlanCard({
@@ -77,7 +80,7 @@ function PlanCard({
         )}
         {billingCycle === "ANNUAL" && !isFree && (
           <div className="plan-price-annual-note">
-            Billed annually — {plan.currency} {plan.annualPrice.toLocaleString()}/yr
+            {plan.currency} {plan.annualPrice.toLocaleString()} billed annually
           </div>
         )}
       </div>
@@ -91,9 +94,7 @@ function PlanCard({
       <ul className="plan-card-features">
         {enabledFeatures.map((label) => (
           <li key={label} className="plan-feature-item">
-            <svg viewBox="0 0 20 20" fill="currentColor" className="plan-feature-check">
-              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-            </svg>
+            <CheckIcon className="plan-feature-check" />
             {label}
           </li>
         ))}
@@ -102,8 +103,14 @@ function PlanCard({
       <button
         className={`plan-card-btn ${selected ? "plan-card-btn--selected" : ""}`}
         onClick={(e) => { e.stopPropagation(); onSelect(); }}
+        type="button"
       >
-        {selected ? "Selected" : `Choose ${plan.name}`}
+        {selected ? (
+          <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+            <CheckIcon className="plan-card-btn-check" />
+            Selected
+          </span>
+        ) : `Choose ${plan.name}`}
       </button>
     </div>
   );
@@ -235,10 +242,10 @@ export function PlanSelectionPage() {
   }
 
   function getCtaText(): string {
-    if (isFree) return "Continue with Free Plan";
+    if (isFree) return "Start for Free";
     const payable = getPayableAmount();
     if (payable === 0) return "Activate Plan — No Payment Required";
-    return "Continue — Payment Pending";
+    return "Continue to Billing";
   }
 
   function showPendingPaymentNote(): boolean {
@@ -276,7 +283,7 @@ export function PlanSelectionPage() {
     return (
       <div className="plan-sel-error">
         <div className="alert alert--error">{error}</div>
-        <button className="btn btn--primary" onClick={() => window.location.reload()}>Retry</button>
+        <button className="btn btn--primary" onClick={() => window.location.reload()} type="button">Retry</button>
       </div>
     );
   }
@@ -287,7 +294,7 @@ export function PlanSelectionPage() {
 
   return (
     <div className="plan-sel-page">
-      <div className="plan-sel-header">
+      <header className="plan-sel-header">
         <div className="plan-sel-logo">
           <span className="plan-sel-logo-mark">S</span>
           <span className="plan-sel-logo-text">ShelfSense</span>
@@ -308,28 +315,29 @@ export function PlanSelectionPage() {
             Dashboard
           </div>
         </div>
-      </div>
+      </header>
 
       <div className="plan-sel-hero">
         <h1 className="plan-sel-title">Choose your plan</h1>
         <p className="plan-sel-subtitle">
-          Start with the Free plan or unlock more capacity with Starter or Pro.
-          You can upgrade at any time from your dashboard.
+          Start free and upgrade as you grow. No credit card required to get started.
         </p>
 
         <div className="plan-billing-toggle">
           <button
+            type="button"
             className={`billing-toggle-btn ${billingCycle === "MONTHLY" ? "billing-toggle-btn--active" : ""}`}
             onClick={() => setBillingCycle("MONTHLY")}
           >
             Monthly
           </button>
           <button
+            type="button"
             className={`billing-toggle-btn ${billingCycle === "ANNUAL" ? "billing-toggle-btn--active" : ""}`}
             onClick={() => setBillingCycle("ANNUAL")}
           >
             Annual
-            <span className="billing-toggle-save">Save ~17%</span>
+            <span className="billing-toggle-save">Save 17%</span>
           </button>
         </div>
       </div>
@@ -350,12 +358,12 @@ export function PlanSelectionPage() {
         <div className="plan-sel-confirm-panel">
           <div className="plan-confirm-inner">
             <div className="plan-confirm-selected">
-              <div className="plan-confirm-selected-label">Selected plan</div>
+              <div className="plan-confirm-selected-label">Your selection</div>
               <div className="plan-confirm-selected-name">
                 {selectedPlan.name}
                 {!isFree && (
                   <span className="plan-confirm-cycle">
-                    {billingCycle === "ANNUAL" ? " · Annual billing" : " · Monthly billing"}
+                    {billingCycle === "ANNUAL" ? " · Billed annually" : " · Billed monthly"}
                   </span>
                 )}
               </div>
@@ -363,11 +371,11 @@ export function PlanSelectionPage() {
 
             {!isFree && (
               <div className="plan-coupon-section">
-                <div className="plan-coupon-label">Have a coupon code?</div>
+                <div className="plan-coupon-label">Promo code</div>
                 {couponCode ? (
                   <div className="plan-coupon-applied">
                     <span className="plan-coupon-applied-code">{couponCode}</span>
-                    <button className="plan-coupon-remove" onClick={handleRemoveCoupon}>Remove</button>
+                    <button type="button" className="plan-coupon-remove" onClick={handleRemoveCoupon}>Remove</button>
                   </div>
                 ) : (
                   <div className="plan-coupon-input-row">
@@ -377,18 +385,19 @@ export function PlanSelectionPage() {
                       placeholder="e.g. LAUNCH100"
                       value={couponInput}
                       onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
-                      onKeyDown={(e) => e.key === "Enter" && !couponLoading && handleApplyCoupon()}
+                      onKeyDown={(e) => e.key === "Enter" && !couponLoading && void handleApplyCoupon()}
                     />
                     <button
+                      type="button"
                       className="plan-coupon-apply-btn"
-                      onClick={handleApplyCoupon}
+                      onClick={() => void handleApplyCoupon()}
                       disabled={couponLoading || !couponInput.trim()}
                     >
                       {couponLoading ? "…" : "Apply"}
                     </button>
                   </div>
                 )}
-                {couponSuccess && <div className="plan-coupon-success">{couponSuccess}</div>}
+                {couponSuccess && <div className="plan-coupon-success">✓ {couponSuccess}</div>}
                 {couponError && <div className="plan-coupon-error">{couponError}</div>}
               </div>
             )}
@@ -396,16 +405,12 @@ export function PlanSelectionPage() {
             {!isFree && (
               <div className="plan-price-summary">
                 <div className="plan-price-row">
-                  <span>
-                    {billingCycle === "ANNUAL" ? "Annual total" : "Monthly total"}
-                  </span>
-                  <span>
-                    {selectedPlan.currency} {baseAmount.toLocaleString()}
-                  </span>
+                  <span>{billingCycle === "ANNUAL" ? "Annual total" : "Monthly total"}</span>
+                  <span>{selectedPlan.currency} {baseAmount.toLocaleString()}</span>
                 </div>
                 {discountAmount > 0 && (
                   <div className="plan-price-row plan-price-row--discount">
-                    <span>Coupon discount</span>
+                    <span>Promo discount</span>
                     <span>− {selectedPlan.currency} {discountAmount.toLocaleString()}</span>
                   </div>
                 )}
@@ -426,18 +431,17 @@ export function PlanSelectionPage() {
                   <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                 </svg>
                 <div>
-                  <strong>Payment gateway not connected.</strong> Your selected plan will be activated
-                  in manual review mode. You will have full dashboard access while our team processes your account.
-                  A payment link will be sent separately.
+                  <strong>Payment gateway not connected.</strong> Your plan will be activated in manual review mode — you'll have full dashboard access while our team processes your account. A payment link will be sent separately.
                 </div>
               </div>
             )}
 
-            {confirmError && <div className="alert alert--error" style={{ marginTop: 12 }}>{confirmError}</div>}
+            {confirmError && <div className="alert alert--error">{confirmError}</div>}
 
             <button
+              type="button"
               className={`plan-confirm-btn ${isFree ? "plan-confirm-btn--free" : payableAmount === 0 ? "plan-confirm-btn--activate" : "plan-confirm-btn--pending"}`}
-              onClick={handleConfirm}
+              onClick={() => void handleConfirm()}
               disabled={confirming}
             >
               {confirming ? (
@@ -447,13 +451,26 @@ export function PlanSelectionPage() {
               )}
             </button>
 
-            <p className="plan-confirm-note">
-              {isFree
-                ? "No credit card required. Upgrade anytime from your dashboard."
-                : payableAmount === 0
-                ? "Your plan activates immediately. No credit card required."
-                : "No upfront payment required right now. You can complete payment from your billing settings."}
-            </p>
+            <div className="plan-confirm-trust">
+              <span className="plan-confirm-trust-item">
+                <svg viewBox="0 0 20 20" fill="currentColor" style={{ width: 13, height: 13 }}>
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                Cancel anytime
+              </span>
+              <span className="plan-confirm-trust-item">
+                <svg viewBox="0 0 20 20" fill="currentColor" style={{ width: 13, height: 13 }}>
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                {isFree ? "No credit card required" : "Upgrade or downgrade anytime"}
+              </span>
+              <span className="plan-confirm-trust-item">
+                <svg viewBox="0 0 20 20" fill="currentColor" style={{ width: 13, height: 13 }}>
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                Change plan from dashboard
+              </span>
+            </div>
           </div>
         </div>
       )}

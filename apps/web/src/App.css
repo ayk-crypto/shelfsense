@@ -17737,12 +17737,12 @@ body {
   align-items: center;
   justify-content: center;
   gap: 16px;
-  background: #f0fdf4;
+  background: #f8fafc;
 }
 
 .plan-sel-page {
   min-height: 100vh;
-  background: linear-gradient(160deg, #f0fdf4 0%, #f8fafc 60%);
+  background: #f8fafc;
   padding-bottom: 80px;
 }
 
@@ -17751,9 +17751,9 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px 40px;
-  background: rgba(255,255,255,0.85);
-  backdrop-filter: blur(8px);
+  padding: 0 40px;
+  height: 60px;
+  background: #fff;
   border-bottom: 1px solid #e2e8f0;
   position: sticky;
   top: 0;
@@ -17765,43 +17765,44 @@ body {
 .plan-sel-logo {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 9px;
 }
 
 .plan-sel-logo-mark {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #16a34a, #15803d);
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: #16a34a;
   color: #fff;
   font-weight: 800;
-  font-size: 18px;
+  font-size: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  letter-spacing: -0.5px;
 }
 
 .plan-sel-logo-text {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 700;
   color: #0f172a;
 }
 
-/* Progress breadcrumb */
+/* Progress steps */
 .plan-sel-progress {
   display: flex;
   align-items: center;
-  gap: 6px;
 }
 
 .plan-sel-progress-step {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   font-size: 12px;
   font-weight: 500;
   color: #94a3b8;
+  white-space: nowrap;
 }
 
 .plan-sel-progress-step--done { color: #16a34a; }
@@ -17812,7 +17813,7 @@ body {
   height: 22px;
   border-radius: 50%;
   background: #e2e8f0;
-  color: #64748b;
+  color: #94a3b8;
   font-size: 11px;
   font-weight: 700;
   display: flex;
@@ -17827,15 +17828,15 @@ body {
 }
 
 .plan-sel-progress-icon--active {
-  background: #16a34a !important;
+  background: #0f172a !important;
   color: #fff !important;
 }
 
 .plan-sel-progress-connector {
-  width: 32px;
-  height: 2px;
+  width: 36px;
+  height: 1px;
   background: #e2e8f0;
-  border-radius: 2px;
+  margin: 0 10px;
 }
 
 .plan-sel-progress-connector--done {
@@ -17845,45 +17846,46 @@ body {
 /* ── Hero ────────────────────────────────────────── */
 .plan-sel-hero {
   text-align: center;
-  padding: 56px 24px 40px;
+  padding: 52px 24px 40px;
 }
 
 .plan-sel-title {
-  font-size: clamp(28px, 4vw, 42px);
+  font-size: clamp(26px, 3.5vw, 40px);
   font-weight: 800;
   color: #0f172a;
-  letter-spacing: -0.02em;
-  margin: 0 0 12px;
+  letter-spacing: -0.025em;
+  margin: 0 0 10px;
+  line-height: 1.1;
 }
 
 .plan-sel-subtitle {
-  font-size: 16px;
-  color: #475569;
-  max-width: 560px;
+  font-size: 15px;
+  color: #64748b;
+  max-width: 480px;
   margin: 0 auto 32px;
-  line-height: 1.6;
+  line-height: 1.65;
 }
 
 /* ── Billing toggle ─────────────────────────────── */
 .plan-billing-toggle {
   display: inline-flex;
-  background: #f1f5f9;
-  border-radius: 12px;
-  padding: 4px;
-  gap: 4px;
+  background: #e2e8f0;
+  border-radius: 11px;
+  padding: 3px;
+  gap: 2px;
 }
 
 .billing-toggle-btn {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 20px;
-  border-radius: 9px;
+  gap: 7px;
+  padding: 8px 22px;
+  border-radius: 8px;
   border: none;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.18s ease;
+  transition: all 0.2s ease;
   background: transparent;
   color: #64748b;
 }
@@ -17891,80 +17893,87 @@ body {
 .billing-toggle-btn--active {
   background: #fff;
   color: #0f172a;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+  box-shadow: 0 1px 5px rgba(15,23,42,0.12);
 }
 
 .billing-toggle-save {
   background: #dcfce7;
   color: #15803d;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 7px;
   border-radius: 20px;
+  letter-spacing: 0.02em;
 }
 
 /* ── Plan cards grid ─────────────────────────────── */
 .plan-cards-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  max-width: 1200px;
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  max-width: 960px;
   margin: 0 auto;
   padding: 0 24px;
-  gap: 20px;
-  align-items: start;
+  gap: 16px;
+  align-items: stretch;
 }
 
 .plan-card {
   background: #fff;
-  border-radius: 20px;
-  border: 2px solid #e2e8f0;
-  padding: 28px 24px 24px;
+  border-radius: 16px;
+  border: 1.5px solid #e2e8f0;
+  padding: 28px 26px 24px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 16px;
 }
 
 .plan-card:hover {
   border-color: #86efac;
-  box-shadow: 0 8px 32px rgba(22,163,74,0.10);
+  box-shadow: 0 6px 24px rgba(22,163,74,0.09);
   transform: translateY(-2px);
 }
 
 .plan-card--selected {
   border-color: #16a34a;
-  box-shadow: 0 8px 32px rgba(22,163,74,0.15);
+  border-width: 2px;
+  box-shadow: 0 8px 28px rgba(22,163,74,0.14);
 }
 
 .plan-card--recommended {
   border-color: #16a34a;
+  border-width: 2px;
 }
 
+/* Badge */
 .plan-card-badge {
   position: absolute;
   top: -12px;
   left: 50%;
   transform: translateX(-50%);
-  background: linear-gradient(135deg, #16a34a, #15803d);
+  background: #16a34a;
   color: #fff;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 4px 14px;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 3px 12px;
   border-radius: 20px;
   white-space: nowrap;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
 }
 
-.plan-card-header { }
+/* Card header */
+.plan-card-header {
+  margin-bottom: 18px;
+  padding-top: 6px;
+}
 
 .plan-card-name {
-  font-size: 20px;
-  font-weight: 700;
+  font-size: 18px;
+  font-weight: 800;
   color: #0f172a;
-  margin: 0 0 6px;
+  margin: 0 0 5px;
 }
 
 .plan-card-desc {
@@ -17980,49 +17989,56 @@ body {
   align-items: baseline;
   flex-wrap: wrap;
   gap: 2px;
+  margin-bottom: 18px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #f1f5f9;
 }
 
 .plan-price-currency {
-  font-size: 15px;
-  font-weight: 600;
-  color: #475569;
+  font-size: 16px;
+  font-weight: 700;
+  color: #64748b;
   align-self: flex-start;
-  margin-top: 4px;
+  margin-top: 7px;
 }
 
 .plan-price-amount {
-  font-size: 38px;
+  font-size: 44px;
   font-weight: 800;
   color: #0f172a;
   line-height: 1;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
 }
 
 .plan-price-period {
-  font-size: 14px;
+  font-size: 13px;
   color: #94a3b8;
   font-weight: 500;
+  align-self: flex-end;
+  margin-bottom: 3px;
 }
 
 .plan-price-annual-note {
   width: 100%;
   font-size: 11px;
-  color: #64748b;
-  margin-top: 4px;
+  color: #94a3b8;
+  margin-top: 5px;
+  font-weight: 500;
 }
 
-/* Limits pills */
+/* Limits */
 .plan-card-limits {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
+  margin-bottom: 18px;
 }
 
 .plan-limit-item {
   font-size: 12px;
   font-weight: 600;
-  color: #1e40af;
-  background: #eff6ff;
+  color: #334155;
+  background: #f1f5f9;
   border-radius: 6px;
   padding: 4px 10px;
   display: inline-flex;
@@ -18036,8 +18052,9 @@ body {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 9px;
   flex: 1;
+  margin-bottom: 22px;
 }
 
 .plan-feature-item {
@@ -18049,8 +18066,8 @@ body {
 }
 
 .plan-feature-check {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
   color: #16a34a;
   flex-shrink: 0;
 }
@@ -18059,38 +18076,48 @@ body {
 .plan-card-btn {
   width: 100%;
   padding: 11px 16px;
-  border-radius: 10px;
-  border: 2px solid #16a34a;
+  border-radius: 9px;
+  border: 1.5px solid #d1d5db;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s ease;
-  background: transparent;
-  color: #16a34a;
+  transition: all 0.18s ease;
+  background: #f9fafb;
+  color: #374151;
   margin-top: auto;
 }
 
 .plan-card-btn:hover {
+  border-color: #16a34a;
+  color: #15803d;
   background: #f0fdf4;
 }
 
 .plan-card-btn--selected {
   background: #16a34a;
   color: #fff;
+  border-color: #16a34a;
+  box-shadow: 0 3px 10px rgba(22,163,74,0.28);
+}
+
+.plan-card-btn-check {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
 }
 
 /* ── Confirm panel ───────────────────────────────── */
 .plan-sel-confirm-panel {
-  max-width: 600px;
-  margin: 40px auto 0;
+  max-width: 560px;
+  margin: 36px auto 0;
   padding: 0 24px;
 }
 
 .plan-confirm-inner {
   background: #fff;
-  border-radius: 20px;
+  border-radius: 16px;
   border: 1px solid #e2e8f0;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.07);
+  box-shadow: 0 4px 20px rgba(15,23,42,0.07);
   padding: 28px;
   display: flex;
   flex-direction: column;
@@ -18098,17 +18125,17 @@ body {
 }
 
 .plan-confirm-selected-label {
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 10px;
+  font-weight: 800;
   color: #94a3b8;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  margin-bottom: 4px;
+  letter-spacing: 0.08em;
+  margin-bottom: 3px;
 }
 
 .plan-confirm-selected-name {
-  font-size: 18px;
-  font-weight: 700;
+  font-size: 20px;
+  font-weight: 800;
   color: #0f172a;
 }
 
@@ -18122,9 +18149,11 @@ body {
 .plan-coupon-section { }
 
 .plan-coupon-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: #374151;
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   margin-bottom: 8px;
 }
 
@@ -18135,40 +18164,44 @@ body {
 
 .plan-coupon-input {
   flex: 1;
-  padding: 10px 14px;
+  padding: 10px 13px;
   border: 1.5px solid #e2e8f0;
-  border-radius: 9px;
+  border-radius: 8px;
   font-size: 14px;
   font-weight: 600;
   font-family: monospace;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, background 0.15s;
+  background: #f8fafc;
+  color: #0f172a;
 }
 
 .plan-coupon-input:focus {
   border-color: #16a34a;
+  background: #fff;
 }
 
 .plan-coupon-apply-btn {
   padding: 10px 18px;
-  border-radius: 9px;
+  border-radius: 8px;
   border: none;
-  background: #16a34a;
+  background: #0f172a;
   color: #fff;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 700;
   cursor: pointer;
   transition: background 0.15s;
   white-space: nowrap;
+  letter-spacing: 0.01em;
 }
 
 .plan-coupon-apply-btn:hover:not(:disabled) {
-  background: #15803d;
+  background: #1e293b;
 }
 
 .plan-coupon-apply-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.35;
   cursor: not-allowed;
 }
 
@@ -18178,7 +18211,7 @@ body {
   gap: 10px;
   background: #f0fdf4;
   border: 1px solid #86efac;
-  border-radius: 9px;
+  border-radius: 8px;
   padding: 10px 14px;
 }
 
@@ -18187,25 +18220,28 @@ body {
   font-weight: 700;
   font-size: 14px;
   color: #15803d;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   flex: 1;
 }
 
 .plan-coupon-remove {
   background: none;
   border: none;
-  color: #ef4444;
-  font-size: 13px;
+  color: #94a3b8;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   padding: 0;
+  transition: color 0.15s;
 }
+
+.plan-coupon-remove:hover { color: #ef4444; }
 
 .plan-coupon-success {
   margin-top: 8px;
   font-size: 13px;
   color: #15803d;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .plan-coupon-error {
@@ -18233,7 +18269,7 @@ body {
 
 .plan-price-row--discount {
   color: #16a34a;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .plan-price-row--total {
@@ -18241,7 +18277,7 @@ body {
   font-weight: 700;
   color: #0f172a;
   border-top: 1px solid #e2e8f0;
-  padding-top: 8px;
+  padding-top: 10px;
   margin-top: 4px;
 }
 
@@ -18261,44 +18297,40 @@ body {
 /* Confirm CTA */
 .plan-confirm-btn {
   width: 100%;
-  padding: 15px;
-  border-radius: 12px;
+  padding: 14px;
+  border-radius: 11px;
   border: none;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
+  letter-spacing: 0.01em;
 }
 
-.plan-confirm-btn--free {
-  background: linear-gradient(135deg, #16a34a, #15803d);
-  color: #fff;
-  box-shadow: 0 4px 14px rgba(22,163,74,0.35);
-}
-
+.plan-confirm-btn--free,
 .plan-confirm-btn--activate {
-  background: linear-gradient(135deg, #16a34a, #15803d);
+  background: #16a34a;
   color: #fff;
-  box-shadow: 0 4px 14px rgba(22,163,74,0.35);
+  box-shadow: 0 4px 14px rgba(22,163,74,0.30);
 }
 
 .plan-confirm-btn--pending {
   background: linear-gradient(135deg, #f59e0b, #d97706);
   color: #fff;
-  box-shadow: 0 4px 14px rgba(245,158,11,0.30);
+  box-shadow: 0 4px 14px rgba(245,158,11,0.28);
 }
 
 .plan-confirm-btn:hover:not(:disabled) {
   transform: translateY(-1px);
-  filter: brightness(1.04);
+  filter: brightness(1.06);
 }
 
 .plan-confirm-btn:disabled {
-  opacity: 0.7;
+  opacity: 0.6;
   cursor: not-allowed;
   transform: none;
 }
@@ -18309,6 +18341,28 @@ body {
   text-align: center;
   margin: 0;
   line-height: 1.5;
+}
+
+.plan-confirm-trust {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.plan-confirm-trust-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.plan-confirm-trust-item svg {
+  color: #16a34a;
+  flex-shrink: 0;
 }
 
 .spinner--sm {
