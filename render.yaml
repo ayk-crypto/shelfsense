@@ -1,19 +1,28 @@
 services:
+
+  # ══════════════════════════════════════════════════════════════════════════
+  #  PRODUCTION — deploys automatically when main branch is pushed
+  # ══════════════════════════════════════════════════════════════════════════
+
   - type: web
     name: shelfsense-api
     runtime: node
     rootDir: .
+    branch: main
     buildCommand: npm install && npm run build:api
     startCommand: npm run start --workspace @shelfsense/api
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
-      - key: DATABASE_URL
+      # Set every key below manually in the Render dashboard (sync: false = not stored here)
+      - key: DATABASE_URL          # Neon POOLED connection string — production project
         sync: false
-      - key: JWT_SECRET
+      - key: JWT_SECRET            # ≥32 chars random secret — generate once, never share
         sync: false
-      - key: APP_URL
+      - key: CORS_ALLOWED_ORIGINS  # e.g. https://app.shelfsenseapp.com
+        sync: false
+      - key: WEB_BASE_URL          # e.g. https://app.shelfsenseapp.com
         sync: false
       - key: SMTP_HOST
         sync: false
@@ -27,5 +36,84 @@ services:
         sync: false
       - key: EMAIL_FROM_NAME
         sync: false
-      - key: EMAIL_FROM
+      - key: SUPPORT_FROM
         sync: false
+      - key: SUPPORT_INBOUND_SECRET
+        sync: false
+
+  - type: static
+    name: shelfsense-web
+    rootDir: .
+    branch: main
+    buildCommand: npm install && npm run build:web
+    staticPublishPath: apps/web/dist
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: no-cache
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      # Build-time variables — baked into the JS bundle at build time
+      - key: VITE_API_BASE_URL     # e.g. https://shelfsense-api.onrender.com
+        sync: false
+      - key: VITE_APP_ENV
+        value: production
+
+  # ══════════════════════════════════════════════════════════════════════════
+  #  STAGING — deploys automatically when staging branch is pushed
+  # ══════════════════════════════════════════════════════════════════════════
+
+  - type: web
+    name: shelfsense-api-staging
+    runtime: node
+    rootDir: .
+    branch: staging
+    buildCommand: npm install && npm run build:api
+    startCommand: npm run start --workspace @shelfsense/api
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: staging
+      - key: DATABASE_URL          # Neon POOLED connection string — staging project (DIFFERENT from production)
+        sync: false
+      - key: JWT_SECRET            # Different secret from production
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS  # e.g. https://shelfsense-web-staging.onrender.com
+        sync: false
+      - key: WEB_BASE_URL          # e.g. https://shelfsense-web-staging.onrender.com
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: EMAIL_FROM_NAME
+        sync: false
+
+  - type: static
+    name: shelfsense-web-staging
+    rootDir: .
+    branch: staging
+    buildCommand: npm install && npm run build:web
+    staticPublishPath: apps/web/dist
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: no-cache
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_BASE_URL     # e.g. https://shelfsense-api-staging.onrender.com
+        sync: false
+      - key: VITE_APP_ENV
+        value: staging
