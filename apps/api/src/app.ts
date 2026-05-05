@@ -19,6 +19,7 @@ import { onboardingRouter } from "./routes/onboarding.js";
 import { purchasesRouter } from "./routes/purchases.js";
 import { reorderSuggestionsRouter } from "./routes/reorder-suggestions.js";
 import { planRouter } from "./routes/plan.js";
+import { subscriptionsRouter } from "./routes/subscriptions.js";
 import { adminRouter } from "./routes/admin.js";
 import { announcementsRouter } from "./routes/announcements.js";
 import { reportsRouter } from "./routes/reports.js";
@@ -181,6 +182,7 @@ app.use("/announcements", announcementsRouter);
 app.use("/webhooks", webhooksRouter);
 app.use("/reports", reportsRouter);
 app.use("/plan", planRouter);
+app.use("/subscriptions", subscriptionsRouter);
 app.use("/team", teamRouter);
 app.use((req, res) => {
   const body: Record<string, unknown> = { error: "Route not found", code: "NOT_FOUND" };

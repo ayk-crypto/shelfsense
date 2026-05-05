@@ -130,12 +130,62 @@ export interface OnboardingStatus {
   hasItems: boolean;
   hasSuppliers: boolean;
   hasLocations: boolean;
+  hasSelectedPlan: boolean;
+  subscriptionStatus: string | null;
+  nextStep: "WORKSPACE_SETUP" | "PLAN_SELECTION" | "DASHBOARD";
 }
 
 export interface OnboardingStatusResponse extends OnboardingStatus {}
 
 export interface CompleteOnboardingResponse {
   onboardingCompleted: boolean;
+}
+
+export interface PublicPlan {
+  id: string;
+  name: string;
+  code: string;
+  description: string | null;
+  monthlyPrice: number;
+  annualPrice: number;
+  currency: string;
+  trialDays: number;
+  maxUsers: number | null;
+  maxLocations: number | null;
+  maxItems: number | null;
+  maxSuppliers: number | null;
+  enableExpiryTracking: boolean;
+  enableBarcodeScanning: boolean;
+  enableReports: boolean;
+  enableAdvancedReports: boolean;
+  enablePurchases: boolean;
+  enableSuppliers: boolean;
+  enableTeamManagement: boolean;
+  enableCustomRoles: boolean;
+  enableEmailAlerts: boolean;
+  enableDailyOps: boolean;
+  sortOrder: number;
+}
+
+export interface SubscriptionPreview {
+  plan: { id: string; name: string; code: string; currency: string };
+  billingCycle: "MONTHLY" | "ANNUAL";
+  originalAmount: number;
+  discountAmount: number;
+  payableAmount: number;
+  couponApplied: boolean;
+  couponMessage: string;
+  canActivateWithoutPayment: boolean;
+}
+
+export interface CurrentSubscription {
+  id: string;
+  status: string;
+  billingCycle: string;
+  amount: number;
+  currency: string;
+  manualNotes: string | null;
+  plan: { id: string; name: string; code: string };
 }
 
 export interface UpdateWorkspaceSettingsInput {

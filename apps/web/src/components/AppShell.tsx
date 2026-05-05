@@ -3,10 +3,11 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { getAlerts } from "../api/alerts";
 import { getNotifications, markAllNotificationsRead, markNotificationRead } from "../api/notifications";
 import { resendVerification } from "../api/auth";
+import { getCurrentSubscription } from "../api/subscriptions";
 import { useAuth } from "../context/AuthContext";
 import { useLocation } from "../context/LocationContext";
 import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
-import type { Notification } from "../types";
+import type { CurrentSubscription, Notification } from "../types";
 
 export function AppShell() {
   const { user, logout } = useAuth();
@@ -30,6 +31,7 @@ export function AppShell() {
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [isDesktopShell, setIsDesktopShell] = useState(() => window.innerWidth >= 768);
   const [commandSearch, setCommandSearch] = useState("");
+  const [subscription, setSubscription] = useState<CurrentSubscription | null>(null);
   const canAccessManagement = user?.role === "OWNER" || user?.role === "MANAGER";
   const canRecordStockOut = user?.role === "OWNER" || user?.role === "MANAGER" || user?.role === "OPERATOR";
   const canViewAlerts = user?.role === "OWNER" || user?.role === "MANAGER" || user?.role === "OPERATOR";
@@ -65,6 +67,13 @@ export function AppShell() {
 
     void loadShellSignals();
   }, [canViewAlerts, activeLocationId]);
+
+  useEffect(() => {
+    if (user?.role !== "OWNER") return;
+    getCurrentSubscription()
+      .then((res) => setSubscription(res.subscription))
+      .catch(() => {});
+  }, [user?.role]);
 
   useEffect(() => {
     function handleOnline() {
@@ -457,6 +466,20 @@ export function AppShell() {
         <main className="page-content">
           {!isOnline && <OfflineNotice />}
           {user && user.emailVerified === false && <EmailVerifyBanner email={user.email} />}
+          {subscription?.status === "MANUAL_REVIEW" && (
+            <div className="billing-pending-banner">
+              <svg viewBox="0 0 20 20" fill="currentColor" style={{ width: 16, height: 16, flexShrink: 0 }}>
+                <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+              </svg>
+              <span>
+                <strong>Payment pending</strong> — Your <strong>{subscription.plan.name}</strong> plan is active
+                but awaiting payment. Please contact support to complete billing.
+              </span>
+              <button className="billing-pending-banner-btn" onClick={() => navigate("/plan")}>
+                View Plan
+              </button>
+            </div>
+          )}
           <Outlet />
         </main>
       </div>

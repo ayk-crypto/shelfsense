@@ -133,8 +133,25 @@ async function seedPlans() {
   console.log("Default plans seeded.");
 }
 
+async function seedCoupons() {
+  await prisma.coupon.upsert({
+    where: { code: "LAUNCH100" },
+    update: { isActive: true },
+    create: {
+      code: "LAUNCH100",
+      name: "Launch 100% Off",
+      description: "Full discount for early adopters — activate any paid plan for free.",
+      discountType: "PERCENTAGE",
+      discountValue: 100,
+      isActive: true,
+    },
+  });
+  console.log("Launch coupon seeded (LAUNCH100).");
+}
+
 async function main() {
   await seedPlans();
+  await seedCoupons();
   const hashedPassword = await bcrypt.hash(demoUser.password, 12);
   const hashedOperatorPassword = await bcrypt.hash(demoOperatorUser.password, 12);
 

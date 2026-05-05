@@ -34,6 +34,7 @@ import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MovementsPage } from "./pages/MovementsPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
+import { PlanSelectionPage } from "./pages/PlanSelectionPage";
 import { PurchasesPage } from "./pages/PurchasesPage";
 import { ReorderSuggestionsPage } from "./pages/ReorderSuggestionsPage";
 import { ReportsPage } from "./pages/ReportsPage";
@@ -198,6 +199,10 @@ function OnboardingGuard({ children }: { children: React.ReactNode }) {
     return <Navigate to="/onboarding" replace />;
   }
 
+  if (!status.hasSelectedPlan) {
+    return <Navigate to="/onboarding/plan" replace />;
+  }
+
   return <>{children}</>;
 }
 
@@ -218,8 +223,12 @@ function OnboardingPageWrapper() {
           getOnboardingStatus(),
         ]);
         if (cancelled) return;
-        if (statusRes.onboardingCompleted) {
+        if (statusRes.onboardingCompleted && statusRes.hasSelectedPlan) {
           navigate("/dashboard", { replace: true });
+          return;
+        }
+        if (statusRes.onboardingCompleted && !statusRes.hasSelectedPlan) {
+          navigate("/onboarding/plan", { replace: true });
           return;
         }
         setSettings(settingsRes.settings);
@@ -261,7 +270,7 @@ function OnboardingPageWrapper() {
       settings={settings}
       status={status}
       onSettingsUpdated={setSettings}
-      onComplete={() => navigate("/dashboard", { replace: true })}
+      onComplete={() => navigate("/onboarding/plan", { replace: true })}
     />
   );
 }
@@ -303,6 +312,16 @@ export function App() {
               <ProtectedRoute>
                 <WorkspaceRequiredRoute>
                   <OnboardingPageWrapper />
+                </WorkspaceRequiredRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/onboarding/plan"
+            element={
+              <ProtectedRoute>
+                <WorkspaceRequiredRoute>
+                  <PlanSelectionPage />
                 </WorkspaceRequiredRoute>
               </ProtectedRoute>
             }

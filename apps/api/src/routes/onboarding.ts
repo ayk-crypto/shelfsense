@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { Role } from "../generated/prisma/enums.js";
+import { Role, SubscriptionStatus } from "../generated/prisma/enums.js";
 import { prisma } from "../db/prisma.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -18,7 +18,7 @@ onboardingRouter.get("/status", asyncHandler(async (req, res) => {
 
   await ensureDefaultLocation(workspaceId);
 
-  const [workspace, itemsCount, suppliersCount, locationsCount] = await Promise.all([
+  const [workspace, itemsCount, suppliersCount, locationsCount, subscription] = await Promise.all([
     prisma.workspace.findUnique({
       where: { id: workspaceId },
       select: { onboardingCompleted: true, onboardingStep: true },
@@ -26,10 +26,27 @@ onboardingRouter.get("/status", asyncHandler(async (req, res) => {
     prisma.item.count({ where: { workspaceId } }),
     prisma.supplier.count({ where: { workspaceId } }),
     prisma.location.count({ where: { workspaceId } }),
+    prisma.subscription.findFirst({
+      where: { workspaceId, status: { not: SubscriptionStatus.CANCELLED } },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, status: true },
+    }),
   ]);
 
   if (!workspace) {
     return res.status(404).json({ error: "Workspace not found" });
+  }
+
+  const hasSelectedPlan = subscription !== null;
+  const subscriptionStatus = subscription?.status ?? null;
+
+  let nextStep: "WORKSPACE_SETUP" | "PLAN_SELECTION" | "DASHBOARD" = "WORKSPACE_SETUP";
+  if (workspace.onboardingCompleted && hasSelectedPlan) {
+    nextStep = "DASHBOARD";
+  } else if (workspace.onboardingCompleted && !hasSelectedPlan) {
+    nextStep = "PLAN_SELECTION";
+  } else {
+    nextStep = "WORKSPACE_SETUP";
   }
 
   return res.json({
@@ -38,6 +55,9 @@ onboardingRouter.get("/status", asyncHandler(async (req, res) => {
     hasItems: itemsCount > 0,
     hasSuppliers: suppliersCount > 0,
     hasLocations: locationsCount > 0,
+    hasSelectedPlan,
+    subscriptionStatus,
+    nextStep,
   });
 }));
 

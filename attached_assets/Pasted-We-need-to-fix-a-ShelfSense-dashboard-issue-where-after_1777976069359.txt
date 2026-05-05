@@ -1,0 +1,87 @@
+We need to fix a ShelfSense dashboard issue where after login/signup the dashboard shows:
+
+"Location is archived or unavailable"
+
+and the page stays mostly blank, even though the app switches to "Main Branch" and shows a toast saying:
+"Switched to Main Branch — your previous location was unavailable."
+
+Current problem:
+The frontend appears to be using a stale or invalid selectedLocationId from localStorage/session/state. When the selected location is archived, deleted, unavailable, or not part of the current workspace, the app should automatically recover cleanly and load dashboard data using the active default location.
+
+Please inspect:
+- apps/web location context/state
+- dashboard page
+- API client location handling
+- localStorage selected location logic
+- backend location validation middleware/routes
+- onboarding/register default location creation
+- workspace/location API responses
+
+Fix requirements:
+
+1. Frontend selected location recovery
+   - On app load/login, fetch the current workspace active locations.
+   - If localStorage selectedLocationId is missing, invalid, archived, deleted, or not in the active location list:
+     - automatically select the workspace default active location.
+     - if no explicit default exists, select the first active location.
+     - update localStorage with the recovered valid locationId.
+     - update React state/context immediately.
+   - Do not leave the dashboard in blank/error state after recovery.
+
+2. Prevent stale location usage
+   - Before calling dashboard, stock, alerts, purchases, suppliers, or reports APIs, ensure selectedLocationId is valid.
+   - If selectedLocationId is invalid, recover first, then call the API.
+   - Avoid firing API calls with invalid locationId during initial render.
+
+3. Backend response behavior
+   - If a request is made with an archived/unavailable location, backend can still return a clear 400/404 error.
+   - But frontend must catch this specific error and trigger location recovery.
+   - Do not show a permanent red error if recovery succeeds.
+
+4. Dashboard loading behavior
+   - While location recovery is happening, show a proper loading/skeleton state.
+   - After recovery, load dashboard data normally.
+   - If recovery succeeds, remove the "Location is archived or unavailable" message.
+   - Keep only a friendly toast like:
+     "Switched to Main Branch because your previous location was unavailable."
+
+5. Onboarding/register default location
+   - Confirm that /auth/register or onboarding creates a default active location named "Main Branch".
+   - Confirm it is linked to the correct workspace.
+   - Confirm it is not archived by default.
+   - Confirm new users have selectedLocationId initialized to this location after signup.
+
+6. localStorage cleanup
+   - When user logs out, clear selectedLocationId and workspace-specific cached values.
+   - If localStorage stores selected location globally, change it to be workspace-specific:
+     Example:
+     shelfsense:selectedLocation:<workspaceId>
+   - This prevents one workspace/user using another workspace's location ID.
+
+7. Location switcher
+   - The dropdown should only show active, accessible locations.
+   - Archived locations should not appear in the normal switcher.
+   - If the selected location becomes archived, automatically switch to default active location.
+
+8. Testing
+   Please test these cases:
+   - New user signup → default Main Branch selected → dashboard loads.
+   - Existing user login with valid selected location → dashboard loads.
+   - Existing user login with stale/invalid locationId in localStorage → auto-recovers to Main Branch → dashboard loads.
+   - Archived selected location → auto-recovers to active location → dashboard loads.
+   - Logout → login as another user/workspace → no old location leakage.
+   - If workspace has no active locations, show a helpful empty state with action to create/restore a location.
+
+9. UI polish
+   - Do not show a blank dashboard.
+   - Do not show both a red error and a success recovery toast at the same time.
+   - Use a calm info/warning banner only if recovery fails.
+   - Make dashboard resilient even if selected location changes.
+
+Deliverables:
+After fixing, summarize:
+1. Files changed
+2. Root cause found
+3. How selected location recovery now works
+4. Any backend changes made
+5. Test results
