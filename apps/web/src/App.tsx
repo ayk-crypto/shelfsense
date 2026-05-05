@@ -49,6 +49,8 @@ import { StockInPage } from "./pages/StockInPage";
 import { StockOutPage } from "./pages/StockOutPage";
 import { SuppliersPage } from "./pages/SuppliersPage";
 import { TeamPage } from "./pages/TeamPage";
+import { SupportPage } from "./pages/SupportPage";
+import { SupportTicketPage } from "./pages/SupportTicketPage";
 import { useEffect, useState } from "react";
 import type { OnboardingStatus, WorkspaceSettings } from "./types";
 import type { Role } from "./types";
@@ -411,6 +413,8 @@ export function App() {
               path="/settings"
               element={<RoleRoute allowedRoles={["OWNER"]}><SettingsPage /></RoleRoute>}
             />
+            <Route path="/support" element={<SupportPage />} />
+            <Route path="/support/:id" element={<SupportTicketPage />} />
           </Route>
           <Route
             path="/admin"

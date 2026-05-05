@@ -28,6 +28,7 @@ import { stockRouter } from "./routes/stock.js";
 import { suppliersRouter } from "./routes/suppliers.js";
 import { teamRouter } from "./routes/team.js";
 import { workspaceRouter } from "./routes/workspace.js";
+import { supportRouter } from "./routes/support.js";
 import { webhooksRouter } from "./routes/webhooks.js";
 
 export const app = express();
@@ -187,6 +188,7 @@ app.use("/reports", reportsRouter);
 app.use("/plan", planRouter);
 app.use("/subscriptions", subscriptionsRouter);
 app.use("/team", teamRouter);
+app.use("/support", supportRouter);
 app.use((req, res) => {
   const body: Record<string, unknown> = { error: "Route not found", code: "NOT_FOUND" };
   if (req.requestId) body.requestId = req.requestId;

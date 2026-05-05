@@ -339,17 +339,12 @@ export function AppShell() {
                 </svg>
                 Settings
               </NavLink>
-              <a
-                href="mailto:support@shelfsense.com"
-                className="nav-item"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
+              <NavLink to="/support" className={({ isActive }) => `nav-item ${isActive ? "nav-item--active" : ""}`}>
                 <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                 </svg>
-                Contact Support
-              </a>
+                Support
+              </NavLink>
             </>
           )}
 
