@@ -17419,6 +17419,250 @@ body {
   .admin-page-title { font-size: 18px; }
 }
 
+/* ─── Audit Log Feed (AdminActivityPage) ───────────────────────────── */
+
+/* Toolbar */
+.al-toolbar {
+  margin-bottom: 24px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.al-action-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.al-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 13px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 500;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #475569;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.al-chip:hover { background: #f8fafc; border-color: #cbd5e1; }
+.al-chip--active { background: #f1f5f9; border-color: #cbd5e1; color: #1e293b; font-weight: 600; }
+.al-chip-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Feed layout */
+.al-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-bottom: 24px;
+}
+
+/* Individual log item */
+.al-item {
+  display: flex;
+  gap: 0;
+  position: relative;
+}
+.al-item-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 18px;
+  width: 32px;
+  flex-shrink: 0;
+}
+.al-item-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px #e2e8f0;
+  z-index: 1;
+}
+.al-item-line {
+  flex: 1;
+  width: 1px;
+  background: #e2e8f0;
+  margin-top: 4px;
+  min-height: 16px;
+}
+.al-item:last-child .al-item-line { display: none; }
+
+/* Card */
+.al-item-card {
+  flex: 1;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 18px;
+  margin: 6px 0 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  transition: box-shadow 0.15s;
+}
+.al-item-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+
+/* Top row: badge + time */
+.al-item-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.al-item-row--top { justify-content: space-between; }
+.al-item-row--middle { gap: 8px; flex-wrap: wrap; }
+
+.al-action-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: capitalize;
+  letter-spacing: 0.01em;
+}
+.al-item-time {
+  font-size: 12px;
+  color: #94a3b8;
+  white-space: nowrap;
+  margin-left: auto;
+}
+
+/* Middle row: entity + admin */
+.al-item-sep {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+/* Entity */
+.al-entity {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.al-entity-badge {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 7px;
+  border-radius: 5px;
+}
+.al-entity-id {
+  font-size: 12px;
+  font-family: monospace;
+  color: #64748b;
+  background: #f8fafc;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid #e2e8f0;
+}
+
+/* Admin */
+.al-admin {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.al-admin-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  letter-spacing: 0.03em;
+}
+.al-admin-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.al-admin-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #1e293b;
+  line-height: 1.2;
+}
+.al-admin-email {
+  font-size: 11.5px;
+  color: #94a3b8;
+  line-height: 1.2;
+}
+
+/* Meta pills */
+.al-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+.al-meta-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 3px 9px;
+  font-size: 12px;
+  min-width: 0;
+  max-width: 320px;
+}
+.al-meta-key {
+  font-weight: 600;
+  color: #475569;
+  white-space: nowrap;
+}
+.al-meta-sep {
+  color: #cbd5e1;
+  font-size: 11px;
+}
+.al-meta-val {
+  color: #1e293b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.al-meta-more {
+  background: none;
+  border: 1px dashed #cbd5e1;
+  border-radius: 6px;
+  padding: 3px 9px;
+  font-size: 11.5px;
+  color: #6366f1;
+  cursor: pointer;
+  font-weight: 500;
+}
+.al-meta-more:hover { background: #f8faff; border-color: #6366f1; }
+
+/* Empty state */
+.al-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 24px;
+  gap: 12px;
+  color: #94a3b8;
+}
+.al-empty-text {
+  font-size: 14px;
+  color: #64748b;
+  margin: 0;
+}
+
 /* ─── Admin Phase-1 additions ──────────────────────────────────────── */
 
 /* MRR banner */
