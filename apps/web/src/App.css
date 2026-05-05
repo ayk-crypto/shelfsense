@@ -17906,14 +17906,33 @@ body {
   letter-spacing: 0.02em;
 }
 
+/* ── Body: cards + sidebar ───────────────────────── */
+.plan-sel-body {
+  display: flex;
+  gap: 24px;
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 0 24px;
+  align-items: flex-start;
+}
+
+.plan-cards-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.plan-confirm-sidebar {
+  width: 308px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 76px;
+}
+
 /* ── Plan cards grid ─────────────────────────────── */
 .plan-cards-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
-  max-width: 960px;
-  margin: 0 auto;
-  padding: 0 24px;
-  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
   align-items: stretch;
 }
 
@@ -18107,21 +18126,17 @@ body {
 }
 
 /* ── Confirm panel ───────────────────────────────── */
-.plan-sel-confirm-panel {
-  max-width: 560px;
-  margin: 36px auto 0;
-  padding: 0 24px;
-}
+.plan-sel-confirm-panel { }
 
 .plan-confirm-inner {
   background: #fff;
   border-radius: 16px;
   border: 1px solid #e2e8f0;
   box-shadow: 0 4px 20px rgba(15,23,42,0.07);
-  padding: 28px;
+  padding: 24px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 18px;
 }
 
 .plan-confirm-selected-label {
@@ -18408,25 +18423,36 @@ body {
 }
 
 /* ── Responsive ──────────────────────────────────── */
+@media (max-width: 900px) {
+  .plan-sel-body {
+    flex-direction: column;
+    padding: 0 16px;
+  }
+
+  .plan-confirm-sidebar {
+    width: 100%;
+    position: static;
+  }
+}
+
 @media (max-width: 768px) {
   .plan-sel-header {
-    padding: 14px 16px;
+    padding: 0 16px;
+    height: auto;
+    min-height: 56px;
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
+    padding-top: 14px;
+    padding-bottom: 14px;
   }
 
   .plan-sel-hero {
-    padding: 36px 16px 28px;
+    padding: 36px 16px 24px;
   }
 
   .plan-cards-grid {
-    padding: 0 16px;
     grid-template-columns: 1fr;
-  }
-
-  .plan-sel-confirm-panel {
-    padding: 0 16px;
   }
 
   .plan-sel-progress {

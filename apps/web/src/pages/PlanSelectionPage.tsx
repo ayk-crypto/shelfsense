@@ -342,20 +342,23 @@ export function PlanSelectionPage() {
         </div>
       </div>
 
-      <div className="plan-cards-grid">
-        {plans.map((plan) => (
-          <PlanCard
-            key={plan.id}
-            plan={plan}
-            selected={plan.id === selectedPlanId}
-            billingCycle={billingCycle}
-            onSelect={() => handleSelectPlan(plan.id)}
-          />
-        ))}
-      </div>
+      <div className="plan-sel-body">
+        <div className="plan-cards-col">
+          <div className="plan-cards-grid">
+            {plans.map((plan) => (
+              <PlanCard
+                key={plan.id}
+                plan={plan}
+                selected={plan.id === selectedPlanId}
+                billingCycle={billingCycle}
+                onSelect={() => handleSelectPlan(plan.id)}
+              />
+            ))}
+          </div>
+        </div>
 
-      {selectedPlan && (
-        <div className="plan-sel-confirm-panel">
+        <div className="plan-confirm-sidebar">
+          {selectedPlan && (
           <div className="plan-confirm-inner">
             <div className="plan-confirm-selected">
               <div className="plan-confirm-selected-label">Your selection</div>
@@ -472,8 +475,9 @@ export function PlanSelectionPage() {
               </span>
             </div>
           </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
