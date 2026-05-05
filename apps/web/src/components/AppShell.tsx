@@ -407,7 +407,7 @@ export function AppShell() {
               onChange={setActiveLocationId}
             />
             <div className="topbar-actions">
-              {user?.platformRole === "SUPER_ADMIN" && (
+              {(user?.platformRole === "SUPER_ADMIN" || user?.platformRole === "SUPPORT_ADMIN") && (
                 <button
                   type="button"
                   className="btn btn--admin-return btn--sm"

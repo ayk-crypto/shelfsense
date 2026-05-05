@@ -93,6 +93,15 @@ const icons = {
       <path d="M7 14l4-4 3 3 5-6" />
     </svg>
   ),
+  team: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      <polyline points="12 14 14 16 18 12" />
+    </svg>
+  ),
   system: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <circle cx="12" cy="12" r="3" />
@@ -199,6 +208,7 @@ export function AdminLayout() {
           <NavItem to="/admin/announcements" icon={icons.announcements} label="Announcements" {...navProps} />
 
           <p className="admin-nav-section">System</p>
+          <NavItem to="/admin/team" icon={icons.team} label="Admin Team" {...navProps} />
           <NavItem to="/admin/activity" icon={icons.activity} label="Audit Logs" {...navProps} />
           <NavItem to="/admin/system" icon={icons.system} label="System Health" {...navProps} />
 
@@ -218,7 +228,13 @@ export function AdminLayout() {
             <div className="admin-user-avatar">{user?.name?.[0]?.toUpperCase() ?? "A"}</div>
             <div className="admin-user-details">
               <span className="admin-user-name">{user?.name}</span>
-              <span className="admin-user-role">Super Admin</span>
+              <span className="admin-user-role">
+                {user?.platformRole === "SUPER_ADMIN"
+                  ? "Super Admin"
+                  : user?.platformRole === "SUPPORT_ADMIN"
+                  ? "Support Admin"
+                  : "Admin"}
+              </span>
             </div>
           </div>
           <div className="admin-footer-actions">

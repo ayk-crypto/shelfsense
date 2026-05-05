@@ -45,7 +45,7 @@ export function AdminCouponsPage() {
       <div className="admin-page-header">
         <div>
           <h1 className="admin-page-title">Coupons & Promotions</h1>
-          <p className="admin-page-subtitle">Manage discount codes and promotional offers</p>
+          <p className="admin-page-subtitle">Create and manage promotional discount codes for subscription plans</p>
         </div>
         <button className="btn btn--primary" onClick={() => { setEditingCoupon(null); setShowModal(true); }}>
           + New Coupon

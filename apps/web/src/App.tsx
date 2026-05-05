@@ -16,6 +16,7 @@ import { AdminAnnouncementsPage } from "./pages/admin/AdminAnnouncementsPage";
 import { AdminSystemHealthPage } from "./pages/admin/AdminSystemHealthPage";
 import { AdminInboxPage } from "./pages/admin/AdminInboxPage";
 import { AdminTicketDetailPage } from "./pages/admin/AdminTicketDetailPage";
+import { AdminTeamPage } from "./pages/admin/AdminTeamPage";
 import { getOnboardingStatus } from "./api/onboarding";
 import { getWorkspaceSettings } from "./api/workspace";
 import { AppShell } from "./components/AppShell";
@@ -111,14 +112,14 @@ function RoleRoute({
 function PlatformAdminRoute({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated } = useAuth();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (user?.platformRole !== "SUPER_ADMIN") return <AccessDenied />;
+  if (user?.platformRole !== "SUPER_ADMIN" && user?.platformRole !== "SUPPORT_ADMIN") return <AccessDenied />;
   return <>{children}</>;
 }
 
 function DefaultRedirect() {
   const { user, isAuthenticated } = useAuth();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (user?.platformRole === "SUPER_ADMIN") return <Navigate to="/admin" replace />;
+  if (user?.platformRole === "SUPER_ADMIN" || user?.platformRole === "SUPPORT_ADMIN") return <Navigate to="/admin" replace />;
   return <Navigate to="/dashboard" replace />;
 }
 
@@ -411,6 +412,7 @@ export function App() {
             <Route path="system" element={<AdminSystemHealthPage />} />
             <Route path="inbox" element={<AdminInboxPage />} />
             <Route path="inbox/:id" element={<AdminTicketDetailPage />} />
+            <Route path="team" element={<AdminTeamPage />} />
           </Route>
           <Route path="/" element={<LandingPage />} />
           <Route path="*" element={<DefaultRedirect />} />

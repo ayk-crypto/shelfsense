@@ -29,7 +29,7 @@ export function AdminEmailTemplatesPage() {
       <div className="admin-page-header">
         <div>
           <h1 className="admin-page-title">Email Templates</h1>
-          <p className="admin-page-subtitle">Customize email content sent to users</p>
+          <p className="admin-page-subtitle">Manage and customize transactional email templates delivered to workspace users</p>
         </div>
       </div>
 

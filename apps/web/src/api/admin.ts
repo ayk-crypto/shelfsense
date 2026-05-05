@@ -81,6 +81,17 @@ export function getAdminUser(id: string): Promise<AdminUserDetail> {
   return apiClient.get<AdminUserDetail>(`/admin/users/${id}`);
 }
 
+export function getAdminTeam(): Promise<{ members: import("../types").AdminUser[] }> {
+  return apiClient.get("/admin/team");
+}
+
+export function updateUserPlatformRole(
+  id: string,
+  role: "SUPER_ADMIN" | "SUPPORT_ADMIN" | "USER",
+): Promise<{ ok: boolean; role: string }> {
+  return apiClient.patch(`/admin/users/${id}/platform-role`, { role });
+}
+
 export function updateUserStatus(id: string, isDisabled: boolean): Promise<{ ok: boolean; isDisabled: boolean }> {
   return apiClient.patch(`/admin/users/${id}/status`, { isDisabled });
 }

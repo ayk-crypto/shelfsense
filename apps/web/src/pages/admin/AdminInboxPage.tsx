@@ -57,7 +57,7 @@ export function AdminInboxPage() {
       <div className="admin-page-header">
         <div>
           <h1 className="admin-page-title">Support Inbox</h1>
-          <p className="admin-page-subtitle">{total} ticket{total !== 1 ? "s" : ""} total</p>
+          <p className="admin-page-subtitle">Manage inbound support requests from workspace users · {total} ticket{total !== 1 ? "s" : ""} total</p>
         </div>
       </div>
 

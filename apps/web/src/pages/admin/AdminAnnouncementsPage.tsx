@@ -51,7 +51,7 @@ export function AdminAnnouncementsPage() {
       <div className="admin-page-header">
         <div>
           <h1 className="admin-page-title">Announcements</h1>
-          <p className="admin-page-subtitle">In-app notices and banners for users</p>
+          <p className="admin-page-subtitle">Publish in-app announcements and banners to individual workspaces or all tenants</p>
         </div>
         <button className="btn btn--primary" onClick={() => { setEditing(null); setShowModal(true); }}>
           + New Announcement

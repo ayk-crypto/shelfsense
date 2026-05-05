@@ -44,7 +44,7 @@ export function AdminPlansPage() {
       <div className="admin-page-header">
         <div>
           <h1 className="admin-page-title">Plans & Packages</h1>
-          <p className="admin-page-subtitle">Manage subscription plans and pricing tiers</p>
+          <p className="admin-page-subtitle">Define subscription plans, pricing tiers, and feature entitlements for all tenants</p>
         </div>
         <button className="btn btn--primary" onClick={() => { setEditingPlan(null); setShowModal(true); }}>
           + New Plan

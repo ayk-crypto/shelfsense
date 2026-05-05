@@ -687,6 +687,55 @@ adminRouter.post("/users/:id/force-password-reset", asyncHandler(async (req, res
   return res.json({ ok: true });
 }));
 
+// ── Admin Team ──────────────────────────────────────────────────────────
+
+adminRouter.get("/team", asyncHandler(async (_req, res) => {
+  const members = await prisma.user.findMany({
+    where: { platformRole: { not: PlatformRole.USER } },
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true, name: true, email: true, emailVerified: true,
+      isDisabled: true, platformRole: true, createdAt: true,
+      _count: { select: { memberships: true } },
+    },
+  });
+  return res.json({
+    members: members.map((m) => ({ ...m, workspaceCount: m._count.memberships, _count: undefined })),
+  });
+}));
+
+adminRouter.patch("/users/:id/platform-role", asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const adminId = req.user!.id;
+  const { role } = req.body as { role: string };
+
+  if (req.user!.platformRole !== PlatformRole.SUPER_ADMIN) {
+    return res.status(403).json({ error: "Only Super Admins can manage admin roles." });
+  }
+
+  if (!["SUPER_ADMIN", "SUPPORT_ADMIN", "USER"].includes(role)) {
+    return res.status(400).json({ error: "Invalid role. Must be SUPER_ADMIN, SUPPORT_ADMIN, or USER." });
+  }
+
+  if (id === adminId) {
+    return res.status(400).json({ error: "You cannot change your own platform role." });
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id },
+    select: { id: true, name: true, email: true, platformRole: true },
+  });
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  await prisma.user.update({ where: { id }, data: { platformRole: role as PlatformRole } });
+
+  await logAdminAction(adminId, "user_platform_role_changed", "user", id, {
+    targetEmail: user.email, fromRole: user.platformRole, toRole: role,
+  });
+
+  return res.json({ ok: true, role });
+}));
+
 // ── Audit logs ─────────────────────────────────────────────────────────
 
 adminRouter.get("/audit-logs", asyncHandler(async (req, res) => {

@@ -114,8 +114,25 @@ export function requirePlatformAdmin(
 ) {
   const platformRole = req.user?.platformRole;
 
-  if (platformRole !== PlatformRole.SUPER_ADMIN) {
+  if (
+    platformRole !== PlatformRole.SUPER_ADMIN &&
+    platformRole !== PlatformRole.SUPPORT_ADMIN
+  ) {
     return res.status(403).json({ error: "Platform admin access required." });
+  }
+
+  return next();
+}
+
+export function requireSuperAdmin(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  const platformRole = req.user?.platformRole;
+
+  if (platformRole !== PlatformRole.SUPER_ADMIN) {
+    return res.status(403).json({ error: "Super Admin access required." });
   }
 
   return next();

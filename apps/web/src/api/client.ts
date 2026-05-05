@@ -100,7 +100,7 @@ async function parseJsonResponse(res: Response): Promise<unknown> {
 
 export const apiClient = {
   get: <T>(path: string) => request<T>(path),
-  post: <T>(path: string, body: unknown, auth = false) =>
+  post: <T>(path: string, body: unknown, auth = true) =>
     request<T>(path, { method: "POST", body, auth }),
   patch: <T>(path: string, body: unknown, auth = true) =>
     request<T>(path, { method: "PATCH", body, auth }),

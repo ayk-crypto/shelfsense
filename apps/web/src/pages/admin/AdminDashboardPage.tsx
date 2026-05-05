@@ -63,7 +63,7 @@ export function AdminDashboardPage() {
       <div className="admin-page-header">
         <div>
           <h1 className="admin-page-title">Platform Overview</h1>
-          <p className="admin-page-subtitle">SaaS-wide metrics and recent admin activity</p>
+          <p className="admin-page-subtitle">Real-time metrics across all tenants, revenue, and platform activity</p>
         </div>
       </div>
 

@@ -1,0 +1,368 @@
+We need to improve the ShelfSense signup and onboarding flow so every new user completes plan selection before entering the main dashboard.
+
+Current objective:
+After a user registers, they should be required to select a payment plan as part of the signup/onboarding journey.
+
+The desired flow is:
+
+1. User registers with name, email, password, and business/workspace details.
+2. Backend creates:
+   - User
+   - Workspace
+   - Default Location
+   - Owner Membership
+3. User is then taken to a payment plan selection screen.
+4. User selects one of the available plans:
+   - Free
+   - Basic / Starter
+   - Pro / Growth
+   - Any existing plans already defined in the application
+5. If the user selects the Free plan:
+   - No payment is required.
+   - Coupon field should not be required.
+   - Subscription should be activated immediately as FREE.
+   - Signup/onboarding should be marked complete.
+6. If the user selects a paid plan:
+   - Show billing cycle options if supported: monthly / annual.
+   - Show coupon code input.
+   - Allow user to apply a coupon before confirming the plan.
+   - If coupon gives 100% discount, allow the subscription to be activated without payment.
+   - If coupon gives partial discount, calculate and show the discounted payable amount.
+   - If no payment gateway is currently integrated, create the subscription in a pending/manual payment state and show a clear message that payment setup is pending.
+   - Do not block the technical flow if payment gateway is not implemented yet, but keep subscription status clearly marked.
+7. After plan confirmation:
+   - Mark signup/onboarding stage as 100% complete.
+   - Redirect user to the dashboard.
+8. Dashboard must not be accessible until the user has:
+   - Registered
+   - Created workspace
+   - Selected a plan
+   - Completed onboarding/signup stage
+
+Important:
+Please inspect the existing backend, Prisma schema, frontend routes, auth context, onboarding flow, and any existing subscription/billing models before making changes.
+Do not invent duplicate models if subscription, plan, coupon, or onboarding-related models already exist.
+Use existing model names and fields wherever possible.
+
+Backend requirements:
+
+1. Stabilize /auth/register
+   Ensure registration creates the complete tenant structure in one transaction:
+   - User
+   - Workspace
+   - Default Location
+   - Owner Membership
+   - Email verification token if currently used
+
+2. Add or update subscription/plan support
+   Check if these already exist:
+   - Plan
+   - Subscription
+   - Coupon
+   - WorkspaceSubscription
+   - BillingPlan
+   - Trial fields
+   - SubscriptionStatus enum
+
+   If they exist, use them.
+   If not, add clean Prisma models/enums for:
+   - SubscriptionPlan
+   - WorkspaceSubscription
+   - Coupon
+
+3. Suggested plan model fields:
+   - id
+   - name
+   - code: FREE / STARTER / PRO
+   - description
+   - monthlyPrice
+   - annualPrice
+   - currency
+   - isActive
+   - features as JSON if supported
+   - limits as JSON if supported
+   - createdAt
+   - updatedAt
+
+4. Suggested subscription model fields:
+   - id
+   - workspaceId
+   - planId
+   - status: FREE / TRIALING / ACTIVE / PENDING_PAYMENT / EXPIRED / CANCELLED
+   - billingCycle: FREE / MONTHLY / ANNUAL
+   - originalAmount
+   - discountAmount
+   - payableAmount
+   - couponId nullable
+   - startsAt
+   - trialEndsAt nullable
+   - currentPeriodStart nullable
+   - currentPeriodEnd nullable
+   - onboardingCompleted boolean or equivalent field if better handled on Workspace
+   - createdAt
+   - updatedAt
+
+5. Suggested coupon model fields:
+   - id
+   - code
+   - description
+   - discountType: PERCENTAGE / FIXED
+   - discountValue
+   - appliesToPlanIds if supported, otherwise nullable/global
+   - maxRedemptions nullable
+   - redeemedCount
+   - validFrom nullable
+   - validUntil nullable
+   - isActive
+   - createdAt
+   - updatedAt
+
+6. Add APIs:
+   GET /plans
+   - Returns active plans with features, limits, monthly/annual prices, and display metadata.
+
+   POST /subscriptions/preview
+   - Input:
+     - workspaceId if required from context
+     - planId
+     - billingCycle
+     - couponCode optional
+   - Output:
+     - plan
+     - originalAmount
+     - discountAmount
+     - payableAmount
+     - couponApplied true/false
+     - couponMessage
+     - canActivateWithoutPayment true/false
+
+   POST /subscriptions/select-plan
+   - Input:
+     - planId
+     - billingCycle
+     - couponCode optional
+   - Behavior:
+     - For FREE plan:
+       create/update workspace subscription as FREE/ACTIVE equivalent.
+       mark onboarding/signup stage complete.
+     - For paid plan with 100% coupon:
+       create/update subscription as ACTIVE.
+       save coupon redemption.
+       mark onboarding/signup stage complete.
+     - For paid plan with partial discount and no payment gateway:
+       create/update subscription as PENDING_PAYMENT.
+       mark plan selection complete but payment pending.
+       Keep access behavior configurable. For MVP, allow dashboard access with clear pending payment banner.
+     - For paid plan with no coupon and no payment gateway:
+       create/update subscription as PENDING_PAYMENT.
+       show pending payment status.
+       For MVP, allow dashboard access with pending payment banner.
+   - Must be workspace-scoped and only workspace OWNER/admin can select/change plan during signup.
+
+   GET /onboarding/status
+   - Returns:
+     - hasWorkspace
+     - hasDefaultLocation
+     - hasMembership
+     - hasSelectedPlan
+     - subscriptionStatus
+     - onboardingCompleted
+     - nextStep: PLAN_SELECTION / BUSINESS_SETUP / DASHBOARD
+
+7. Backend validation:
+   - Validate coupon code case-insensitively.
+   - Reject expired, inactive, or over-redeemed coupons.
+   - Reject coupons not applicable to the selected plan.
+   - Do not allow negative payable amount.
+   - 100% percentage coupon should result in payableAmount = 0.
+   - Fixed coupon should not reduce below zero.
+   - Prevent duplicate active subscriptions for the same workspace.
+   - Use transactions when selecting a plan and redeeming coupon.
+   - Add structured logs for registration and plan selection.
+
+8. Seed data:
+   Add or update seed script to create default plans:
+   - FREE
+   - STARTER
+   - PRO
+
+   Example:
+   FREE:
+   - monthlyPrice: 0
+   - annualPrice: 0
+   - limits:
+     - items: 30
+     - locations: 1
+     - users: 1
+     - alerts: basic
+
+   STARTER:
+   - monthlyPrice: choose reasonable placeholder amount
+   - annualPrice: discounted placeholder amount
+   - limits:
+     - items: 500
+     - locations: 2
+     - users: 3
+     - alerts: standard
+
+   PRO:
+   - monthlyPrice: choose reasonable placeholder amount
+   - annualPrice: discounted placeholder amount
+   - limits:
+     - items: unlimited or high number
+     - locations: 10
+     - users: 10
+     - alerts: advanced
+
+   Also seed at least one test coupon:
+   - code: LAUNCH100
+   - discountType: PERCENTAGE
+   - discountValue: 100
+   - active: true
+
+Frontend requirements:
+
+1. Add a dedicated plan selection page:
+   Route suggestion:
+   /onboarding/plan
+
+2. The page should show pricing cards:
+   - Free
+   - Starter
+   - Pro
+
+3. Each pricing card should show:
+   - Plan name
+   - Monthly price
+   - Annual price if billing cycle is selected
+   - Key features
+   - Usage limits
+   - Recommended badge for the most suitable plan
+   - Select Plan button
+
+4. Add billing cycle toggle:
+   - Monthly
+   - Annual
+
+5. Coupon behavior:
+   - Coupon input should appear for paid plans.
+   - Free plan should not require coupon.
+   - User can click “Apply Coupon”.
+   - Frontend calls POST /subscriptions/preview.
+   - Show:
+     - Original amount
+     - Discount amount
+     - Final payable amount
+     - Coupon applied / invalid / expired message
+
+6. Plan confirmation behavior:
+   - For Free plan:
+     Button text: Continue with Free Plan
+   - For paid plan with 100% discount:
+     Button text: Activate Plan
+   - For paid plan with partial/no discount and no payment gateway:
+     Button text: Continue with Pending Payment
+     Show message:
+     “Payment gateway is not connected yet. Your selected plan will be marked as pending payment for now.”
+   - After confirmation, redirect to dashboard.
+
+7. Route guards:
+   Update protected route logic so that:
+   - If user is logged in but onboarding/plan selection is incomplete, redirect to /onboarding/plan.
+   - If onboarding is complete, allow dashboard.
+   - If subscription is PENDING_PAYMENT, allow dashboard for MVP but show a clear billing banner.
+
+8. Dashboard banner:
+   If subscription status is PENDING_PAYMENT, show a top banner:
+   “Your selected plan is pending payment. Some billing features may be limited until payment is completed.”
+
+9. UI/UX:
+   Make this page look like a modern SaaS pricing screen.
+   It should be mobile responsive.
+   Use ShelfSense branding colors:
+   - Primary: shelf green / fresh green
+   - Accent: warm amber
+   - Background: clean off-white
+   - Text: dark charcoal
+   Keep the design polished, clean, and better than a basic template.
+
+10. Error handling:
+   - Show friendly validation errors.
+   - Show loading states while applying coupon and confirming plan.
+   - Prevent duplicate clicks.
+   - If API fails, show a helpful message instead of a generic crash.
+
+Suggested user journey:
+
+Register screen:
+User creates account.
+
+After successful register:
+Redirect to /onboarding/plan.
+
+Plan screen:
+User selects Free, Starter, or Pro.
+
+If Free:
+Subscription is created as FREE/ACTIVE.
+Onboarding marked complete.
+Redirect dashboard.
+
+If Starter/Pro:
+User may enter coupon.
+System previews amount.
+If LAUNCH100 is used:
+Final amount becomes 0.
+Subscription becomes ACTIVE.
+Onboarding marked complete.
+Redirect dashboard.
+
+If no coupon or partial coupon:
+Subscription becomes PENDING_PAYMENT.
+Onboarding marked complete for MVP.
+Redirect dashboard with pending payment banner.
+
+Important implementation notes:
+
+- Keep all plan/subscription actions workspace-scoped.
+- Do not rely only on frontend checks.
+- Backend must enforce plan selection status.
+- Use Prisma transactions for subscription creation and coupon redemption.
+- Update TypeScript shared types if needed.
+- Update API client methods on frontend.
+- Update auth/onboarding context if one exists.
+- Keep existing inventory features working.
+- Do not break login flow for existing users.
+- For existing users/workspaces without subscriptions, redirect them to /onboarding/plan once after login.
+
+Testing requirements:
+
+After implementation, provide test steps for these cases:
+
+1. New user signup → redirected to plan page.
+2. New user selects Free plan → dashboard opens.
+3. New user selects Pro plan with LAUNCH100 coupon → payable amount 0 → dashboard opens.
+4. New user selects Pro plan without coupon → subscription pending payment → dashboard opens with banner.
+5. Invalid coupon → friendly error shown.
+6. Expired/inactive coupon → friendly error shown.
+7. Existing user without subscription logs in → redirected to plan page.
+8. Existing user with completed subscription logs in → goes directly to dashboard.
+9. Dashboard route cannot be accessed before plan selection.
+10. Database has correct records:
+    - User
+    - Workspace
+    - Location
+    - Membership
+    - WorkspaceSubscription
+    - Coupon redemption if coupon was used
+
+Deliverables:
+After completing the work, summarize:
+1. Files changed
+2. Prisma schema changes
+3. Migration name
+4. New API endpoints
+5. Frontend pages/components added
+6. Seed data added
+7. Manual test results
+8. Any remaining limitations, especially payment gateway not being integrated yet

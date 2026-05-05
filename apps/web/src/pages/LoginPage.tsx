@@ -19,7 +19,7 @@ export function LoginPage() {
     try {
       const data = await login(email, password);
       saveAuth(data.user, data.token);
-      if (data.user.platformRole === "SUPER_ADMIN") {
+      if (data.user.platformRole === "SUPER_ADMIN" || data.user.platformRole === "SUPPORT_ADMIN") {
         navigate("/admin");
       } else {
         navigate("/dashboard");
