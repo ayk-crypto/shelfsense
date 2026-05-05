@@ -16200,15 +16200,15 @@ body {
 
 .lp-pricing-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 24px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
   align-items: start;
 }
 
 .lp-pricing-card {
   border: 1.5px solid #e2e8f0;
   border-radius: 16px;
-  padding: 32px 28px;
+  padding: 28px 22px;
   background: #fff;
   position: relative;
   transition: box-shadow 0.2s, transform 0.2s;
@@ -16257,7 +16257,7 @@ body {
   margin-top: 6px;
 }
 .lp-pricing-amount {
-  font-size: 52px;
+  font-size: 44px;
   font-weight: 900;
   color: #0f172a;
   line-height: 1;
@@ -16460,7 +16460,7 @@ body {
 
   .lp-showcase-inner { grid-template-columns: 1fr; }
 
-  .lp-pricing-grid { grid-template-columns: 1fr; max-width: 420px; margin: 0 auto; }
+  .lp-pricing-grid { grid-template-columns: repeat(2, 1fr); max-width: 100%; margin: 0 auto; }
 
   .lp-footer-inner { flex-direction: column; gap: 32px; }
 }
