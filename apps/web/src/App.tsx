@@ -58,7 +58,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, user } = useAuth();
   if (!isAuthenticated) return <>{children}</>;
-  if (user?.platformRole === "SUPER_ADMIN" && !user?.workspaceId) {
+  if (user?.platformRole === "SUPER_ADMIN") {
     return <Navigate to="/admin" replace />;
   }
   return <Navigate to="/dashboard" replace />;
