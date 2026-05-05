@@ -19,7 +19,11 @@ export function LoginPage() {
     try {
       const data = await login(email, password);
       saveAuth(data.user, data.token);
-      navigate("/dashboard");
+      if (data.user.platformRole === "SUPER_ADMIN") {
+        navigate("/admin");
+      } else {
+        navigate("/dashboard");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed. Please try again.");
     } finally {

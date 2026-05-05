@@ -145,9 +145,9 @@ export function AdminLayout() {
           {user?.workspaceId && (
             <>
               <p className="admin-nav-section">Account</p>
-              <NavLink to="/dashboard" className="admin-nav-item admin-nav-item--back">
+              <NavLink to="/dashboard" className="admin-nav-item admin-nav-item--switch-ws">
                 <span className="admin-nav-icon">{icons.back}</span>
-                Back to Workspace
+                Switch to Workspace
               </NavLink>
             </>
           )}

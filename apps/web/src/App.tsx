@@ -113,6 +113,13 @@ function PlatformAdminRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function DefaultRedirect() {
+  const { user, isAuthenticated } = useAuth();
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (user?.platformRole === "SUPER_ADMIN") return <Navigate to="/admin" replace />;
+  return <Navigate to="/dashboard" replace />;
+}
+
 function AccessDenied() {
   return (
     <div className="page-error">
@@ -402,7 +409,7 @@ export function App() {
             <Route path="system" element={<AdminSystemHealthPage />} />
           </Route>
           <Route path="/" element={<LandingPage />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<DefaultRedirect />} />
         </Routes>
       </Router>
     </AuthProvider>
