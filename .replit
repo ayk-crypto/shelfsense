@@ -1,4 +1,4 @@
-modules = ["nodejs-20", "web"]
+modules = ["nodejs-20", "web", "postgresql-16"]
 [agent]
 expertMode = true
 stack = "BEST_EFFORT_FALLBACK"
@@ -70,6 +70,9 @@ externalPort = 3000
 
 [userenv.shared]
 PORT = "3000"
+
+[userenv.production]
+CORS_ALLOWED_ORIGINS = "https://app.shelfsenseapp.com,http://localhost:5000,http://localhost:5173,http://127.0.0.1:5000"
 
 [deployment]
 deploymentTarget = "autoscale"

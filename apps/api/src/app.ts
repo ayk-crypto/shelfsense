@@ -42,7 +42,7 @@ app.use((req, res, next) => {
     logRequest({
       requestId: req.requestId,
       method: req.method,
-      path: req.path,
+      path: req.originalUrl.split("?")[0],
       status: res.statusCode,
       durationMs: Date.now() - start,
       userId: req.user?.userId ?? null,
@@ -83,6 +83,9 @@ app.use(
 
       callback(new ForbiddenOriginError(origin));
     },
+    allowedHeaders: ["Content-Type", "Authorization", "x-location-id", "x-request-id"],
+    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    credentials: true,
   }),
 );
 
