@@ -16472,8 +16472,14 @@ body {
 /* ─── Platform Admin Shell ─────────────────────────────── */
 .admin-shell {
   display: flex;
+  width: 100%;
   min-height: 100vh;
   background: #f1f5f9;
+}
+
+/* Mobile topbar — hidden on desktop */
+.admin-mobile-topbar {
+  display: none;
 }
 
 .admin-sidebar {
@@ -16711,11 +16717,64 @@ body {
   flex: 1;
   min-width: 0;
   overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .admin-page {
-  padding: 32px;
-  max-width: 1200px;
+  padding: 32px 36px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Close button inside sidebar header (mobile only) */
+.admin-sidebar-close-btn {
+  display: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #94a3b8;
+  padding: 4px;
+  margin-left: auto;
+  line-height: 0;
+}
+.admin-sidebar-close-btn svg {
+  width: 18px;
+  height: 18px;
+}
+.admin-sidebar-close-btn:hover { color: #f1f5f9; }
+
+/* Hamburger */
+.admin-hamburger {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #cbd5e1;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.admin-hamburger:hover { background: #1e293b; color: #f1f5f9; }
+.admin-hamburger svg { width: 20px; height: 20px; }
+
+/* Mobile brand in topbar */
+.admin-mobile-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.admin-mobile-brand-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #f1f5f9;
+}
+
+/* Sidebar backdrop */
+.admin-sidebar-backdrop {
+  display: none;
 }
 
 .admin-page-header {
@@ -17143,12 +17202,110 @@ body {
   font-size: 13.5px;
 }
 
+/* ─── Admin Mobile ─────────────────────────────────────── */
 @media (max-width: 768px) {
-  .admin-shell { flex-direction: column; }
-  .admin-sidebar { width: 100%; height: auto; position: static; }
-  .admin-page { padding: 20px 16px; }
-  .admin-stat-grid { grid-template-columns: repeat(2, 1fr); }
-  .admin-detail-grid { grid-template-columns: 1fr; }
+  /* Show mobile topbar */
+  .admin-mobile-topbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 14px;
+    height: 52px;
+    background: #0f172a;
+    position: sticky;
+    top: 0;
+    z-index: 200;
+    flex-shrink: 0;
+    width: 100%;
+    box-sizing: border-box;
+    border-bottom: 1px solid #1e293b;
+  }
+
+  /* Shell becomes a column — topbar + main stacked */
+  .admin-shell {
+    flex-direction: column;
+  }
+
+  /* Sidebar slides in from left as overlay */
+  .admin-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100%;
+    height: 100dvh;
+    width: 260px;
+    z-index: 300;
+    transform: translateX(-100%);
+    transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .admin-sidebar--open {
+    transform: translateX(0);
+    box-shadow: 4px 0 32px rgba(0, 0, 0, 0.35);
+  }
+
+  /* Show close button inside sidebar on mobile */
+  .admin-sidebar-close-btn {
+    display: flex;
+  }
+
+  /* Backdrop shown as a sibling div when sidebar is open */
+  .admin-sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.55);
+    z-index: 299;
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    animation: fadeIn 0.15s ease;
+  }
+
+  /* Main content fills screen below topbar */
+  .admin-main {
+    width: 100%;
+  }
+
+  .admin-page {
+    padding: 20px 16px;
+  }
+
+  /* Grid breakdowns */
+  .admin-stat-grid          { grid-template-columns: repeat(2, 1fr); }
+  .admin-stat-grid--4       { grid-template-columns: repeat(2, 1fr); }
+  .admin-detail-grid        { grid-template-columns: 1fr; }
+  .admin-dashboard-grid     { grid-template-columns: 1fr; }
+  .form-grid-2              { grid-template-columns: 1fr; }
+  .admin-plan-toggles       { grid-template-columns: 1fr; }
+
+  /* Tables — allow horizontal scroll on mobile */
+  .admin-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .admin-table {
+    min-width: 600px;
+    font-size: 12px;
+  }
+  .admin-table th,
+  .admin-table td {
+    padding: 8px 10px;
+  }
+
+  /* Inbox adjustments */
+  .inbox-filters       { flex-direction: column; gap: 8px; }
+  .inbox-search        { max-width: 100%; width: 100%; }
+  .inbox-filter-select { width: 100%; }
+
+  /* Ticket detail — stack columns */
+  .ticket-detail-body  { grid-template-columns: 1fr; }
+  .ticket-sidebar      { order: -1; }
+  .ticket-thread       { max-height: 380px; }
+}
+
+@media (max-width: 480px) {
+  .admin-stat-grid { grid-template-columns: 1fr; }
+  .admin-page { padding: 16px 12px; }
+  .admin-page-title { font-size: 18px; }
 }
 
 /* ─── Admin Phase-1 additions ──────────────────────────────────────── */
@@ -17277,13 +17434,6 @@ body {
 .admin-pagination { display: flex; align-items: center; gap: 12px; justify-content: center; padding: 16px 0; }
 .admin-pagination-info { font-size: 13px; color: #64748b; }
 
-@media (max-width: 900px) {
-  .admin-dashboard-grid { grid-template-columns: 1fr; }
-  .admin-stat-grid--4 { grid-template-columns: repeat(2, 1fr); }
-  .form-grid-2 { grid-template-columns: 1fr; }
-  .admin-plan-toggles { grid-template-columns: 1fr; }
-}
-
 /* ── Support Desk — shared badges ──────────────────────────────────────── */
 .ticket-status,
 .ticket-priority {
@@ -17341,7 +17491,7 @@ body {
 .inbox-empty p { font-size: 14px; margin: 0; }
 
 /* ── Ticket detail page ─────────────────────────────────────────────────── */
-.ticket-detail-page { max-width: 1280px; }
+.ticket-detail-page { max-width: none; width: 100%; box-sizing: border-box; }
 
 .ticket-toast {
   position: fixed; top: 20px; right: 20px; z-index: 1000;

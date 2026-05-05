@@ -1,13 +1,21 @@
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 
-type NavItemProps = { to: string; end?: boolean; icon: React.ReactNode; label: string };
+type NavItemProps = {
+  to: string;
+  end?: boolean;
+  icon: React.ReactNode;
+  label: string;
+  onClick?: () => void;
+};
 
-function NavItem({ to, end, icon, label }: NavItemProps) {
+function NavItem({ to, end, icon, label, onClick }: NavItemProps) {
   return (
     <NavLink
       to={to}
       end={end}
+      onClick={onClick}
       className={({ isActive }) => `admin-nav-item ${isActive ? "admin-nav-item--active" : ""}`}
     >
       <span className="admin-nav-icon">{icon}</span>
@@ -102,20 +110,62 @@ const icons = {
       <path d="M19 12H5M12 5l-7 7 7 7" />
     </svg>
   ),
+  menu: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <line x1="3" y1="6" x2="21" y2="6" />
+      <line x1="3" y1="12" x2="21" y2="12" />
+      <line x1="3" y1="18" x2="21" y2="18" />
+    </svg>
+  ),
+  close: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  ),
 };
 
 export function AdminLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    document.body.style.overflow = sidebarOpen ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [sidebarOpen]);
 
   function handleLogout() {
     logout();
     navigate("/login");
   }
 
+  const close = () => setSidebarOpen(false);
+
+  const navProps = { onClick: close };
+
   return (
     <div className="admin-shell">
-      <aside className="admin-sidebar">
+      {/* Mobile top bar */}
+      <div className="admin-mobile-topbar">
+        <button className="admin-hamburger" onClick={() => setSidebarOpen(true)} aria-label="Open menu">
+          {icons.menu}
+        </button>
+        <div className="admin-mobile-brand">
+          <span className="admin-brand-mark" style={{ width: 26, height: 26, fontSize: 13, borderRadius: 6 }}>S</span>
+          <span className="admin-mobile-brand-name">ShelfSense Admin</span>
+        </div>
+      </div>
+
+      {/* Overlay backdrop */}
+      {sidebarOpen && <div className="admin-sidebar-backdrop" onClick={close} />}
+
+      <aside className={`admin-sidebar${sidebarOpen ? " admin-sidebar--open" : ""}`}>
         <div className="admin-sidebar-header">
           <div className="admin-brand">
             <span className="admin-brand-mark">S</span>
@@ -123,36 +173,39 @@ export function AdminLayout() {
               <span className="admin-brand-name">ShelfSense</span>
               <span className="admin-brand-label">Platform Admin</span>
             </div>
+            <button className="admin-sidebar-close-btn" onClick={close} aria-label="Close menu">
+              {icons.close}
+            </button>
           </div>
         </div>
 
         <nav className="admin-nav">
-          <NavItem to="/admin" end icon={icons.dashboard} label="Overview" />
+          <NavItem to="/admin" end icon={icons.dashboard} label="Overview" {...navProps} />
 
           <p className="admin-nav-section">Tenants</p>
-          <NavItem to="/admin/workspaces" icon={icons.workspaces} label="Workspaces" />
-          <NavItem to="/admin/users" icon={icons.users} label="Users" />
+          <NavItem to="/admin/workspaces" icon={icons.workspaces} label="Workspaces" {...navProps} />
+          <NavItem to="/admin/users" icon={icons.users} label="Users" {...navProps} />
 
           <p className="admin-nav-section">Billing</p>
-          <NavItem to="/admin/plans" icon={icons.plans} label="Plans" />
-          <NavItem to="/admin/coupons" icon={icons.coupons} label="Coupons" />
-          <NavItem to="/admin/subscriptions" icon={icons.subscriptions} label="Subscriptions" />
-          <NavItem to="/admin/payments" icon={icons.payments} label="Payments" />
+          <NavItem to="/admin/plans" icon={icons.plans} label="Plans" {...navProps} />
+          <NavItem to="/admin/coupons" icon={icons.coupons} label="Coupons" {...navProps} />
+          <NavItem to="/admin/subscriptions" icon={icons.subscriptions} label="Subscriptions" {...navProps} />
+          <NavItem to="/admin/payments" icon={icons.payments} label="Payments" {...navProps} />
 
           <p className="admin-nav-section">Communications</p>
-          <NavItem to="/admin/inbox" icon={icons.inbox} label="Support Inbox" />
-          <NavItem to="/admin/email-templates" icon={icons.emailTemplates} label="Email Templates" />
-          <NavItem to="/admin/email-logs" icon={icons.emailLogs} label="Email Logs" />
-          <NavItem to="/admin/announcements" icon={icons.announcements} label="Announcements" />
+          <NavItem to="/admin/inbox" icon={icons.inbox} label="Support Inbox" {...navProps} />
+          <NavItem to="/admin/email-templates" icon={icons.emailTemplates} label="Email Templates" {...navProps} />
+          <NavItem to="/admin/email-logs" icon={icons.emailLogs} label="Email Logs" {...navProps} />
+          <NavItem to="/admin/announcements" icon={icons.announcements} label="Announcements" {...navProps} />
 
           <p className="admin-nav-section">System</p>
-          <NavItem to="/admin/activity" icon={icons.activity} label="Audit Logs" />
-          <NavItem to="/admin/system" icon={icons.system} label="System Health" />
+          <NavItem to="/admin/activity" icon={icons.activity} label="Audit Logs" {...navProps} />
+          <NavItem to="/admin/system" icon={icons.system} label="System Health" {...navProps} />
 
           {user?.workspaceId && (
             <>
               <p className="admin-nav-section">Account</p>
-              <NavLink to="/dashboard" className="admin-nav-item admin-nav-item--switch-ws">
+              <NavLink to="/dashboard" onClick={close} className="admin-nav-item admin-nav-item--switch-ws">
                 <span className="admin-nav-icon">{icons.back}</span>
                 Switch to Workspace
               </NavLink>
