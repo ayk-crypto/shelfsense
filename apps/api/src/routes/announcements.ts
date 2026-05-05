@@ -37,7 +37,7 @@ announcementsRouter.get("/active", asyncHandler(async (req, res) => {
     const sub = await prisma.subscription.findFirst({
       where: {
         workspaceId,
-        status: { in: ["ACTIVE", "TRIALING", "MANUAL_REVIEW"] },
+        status: { in: ["ACTIVE", "TRIAL", "MANUAL_REVIEW"] },
       },
       select: { planId: true },
       orderBy: { createdAt: "desc" },

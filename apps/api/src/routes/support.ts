@@ -7,8 +7,8 @@ import { requireAuth } from "../middleware/auth.js";
 export const supportRouter = Router();
 supportRouter.use(requireAuth);
 
-function getWorkspaceId(req: Parameters<typeof requireAuth>[0] & { user?: { memberships?: { workspaceId: string }[] } }): string | null {
-  return (req as { user?: { memberships?: { workspaceId: string }[] } }).user?.memberships?.[0]?.workspaceId ?? null;
+function getWorkspaceId(req: Parameters<typeof requireAuth>[0]): string | null {
+  return req.user?.workspaceId ?? null;
 }
 
 const TICKET_SELECT = {
