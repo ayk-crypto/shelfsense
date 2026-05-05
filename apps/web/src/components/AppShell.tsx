@@ -10,7 +10,7 @@ import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
 import type { CurrentSubscription, Notification } from "../types";
 
 export function AppShell() {
-  const { user, logout } = useAuth();
+  const { user, logout, refreshUser } = useAuth();
   const { settings, loading: workspaceLoading } = useWorkspaceSettings();
   const {
     locations,

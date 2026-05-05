@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { AUTH_EXPIRED_EVENT, clearStoredLocation } from "../api/client";
+import { getMe } from "../api/auth";
 import type { User } from "../types";
 
 interface AuthState {
@@ -12,6 +13,7 @@ interface AuthState {
 interface AuthContextValue extends AuthState {
   saveAuth: (user: User, token: string) => void;
   logout: () => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -46,13 +48,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState({ user: null, token: null, isAuthenticated: false });
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) return;
+    try {
+      const { user } = await getMe();
+      localStorage.setItem(USER_KEY, JSON.stringify(user));
+      setState((prev) => ({ ...prev, user }));
+    } catch {
+      // If the token is invalid, the 401 handler in apiClient will fire
+      // AUTH_EXPIRED_EVENT which will call logout automatically.
+    }
+  }, []);
+
   useEffect(() => {
     window.addEventListener(AUTH_EXPIRED_EVENT, logout);
     return () => window.removeEventListener(AUTH_EXPIRED_EVENT, logout);
   }, [logout]);
 
+  // On mount, refresh user data from the server so stale localStorage values
+  // (e.g. emailVerified: false after the user has since verified) are corrected.
+  useEffect(() => {
+    if (state.isAuthenticated) {
+      void refreshUser();
+    }
+    // Only run once on mount — no deps needed beyond the initial auth check.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ ...state, saveAuth, logout }}>
+    <AuthContext.Provider value={{ ...state, saveAuth, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

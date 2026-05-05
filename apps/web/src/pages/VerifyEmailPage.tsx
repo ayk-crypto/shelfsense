@@ -10,7 +10,7 @@ export function VerifyEmailPage() {
   const token = params.get("token") ?? "";
   const sent = params.get("sent") === "1";
   const emailHint = params.get("email") ?? "";
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, refreshUser } = useAuth();
   const navigate = useNavigate();
 
   const [pageState, setPageState] = useState<PageState>(token ? "verifying" : "idle");
@@ -21,16 +21,24 @@ export function VerifyEmailPage() {
     if (!token) return;
     setPageState("verifying");
     verifyEmail(token)
-      .then(() => setPageState("success"))
+      .then(async () => {
+        // Refresh auth state from server so the verification banner disappears
+        // immediately when the user navigates back to the dashboard.
+        await refreshUser();
+        setPageState("success");
+      })
       .catch((err: unknown) => {
         const msg = err instanceof Error ? err.message : "Verification failed.";
         if (msg.toLowerCase().includes("already")) {
+          // Token already used — user IS verified. Refresh to reflect that.
+          void refreshUser();
           setPageState("already_verified");
         } else {
           setPageState("error");
           setErrorMsg(msg);
         }
       });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   async function handleResend() {
@@ -40,8 +48,15 @@ export function VerifyEmailPage() {
       await resendVerification();
       setPageState("resent");
     } catch (err) {
+      const msg = err instanceof Error ? err.message : "Could not resend verification email.";
+      if (msg.toLowerCase().includes("already verified")) {
+        // User is already verified — refresh auth state and go to dashboard
+        await refreshUser();
+        navigate("/dashboard");
+        return;
+      }
       setPageState("error");
-      setErrorMsg(err instanceof Error ? err.message : "Could not resend verification email.");
+      setErrorMsg(msg);
     } finally {
       setResending(false);
     }

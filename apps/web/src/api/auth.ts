@@ -1,8 +1,12 @@
-import type { LoginResponse } from "../types";
+import type { LoginResponse, User } from "../types";
 import { apiClient } from "./client";
 
 export async function login(email: string, password: string): Promise<LoginResponse> {
   return apiClient.post<LoginResponse>("/auth/login", { email, password }, false);
+}
+
+export async function getMe(): Promise<{ user: User }> {
+  return apiClient.get<{ user: User }>("/auth/me");
 }
 
 export async function register(data: {
