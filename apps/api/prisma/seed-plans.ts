@@ -2,6 +2,20 @@ import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client.js";
 
+// ─── Production guard ─────────────────────────────────────────────────────────
+// Seed-plans creates the default subscription plan catalogue.
+// It is safe to run on a brand-new production database (plans are required for signups),
+// but requires explicit opt-in to prevent accidental reruns.
+if (process.env.NODE_ENV === "production" && process.env.FORCE_PROD_SEED !== "true") {
+  console.error("");
+  console.error("❌  SAFETY BLOCK: seed-plans is disabled in production (NODE_ENV=production).");
+  console.error("    The API auto-seeds default plans on startup via seedDefaultPlansIfEmpty().");
+  console.error("    If you need to force a plans re-seed, re-run with:");
+  console.error("    FORCE_PROD_SEED=true npm run db:seed:plans");
+  console.error("");
+  process.exit(1);
+}
+
 const databaseUrl =
   process.env.DATABASE_URL ??
   "postgresql://postgres:postgres@localhost:5432/shelfsense?schema=public";

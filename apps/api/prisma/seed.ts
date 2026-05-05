@@ -4,6 +4,20 @@ import bcrypt from "bcryptjs";
 import { PrismaClient } from "../src/generated/prisma/client.js";
 import { Role, StockMovementType } from "../src/generated/prisma/enums.js";
 
+// ─── Production guard ─────────────────────────────────────────────────────────
+// This script creates demo users and demo inventory data.
+// It must NEVER run against the production database.
+if (process.env.NODE_ENV === "production" && process.env.FORCE_PROD_SEED !== "true") {
+  console.error("");
+  console.error("❌  SAFETY BLOCK: Demo seed is disabled in production (NODE_ENV=production).");
+  console.error("    This script creates fake users and inventory that do not belong in production.");
+  console.error("    If you are seeding a brand-new production database and truly need this,");
+  console.error("    re-run with: FORCE_PROD_SEED=true npm run db:seed");
+  console.error("    (You almost certainly do NOT want this — use seed-plans.ts instead.)");
+  console.error("");
+  process.exit(1);
+}
+
 const databaseUrl =
   process.env.DATABASE_URL ??
   "postgresql://postgres:postgres@localhost:5432/shelfsense?schema=public";

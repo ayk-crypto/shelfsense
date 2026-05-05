@@ -1,8 +1,12 @@
 services:
+  # ── Production API ────────────────────────────────────────────────────────
+  # Deploys automatically when changes are merged to the `main` branch.
+  # Set environment variables in the Render dashboard — do NOT store secrets here.
   - type: web
     name: shelfsense-api
     runtime: node
     rootDir: .
+    branch: main
     buildCommand: npm install && npm run build:api
     startCommand: npm run start --workspace @shelfsense/api
     healthCheckPath: /health
@@ -13,7 +17,9 @@ services:
         sync: false
       - key: JWT_SECRET
         sync: false
-      - key: APP_URL
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: WEB_BASE_URL
         sync: false
       - key: SMTP_HOST
         sync: false
@@ -27,5 +33,45 @@ services:
         sync: false
       - key: EMAIL_FROM_NAME
         sync: false
-      - key: EMAIL_FROM
+      - key: SUPPORT_FROM
+        sync: false
+      - key: SUPPORT_INBOUND_SECRET
+        sync: false
+
+  # ── Staging API ───────────────────────────────────────────────────────────
+  # Deploys automatically when changes are pushed to the `staging` branch.
+  # Uses a separate Neon database — never share DATABASE_URL with production.
+  # To create this service on Render: New → Web Service, connect the same repo,
+  # select the `staging` branch, and set the env vars listed in
+  # apps/api/.env.staging.example.
+  - type: web
+    name: shelfsense-api-staging
+    runtime: node
+    rootDir: .
+    branch: staging
+    buildCommand: npm install && npm run build:api
+    startCommand: npm run start --workspace @shelfsense/api
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: staging
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: WEB_BASE_URL
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: EMAIL_FROM_NAME
         sync: false

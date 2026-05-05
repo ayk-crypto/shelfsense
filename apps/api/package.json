@@ -14,6 +14,9 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
+    "db:seed:plans": "tsx prisma/seed-plans.ts",
+    "prod:cleanup:dry-run": "tsx scripts/prod-cleanup.ts --dry-run",
+    "prod:cleanup:delete": "tsx scripts/prod-cleanup.ts --delete",
     "make:super-admin": "tsx src/scripts/make-super-admin.ts",
     "test": "vitest run"
   },

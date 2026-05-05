@@ -1,5 +1,14 @@
 node_modules
-# Keep environment variables out of version control
+
+# Environment variable files — keep only .example templates
 .env
+.env.local
+.env.*.local
+.env.development
+.env.staging
+.env.production
+
+# Cleanup script backups
+prod-cleanup-backup-*.json
 
 /src/generated/prisma

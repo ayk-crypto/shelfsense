@@ -22,8 +22,12 @@
 
     "make:super-admin": "tsx scripts/make-super-admin.ts",
     "db:seed": "npm run db:seed --workspace @shelfsense/api",
+    "db:seed:plans": "npm run db:seed:plans --workspace @shelfsense/api",
     "db:deploy": "npm run db:deploy --workspace @shelfsense/api",
     "db:test:migrate": "node scripts/migrate-test-db.mjs",
+
+    "prod:cleanup:dry-run": "npm run prod:cleanup:dry-run --workspace @shelfsense/api",
+    "prod:cleanup:delete": "npm run prod:cleanup:delete --workspace @shelfsense/api",
 
     "test": "npm test --workspace @shelfsense/api",
     "ops:check": "node scripts/check-api-env.mjs && npx prisma validate --schema apps/api/prisma/schema.prisma",
