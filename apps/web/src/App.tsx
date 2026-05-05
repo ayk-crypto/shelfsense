@@ -71,11 +71,12 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 function WorkspaceRequiredRoute({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
 
-  if (user?.workspaceId) return <>{children}</>;
-
-  if (user?.platformRole === "SUPER_ADMIN") {
+  if (user?.platformRole === "SUPER_ADMIN" || user?.platformRole === "SUPPORT_ADMIN") {
     return <Navigate to="/admin" replace />;
   }
+
+  if (user?.workspaceId) return <>{children}</>;
+
 
   function handleSignupRedirect() {
     logout();
@@ -175,6 +176,10 @@ function OnboardingGuard({ children }: { children: React.ReactNode }) {
       cancelled = true;
     };
   }, [user?.role]);
+
+  if (user?.platformRole === "SUPER_ADMIN" || user?.platformRole === "SUPPORT_ADMIN") {
+    return <Navigate to="/admin" replace />;
+  }
 
   if (user?.role !== "OWNER") return <>{children}</>;
 
