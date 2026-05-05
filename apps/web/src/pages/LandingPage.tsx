@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { getPublicPlans } from "../api/subscriptions";
+import type { PublicPlan } from "../types";
 
 function useScrolled(threshold = 20) {
   const [scrolled, setScrolled] = useState(false);
@@ -239,7 +241,53 @@ const WHO_FOR = [
   },
 ];
 
-const PRICING = [
+const PLAN_VISUAL: Record<string, { color: string; bg: string; highlight: boolean }> = {
+  FREE:    { color: "#64748b", bg: "#f8fafc", highlight: false },
+  STARTER: { color: "#6366f1", bg: "#eef2ff", highlight: true  },
+  PRO:     { color: "#7c3aed", bg: "#f5f3ff", highlight: false },
+};
+
+type PricingCard = {
+  id?: string;
+  tier: string;
+  price: string;
+  period: string;
+  desc: string;
+  color: string;
+  bg: string;
+  highlight: boolean;
+  features: string[];
+  currency: string;
+};
+
+function planToCard(plan: PublicPlan): PricingCard {
+  const visual = PLAN_VISUAL[plan.code] ?? { color: "#64748b", bg: "#f8fafc", highlight: false };
+  const isFree = plan.monthlyPrice === 0 && plan.annualPrice === 0;
+  const features: string[] = [];
+  if (plan.maxItems !== null) features.push(plan.maxItems === -1 ? "Unlimited items" : `Up to ${plan.maxItems.toLocaleString()} items`);
+  if (plan.maxLocations !== null) features.push(plan.maxLocations === -1 ? "Unlimited locations" : `${plan.maxLocations} location${plan.maxLocations !== 1 ? "s" : ""}`);
+  if (plan.maxUsers !== null) features.push(plan.maxUsers === -1 ? "Unlimited users" : `Up to ${plan.maxUsers} users`);
+  if (plan.enableReports) features.push("Inventory reports");
+  if (plan.enableExpiryTracking) features.push("Expiry date tracking");
+  if (plan.enablePurchases) features.push("Purchase orders");
+  if (plan.enableSuppliers) features.push("Supplier management");
+  if (plan.enableAdvancedReports) features.push("Advanced analytics");
+  if (plan.enableCustomRoles) features.push("Custom team roles");
+  return {
+    id: plan.id,
+    tier: plan.name,
+    price: isFree ? "0" : String(plan.monthlyPrice),
+    period: isFree ? "forever" : "/ month",
+    desc: plan.description ?? "",
+    color: visual.color,
+    bg: visual.bg,
+    highlight: visual.highlight,
+    features,
+    currency: plan.currency,
+  };
+}
+
+const STATIC_PRICING: PricingCard[] = [
   {
     tier: "Free",
     price: "0",
@@ -248,17 +296,19 @@ const PRICING = [
     color: "#64748b",
     bg: "#f8fafc",
     highlight: false,
-    features: ["Up to 50 items", "1 location", "Up to 3 users", "All core features", "CSV export"],
+    features: ["Up to 50 items", "1 location", "Up to 3 users", "Inventory reports", "Expiry date tracking"],
+    currency: "$",
   },
   {
-    tier: "Basic",
+    tier: "Starter",
     price: "19",
     period: "/ month",
     desc: "For growing businesses that need more items, locations, and team members.",
     color: "#6366f1",
     bg: "#eef2ff",
     highlight: true,
-    features: ["Up to 500 items", "Up to 5 locations", "Up to 10 users", "Everything in Free", "Purchase orders", "Priority support"],
+    features: ["Up to 500 items", "5 locations", "Up to 10 users", "Purchase orders", "Supplier management"],
+    currency: "$",
   },
   {
     tier: "Pro",
@@ -268,13 +318,27 @@ const PRICING = [
     color: "#7c3aed",
     bg: "#f5f3ff",
     highlight: false,
-    features: ["Unlimited items", "Unlimited locations", "Unlimited users", "Everything in Basic", "Advanced reports", "Dedicated support"],
+    features: ["Unlimited items", "Unlimited locations", "Unlimited users", "Advanced analytics", "Custom team roles"],
+    currency: "$",
   },
 ];
 
 export function LandingPage() {
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const [pricing, setPricing] = useState<PricingCard[]>(STATIC_PRICING);
+
+  useEffect(() => {
+    getPublicPlans()
+      .then(({ plans }) => {
+        if (plans.length > 0) {
+          setPricing(plans.map(planToCard));
+        }
+      })
+      .catch(() => {
+        // keep static fallback
+      });
+  }, []);
 
   function handlePrimaryCta() {
     if (isAuthenticated) {
@@ -462,15 +526,15 @@ export function LandingPage() {
           </div>
 
           <div className="lp-pricing-grid">
-            {PRICING.map((plan) => (
+            {pricing.map((plan) => (
               <div
-                key={plan.tier}
+                key={plan.id ?? plan.tier}
                 className={`lp-pricing-card ${plan.highlight ? "lp-pricing-card--highlight" : ""}`}
               >
                 {plan.highlight && <div className="lp-pricing-popular">Most popular</div>}
                 <div className="lp-pricing-tier" style={{ color: plan.color }}>{plan.tier}</div>
                 <div className="lp-pricing-price">
-                  <span className="lp-pricing-currency">$</span>
+                  <span className="lp-pricing-currency">{plan.currency}</span>
                   <span className="lp-pricing-amount">{plan.price}</span>
                   <span className="lp-pricing-period">{plan.period}</span>
                 </div>

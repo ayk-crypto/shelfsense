@@ -551,6 +551,26 @@ export function PlanPage() {
           Billing will be enabled soon.
         </span>
       </div>
+
+      <div className="plan-support-card">
+        <div className="plan-support-icon" aria-hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+        </div>
+        <div className="plan-support-body">
+          <div className="plan-support-title">Need help with billing or your plan?</div>
+          <p className="plan-support-text">
+            Our team is happy to help with upgrades, invoices, or any billing questions.
+          </p>
+        </div>
+        <a
+          href="mailto:support@shelfsense.com"
+          className="btn btn--primary btn--sm plan-support-btn"
+        >
+          Contact Support
+        </a>
+      </div>
     </div>
   );
 }

@@ -339,6 +339,17 @@ export function AppShell() {
                 </svg>
                 Settings
               </NavLink>
+              <a
+                href="mailto:support@shelfsense.com"
+                className="nav-item"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
+                Contact Support
+              </a>
             </>
           )}
 
@@ -473,7 +484,11 @@ export function AppShell() {
               </svg>
               <span>
                 <strong>Payment pending</strong> — Your <strong>{subscription.plan.name}</strong> plan is active
-                but awaiting payment. Please contact support to complete billing.
+                but awaiting payment.{" "}
+                <a href="mailto:support@shelfsense.com" style={{ color: "inherit", fontWeight: 600 }}>
+                  Contact support
+                </a>{" "}
+                to complete billing.
               </span>
               <button className="billing-pending-banner-btn" onClick={() => navigate("/plan")}>
                 View Plan
