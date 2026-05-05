@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { changePlan, getPlanStatus } from "../api/plan";
 import type { PlanStatus, PlanTier } from "../types";
 
@@ -272,6 +273,7 @@ function CheckIcon({ color }: { color?: string }) {
 // ─── PlanPage ─────────────────────────────────────────────────────────────────
 
 export function PlanPage() {
+  const navigate = useNavigate();
   const [status, setStatus]           = useState<PlanStatus | null>(null);
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState<string | null>(null);
@@ -564,12 +566,13 @@ export function PlanPage() {
             Our team is happy to help with upgrades, invoices, or any billing questions.
           </p>
         </div>
-        <a
-          href="mailto:support@shelfsense.com"
+        <button
+          type="button"
           className="btn btn--primary btn--sm plan-support-btn"
+          onClick={() => navigate("/support")}
         >
           Contact Support
-        </a>
+        </button>
       </div>
     </div>
   );

@@ -4,6 +4,7 @@ import { getAlerts } from "../api/alerts";
 import { getNotifications, markAllNotificationsRead, markNotificationRead } from "../api/notifications";
 import { resendVerification } from "../api/auth";
 import { getCurrentSubscription } from "../api/subscriptions";
+import { getActiveAnnouncements, type CustomerAnnouncement } from "../api/announcements";
 import { useAuth } from "../context/AuthContext";
 import { useLocation } from "../context/LocationContext";
 import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
@@ -32,6 +33,14 @@ export function AppShell() {
   const [isDesktopShell, setIsDesktopShell] = useState(() => window.innerWidth >= 768);
   const [commandSearch, setCommandSearch] = useState("");
   const [subscription, setSubscription] = useState<CurrentSubscription | null>(null);
+  const [announcements, setAnnouncements] = useState<CustomerAnnouncement[]>([]);
+  const [dismissedIds, setDismissedIds] = useState<ReadonlySet<string>>(() => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem("ss_dismissed_ann") ?? "[]") as string[]);
+    } catch {
+      return new Set<string>();
+    }
+  });
   const canAccessManagement = user?.role === "OWNER" || user?.role === "MANAGER";
   const canRecordStockOut = user?.role === "OWNER" || user?.role === "MANAGER" || user?.role === "OPERATOR";
   const canViewAlerts = user?.role === "OWNER" || user?.role === "MANAGER" || user?.role === "OPERATOR";
@@ -74,6 +83,23 @@ export function AppShell() {
       .then((res) => setSubscription(res.subscription))
       .catch(() => {});
   }, [user?.role]);
+
+  useEffect(() => {
+    getActiveAnnouncements()
+      .then((res) => setAnnouncements(res.announcements))
+      .catch(() => {});
+  }, []);
+
+  function dismissAnnouncement(id: string) {
+    setDismissedIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      try {
+        localStorage.setItem("ss_dismissed_ann", JSON.stringify([...next]));
+      } catch { /* ignore */ }
+      return next;
+    });
+  }
 
   useEffect(() => {
     function handleOnline() {
@@ -339,14 +365,17 @@ export function AppShell() {
                 </svg>
                 Settings
               </NavLink>
-              <NavLink to="/support" className={({ isActive }) => `nav-item ${isActive ? "nav-item--active" : ""}`}>
-                <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                </svg>
-                Support
-              </NavLink>
             </>
           )}
+
+          {/* HELP — visible to all roles */}
+          <p className="nav-section-label">Help</p>
+          <NavLink to="/support" className={({ isActive }) => `nav-item ${isActive ? "nav-item--active" : ""}`}>
+            <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+            Support
+          </NavLink>
 
         </nav>
 
@@ -480,9 +509,13 @@ export function AppShell() {
               <span>
                 <strong>Payment pending</strong> — Your <strong>{subscription.plan.name}</strong> plan is active
                 but awaiting payment.{" "}
-                <a href="mailto:support@shelfsense.com" style={{ color: "inherit", fontWeight: 600 }}>
+                <button
+                  type="button"
+                  onClick={() => navigate("/support")}
+                  style={{ background: "none", border: "none", padding: 0, color: "inherit", fontWeight: 600, cursor: "pointer", textDecoration: "underline", font: "inherit" }}
+                >
                   Contact support
-                </a>{" "}
+                </button>{" "}
                 to complete billing.
               </span>
               <button className="billing-pending-banner-btn" onClick={() => navigate("/plan")}>
@@ -490,6 +523,41 @@ export function AppShell() {
               </button>
             </div>
           )}
+          {/* ── Announcement Banners ── */}
+          {announcements
+            .filter((a) => !dismissedIds.has(a.id))
+            .map((a) => {
+              const SEV = {
+                INFO:     { bg: "#eff6ff", border: "#93c5fd", color: "#1d4ed8" },
+                SUCCESS:  { bg: "#f0fdf4", border: "#86efac", color: "#15803d" },
+                WARNING:  { bg: "#fffbeb", border: "#fcd34d", color: "#b45309" },
+                CRITICAL: { bg: "#fef2f2", border: "#fca5a5", color: "#b91c1c" },
+              } as const;
+              const s = SEV[a.severity as keyof typeof SEV] ?? SEV.INFO;
+              return (
+                <div
+                  key={a.id}
+                  className="ann-banner"
+                  style={{ background: s.bg, borderColor: s.border, color: s.color }}
+                >
+                  <div className="ann-banner-content">
+                    <strong className="ann-banner-title">{a.title}</strong>
+                    {a.message && <span className="ann-banner-msg">{a.message}</span>}
+                  </div>
+                  {a.dismissible && (
+                    <button
+                      type="button"
+                      className="ann-banner-close"
+                      onClick={() => dismissAnnouncement(a.id)}
+                      aria-label="Dismiss announcement"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+
           <Outlet />
         </main>
       </div>

@@ -25,16 +25,32 @@ announcementsRouter.get("/active", asyncHandler(async (req, res) => {
       severity: true,
       targetType: true,
       targetWorkspaceId: true,
+      targetPlanId: true,
       dismissible: true,
       createdAt: true,
     },
   });
 
+  // Get workspace's active subscription planId for PLAN-targeted announcements
+  let workspacePlanId: string | null = null;
+  if (workspaceId) {
+    const sub = await prisma.subscription.findFirst({
+      where: {
+        workspaceId,
+        status: { in: ["ACTIVE", "TRIALING", "MANUAL_REVIEW"] },
+      },
+      select: { planId: true },
+      orderBy: { createdAt: "desc" },
+    });
+    workspacePlanId = sub?.planId ?? null;
+  }
+
   const filtered = announcements.filter((a) => {
     if (a.targetType === "ALL") return true;
     if (a.targetType === "WORKSPACE" && workspaceId && a.targetWorkspaceId === workspaceId) return true;
+    if (a.targetType === "PLAN" && workspacePlanId && a.targetPlanId === workspacePlanId) return true;
     return false;
   });
 
-  return res.json({ announcements: filtered });
+  return res.json({ announcements: filtered.map(({ targetWorkspaceId: _w, targetPlanId: _p, ...rest }) => rest) });
 }));
