@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { AUTH_EXPIRED_EVENT } from "../api/client";
+import { AUTH_EXPIRED_EVENT, clearStoredLocation } from "../api/client";
 import type { User } from "../types";
 
 interface AuthState {
@@ -42,6 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
+    clearStoredLocation();
     setState({ user: null, token: null, isAuthenticated: false });
   }, []);
 

@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { getLocations } from "../api/locations";
-import { getApiLocationId, setApiLocationId } from "../api/client";
+import { getApiLocationId, setApiLocationId, setCurrentWorkspaceId } from "../api/client";
 import { useAuth } from "./AuthContext";
 import type { Location } from "../types";
 
@@ -21,7 +21,7 @@ interface LocationContextValue {
 const LocationContext = createContext<LocationContextValue | null>(null);
 
 export function LocationProvider({ children }: { children: ReactNode }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const [locations, setLocations] = useState<Location[]>([]);
   const [activeLocationId, setActiveLocationIdState] = useState(getApiLocationId());
   const [loading, setLoading] = useState(false);
@@ -46,11 +46,16 @@ export function LocationProvider({ children }: { children: ReactNode }) {
       setLocations([]);
       setActiveLocationIdState("");
       setApiLocationId(null);
+      setCurrentWorkspaceId("");
       setLocationReady(false);
       return;
     }
 
     setLoading(true);
+
+    // Activate workspace-specific location storage so we use the right key.
+    // This also migrates any existing legacy global key for this workspace.
+    setCurrentWorkspaceId(user?.workspaceId ?? "");
 
     // Capture the previously stored location ID before clearing it.
     // Clearing the API client variable immediately ensures that any API calls
@@ -89,7 +94,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       setLocationReady(true);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user?.workspaceId]);
 
   useEffect(() => { void refreshLocations(); }, [refreshLocations]);
 

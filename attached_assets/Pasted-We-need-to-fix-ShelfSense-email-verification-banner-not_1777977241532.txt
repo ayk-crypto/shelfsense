@@ -1,0 +1,101 @@
+We need to fix ShelfSense email verification banner not disappearing after successful email verification.
+
+Current issue:
+User clicks "Resend email" from dashboard.
+Verification email is received.
+User clicks verification link.
+Verification page says the email is verified and asks user to go back to dashboard.
+But after returning to dashboard, the banner still appears:
+
+"Please verify your email address to unlock all features."
+
+Expected behavior:
+Once email verification succeeds, the dashboard should immediately stop showing the verification banner.
+
+Please inspect:
+- email verification backend route
+- resend verification email route
+- auth/register route
+- auth/login route
+- /me or current user endpoint
+- frontend auth context
+- dashboard layout/header/banner component
+- localStorage/session handling for user object/token
+- verification success page logic
+
+Fix requirements:
+
+1. Backend verification route
+   - Confirm that when the verification link is clicked, the backend updates the user record correctly.
+   - The relevant user field should be updated, for example:
+     - emailVerified = true
+     - emailVerifiedAt = current timestamp
+     - isEmailVerified = true
+     depending on the existing schema.
+   - Verification token should be marked used or deleted after successful verification.
+   - If token is already used but user is verified, show a friendly already-verified success state.
+
+2. Current user API
+   - Ensure the authenticated current user endpoint returns the latest email verification status.
+   - Example response should include:
+     - user.emailVerified
+     - or user.emailVerifiedAt
+     - or whichever field is used by the app.
+   - Do not rely only on the user object stored during login/register.
+
+3. Frontend auth state refresh
+   - After user returns to dashboard, the app should refetch the current user/profile from backend.
+   - The dashboard verification banner must use the latest server-side user state, not stale localStorage data.
+   - If localStorage stores user data, update it after refetch.
+   - Better approach: token can stay in localStorage, but user profile should be refreshed on app load.
+
+4. Verification success page behavior
+   - After successful verification, provide a button:
+     "Go to Dashboard"
+   - When clicked, it should either:
+     - call /auth/me or /me before navigating, or
+     - navigate with a flag like /dashboard?verified=1 and dashboard/auth context refreshes user profile.
+   - The dashboard should detect verified=1 and refresh current user state once, then remove the query parameter.
+
+5. Dashboard banner logic
+   - The banner should only show if latest user profile confirms email is not verified.
+   - If user.emailVerified is true or emailVerifiedAt is not null, hide the banner.
+   - Do not show the banner while auth profile is still loading; otherwise it flashes incorrectly.
+   - Add a small loading-safe condition:
+     - if authLoading is true, do not render verification banner yet.
+
+6. Resend email button
+   - Keep resend email working.
+   - If user is already verified and clicks resend, show:
+     "Your email is already verified."
+   - Do not send another verification email for already verified users.
+
+7. Logout/login behavior
+   - After logout and login again, verified user should not see the banner.
+   - Login response should include updated verification status.
+   - Auth context should not overwrite verified status with old cached user data.
+
+8. Testing cases
+   Please test:
+   - New unverified user logs in → banner appears.
+   - User clicks resend email → email sent.
+   - User clicks verification link → verification success page appears.
+   - User goes back to dashboard → banner disappears.
+   - Refresh dashboard → banner stays hidden.
+   - Logout and login again → banner stays hidden.
+   - Clicking old verification link again → friendly already verified message.
+   - Already verified user clicking resend → no email sent, friendly message shown.
+
+9. Important
+   Do not fake-remove the banner only on frontend.
+   The source of truth must be backend user verification status.
+   Fix the root cause: stale auth/user state after verification.
+
+Deliverables:
+After fixing, summarize:
+1. Root cause found
+2. Backend files changed
+3. Frontend files changed
+4. Exact user verification field used
+5. How auth state refresh now works
+6. Manual test results

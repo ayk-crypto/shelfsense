@@ -1,23 +1,67 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL?.trim() || "/api";
-const ACTIVE_LOCATION_KEY = "shelfsense_active_location_id";
 const TOKEN_KEY = "shelfsense_token";
 const USER_KEY = "shelfsense_user";
 export const AUTH_EXPIRED_EVENT = "shelfsense:auth-expired";
 
-let activeLocationId = localStorage.getItem(ACTIVE_LOCATION_KEY) || "";
+const LOCATION_KEY_LEGACY = "shelfsense_active_location_id";
+const LOCATION_KEY_PREFIX = "shelfsense:loc:";
+
+let _workspaceId = "";
+let activeLocationId = localStorage.getItem(LOCATION_KEY_LEGACY) || "";
+
+export function setCurrentWorkspaceId(workspaceId: string) {
+  _workspaceId = workspaceId;
+  if (!workspaceId) {
+    activeLocationId = "";
+    return;
+  }
+
+  const wsKey = LOCATION_KEY_PREFIX + workspaceId;
+  const wsStored = localStorage.getItem(wsKey);
+  if (wsStored) {
+    activeLocationId = wsStored;
+    return;
+  }
+
+  const legacyStored = localStorage.getItem(LOCATION_KEY_LEGACY);
+  if (legacyStored) {
+    activeLocationId = legacyStored;
+    localStorage.setItem(wsKey, legacyStored);
+  } else {
+    activeLocationId = "";
+  }
+}
 
 export function setApiLocationId(locationId: string | null) {
   activeLocationId = locationId ?? "";
 
-  if (activeLocationId) {
-    localStorage.setItem(ACTIVE_LOCATION_KEY, activeLocationId);
+  if (_workspaceId) {
+    const wsKey = LOCATION_KEY_PREFIX + _workspaceId;
+    if (activeLocationId) {
+      localStorage.setItem(wsKey, activeLocationId);
+    } else {
+      localStorage.removeItem(wsKey);
+    }
   } else {
-    localStorage.removeItem(ACTIVE_LOCATION_KEY);
+    if (activeLocationId) {
+      localStorage.setItem(LOCATION_KEY_LEGACY, activeLocationId);
+    } else {
+      localStorage.removeItem(LOCATION_KEY_LEGACY);
+    }
   }
 }
 
 export function getApiLocationId() {
   return activeLocationId;
+}
+
+export function clearStoredLocation() {
+  activeLocationId = "";
+  if (_workspaceId) {
+    localStorage.removeItem(LOCATION_KEY_PREFIX + _workspaceId);
+  }
+  localStorage.removeItem(LOCATION_KEY_LEGACY);
+  _workspaceId = "";
 }
 
 function getToken(): string | null {
@@ -87,6 +131,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 function clearStoredAuth() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+  clearStoredLocation();
   window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
 }
 

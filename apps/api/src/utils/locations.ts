@@ -71,7 +71,9 @@ export async function getActiveLocationId(req: Request, workspaceId: string) {
       return location.id;
     }
 
-    throw Object.assign(new Error("Location is archived or unavailable"), { status: 400 });
+    // Requested location is archived or not in this workspace — silently fall
+    // back to the workspace default. The frontend LocationContext will detect
+    // the mismatch on its next load and update stored state automatically.
   }
 
   const defaultLocation = await ensureDefaultLocation(workspaceId);

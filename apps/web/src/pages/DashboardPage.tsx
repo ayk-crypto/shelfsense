@@ -87,7 +87,7 @@ const EMPTY_ALERTS: AlertsResponse = {
 
 export function DashboardPage() {
   const { user } = useAuth();
-  const { activeLocationId } = useLocation();
+  const { activeLocationId, locationReady } = useLocation();
   const { settings } = useWorkspaceSettings();
   const canAccessManagement = user?.role === "OWNER" || user?.role === "MANAGER";
   const currency = settings.currency;
@@ -111,6 +111,11 @@ export function DashboardPage() {
 
   useEffect(() => {
     async function load() {
+      if (!locationReady) return;
+
+      setLoading(true);
+      setError(null);
+
       try {
         if (!canAccessManagement) {
           const summaryRes = await getStockSummary();
@@ -203,9 +208,10 @@ export function DashboardPage() {
       }
     }
     void load();
-  }, [canAccessManagement, activeLocationId]);
+  }, [canAccessManagement, activeLocationId, locationReady]);
 
   useEffect(() => {
+    if (!locationReady) return;
     async function loadTrend() {
       try {
         const res = await getStockTrend(trendDays);
@@ -215,7 +221,7 @@ export function DashboardPage() {
       }
     }
     void loadTrend();
-  }, [trendDays, activeLocationId]);
+  }, [trendDays, activeLocationId, locationReady]);
 
   if (loading) {
     return (
