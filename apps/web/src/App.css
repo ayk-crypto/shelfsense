@@ -16299,6 +16299,18 @@ body {
   flex-shrink: 0;
   color: #059669;
 }
+.lp-pricing-feature--dim {
+  opacity: 0.38;
+}
+.lp-pricing-feature--dim .lp-pricing-cross {
+  color: #94a3b8;
+}
+.lp-pricing-cross {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: #94a3b8;
+}
 .lp-pricing-cta {
   width: 100%;
   padding: 11px 20px;

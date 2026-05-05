@@ -247,6 +247,8 @@ const PLAN_VISUAL: Record<string, { color: string; bg: string; highlight: boolea
   PRO:     { color: "#7c3aed", bg: "#f5f3ff", highlight: false },
 };
 
+type PricingFeature = { label: string; included: boolean };
+
 type PricingCard = {
   id?: string;
   tier: string;
@@ -256,23 +258,30 @@ type PricingCard = {
   color: string;
   bg: string;
   highlight: boolean;
-  features: string[];
+  features: PricingFeature[];
   currency: string;
 };
 
 function planToCard(plan: PublicPlan): PricingCard {
   const visual = PLAN_VISUAL[plan.code] ?? { color: "#64748b", bg: "#f8fafc", highlight: false };
   const isFree = plan.monthlyPrice === 0 && plan.annualPrice === 0;
-  const features: string[] = [];
-  if (plan.maxItems !== null) features.push(plan.maxItems === -1 ? "Unlimited items" : `Up to ${plan.maxItems.toLocaleString()} items`);
-  if (plan.maxLocations !== null) features.push(plan.maxLocations === -1 ? "Unlimited locations" : `${plan.maxLocations} location${plan.maxLocations !== 1 ? "s" : ""}`);
-  if (plan.maxUsers !== null) features.push(plan.maxUsers === -1 ? "Unlimited users" : `Up to ${plan.maxUsers} users`);
-  if (plan.enableReports) features.push("Inventory reports");
-  if (plan.enableExpiryTracking) features.push("Expiry date tracking");
-  if (plan.enablePurchases) features.push("Purchase orders");
-  if (plan.enableSuppliers) features.push("Supplier management");
-  if (plan.enableAdvancedReports) features.push("Advanced analytics");
-  if (plan.enableCustomRoles) features.push("Custom team roles");
+
+  const itemLabel = plan.maxItems === null ? "Items" : plan.maxItems === -1 ? "Unlimited items" : `Up to ${plan.maxItems.toLocaleString()} items`;
+  const locLabel = plan.maxLocations === null ? "Locations" : plan.maxLocations === -1 ? "Unlimited locations" : `${plan.maxLocations} location${plan.maxLocations !== 1 ? "s" : ""}`;
+  const userLabel = plan.maxUsers === null ? "Team members" : plan.maxUsers === -1 ? "Unlimited users" : `Up to ${plan.maxUsers} users`;
+
+  const features: PricingFeature[] = [
+    { label: itemLabel, included: plan.maxItems !== null },
+    { label: locLabel, included: plan.maxLocations !== null },
+    { label: userLabel, included: plan.maxUsers !== null },
+    { label: "Inventory reports", included: plan.enableReports },
+    { label: "Expiry date tracking", included: plan.enableExpiryTracking },
+    { label: "Purchase orders", included: plan.enablePurchases },
+    { label: "Supplier management", included: plan.enableSuppliers },
+    { label: "Advanced analytics", included: plan.enableAdvancedReports },
+    { label: "Custom team roles", included: plan.enableCustomRoles },
+  ];
+
   return {
     id: plan.id,
     tier: plan.name,
@@ -287,6 +296,13 @@ function planToCard(plan: PublicPlan): PricingCard {
   };
 }
 
+const ALL_FEATURES: PricingFeature["label"][] = [
+  "Items", "Locations", "Team members",
+  "Inventory reports", "Expiry date tracking",
+  "Purchase orders", "Supplier management",
+  "Advanced analytics", "Custom team roles",
+];
+
 const STATIC_PRICING: PricingCard[] = [
   {
     tier: "Free",
@@ -296,8 +312,18 @@ const STATIC_PRICING: PricingCard[] = [
     color: "#64748b",
     bg: "#f8fafc",
     highlight: false,
-    features: ["Up to 50 items", "1 location", "Up to 3 users", "Inventory reports", "Expiry date tracking"],
     currency: "$",
+    features: [
+      { label: "Up to 50 items",        included: true  },
+      { label: "1 location",            included: true  },
+      { label: "Up to 3 users",         included: true  },
+      { label: "Inventory reports",      included: true  },
+      { label: "Expiry date tracking",   included: true  },
+      { label: "Purchase orders",        included: false },
+      { label: "Supplier management",    included: false },
+      { label: "Advanced analytics",     included: false },
+      { label: "Custom team roles",      included: false },
+    ],
   },
   {
     tier: "Starter",
@@ -307,8 +333,18 @@ const STATIC_PRICING: PricingCard[] = [
     color: "#6366f1",
     bg: "#eef2ff",
     highlight: true,
-    features: ["Up to 500 items", "5 locations", "Up to 10 users", "Purchase orders", "Supplier management"],
     currency: "$",
+    features: [
+      { label: "Up to 500 items",        included: true  },
+      { label: "5 locations",            included: true  },
+      { label: "Up to 10 users",         included: true  },
+      { label: "Inventory reports",      included: true  },
+      { label: "Expiry date tracking",   included: true  },
+      { label: "Purchase orders",        included: true  },
+      { label: "Supplier management",    included: true  },
+      { label: "Advanced analytics",     included: false },
+      { label: "Custom team roles",      included: false },
+    ],
   },
   {
     tier: "Pro",
@@ -318,10 +354,22 @@ const STATIC_PRICING: PricingCard[] = [
     color: "#7c3aed",
     bg: "#f5f3ff",
     highlight: false,
-    features: ["Unlimited items", "Unlimited locations", "Unlimited users", "Advanced analytics", "Custom team roles"],
     currency: "$",
+    features: [
+      { label: "Unlimited items",        included: true },
+      { label: "Unlimited locations",    included: true },
+      { label: "Unlimited users",        included: true },
+      { label: "Inventory reports",      included: true },
+      { label: "Expiry date tracking",   included: true },
+      { label: "Purchase orders",        included: true },
+      { label: "Supplier management",    included: true },
+      { label: "Advanced analytics",     included: true },
+      { label: "Custom team roles",      included: true },
+    ],
   },
 ];
+
+void ALL_FEATURES;
 
 export function LandingPage() {
   const { isAuthenticated } = useAuth();
@@ -541,11 +589,17 @@ export function LandingPage() {
                 <p className="lp-pricing-desc">{plan.desc}</p>
                 <ul className="lp-pricing-features">
                   {plan.features.map((f) => (
-                    <li key={f} className="lp-pricing-feature">
-                      <svg className="lp-pricing-check" viewBox="0 0 16 16" fill="currentColor">
-                        <path fillRule="evenodd" d="M13.707 4.293a1 1 0 010 1.414l-7 7a1 1 0 01-1.414 0l-3-3a1 1 0 011.414-1.414L6 10.586l6.293-6.293a1 1 0 011.414 0z" />
-                      </svg>
-                      {f}
+                    <li key={f.label} className={`lp-pricing-feature${f.included ? "" : " lp-pricing-feature--dim"}`}>
+                      {f.included ? (
+                        <svg className="lp-pricing-check" viewBox="0 0 16 16" fill="currentColor">
+                          <path fillRule="evenodd" d="M13.707 4.293a1 1 0 010 1.414l-7 7a1 1 0 01-1.414 0l-3-3a1 1 0 011.414-1.414L6 10.586l6.293-6.293a1 1 0 011.414 0z" />
+                        </svg>
+                      ) : (
+                        <svg className="lp-pricing-cross" viewBox="0 0 16 16" fill="currentColor">
+                          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L8 6.586l2.293-2.293a1 1 0 111.414 1.414L9.414 8l2.293 2.293a1 1 0 01-1.414 1.414L8 9.414l-2.293 2.293a1 1 0 01-1.414-1.414L6.586 8 4.293 5.707a1 1 0 010-1.414z" />
+                        </svg>
+                      )}
+                      {f.label}
                     </li>
                   ))}
                 </ul>
