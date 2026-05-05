@@ -27,6 +27,7 @@ import { stockRouter } from "./routes/stock.js";
 import { suppliersRouter } from "./routes/suppliers.js";
 import { teamRouter } from "./routes/team.js";
 import { workspaceRouter } from "./routes/workspace.js";
+import { webhooksRouter } from "./routes/webhooks.js";
 
 export const app = express();
 
@@ -177,6 +178,7 @@ app.use("/purchases", purchasesRouter);
 app.use("/reorder-suggestions", reorderSuggestionsRouter);
 app.use("/admin", adminRouter);
 app.use("/announcements", announcementsRouter);
+app.use("/webhooks", webhooksRouter);
 app.use("/reports", reportsRouter);
 app.use("/plan", planRouter);
 app.use("/team", teamRouter);

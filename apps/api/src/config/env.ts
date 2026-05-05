@@ -50,4 +50,6 @@ export const env = {
   emailFrom: getEmailFrom(),
   emailFromName: process.env.EMAIL_FROM_NAME ?? "ShelfSense",
   appUrl: process.env.WEB_BASE_URL ?? process.env.APP_URL ?? "http://localhost:5000",
+  supportFrom: process.env.SUPPORT_FROM ?? null,
+  supportInboundSecret: process.env.SUPPORT_INBOUND_SECRET ?? null,
 };

@@ -117,6 +117,32 @@ enum AnnouncementTarget {
   WORKSPACE
 }
 
+enum TicketStatus {
+  OPEN
+  PENDING
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum TicketSource {
+  EMAIL
+  PORTAL
+  ADMIN
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+  INTERNAL
+}
+
 model User {
   id                    String          @id @default(uuid()) @db.Uuid
   name                  String
@@ -141,6 +167,11 @@ model User {
   recordedPayments      Payment[]
   updatedEmailTemplates EmailTemplate[]
   createdAnnouncements  Announcement[]
+  supportTickets        SupportTicket[]       @relation("SupportTicketUser")
+  assignedTickets       SupportTicket[]       @relation("SupportTicketAssignee")
+  supportMessages       SupportMessage[]      @relation("SupportMessageCreatedBy")
+  supportNotes          SupportInternalNote[] @relation("SupportNoteCreatedBy")
+  supportEvents         SupportTicketEvent[]  @relation("SupportEventActor")
 }
 
 model PasswordResetToken {
@@ -214,6 +245,7 @@ model Workspace {
   stockCounts                    StockCount[]
   subscriptions                  Subscription[]
   payments                       Payment[]
+  supportTickets                 SupportTicket[]
 }
 
 model Notification {
@@ -688,5 +720,87 @@ model Announcement {
 
   @@index([isActive])
   @@index([targetType])
+  @@index([createdAt])
+}
+
+// ── Support Desk models ────────────────────────────────────────────────
+
+model SupportTicket {
+  id               String          @id @default(uuid()) @db.Uuid
+  ticketNumber     Int             @unique @default(autoincrement())
+  subject          String
+  status           TicketStatus    @default(OPEN)
+  priority         TicketPriority  @default(NORMAL)
+  source           TicketSource    @default(EMAIL)
+  workspaceId      String?         @db.Uuid
+  userId           String?         @db.Uuid
+  requesterEmail   String
+  requesterName    String?
+  assignedToUserId String?         @db.Uuid
+  lastMessageAt    DateTime        @default(now())
+  resolvedAt       DateTime?
+  closedAt         DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  workspace        Workspace?      @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  user             User?           @relation("SupportTicketUser", fields: [userId], references: [id], onDelete: SetNull)
+  assignedTo       User?           @relation("SupportTicketAssignee", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  messages         SupportMessage[]
+  notes            SupportInternalNote[]
+  events           SupportTicketEvent[]
+
+  @@index([status])
+  @@index([priority])
+  @@index([workspaceId])
+  @@index([userId])
+  @@index([assignedToUserId])
+  @@index([lastMessageAt])
+  @@index([createdAt])
+}
+
+model SupportMessage {
+  id                String           @id @default(uuid()) @db.Uuid
+  ticketId          String           @db.Uuid
+  direction         MessageDirection
+  senderEmail       String
+  senderName        String?
+  bodyHtml          String?
+  bodyText          String
+  providerMessageId String?
+  attachments       Json?
+  createdByUserId   String?          @db.Uuid
+  createdAt         DateTime         @default(now())
+  ticket            SupportTicket    @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  createdBy         User?            @relation("SupportMessageCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId])
+  @@index([direction])
+  @@index([createdAt])
+}
+
+model SupportInternalNote {
+  id              String        @id @default(uuid()) @db.Uuid
+  ticketId        String        @db.Uuid
+  note            String
+  createdByUserId String        @db.Uuid
+  createdAt       DateTime      @default(now())
+  ticket          SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  createdBy       User          @relation("SupportNoteCreatedBy", fields: [createdByUserId], references: [id])
+
+  @@index([ticketId])
+  @@index([createdAt])
+}
+
+model SupportTicketEvent {
+  id          String        @id @default(uuid()) @db.Uuid
+  ticketId    String        @db.Uuid
+  actorUserId String?       @db.Uuid
+  eventType   String
+  metadata    Json?
+  createdAt   DateTime      @default(now())
+  ticket      SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  actor       User?         @relation("SupportEventActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId])
   @@index([createdAt])
 }

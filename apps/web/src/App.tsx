@@ -14,6 +14,8 @@ import { AdminEmailTemplatesPage } from "./pages/admin/AdminEmailTemplatesPage";
 import { AdminEmailLogsPage } from "./pages/admin/AdminEmailLogsPage";
 import { AdminAnnouncementsPage } from "./pages/admin/AdminAnnouncementsPage";
 import { AdminSystemHealthPage } from "./pages/admin/AdminSystemHealthPage";
+import { AdminInboxPage } from "./pages/admin/AdminInboxPage";
+import { AdminTicketDetailPage } from "./pages/admin/AdminTicketDetailPage";
 import { getOnboardingStatus } from "./api/onboarding";
 import { getWorkspaceSettings } from "./api/workspace";
 import { AppShell } from "./components/AppShell";
@@ -407,6 +409,8 @@ export function App() {
             <Route path="email-logs" element={<AdminEmailLogsPage />} />
             <Route path="announcements" element={<AdminAnnouncementsPage />} />
             <Route path="system" element={<AdminSystemHealthPage />} />
+            <Route path="inbox" element={<AdminInboxPage />} />
+            <Route path="inbox/:id" element={<AdminTicketDetailPage />} />
           </Route>
           <Route path="/" element={<LandingPage />} />
           <Route path="*" element={<DefaultRedirect />} />

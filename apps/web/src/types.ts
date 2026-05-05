@@ -1239,3 +1239,80 @@ export interface AdminSystemHealth {
   scheduler: { status: string };
   build: { nodeVersion: string; env: string };
 }
+
+// ── Support Desk ──────────────────────────────────────────────────────────
+
+export type TicketStatus = "OPEN" | "PENDING" | "RESOLVED" | "CLOSED";
+export type TicketPriority = "LOW" | "NORMAL" | "HIGH" | "URGENT";
+export type TicketSource = "EMAIL" | "PORTAL" | "ADMIN";
+export type MessageDirection = "INBOUND" | "OUTBOUND" | "INTERNAL";
+
+export interface SupportTicket {
+  id: string;
+  ticketNumber: number;
+  subject: string;
+  status: TicketStatus;
+  priority: TicketPriority;
+  source: TicketSource;
+  workspaceId: string | null;
+  userId: string | null;
+  requesterEmail: string;
+  requesterName: string | null;
+  assignedToUserId: string | null;
+  lastMessageAt: string;
+  resolvedAt: string | null;
+  closedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  workspace: { id: string; name: string } | null;
+  user: { id: string; name: string; email: string } | null;
+  assignedTo: { id: string; name: string; email: string } | null;
+  _count?: { messages: number };
+}
+
+export interface SupportMessage {
+  id: string;
+  ticketId: string;
+  direction: MessageDirection;
+  senderEmail: string;
+  senderName: string | null;
+  bodyHtml: string | null;
+  bodyText: string;
+  providerMessageId: string | null;
+  attachments: unknown;
+  createdByUserId: string | null;
+  createdAt: string;
+  createdBy: { id: string; name: string } | null;
+}
+
+export interface SupportInternalNote {
+  id: string;
+  ticketId: string;
+  note: string;
+  createdByUserId: string;
+  createdAt: string;
+  createdBy: { id: string; name: string };
+}
+
+export interface SupportTicketEvent {
+  id: string;
+  ticketId: string;
+  actorUserId: string | null;
+  eventType: string;
+  metadata: unknown;
+  createdAt: string;
+  actor: { id: string; name: string } | null;
+}
+
+export interface SupportTicketDetail extends SupportTicket {
+  messages: SupportMessage[];
+  notes: SupportInternalNote[];
+  events: SupportTicketEvent[];
+}
+
+export interface SupportTicketsResponse {
+  tickets: SupportTicket[];
+  total: number;
+  page: number;
+  pages: number;
+}

@@ -218,3 +218,44 @@ export function updateAdminAnnouncementStatus(id: string, isActive: boolean): Pr
 export function getAdminSystemHealth(): Promise<{ health: AdminSystemHealth }> {
   return apiClient.get("/admin/system/health");
 }
+
+// ── Support Desk ──────────────────────────────────────────────────────────────
+
+import type {
+  SupportTicketsResponse,
+  SupportTicketDetail,
+  SupportTicket,
+  SupportMessage,
+  SupportInternalNote,
+} from "../types";
+
+export function getSupportTickets(params: {
+  page?: number; limit?: number; status?: string; priority?: string;
+  source?: string; search?: string; workspaceId?: string; assignedToUserId?: string;
+} = {}): Promise<SupportTicketsResponse> {
+  return apiClient.get(`/admin/support/tickets${qs(params)}`);
+}
+
+export function getSupportTicket(id: string): Promise<{ ticket: SupportTicketDetail }> {
+  return apiClient.get(`/admin/support/tickets/${id}`);
+}
+
+export function replySupportTicket(id: string, data: { bodyText: string; bodyHtml?: string }): Promise<{ message: SupportMessage }> {
+  return apiClient.post(`/admin/support/tickets/${id}/reply`, data);
+}
+
+export function updateTicketStatus(id: string, status: string): Promise<{ ticket: SupportTicket }> {
+  return apiClient.patch(`/admin/support/tickets/${id}/status`, { status });
+}
+
+export function updateTicketPriority(id: string, priority: string): Promise<{ ticket: SupportTicket }> {
+  return apiClient.patch(`/admin/support/tickets/${id}/priority`, { priority });
+}
+
+export function addTicketNote(id: string, note: string): Promise<{ note: SupportInternalNote }> {
+  return apiClient.post(`/admin/support/tickets/${id}/notes`, { note });
+}
+
+export function assignTicket(id: string, assignedToUserId: string | null): Promise<{ ticket: SupportTicket }> {
+  return apiClient.patch(`/admin/support/tickets/${id}/assign`, { assignedToUserId });
+}
