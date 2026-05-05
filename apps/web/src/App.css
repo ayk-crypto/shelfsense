@@ -14069,8 +14069,8 @@ body {
 }
 
 .auth-notice-icon {
-  font-size: 22px;
-  line-height: 1;
+  width: 20px;
+  height: 20px;
   flex-shrink: 0;
 }
 
