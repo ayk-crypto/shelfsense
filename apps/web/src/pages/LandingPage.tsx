@@ -242,9 +242,12 @@ const WHO_FOR = [
 ];
 
 const PLAN_VISUAL: Record<string, { color: string; bg: string; highlight: boolean }> = {
-  FREE:    { color: "#64748b", bg: "#f8fafc", highlight: false },
-  STARTER: { color: "#6366f1", bg: "#eef2ff", highlight: true  },
-  PRO:     { color: "#7c3aed", bg: "#f5f3ff", highlight: false },
+  FREE:       { color: "#64748b", bg: "#f8fafc", highlight: false },
+  STARTER:    { color: "#6366f1", bg: "#eef2ff", highlight: true  },
+  PRO:        { color: "#7c3aed", bg: "#f5f3ff", highlight: false },
+  GROWTH:     { color: "#7c3aed", bg: "#f5f3ff", highlight: false },
+  BUSINESS:   { color: "#0ea5e9", bg: "#f0f9ff", highlight: false },
+  ENTERPRISE: { color: "#0f172a", bg: "#f8fafc", highlight: false },
 };
 
 type PricingFeature = { label: string; included: boolean };
@@ -258,50 +261,55 @@ type PricingCard = {
   color: string;
   bg: string;
   highlight: boolean;
+  limits: string[];
   features: PricingFeature[];
   currency: string;
 };
+
+function limitLabel(val: number | null, unit: string, singular?: string): string {
+  if (val === null) return `Unlimited ${unit}`;
+  if (val === -1)   return `Unlimited ${unit}`;
+  const u = val === 1 && singular ? singular : unit;
+  return `${val.toLocaleString()} ${u}`;
+}
 
 function planToCard(plan: PublicPlan): PricingCard {
   const visual = PLAN_VISUAL[plan.code] ?? { color: "#64748b", bg: "#f8fafc", highlight: false };
   const isFree = plan.monthlyPrice === 0 && plan.annualPrice === 0;
 
-  const itemLabel = plan.maxItems === null ? "Items" : plan.maxItems === -1 ? "Unlimited items" : `Up to ${plan.maxItems.toLocaleString()} items`;
-  const locLabel = plan.maxLocations === null ? "Locations" : plan.maxLocations === -1 ? "Unlimited locations" : `${plan.maxLocations} location${plan.maxLocations !== 1 ? "s" : ""}`;
-  const userLabel = plan.maxUsers === null ? "Team members" : plan.maxUsers === -1 ? "Unlimited users" : `Up to ${plan.maxUsers} users`;
+  const limits: string[] = [
+    limitLabel(plan.maxUsers, "users", "user"),
+    limitLabel(plan.maxLocations, "locations", "location"),
+    limitLabel(plan.maxItems, "items", "item"),
+  ];
 
   const features: PricingFeature[] = [
-    { label: itemLabel, included: plan.maxItems !== null },
-    { label: locLabel, included: plan.maxLocations !== null },
-    { label: userLabel, included: plan.maxUsers !== null },
-    { label: "Inventory reports", included: plan.enableReports },
-    { label: "Expiry date tracking", included: plan.enableExpiryTracking },
-    { label: "Purchase orders", included: plan.enablePurchases },
-    { label: "Supplier management", included: plan.enableSuppliers },
-    { label: "Advanced analytics", included: plan.enableAdvancedReports },
-    { label: "Custom team roles", included: plan.enableCustomRoles },
+    { label: "Expiry tracking",      included: plan.enableExpiryTracking  },
+    { label: "Barcode scanning",     included: plan.enableBarcodeScanning },
+    { label: "Inventory reports",    included: plan.enableReports         },
+    { label: "Advanced analytics",   included: plan.enableAdvancedReports },
+    { label: "Purchase orders",      included: plan.enablePurchases       },
+    { label: "Supplier management",  included: plan.enableSuppliers       },
+    { label: "Team management",      included: plan.enableTeamManagement  },
+    { label: "Custom roles",         included: plan.enableCustomRoles     },
+    { label: "Email alerts",         included: plan.enableEmailAlerts     },
+    { label: "Daily ops digest",     included: plan.enableDailyOps        },
   ];
 
   return {
     id: plan.id,
     tier: plan.name,
     price: isFree ? "0" : String(plan.monthlyPrice),
-    period: isFree ? "forever" : "/ month",
+    period: isFree ? "forever" : "/ mo",
     desc: plan.description ?? "",
     color: visual.color,
     bg: visual.bg,
     highlight: visual.highlight,
+    limits,
     features,
     currency: plan.currency,
   };
 }
-
-const ALL_FEATURES: PricingFeature["label"][] = [
-  "Items", "Locations", "Team members",
-  "Inventory reports", "Expiry date tracking",
-  "Purchase orders", "Supplier management",
-  "Advanced analytics", "Custom team roles",
-];
 
 const STATIC_PRICING: PricingCard[] = [
   {
@@ -313,63 +321,67 @@ const STATIC_PRICING: PricingCard[] = [
     bg: "#f8fafc",
     highlight: false,
     currency: "$",
+    limits: ["1 user", "1 location", "50 items"],
     features: [
-      { label: "Up to 50 items",        included: true  },
-      { label: "1 location",            included: true  },
-      { label: "Up to 3 users",         included: true  },
-      { label: "Inventory reports",      included: true  },
-      { label: "Expiry date tracking",   included: true  },
-      { label: "Purchase orders",        included: false },
-      { label: "Supplier management",    included: false },
-      { label: "Advanced analytics",     included: false },
-      { label: "Custom team roles",      included: false },
+      { label: "Expiry tracking",      included: true  },
+      { label: "Barcode scanning",     included: false },
+      { label: "Inventory reports",    included: true  },
+      { label: "Advanced analytics",   included: false },
+      { label: "Purchase orders",      included: false },
+      { label: "Supplier management",  included: false },
+      { label: "Team management",      included: false },
+      { label: "Custom roles",         included: false },
+      { label: "Email alerts",         included: false },
+      { label: "Daily ops digest",     included: false },
     ],
   },
   {
     tier: "Starter",
-    price: "19",
-    period: "/ month",
-    desc: "For growing businesses that need more items, locations, and team members.",
+    price: "12",
+    period: "/ mo",
+    desc: "For growing teams who need real inventory control across multiple locations.",
     color: "#6366f1",
     bg: "#eef2ff",
     highlight: true,
     currency: "$",
+    limits: ["5 users", "3 locations", "500 items"],
     features: [
-      { label: "Up to 500 items",        included: true  },
-      { label: "5 locations",            included: true  },
-      { label: "Up to 10 users",         included: true  },
-      { label: "Inventory reports",      included: true  },
-      { label: "Expiry date tracking",   included: true  },
-      { label: "Purchase orders",        included: true  },
-      { label: "Supplier management",    included: true  },
-      { label: "Advanced analytics",     included: false },
-      { label: "Custom team roles",      included: false },
+      { label: "Expiry tracking",      included: true  },
+      { label: "Barcode scanning",     included: true  },
+      { label: "Inventory reports",    included: true  },
+      { label: "Advanced analytics",   included: false },
+      { label: "Purchase orders",      included: true  },
+      { label: "Supplier management",  included: true  },
+      { label: "Team management",      included: true  },
+      { label: "Custom roles",         included: false },
+      { label: "Email alerts",         included: true  },
+      { label: "Daily ops digest",     included: true  },
     ],
   },
   {
     tier: "Pro",
-    price: "49",
-    period: "/ month",
-    desc: "Unlimited scale for operations that can't afford gaps in visibility.",
+    price: "24",
+    period: "/ mo",
+    desc: "Unlimited everything. Advanced analytics, custom roles, and full team control.",
     color: "#7c3aed",
     bg: "#f5f3ff",
     highlight: false,
     currency: "$",
+    limits: ["Unlimited users", "Unlimited locations", "Unlimited items"],
     features: [
-      { label: "Unlimited items",        included: true },
-      { label: "Unlimited locations",    included: true },
-      { label: "Unlimited users",        included: true },
-      { label: "Inventory reports",      included: true },
-      { label: "Expiry date tracking",   included: true },
-      { label: "Purchase orders",        included: true },
-      { label: "Supplier management",    included: true },
-      { label: "Advanced analytics",     included: true },
-      { label: "Custom team roles",      included: true },
+      { label: "Expiry tracking",      included: true },
+      { label: "Barcode scanning",     included: true },
+      { label: "Inventory reports",    included: true },
+      { label: "Advanced analytics",   included: true },
+      { label: "Purchase orders",      included: true },
+      { label: "Supplier management",  included: true },
+      { label: "Team management",      included: true },
+      { label: "Custom roles",         included: true },
+      { label: "Email alerts",         included: true },
+      { label: "Daily ops digest",     included: true },
     ],
   },
 ];
-
-void ALL_FEATURES;
 
 export function LandingPage() {
   const { isAuthenticated } = useAuth();
@@ -587,6 +599,13 @@ export function LandingPage() {
                   <span className="lp-pricing-period">{plan.period}</span>
                 </div>
                 <p className="lp-pricing-desc">{plan.desc}</p>
+                {plan.limits.length > 0 && (
+                  <div className="lp-pricing-limits">
+                    {plan.limits.map((l) => (
+                      <span key={l} className="lp-pricing-limit-chip">{l}</span>
+                    ))}
+                  </div>
+                )}
                 <ul className="lp-pricing-features">
                   {plan.features.map((f) => (
                     <li key={f.label} className={`lp-pricing-feature${f.included ? "" : " lp-pricing-feature--dim"}`}>
