@@ -16639,6 +16639,25 @@ body {
   align-self: flex-end;
   padding-bottom: 6px;
 }
+.lp-pricing-price--custom {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 10px;
+  align-items: flex-start;
+}
+.lp-pricing-custom-label {
+  font-size: 30px;
+  font-weight: 900;
+  color: #0f172a;
+  line-height: 1.1;
+  letter-spacing: -1px;
+}
+.lp-pricing-custom-sub {
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 500;
+}
 .lp-pricing-desc {
   font-size: 13px;
   color: #64748b;
@@ -19504,6 +19523,7 @@ body {
 .admin-plan-card-desc { font-size: 13px; color: #64748b; margin: 0; }
 .admin-plan-pricing { display: flex; align-items: baseline; gap: 10px; }
 .admin-plan-price { font-size: 22px; font-weight: 700; color: #1e293b; }
+.admin-plan-price--custom { font-size: 16px; font-weight: 600; color: #0ea5e9; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; padding: 2px 10px; }
 .admin-plan-period { font-size: 13px; font-weight: 400; color: #94a3b8; }
 .admin-plan-price-alt { font-size: 13px; color: #94a3b8; }
 .admin-plan-limits { display: flex; gap: 8px; flex-wrap: wrap; }

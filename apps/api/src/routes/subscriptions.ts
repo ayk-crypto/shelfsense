@@ -30,6 +30,7 @@ const PUBLIC_PLAN_SELECT = {
   enableCustomRoles: true,
   enableEmailAlerts: true,
   enableDailyOps: true,
+  priceDisplayMode: true,
   sortOrder: true,
 } as const;
 

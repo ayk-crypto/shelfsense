@@ -79,9 +79,15 @@ export function AdminPlansPage() {
               </div>
               {plan.description && <p className="admin-plan-card-desc">{plan.description}</p>}
               <div className="admin-plan-pricing">
-                <span className="admin-plan-price">$ {plan.monthlyPrice.toLocaleString()}<span className="admin-plan-period">/mo</span></span>
-                {plan.annualPrice > 0 && (
-                  <span className="admin-plan-price-alt">$ {plan.annualPrice.toLocaleString()}/yr</span>
+                {plan.priceDisplayMode === "CUSTOM" ? (
+                  <span className="admin-plan-price admin-plan-price--custom">Custom pricing</span>
+                ) : (
+                  <>
+                    <span className="admin-plan-price">$ {plan.monthlyPrice.toLocaleString()}<span className="admin-plan-period">/mo</span></span>
+                    {plan.annualPrice > 0 && (
+                      <span className="admin-plan-price-alt">$ {plan.annualPrice.toLocaleString()}/yr</span>
+                    )}
+                  </>
                 )}
               </div>
               <div className="admin-plan-limits">
@@ -159,6 +165,7 @@ function PlanModal({ plan, onClose, onSaved }: { plan: AdminPlan | null; onClose
     enableCustomRoles: plan?.enableCustomRoles ?? false,
     enableEmailAlerts: plan?.enableEmailAlerts ?? true,
     enableDailyOps: plan?.enableDailyOps ?? true,
+    priceDisplayMode: (plan?.priceDisplayMode ?? "FIXED") as "FIXED" | "CUSTOM",
     isPublic: plan?.isPublic ?? true,
     sortOrder: plan?.sortOrder ?? 0,
   });
@@ -214,13 +221,55 @@ function PlanModal({ plan, onClose, onSaved }: { plan: AdminPlan | null; onClose
               <label className="form-label">Description</label>
               <input className="form-input" value={form.description} onChange={(e) => set("description", e.target.value)} />
             </div>
+            <div className="form-group form-group--full">
+              <label className="form-label">Pricing Display</label>
+              <div style={{ display: "flex", gap: 16, marginTop: 4 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                  <input
+                    type="radio"
+                    name="priceDisplayMode"
+                    checked={form.priceDisplayMode === "FIXED"}
+                    onChange={() => set("priceDisplayMode", "FIXED")}
+                  />
+                  Fixed price
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                  <input
+                    type="radio"
+                    name="priceDisplayMode"
+                    checked={form.priceDisplayMode === "CUSTOM"}
+                    onChange={() => set("priceDisplayMode", "CUSTOM")}
+                  />
+                  Custom pricing / Contact sales
+                </label>
+              </div>
+              {form.priceDisplayMode === "CUSTOM" && (
+                <p className="admin-muted" style={{ marginTop: 6, fontSize: 12 }}>
+                  Custom pricing hides the numeric amount on the public pricing page and shows "Contact Sales" instead.
+                </p>
+              )}
+            </div>
             <div className="form-group">
               <label className="form-label">Monthly Price (USD)</label>
-              <input className="form-input" type="number" value={form.monthlyPrice} onChange={(e) => set("monthlyPrice", parseFloat(e.target.value) || 0)} />
+              <input
+                className="form-input"
+                type="number"
+                value={form.monthlyPrice}
+                onChange={(e) => set("monthlyPrice", parseFloat(e.target.value) || 0)}
+                disabled={form.priceDisplayMode === "CUSTOM"}
+                style={form.priceDisplayMode === "CUSTOM" ? { opacity: 0.5 } : undefined}
+              />
             </div>
             <div className="form-group">
               <label className="form-label">Annual Price (USD)</label>
-              <input className="form-input" type="number" value={form.annualPrice} onChange={(e) => set("annualPrice", parseFloat(e.target.value) || 0)} />
+              <input
+                className="form-input"
+                type="number"
+                value={form.annualPrice}
+                onChange={(e) => set("annualPrice", parseFloat(e.target.value) || 0)}
+                disabled={form.priceDisplayMode === "CUSTOM"}
+                style={form.priceDisplayMode === "CUSTOM" ? { opacity: 0.5 } : undefined}
+              />
             </div>
             <div className="form-group">
               <label className="form-label">Trial Days</label>

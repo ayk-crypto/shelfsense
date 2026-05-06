@@ -167,6 +167,7 @@ export interface PublicPlan {
   enableCustomRoles: boolean;
   enableEmailAlerts: boolean;
   enableDailyOps: boolean;
+  priceDisplayMode: "FIXED" | "CUSTOM";
   sortOrder: number;
 }
 
@@ -1214,6 +1215,7 @@ export interface AdminPlan {
   enableCustomRoles: boolean;
   enableEmailAlerts: boolean;
   enableDailyOps: boolean;
+  priceDisplayMode: "FIXED" | "CUSTOM";
   isPublic: boolean;
   isActive: boolean;
   sortOrder: number;

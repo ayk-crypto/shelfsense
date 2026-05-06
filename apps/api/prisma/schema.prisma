@@ -77,6 +77,11 @@ enum BillingCycleRestriction {
   ANNUAL
 }
 
+enum PlanPriceDisplayMode {
+  FIXED
+  CUSTOM
+}
+
 enum CouponDurationType {
   ONCE
   REPEATING
@@ -603,6 +608,7 @@ model Plan {
   enableCustomRoles         Boolean   @default(false)
   enableEmailAlerts         Boolean   @default(true)
   enableDailyOps            Boolean   @default(true)
+  priceDisplayMode          PlanPriceDisplayMode @default(FIXED)
   isPublic                  Boolean   @default(true)
   isActive                  Boolean   @default(true)
   sortOrder                 Int       @default(0)

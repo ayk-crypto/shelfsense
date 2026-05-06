@@ -289,6 +289,7 @@ type PricingCard = {
   limits: string[];
   features: PricingFeature[];
   currency: string;
+  isCustom?: boolean;
 };
 
 function limitLabel(val: number | null, unit: string, singular?: string): string {
@@ -298,9 +299,17 @@ function limitLabel(val: number | null, unit: string, singular?: string): string
   return `${val.toLocaleString()} ${u}`;
 }
 
+function isCustomPricing(plan: PublicPlan): boolean {
+  if (plan.priceDisplayMode === "CUSTOM") return true;
+  if (plan.priceDisplayMode === "FIXED") return false;
+  const n = (plan.name + " " + plan.code).toLowerCase();
+  return n.includes("business") || n.includes("enterprise");
+}
+
 function planToCard(plan: PublicPlan): PricingCard {
   const visual = PLAN_VISUAL[plan.code] ?? { color: "#64748b", bg: "#f8fafc", highlight: false };
-  const isFree = plan.monthlyPrice === 0 && plan.annualPrice === 0;
+  const custom = isCustomPricing(plan);
+  const isFree = !custom && plan.monthlyPrice === 0 && plan.annualPrice === 0;
 
   const limits: string[] = [
     limitLabel(plan.maxUsers, "users", "user"),
@@ -333,6 +342,7 @@ function planToCard(plan: PublicPlan): PricingCard {
     limits,
     features,
     currency: "$",
+    isCustom: custom,
   };
 }
 
@@ -399,10 +409,11 @@ const STATIC_PRICING: PricingCard[] = [
   },
   {
     tier: "Business",
-    price: "99",
+    price: "0",
     period: "/ mo",
-    desc: "For larger teams needing stronger controls, SLA support, and custom onboarding.",
+    desc: "Enterprise-grade inventory management with dedicated support and custom onboarding.",
     color: "#0ea5e9", bg: "#f0f9ff", highlight: false, currency: "$",
+    isCustom: true,
     limits: ["Unlimited users", "Unlimited locations", "Unlimited items"],
     features: [
       { label: "Everything in Pro",      included: true },
@@ -660,11 +671,18 @@ export function LandingPage() {
               >
                 {plan.highlight && <div className="lp-pricing-popular">Most popular</div>}
                 <div className="lp-pricing-tier" style={{ color: plan.color }}>{plan.tier}</div>
-                <div className="lp-pricing-price">
-                  <span className="lp-pricing-currency">$</span>
-                  <span className="lp-pricing-amount">{plan.price}</span>
-                  <span className="lp-pricing-period">{plan.period}</span>
-                </div>
+                {plan.isCustom ? (
+                  <div className="lp-pricing-price lp-pricing-price--custom">
+                    <span className="lp-pricing-custom-label">Custom pricing</span>
+                    <span className="lp-pricing-custom-sub">Tailored for larger teams</span>
+                  </div>
+                ) : (
+                  <div className="lp-pricing-price">
+                    <span className="lp-pricing-currency">$</span>
+                    <span className="lp-pricing-amount">{plan.price}</span>
+                    <span className="lp-pricing-period">{plan.period}</span>
+                  </div>
+                )}
                 <p className="lp-pricing-desc">{plan.desc}</p>
                 {plan.limits.length > 0 && (
                   <div className="lp-pricing-limits">
@@ -689,15 +707,19 @@ export function LandingPage() {
                 >
                   {isAuthenticated
                     ? "Open dashboard"
+                    : plan.isCustom
+                    ? "Contact Sales"
                     : plan.tier === "Free"
                     ? "Start free"
-                    : plan.tier === "Business"
-                    ? "Contact sales"
                     : `Choose ${plan.tier}`}
                 </button>
                 {!isAuthenticated && (
                   <p className="lp-pricing-footnote">
-                    {plan.tier === "Free" ? "No credit card required" : "Manual activation available"}
+                    {plan.isCustom
+                      ? "Custom quotation available"
+                      : plan.tier === "Free"
+                      ? "No credit card required"
+                      : "Manual activation available"}
                   </p>
                 )}
               </div>
