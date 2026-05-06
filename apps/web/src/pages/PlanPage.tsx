@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { changePlan, getPlanStatus } from "../api/plan";
+import { isPaddleConfigured } from "../lib/paddle";
 import type { PlanStatus, PlanTier } from "../types";
 
 // ─── Plan metadata ────────────────────────────────────────────────────────────
@@ -286,9 +287,22 @@ export function PlanPage() {
 
   function requestPlanChange(tier: PlanTier) {
     if (!status || tier === status.plan) return;
-    setConfirmTarget(tier);
     setSwitchError(null);
     setSwitchSuccess(null);
+
+    // Paid plans must go through Paddle checkout when Paddle is configured.
+    if (tier !== "FREE") {
+      if (isPaddleConfigured()) {
+        navigate(`/billing/checkout?plan=${tier}`);
+        return;
+      }
+      // Paddle token not present — do not allow a direct paid-plan bypass.
+      setSwitchError("Online payment is currently unavailable. Please contact support to upgrade your plan.");
+      return;
+    }
+
+    // FREE is always allowed to be set directly (downgrade).
+    setConfirmTarget(tier);
   }
 
   async function confirmPlanChange() {

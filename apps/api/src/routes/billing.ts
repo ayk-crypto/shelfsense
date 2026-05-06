@@ -187,6 +187,19 @@ billingRouter.post(
     const workspacePlanTier = PLAN_TIER_MAP[plan.code] ?? "FREE";
     const now = new Date();
 
+    // When Paddle is the payment provider, paid plans MUST go through the
+    // Paddle overlay checkout + webhook confirmation. Prevent any direct
+    // activation (including the MANUAL_REVIEW fallback path) for paid plans.
+    if (env.paymentProvider === "paddle" && !canActivate) {
+      logger.warn("[BILLING] Blocked non-Paddle paid checkout — PAYMENT_PROVIDER=paddle", {
+        workspaceId, planCode: plan.code, planId,
+      });
+      return res.status(403).json({
+        error: "Paid plan activation must go through Paddle checkout. Use POST /billing/paddle/checkout instead.",
+        code: "PADDLE_CHECKOUT_REQUIRED",
+      });
+    }
+
     if (canActivate) {
       const sub = await prisma.$transaction(async (tx) => {
         await tx.subscription.updateMany({

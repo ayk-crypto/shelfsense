@@ -4,6 +4,8 @@ import { requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { PLAN_LIMITS, type PlanTier } from "../utils/plan-limits.js";
 import { Role } from "../generated/prisma/enums.js";
+import { env } from "../config/env.js";
+import { logger } from "../lib/logger.js";
 
 export const planRouter = Router();
 
@@ -58,6 +60,20 @@ planRouter.patch(
 
     if (!requestedPlan || !VALID_PLANS.includes(requestedPlan)) {
       return res.status(400).json({ error: "Valid plan is required: FREE, BASIC, or PRO" });
+    }
+
+    // Block direct paid-plan activation when Paddle is the payment provider.
+    // Paid plans must be activated via Paddle checkout + webhook confirmation.
+    // Downgrading to FREE is always permitted directly.
+    if (env.paymentProvider === "paddle" && requestedPlan !== "FREE") {
+      logger.warn("[PLAN] Blocked direct paid plan change — Paddle checkout required", {
+        workspaceId, requestedPlan,
+      });
+      return res.status(403).json({
+        error: "Paid plan changes require Paddle checkout. Please use the billing page.",
+        code: "PADDLE_CHECKOUT_REQUIRED",
+        redirectTo: `/billing/checkout?plan=${requestedPlan}`,
+      });
     }
 
     const workspace = await prisma.workspace.update({

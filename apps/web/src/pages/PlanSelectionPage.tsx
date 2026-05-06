@@ -342,18 +342,23 @@ export function PlanSelectionPage() {
       return;
     }
 
+    // Paid plan + Paddle NOT configured → block.
+    // Do not allow a direct paid-plan activation bypass when Paddle is the
+    // expected payment provider but the client token is absent.
+    if (isPayable) {
+      setConfirmError("Online payment is currently unavailable. Please contact support to activate your plan.");
+      setConfirming(false);
+      return;
+    }
+
+    // Free plan or 100%-discounted coupon → activate directly.
     try {
       await selectPlan({
         planId: selectedPlanId,
         billingCycle: isFree ? "MONTHLY" : billingCycle,
         couponCode: couponCode || undefined,
       });
-      if (isFree || payable === 0) {
-        navigate("/dashboard", { replace: true });
-      } else {
-        setConfirmedPlan(selectedPlan);
-        setPlanConfirmed(true);
-      }
+      navigate("/dashboard", { replace: true });
     } catch (e) {
       setConfirmError(e instanceof Error ? e.message : "Failed to activate plan. Please try again.");
       setConfirming(false);

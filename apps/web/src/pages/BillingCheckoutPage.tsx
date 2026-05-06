@@ -201,25 +201,11 @@ export function BillingCheckoutPage() {
       return;
     }
 
-    // Fallback: existing provider checkout flow
-    try {
-      const result = await initiateCheckout({
-        planId: selectedPlanId,
-        billingCycle,
-        couponCode: couponCode.trim() || undefined,
-      });
-      if (result.isFree) {
-        navigate("/billing/success?reason=free");
-      } else if (result.checkoutUrl) {
-        window.location.href = result.checkoutUrl;
-      } else {
-        navigate("/billing/pending");
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Checkout failed. Please try again.");
-    } finally {
-      setSubmitting(false);
-    }
+    // Paddle is configured but something prevented the overlay from opening.
+    // Never fall back to direct activation for paid plans when Paddle is the
+    // expected payment provider — that would bypass payment entirely.
+    setError("Payment is unavailable right now. Please refresh the page and try again, or contact support.");
+    setSubmitting(false);
   }
 
   if (loading) {
