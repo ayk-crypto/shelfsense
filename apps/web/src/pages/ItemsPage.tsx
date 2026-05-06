@@ -69,6 +69,8 @@ interface ImportItemRow {
   purchaseUnit: string;
   purchaseConversionFactor: number | null;
   issueUnit: string;
+  importMode: "new" | "update";
+  existingItemId: string | null;
   errors: string[];
   status: "pending" | "imported" | "failed";
 }
@@ -1736,7 +1738,7 @@ function ImportItemsModal({
 
     for (const row of pendingRows) {
       try {
-        await createItem({
+        const payload = {
           name: row.name,
           unit: row.unit,
           category: row.category || undefined,
@@ -1747,7 +1749,12 @@ function ImportItemsModal({
           purchaseUnit: row.purchaseUnit || null,
           purchaseConversionFactor: row.purchaseConversionFactor,
           issueUnit: row.issueUnit || null,
-        });
+        };
+        if (row.importMode === "update" && row.existingItemId) {
+          await updateItem(row.existingItemId, payload);
+        } else {
+          await createItem(payload);
+        }
         imported += 1;
         setImportedCount(imported);
         setRows((prev) => prev.map((c) =>
@@ -1883,6 +1890,18 @@ function ImportItemsModal({
               <span className="import-stat-val">{validRows.length}</span>
               <span className="import-stat-label">Valid</span>
             </div>
+            {validRows.filter((r) => r.importMode === "new").length > 0 && (
+              <div className="import-stat import-stat--new">
+                <span className="import-stat-val">{validRows.filter((r) => r.importMode === "new").length}</span>
+                <span className="import-stat-label">New</span>
+              </div>
+            )}
+            {validRows.filter((r) => r.importMode === "update").length > 0 && (
+              <div className="import-stat import-stat--update">
+                <span className="import-stat-val">{validRows.filter((r) => r.importMode === "update").length}</span>
+                <span className="import-stat-label">Updates</span>
+              </div>
+            )}
             {invalidRows.length > 0 && (
               <div className="import-stat import-stat--error">
                 <span className="import-stat-val">{invalidRows.length}</span>
@@ -1921,6 +1940,7 @@ function ImportItemsModal({
                   <th>SKU</th>
                   <th className="text-right" style={{ width: 52 }}>Min</th>
                   <th style={{ width: 60 }}>Expiry</th>
+                  <th style={{ width: 72 }}>Action</th>
                   <th style={{ width: 120 }}>Status</th>
                 </tr>
               </thead>
@@ -1934,6 +1954,11 @@ function ImportItemsModal({
                     <td>{row.sku || <span className="import-cell-empty">—</span>}</td>
                     <td className="text-right">{row.minStockLevel || 0}</td>
                     <td>{row.trackExpiry ? "Yes" : "No"}</td>
+                    <td>
+                      {row.importMode === "update"
+                        ? <span className="import-action-badge import-action-badge--update">Update</span>
+                        : <span className="import-action-badge import-action-badge--new">New</span>}
+                    </td>
                     <td>
                       {row.errors.length > 0 ? (
                         <span className="import-row-error-badge" title={row.errors.join("; ")}>
@@ -1972,13 +1997,16 @@ function ImportItemsModal({
             onClick={() => { void handleImport(); }}
             disabled={!canImport}
           >
-            {importing
-              ? <><div className="spinner spinner--sm spinner--white" /> Importing…</>
-              : pendingValidRows.length > 0
-              ? `Import ${pendingValidRows.length} item${pendingValidRows.length === 1 ? "" : "s"}`
-              : rows.length > 0
-              ? "No valid rows to import"
-              : "Select a file"}
+            {(() => {
+              if (importing) return <><div className="spinner spinner--sm spinner--white" /> Importing…</>;
+              if (pendingValidRows.length === 0) return rows.length > 0 ? "No valid rows to import" : "Select a file";
+              const newCount = pendingValidRows.filter((r) => r.importMode === "new").length;
+              const updateCount = pendingValidRows.filter((r) => r.importMode === "update").length;
+              const parts: string[] = [];
+              if (newCount > 0) parts.push(`${newCount} new`);
+              if (updateCount > 0) parts.push(`${updateCount} update${updateCount === 1 ? "" : "s"}`);
+              return `Import ${pendingValidRows.length} item${pendingValidRows.length === 1 ? "" : "s"} (${parts.join(", ")})`;
+            })()}
           </button>
         </div>
       </div>
@@ -3004,10 +3032,13 @@ function parseCsvRows(text: string) {
 }
 
 function validateImportRows(records: Array<Record<string, unknown>>, existingItems: Item[], allUnits: string[] = FALLBACK_UNIT_OPTIONS) {
-  const existingBarcodes = new Set(
+  const existingByName = new Map(
+    existingItems.map((item) => [item.name.trim().toLowerCase(), item]),
+  );
+  const existingBarcodes = new Map(
     existingItems
-      .map((item) => normalizeBarcode(item.barcode ?? ""))
-      .filter(Boolean),
+      .filter((item) => item.barcode)
+      .map((item) => [normalizeBarcode(item.barcode ?? ""), item.id]),
   );
   const fileBarcodeCounts = new Map<string, number>();
 
@@ -3017,10 +3048,14 @@ function validateImportRows(records: Array<Record<string, unknown>>, existingIte
     if (barcodeKey) {
       fileBarcodeCounts.set(barcodeKey, (fileBarcodeCounts.get(barcodeKey) ?? 0) + 1);
     }
+    const nameKey = normalized.name.trim().toLowerCase();
+    const existingMatch = existingByName.get(nameKey) ?? null;
 
     return {
       rowNumber: index + 2,
       ...normalized,
+      importMode: (existingMatch ? "update" : "new") as "new" | "update",
+      existingItemId: existingMatch?.id ?? null,
       errors: normalized.errors,
       status: "pending" as const,
     };
@@ -3035,8 +3070,11 @@ function validateImportRows(records: Array<Record<string, unknown>>, existingIte
     if (row.unit && !allUnits.includes(row.unit)) {
       errors.push(`Unit must be one of: ${allUnits.join(", ")}`);
     }
-    if (barcodeKey && existingBarcodes.has(barcodeKey)) {
-      errors.push("Barcode already exists");
+    if (barcodeKey) {
+      const barcodeOwner = existingBarcodes.get(barcodeKey);
+      if (barcodeOwner && barcodeOwner !== row.existingItemId) {
+        errors.push("Barcode already used by a different item");
+      }
     }
     if (barcodeKey && (fileBarcodeCounts.get(barcodeKey) ?? 0) > 1) {
       errors.push("Duplicate barcode in file");
