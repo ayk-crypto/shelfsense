@@ -22965,3 +22965,96 @@ body {
   .pmt-table-wrap { display: none; }
   .pmt-mobile-cards { display: block; }
 }
+
+/* ─────────────────────────────────────────────
+   Units & Categories card  (SettingsPage)
+───────────────────────────────────────────── */
+.stg-card-icon--teal { background: #f0fdf4; color: #0d9488; }
+
+.stg-footer-actions--card {
+  padding: 1rem 1.5rem 1.25rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.uc-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.uc-section + .uc-section {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.uc-section-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #374151;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.uc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  min-height: 2rem;
+  align-items: center;
+}
+
+.uc-empty {
+  font-size: 0.8125rem;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.uc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  padding: 0.25rem 0.625rem 0.25rem 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #334155;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.uc-chip:hover { background: #e8f0fe; border-color: #c7d7fd; }
+
+.uc-chip-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #94a3b8;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0 2px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, background 0.15s;
+}
+.uc-chip-remove:hover { color: #ef4444; background: #fee2e2; }
+
+.uc-add-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.uc-add-input {
+  flex: 1;
+  max-width: 280px;
+  height: 36px;
+  font-size: 0.875rem;
+}
+
+@media (max-width: 480px) {
+  .uc-add-row { flex-direction: column; align-items: stretch; }
+  .uc-add-input { max-width: 100%; }
+}

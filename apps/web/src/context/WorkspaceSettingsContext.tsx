@@ -22,6 +22,8 @@ const DEFAULT_SETTINGS: WorkspaceSettings = {
   emailExpiringSoon: false,
   emailExpired: false,
   dailyDigestEnabled: false,
+  customUnits: [],
+  customCategories: [],
 };
 
 interface WorkspaceSettingsContextValue {

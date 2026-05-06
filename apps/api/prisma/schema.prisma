@@ -234,6 +234,8 @@ model Workspace {
   onboardingCompleted            Boolean     @default(false)
   onboardingStep                 Int         @default(0)
   businessType                   String?
+  customUnits                    String[]    @default([])
+  customCategories               String[]    @default([])
   plan                           PlanTier    @default(FREE)
   suspended                      Boolean     @default(false)
   suspendedAt                    DateTime?

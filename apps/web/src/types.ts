@@ -118,6 +118,8 @@ export interface WorkspaceSettings {
   emailExpiringSoon: boolean;
   emailExpired: boolean;
   dailyDigestEnabled: boolean;
+  customUnits: string[];
+  customCategories: string[];
 }
 
 export interface WorkspaceSettingsResponse {
@@ -205,6 +207,8 @@ export interface UpdateWorkspaceSettingsInput {
   emailExpiringSoon?: boolean;
   emailExpired?: boolean;
   dailyDigestEnabled?: boolean;
+  customUnits?: string[];
+  customCategories?: string[];
 }
 
 export interface Location {

@@ -53,6 +53,8 @@ workspaceRouter.get("/settings", requireAuth, asyncHandler(async (req, res) => {
       emailExpiringSoon: true,
       emailExpired: true,
       dailyDigestEnabled: true,
+      customUnits: true,
+      customCategories: true,
     },
   });
 
@@ -121,6 +123,8 @@ workspaceRouter.patch("/settings", requireAuth, requireRole([Role.OWNER]), async
       emailExpiringSoon: true,
       emailExpired: true,
       dailyDigestEnabled: true,
+      customUnits: true,
+      customCategories: true,
     },
   });
 
@@ -179,6 +183,18 @@ workspaceRouter.post("/create", requireAuth, asyncHandler(async (req, res) => {
   return res.status(201).json({ workspace });
 }));
 
+const MAX_LIST_ITEMS = 100;
+const MAX_LIST_ITEM_LENGTH = 40;
+
+function parseStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const cleaned = value
+    .filter((v): v is string => typeof v === "string")
+    .map((v) => v.trim())
+    .filter((v) => v.length > 0 && v.length <= MAX_LIST_ITEM_LENGTH);
+  return [...new Set(cleaned)].slice(0, MAX_LIST_ITEMS);
+}
+
 function parseWorkspaceSettingsInput(body: unknown) {
   const input = body as {
     name?: unknown;
@@ -197,9 +213,11 @@ function parseWorkspaceSettingsInput(body: unknown) {
     emailExpiringSoon?: unknown;
     emailExpired?: unknown;
     dailyDigestEnabled?: unknown;
+    customUnits?: unknown;
+    customCategories?: unknown;
   };
 
-  return {
+  const result: Record<string, unknown> = {
     name: parseOptionalString(input.name),
     currency: parseOptionalString(input.currency),
     lowStockMultiplier: parseOptionalNumber(input.lowStockMultiplier),
@@ -217,6 +235,14 @@ function parseWorkspaceSettingsInput(body: unknown) {
     emailExpired: parseOptionalBoolean(input.emailExpired),
     dailyDigestEnabled: parseOptionalBoolean(input.dailyDigestEnabled),
   };
+
+  const units = parseStringArray(input.customUnits);
+  if (units !== undefined) result.customUnits = units;
+
+  const cats = parseStringArray(input.customCategories);
+  if (cats !== undefined) result.customCategories = cats;
+
+  return Object.fromEntries(Object.entries(result).filter(([, v]) => v !== undefined));
 }
 
 function parseOptionalString(value: unknown) {
@@ -263,6 +289,8 @@ function normalizeWorkspaceSettings(settings: {
   emailExpiringSoon: boolean | null;
   emailExpired: boolean | null;
   dailyDigestEnabled: boolean | null;
+  customUnits?: string[];
+  customCategories?: string[];
 }) {
   return {
     id: settings.id,
@@ -288,5 +316,7 @@ function normalizeWorkspaceSettings(settings: {
     emailExpiringSoon: settings.emailExpiringSoon ?? DEFAULT_WORKSPACE_SETTINGS.emailExpiringSoon,
     emailExpired: settings.emailExpired ?? DEFAULT_WORKSPACE_SETTINGS.emailExpired,
     dailyDigestEnabled: settings.dailyDigestEnabled ?? DEFAULT_WORKSPACE_SETTINGS.dailyDigestEnabled,
+    customUnits: settings.customUnits ?? [],
+    customCategories: settings.customCategories ?? [],
   };
 }

@@ -50,10 +50,18 @@ export function SettingsPage() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const saveBarRef = useRef<HTMLDivElement>(null);
 
+  const [ucUnits, setUcUnits] = useState<string[]>(settings.customUnits);
+  const [ucCategories, setUcCategories] = useState<string[]>(settings.customCategories);
+  const [newUnit, setNewUnit] = useState("");
+  const [newCategory, setNewCategory] = useState("");
+  const [ucSaving, setUcSaving] = useState(false);
+
   useEffect(() => {
     const f = toForm(settings);
     setForm(f);
     setSavedForm(f);
+    setUcUnits(settings.customUnits);
+    setUcCategories(settings.customCategories);
   }, [settings]);
 
   const isDirty = useMemo(
@@ -122,6 +130,44 @@ export function SettingsPage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  async function saveUnitsCategories() {
+    setUcSaving(true);
+    try {
+      const res = await updateWorkspaceSettings({
+        customUnits: ucUnits,
+        customCategories: ucCategories,
+      });
+      setSettings(res.settings);
+      showToast("Units & categories saved", "success");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Failed to save", "error");
+    } finally {
+      setUcSaving(false);
+    }
+  }
+
+  function addUnit() {
+    const v = newUnit.trim();
+    if (!v || ucUnits.includes(v)) return;
+    setUcUnits((prev) => [...prev, v]);
+    setNewUnit("");
+  }
+
+  function removeUnit(u: string) {
+    setUcUnits((prev) => prev.filter((x) => x !== u));
+  }
+
+  function addCategory() {
+    const v = newCategory.trim();
+    if (!v || ucCategories.includes(v)) return;
+    setUcCategories((prev) => [...prev, v]);
+    setNewCategory("");
+  }
+
+  function removeCategory(c: string) {
+    setUcCategories((prev) => prev.filter((x) => x !== c));
   }
 
   if (loading) {
@@ -433,6 +479,109 @@ export function SettingsPage() {
           </button>
         </div>
       </form>
+
+      {/* ── Units & Categories ── */}
+      <div className="stg-card">
+        <div className="stg-card-header">
+          <div className="stg-card-icon stg-card-icon--teal">
+            <svg viewBox="0 0 20 20" fill="currentColor">
+              <path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4z" />
+            </svg>
+          </div>
+          <div className="stg-card-title">
+            <h2>Units &amp; Categories</h2>
+            <p>Customize the units of measurement and item categories used when adding or editing inventory.</p>
+          </div>
+        </div>
+        <div className="stg-card-body">
+          <div className="uc-section">
+            <div className="uc-section-label">Units of Measurement</div>
+            <div className="uc-chips">
+              {ucUnits.length === 0 && <span className="uc-empty">No custom units — defaults will be used.</span>}
+              {ucUnits.map((u) => (
+                <span key={u} className="uc-chip">
+                  {u}
+                  <button
+                    type="button"
+                    className="uc-chip-remove"
+                    onClick={() => removeUnit(u)}
+                    aria-label={`Remove ${u}`}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="uc-add-row">
+              <input
+                className="form-input uc-add-input"
+                value={newUnit}
+                onChange={(e) => setNewUnit(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addUnit(); } }}
+                placeholder="e.g. carton, tray…"
+                maxLength={32}
+              />
+              <button
+                type="button"
+                className="btn btn--sm btn--ghost"
+                onClick={addUnit}
+                disabled={!newUnit.trim() || ucUnits.includes(newUnit.trim())}
+              >
+                Add
+              </button>
+            </div>
+          </div>
+
+          <div className="uc-section">
+            <div className="uc-section-label">Item Categories</div>
+            <div className="uc-chips">
+              {ucCategories.length === 0 && <span className="uc-empty">No custom categories — defaults will be used.</span>}
+              {ucCategories.map((c) => (
+                <span key={c} className="uc-chip">
+                  {c}
+                  <button
+                    type="button"
+                    className="uc-chip-remove"
+                    onClick={() => removeCategory(c)}
+                    aria-label={`Remove ${c}`}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="uc-add-row">
+              <input
+                className="form-input uc-add-input"
+                value={newCategory}
+                onChange={(e) => setNewCategory(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCategory(); } }}
+                placeholder="e.g. Dairy, Produce…"
+                maxLength={48}
+              />
+              <button
+                type="button"
+                className="btn btn--sm btn--ghost"
+                onClick={addCategory}
+                disabled={!newCategory.trim() || ucCategories.includes(newCategory.trim())}
+              >
+                Add
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="stg-footer-actions stg-footer-actions--card">
+          <button
+            type="button"
+            className="btn btn--primary"
+            onClick={() => { void saveUnitsCategories(); }}
+            disabled={ucSaving}
+          >
+            {ucSaving ? <span className="btn-spinner" /> : null}
+            {ucSaving ? "Saving…" : "Save Units & Categories"}
+          </button>
+        </div>
+      </div>
 
       {/* ── Sticky unsaved-changes bar ── */}
       {isDirty && (

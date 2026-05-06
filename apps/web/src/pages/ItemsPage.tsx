@@ -28,11 +28,11 @@ interface Toast {
 
 let toastSeq = 0;
 
-const UNIT_OPTIONS = [
+const FALLBACK_UNIT_OPTIONS = [
   "kg", "g", "liter", "ml", "pcs", "pack", "box", "dozen", "bottle", "can", "bag",
 ];
 
-const CATEGORY_OPTIONS = [
+const FALLBACK_CATEGORY_OPTIONS = [
   "Raw Material", "Beverage", "Packaging", "Cleaning", "Finished Goods", "Other",
 ];
 
@@ -104,6 +104,8 @@ export function ItemsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const canManageStock = user?.role === "OWNER" || user?.role === "MANAGER";
   const currency = settings.currency;
+  const unitOptions = settings.customUnits.length > 0 ? settings.customUnits : FALLBACK_UNIT_OPTIONS;
+  const categoryOptions = settings.customCategories.length > 0 ? settings.customCategories : FALLBACK_CATEGORY_OPTIONS;
   const [items, setItems] = useState<Item[]>([]);
   const [summaryMap, setSummaryMap] = useState<Map<string, StockSummaryItem>>(new Map());
   const [usageMovements, setUsageMovements] = useState<StockMovement[]>([]);
@@ -121,8 +123,8 @@ export function ItemsPage() {
   const [barcodeItem, setBarcodeItem] = useState<Item | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(() => new Set());
-  const [bulkCategory, setBulkCategory] = useState(CATEGORY_OPTIONS[0]);
-  const [bulkUnit, setBulkUnit] = useState(UNIT_OPTIONS[0]);
+  const [bulkCategory, setBulkCategory] = useState(categoryOptions[0] ?? FALLBACK_CATEGORY_OPTIONS[0]);
+  const [bulkUnit, setBulkUnit] = useState(unitOptions[0] ?? FALLBACK_UNIT_OPTIONS[0]);
   const [bulkProgress, setBulkProgress] = useState<BulkProgress | null>(null);
   const [bulkSaving, setBulkSaving] = useState(false);
   const [busy, setBusy] = useState<Set<string>>(new Set());
@@ -140,7 +142,7 @@ export function ItemsPage() {
     () => new Map(getUsageInsights(usageMovements).map((usage) => [usage.itemId, usage])),
     [usageMovements],
   );
-  const categoryOptions = useMemo(() => {
+  const filterCategoryOptions = useMemo(() => {
     const categories = new Set<string>();
     for (const item of items) {
       if (item.category?.trim()) categories.add(item.category.trim());
@@ -474,7 +476,7 @@ export function ItemsPage() {
             aria-label="Filter by category"
           >
             <option value="all">All categories</option>
-            {categoryOptions.map((category) => (
+            {filterCategoryOptions.map((category) => (
               <option key={category} value={category}>{category}</option>
             ))}
           </select>
@@ -1158,7 +1160,7 @@ function BulkItemsBar({
             disabled={saving}
             aria-label="Bulk category"
           >
-            {CATEGORY_OPTIONS.map((category) => (
+            {categoryOptions.map((category) => (
               <option key={category} value={category}>
                 {category}
               </option>
@@ -1177,7 +1179,7 @@ function BulkItemsBar({
             disabled={saving}
             aria-label="Bulk unit"
           >
-            {UNIT_OPTIONS.map((unit) => (
+            {unitOptions.map((unit) => (
               <option key={unit} value={unit}>
                 {unit}
               </option>
@@ -1220,10 +1222,13 @@ function AddItemModal({
   onSuccess: (item: Item) => void;
   onError: (msg: string) => void;
 }) {
+  const { settings: modalSettings } = useWorkspaceSettings();
+  const unitOptions = modalSettings.customUnits.length > 0 ? modalSettings.customUnits : FALLBACK_UNIT_OPTIONS;
+  const categoryOptions = modalSettings.customCategories.length > 0 ? modalSettings.customCategories : FALLBACK_CATEGORY_OPTIONS;
   const [form, setForm] = useState<CreateItemInput>({
     name: "",
-    unit: UNIT_OPTIONS[0],
-    category: CATEGORY_OPTIONS[0],
+    unit: unitOptions[0] ?? FALLBACK_UNIT_OPTIONS[0],
+    category: categoryOptions[0] ?? FALLBACK_CATEGORY_OPTIONS[0],
     barcode: prefillBarcode ?? "",
     minStockLevel: 0,
     trackExpiry: false,
@@ -1272,7 +1277,7 @@ function AddItemModal({
             onChange={(e) => setForm({ ...form, unit: e.target.value })}
             required
           >
-            {UNIT_OPTIONS.map((unit) => (
+            {unitOptions.map((unit) => (
               <option key={unit} value={unit}>
                 {unit}
               </option>
@@ -1286,7 +1291,7 @@ function AddItemModal({
             value={form.category ?? ""}
             onChange={(e) => setForm({ ...form, category: e.target.value })}
           >
-            {CATEGORY_OPTIONS.map((category) => (
+            {categoryOptions.map((category) => (
               <option key={category} value={category}>
                 {category}
               </option>
@@ -1363,6 +1368,9 @@ function EditItemModal({
   onSuccess: (item: Item) => void;
   onError: (msg: string) => void;
 }) {
+  const { settings: editSettings } = useWorkspaceSettings();
+  const unitOptions = editSettings.customUnits.length > 0 ? editSettings.customUnits : FALLBACK_UNIT_OPTIONS;
+  const categoryOptions = editSettings.customCategories.length > 0 ? editSettings.customCategories : FALLBACK_CATEGORY_OPTIONS;
   const [form, setForm] = useState<CreateItemInput>({
     name: item.name,
     unit: item.unit,
@@ -1419,7 +1427,7 @@ function EditItemModal({
             onChange={(e) => setForm({ ...form, unit: e.target.value })}
             required
           >
-            {UNIT_OPTIONS.map((unit) => (
+            {unitOptions.map((unit) => (
               <option key={unit} value={unit}>
                 {unit}
               </option>
@@ -1436,14 +1444,14 @@ function EditItemModal({
             placeholder="Optional category"
           />
           <datalist id="edit-item-category-options">
-            {CATEGORY_OPTIONS.map((category) => (
+            {categoryOptions.map((category) => (
               <option key={category} value={category}>
                 {category}
               </option>
             ))}
           </datalist>
-          {item.category && !CATEGORY_OPTIONS.includes(item.category) && (
-            <p className="form-helper">Current custom category is preserved unless you edit or clear it.</p>
+          {item.category && !categoryOptions.includes(item.category) && (
+            <p className="form-helper">Current category is preserved unless you edit or clear it.</p>
           )}
         </div>
         <div className="form-group">
@@ -1546,7 +1554,7 @@ function ImportItemsModal({
         throw new Error("Please upload a .csv or .xlsx file.");
       }
       const parsedRows = await parseImportFile(file);
-      setRows(validateImportRows(parsedRows, existingItems));
+      setRows(validateImportRows(parsedRows, existingItems, unitOptions));
     } catch (err) {
       setParseError(err instanceof Error ? err.message : "Could not read the file. Please check the format and try again.");
     } finally {
@@ -2669,7 +2677,7 @@ function parseCsvRows(text: string) {
   return rows.filter((candidate) => candidate.some((value) => value.trim() !== ""));
 }
 
-function validateImportRows(records: Array<Record<string, unknown>>, existingItems: Item[]) {
+function validateImportRows(records: Array<Record<string, unknown>>, existingItems: Item[], allUnits: string[] = FALLBACK_UNIT_OPTIONS) {
   const existingBarcodes = new Set(
     existingItems
       .map((item) => normalizeBarcode(item.barcode ?? ""))
@@ -2698,8 +2706,8 @@ function validateImportRows(records: Array<Record<string, unknown>>, existingIte
 
     if (!row.name) errors.push("Name is required");
     if (!row.unit) errors.push("Unit is required");
-    if (row.unit && !UNIT_OPTIONS.includes(row.unit)) {
-      errors.push(`Unit must be one of: ${UNIT_OPTIONS.join(", ")}`);
+    if (row.unit && !allUnits.includes(row.unit)) {
+      errors.push(`Unit must be one of: ${allUnits.join(", ")}`);
     }
     if (barcodeKey && existingBarcodes.has(barcodeKey)) {
       errors.push("Barcode already exists");
@@ -2754,7 +2762,7 @@ function parseImportString(value: unknown) {
 function normalizeUnit(value: string) {
   const trimmed = value.trim();
   const lower = trimmed.toLowerCase();
-  return UNIT_OPTIONS.find((unit) => unit.toLowerCase() === lower) ?? trimmed;
+  return FALLBACK_UNIT_OPTIONS.find((unit) => unit.toLowerCase() === lower) ?? trimmed;
 }
 
 function normalizeBarcode(value: string | null | undefined) {

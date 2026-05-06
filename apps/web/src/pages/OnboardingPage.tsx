@@ -419,6 +419,12 @@ export function OnboardingPage({
   async function handleFinish() {
     setSaving(true); setError(null);
     try {
+      if (selectedUnits.length > 0 || selectedCategories.length > 0) {
+        await updateWorkspaceSettings({
+          customUnits: selectedUnits,
+          customCategories: selectedCategories,
+        });
+      }
       await completeOnboarding();
       onComplete();
     } catch (err) {
