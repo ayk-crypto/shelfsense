@@ -805,8 +805,9 @@ export function LandingPage() {
             </div>
             <div className="lp-footer-col">
               <span className="lp-footer-col-title">Legal</span>
-              <Link to="/privacy" className="lp-footer-link">Privacy policy</Link>
-              <Link to="/terms" className="lp-footer-link">Terms of service</Link>
+              <Link to="/privacy" className="lp-footer-link">Privacy Policy</Link>
+              <Link to="/terms" className="lp-footer-link">Terms of Service</Link>
+              <Link to="/refund" className="lp-footer-link">Refund Policy</Link>
               <a href="mailto:hello@shelfsense.com" className="lp-footer-link">Contact us</a>
             </div>
           </div>

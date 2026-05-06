@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { getOnboardingStatus } from "../api/onboarding";
 import { getPublicPlans, previewSubscription, selectPlan } from "../api/subscriptions";
 import type { PublicPlan, SubscriptionPreview } from "../types";
+import { LegalFooterLinks } from "./LegalPage";
 
 const RECOMMENDED_CODE = "STARTER";
 
@@ -563,6 +564,7 @@ export function PlanSelectionPage() {
           </div>
         </div>
       )}
+      <LegalFooterLinks />
     </div>
   );
 }
