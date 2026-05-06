@@ -251,12 +251,15 @@ export interface AuditLog {
 
 export interface AuditLogsResponse {
   logs: AuditLog[];
+  pagination: { page: number; limit: number; total: number; pages: number };
 }
 
 export interface AuditLogFilters {
   fromDate?: string;
   toDate?: string;
   action?: string;
+  search?: string;
+  page?: number;
 }
 
 export interface StockSummaryItem {

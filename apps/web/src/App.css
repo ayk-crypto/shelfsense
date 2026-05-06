@@ -18127,6 +18127,123 @@ body {
   margin: 0;
 }
 
+/* ─── Shared activity / audit filter bar (act-) ─────────────────────── */
+
+.act-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  margin-bottom: 4px;
+}
+
+.act-search-wrap {
+  position: relative;
+  flex: 1 1 220px;
+  min-width: 180px;
+}
+
+.act-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.act-search-input {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px 0 30px;
+  font-size: 13px;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  background: #f8fafc;
+  color: #1e293b;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+  box-sizing: border-box;
+}
+
+.act-search-input::placeholder { color: #94a3b8; }
+.act-search-input:focus { border-color: #6366f1; background: #fff; }
+
+.act-date-range {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.act-date-input {
+  height: 34px;
+  padding: 0 8px;
+  font-size: 13px;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  background: #f8fafc;
+  color: #1e293b;
+  outline: none;
+  transition: border-color 0.15s;
+  min-width: 130px;
+}
+
+.act-date-input:focus { border-color: #6366f1; background: #fff; }
+
+.act-date-sep {
+  font-size: 12px;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.act-clear-btn {
+  height: 34px;
+  padding: 0 12px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #64748b;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+
+.act-clear-btn:hover { background: #e2e8f0; color: #1e293b; }
+
+/* Workspace log description */
+.act-log-desc {
+  font-size: 13px;
+  color: #475569;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Workspace entity label */
+.act-entity-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+  background: #f1f5f9;
+  padding: 2px 7px;
+  border-radius: 5px;
+}
+
+@media (max-width: 640px) {
+  .act-filter-bar { flex-direction: column; align-items: stretch; }
+  .act-search-wrap { min-width: 0; }
+  .act-date-range { flex-wrap: wrap; }
+  .act-date-input { min-width: 0; flex: 1 1 120px; }
+}
+
 /* ─── Announcements Page (ann-) ─────────────────────────────────────── */
 
 /* Filter tabs */
