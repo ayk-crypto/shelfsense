@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { getPublicPlans, previewSubscription } from "../api/subscriptions";
 import { initiateCheckout } from "../api/billing";
 import type { PublicPlan, SubscriptionPreview } from "../types";
+import { LegalFooterLinks } from "./LegalPage";
 
 const RECOMMENDED_CODE = "STARTER";
 
@@ -257,6 +258,7 @@ export function BillingCheckoutPage() {
               <svg viewBox="0 0 20 20" fill="currentColor" style={{ width: 14, height: 14 }} aria-hidden="true"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" /></svg>
               Secure payment. No card details stored by ShelfSense.
             </p>
+            <LegalFooterLinks />
           </div>
         )}
       </div>

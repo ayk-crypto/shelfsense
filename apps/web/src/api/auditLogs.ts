@@ -9,6 +9,8 @@ export async function getAuditLogs(
   if (filters.fromDate) params.set("fromDate", filters.fromDate);
   if (filters.toDate) params.set("toDate", filters.toDate);
   if (filters.action) params.set("action", filters.action);
+  if (filters.search) params.set("search", filters.search);
+  if (filters.page && filters.page > 1) params.set("page", String(filters.page));
 
   const query = params.toString();
   return apiClient.get<AuditLogsResponse>(

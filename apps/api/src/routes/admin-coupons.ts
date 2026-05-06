@@ -110,7 +110,7 @@ adminCouponsRouter.post("/", asyncHandler(async (req, res) => {
       description: body.description?.trim() ?? null,
       discountType: body.discountType,
       discountValue: body.discountValue,
-      currency: body.currency ?? "PKR",
+      currency: body.currency ?? "USD",
       validFrom: body.validFrom ? new Date(body.validFrom) : null,
       validUntil: body.validUntil ? new Date(body.validUntil) : null,
       maxRedemptions: body.maxRedemptions ?? null,

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { login } from "../api/auth";
 import { useAuth } from "../context/AuthContext";
+import { LegalFooterLinks } from "./LegalPage";
 
 export function LoginPage() {
   const [email, setEmail] = useState("");
@@ -95,6 +96,7 @@ export function LoginPage() {
         <p className="auth-switch">
           New to ShelfSense? <Link to="/signup">Create an account</Link>
         </p>
+        <LegalFooterLinks />
       </div>
     </div>
   );

@@ -40,7 +40,7 @@ function Navbar() {
           ) : (
             <>
               <Link to="/login" className="lp-btn lp-btn--ghost">Sign in</Link>
-              <Link to="/signup" className="lp-btn lp-btn--primary">Get started free</Link>
+              <Link to="/signup" className="lp-btn lp-btn--primary">Start free</Link>
             </>
           )}
         </nav>
@@ -60,78 +60,109 @@ function Navbar() {
 
 function AppMockup() {
   return (
-    <div className="lp-mockup">
-      <div className="lp-mockup-chrome">
-        <div className="lp-mockup-chrome-bar">
-          <span className="lp-mockup-dot lp-mockup-dot--red" />
-          <span className="lp-mockup-dot lp-mockup-dot--yellow" />
-          <span className="lp-mockup-dot lp-mockup-dot--green" />
-          <div className="lp-mockup-url">app.shelfsense.com/items</div>
+    <div className="lp-mockup-wrap">
+      {/* Floating alert notification */}
+      <div className="lp-mockup-float lp-mockup-float--alert">
+        <span className="lp-mf-pulse" />
+        <div className="lp-mf-content">
+          <div className="lp-mf-title">3 items expiring soon</div>
+          <div className="lp-mf-sub">Coffee Beans · Vanilla Extract · Milk</div>
         </div>
-        <div className="lp-mockup-body">
-          <aside className="lp-ms-sidebar">
-            <div className="lp-ms-logo-wrap">
-              <span className="lp-ms-logo">S</span>
-              <span className="lp-ms-workspace">My Workspace</span>
-            </div>
-            {[
-              { label: "Today", active: false },
-              { label: "Inventory", active: true },
-              { label: "Stock In", active: false },
-              { label: "Alerts", active: false },
-              { label: "Reports", active: false },
-            ].map((item) => (
-              <div key={item.label} className={`lp-ms-item ${item.active ? "lp-ms-item--active" : ""}`}>
-                {item.label}
-              </div>
-            ))}
-          </aside>
+        <span className="lp-mf-badge lp-mf-badge--danger">Urgent</span>
+      </div>
 
-          <main className="lp-ms-main">
-            <div className="lp-ms-topbar">
-              <span className="lp-ms-title">Inventory</span>
-              <span className="lp-ms-add">+ Add Item</span>
-            </div>
+      {/* Floating restock card */}
+      <div className="lp-mockup-float lp-mockup-float--restock">
+        <div className="lp-mf-icon">📦</div>
+        <div className="lp-mf-content">
+          <div className="lp-mf-title">Olive Oil — Low stock</div>
+          <div className="lp-mf-sub">9 units left · Reorder point: 20</div>
+        </div>
+      </div>
 
-            <div className="lp-ms-stats">
-              <div className="lp-ms-stat">
-                <span className="lp-ms-stat-n">48</span>
-                <span className="lp-ms-stat-l">Items</span>
-              </div>
-              <div className="lp-ms-stat">
-                <span className="lp-ms-stat-n" style={{ color: "#f59e0b" }}>6</span>
-                <span className="lp-ms-stat-l">Low stock</span>
-              </div>
-              <div className="lp-ms-stat">
-                <span className="lp-ms-stat-n" style={{ color: "#ef4444" }}>3</span>
-                <span className="lp-ms-stat-l">Expiring</span>
-              </div>
-            </div>
-
-            <div className="lp-ms-table">
-              <div className="lp-ms-thead">
-                <span>Item</span><span>Category</span><span>Stock</span><span>Status</span>
+      <div className="lp-mockup">
+        <div className="lp-mockup-chrome">
+          <div className="lp-mockup-chrome-bar">
+            <span className="lp-mockup-dot lp-mockup-dot--red" />
+            <span className="lp-mockup-dot lp-mockup-dot--yellow" />
+            <span className="lp-mockup-dot lp-mockup-dot--green" />
+            <div className="lp-mockup-url">app.shelfsense.com/inventory</div>
+          </div>
+          <div className="lp-mockup-body">
+            {/* Sidebar */}
+            <aside className="lp-ms-sidebar">
+              <div className="lp-ms-logo-wrap">
+                <span className="lp-ms-logo">S</span>
+                <span className="lp-ms-workspace">My Workspace</span>
               </div>
               {[
-                { name: "Pasta Sauce", cat: "Food", stock: "42 units", badge: "low", badgeLabel: "Low stock" },
-                { name: "Coffee Beans", cat: "Beverage", stock: "15 units", badge: "warn", badgeLabel: "Expiring" },
-                { name: "Hand Sanitizer", cat: "Medical", stock: "128 units", badge: null, badgeLabel: "" },
-                { name: "Paper Towels", cat: "Supplies", stock: "320 units", badge: null, badgeLabel: "" },
-                { name: "Olive Oil", cat: "Food", stock: "9 units", badge: "low", badgeLabel: "Low stock" },
-              ].map((row) => (
-                <div key={row.name} className="lp-ms-row">
-                  <span className="lp-ms-row-name">{row.name}</span>
-                  <span className="lp-ms-row-cat">{row.cat}</span>
-                  <span className="lp-ms-row-stock">{row.stock}</span>
-                  <span>
-                    {row.badge === "low" && <span className="lp-ms-badge lp-ms-badge--low">{row.badgeLabel}</span>}
-                    {row.badge === "warn" && <span className="lp-ms-badge lp-ms-badge--warn">{row.badgeLabel}</span>}
-                    {!row.badge && <span className="lp-ms-badge lp-ms-badge--ok">In stock</span>}
-                  </span>
+                { label: "Dashboard",  active: false, badge: null },
+                { label: "Inventory",  active: true,  badge: null },
+                { label: "Receive",    active: false, badge: null },
+                { label: "Alerts",     active: false, badge: "9"  },
+                { label: "Reports",    active: false, badge: null },
+              ].map((item) => (
+                <div key={item.label} className={`lp-ms-item ${item.active ? "lp-ms-item--active" : ""}`}>
+                  <span className="lp-ms-item-label">{item.label}</span>
+                  {item.badge && <span className="lp-ms-item-badge">{item.badge}</span>}
                 </div>
               ))}
-            </div>
-          </main>
+            </aside>
+
+            {/* Main content */}
+            <main className="lp-ms-main">
+              <div className="lp-ms-topbar">
+                <span className="lp-ms-title">Inventory</span>
+                <div className="lp-ms-topbar-right">
+                  <span className="lp-ms-filter-btn">Filter</span>
+                  <span className="lp-ms-add">+ Add Item</span>
+                </div>
+              </div>
+
+              <div className="lp-ms-stats">
+                <div className="lp-ms-stat">
+                  <span className="lp-ms-stat-n">48</span>
+                  <span className="lp-ms-stat-l">Total items</span>
+                </div>
+                <div className="lp-ms-stat">
+                  <span className="lp-ms-stat-n lp-ms-stat-n--ok">39</span>
+                  <span className="lp-ms-stat-l">In stock</span>
+                </div>
+                <div className="lp-ms-stat">
+                  <span className="lp-ms-stat-n lp-ms-stat-n--warn">6</span>
+                  <span className="lp-ms-stat-l">Low stock</span>
+                </div>
+                <div className="lp-ms-stat">
+                  <span className="lp-ms-stat-n lp-ms-stat-n--danger">3</span>
+                  <span className="lp-ms-stat-l">Expiring</span>
+                </div>
+              </div>
+
+              <div className="lp-ms-table">
+                <div className="lp-ms-thead">
+                  <span>Item</span><span>Category</span><span>Stock</span><span>Status</span>
+                </div>
+                {[
+                  { name: "Pasta Sauce",    cat: "Food",     stock: "42 units",  badge: "low",  badgeLabel: "Low stock" },
+                  { name: "Coffee Beans",   cat: "Beverage", stock: "15 units",  badge: "warn", badgeLabel: "Expiring"  },
+                  { name: "Hand Sanitizer", cat: "Medical",  stock: "128 units", badge: null,   badgeLabel: ""          },
+                  { name: "Paper Towels",   cat: "Supplies", stock: "320 units", badge: null,   badgeLabel: ""          },
+                  { name: "Olive Oil",      cat: "Food",     stock: "9 units",   badge: "low",  badgeLabel: "Low stock" },
+                ].map((row) => (
+                  <div key={row.name} className="lp-ms-row">
+                    <span className="lp-ms-row-name">{row.name}</span>
+                    <span className="lp-ms-row-cat">{row.cat}</span>
+                    <span className="lp-ms-row-stock">{row.stock}</span>
+                    <span>
+                      {row.badge === "low"  && <span className="lp-ms-badge lp-ms-badge--low">{row.badgeLabel}</span>}
+                      {row.badge === "warn" && <span className="lp-ms-badge lp-ms-badge--warn">{row.badgeLabel}</span>}
+                      {!row.badge           && <span className="lp-ms-badge lp-ms-badge--ok">In stock</span>}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </main>
+          </div>
         </div>
       </div>
     </div>
@@ -147,8 +178,7 @@ const FEATURES = [
         <line x1="12" y1="22.08" x2="12" y2="12" />
       </svg>
     ),
-    color: "#6366f1",
-    bg: "#eef2ff",
+    color: "#6366f1", bg: "#eef2ff",
     title: "Always know what you have",
     desc: "Stock levels update the moment your team records a movement, purchase, or adjustment — no more guessing, no end-of-day reconciliation.",
   },
@@ -162,10 +192,9 @@ const FEATURES = [
         <path d="M9 16l2 2 4-4" />
       </svg>
     ),
-    color: "#ef4444",
-    bg: "#fef2f2",
+    color: "#ef4444", bg: "#fef2f2",
     title: "Catch expiry before it costs you",
-    desc: "Get automatic alerts days or weeks before items expire. Stop writing off stock you didn't know was about to go bad.",
+    desc: "Automatic alerts days or weeks before items expire. Stop writing off stock you didn't know was about to go bad.",
   },
   {
     icon: (
@@ -174,8 +203,7 @@ const FEATURES = [
         <circle cx="12" cy="10" r="3" />
       </svg>
     ),
-    color: "#10b981",
-    bg: "#ecfdf5",
+    color: "#10b981", bg: "#ecfdf5",
     title: "Manage every site from one place",
     desc: "Run multiple stores, warehouses, or kitchens from a single dashboard. Transfer stock between locations in seconds — no emails, no calls.",
   },
@@ -188,8 +216,7 @@ const FEATURES = [
         <line x1="16" y1="17" x2="8" y2="17" />
       </svg>
     ),
-    color: "#f59e0b",
-    bg: "#fffbeb",
+    color: "#f59e0b", bg: "#fffbeb",
     title: "Restock without the back-and-forth",
     desc: "Create purchase orders, track them from draft to received, and watch stock levels update automatically when deliveries arrive.",
   },
@@ -202,8 +229,7 @@ const FEATURES = [
         <path d="M16 3.13a4 4 0 0 1 0 7.75" />
       </svg>
     ),
-    color: "#3b82f6",
-    bg: "#eff6ff",
+    color: "#3b82f6", bg: "#eff6ff",
     title: "Your team, with the right access",
     desc: "Invite staff and set their role — Owner, Manager, or Operator. Everyone sees what they need, nothing they don't.",
   },
@@ -216,10 +242,9 @@ const FEATURES = [
         <polyline points="3 20 21 20" />
       </svg>
     ),
-    color: "#8b5cf6",
-    bg: "#f5f3ff",
+    color: "#8b5cf6", bg: "#f5f3ff",
     title: "See where money is being lost",
-    desc: "8 built-in reports covering wastage costs, supplier spend, stock aging, and expiry losses — all exportable to CSV in one click.",
+    desc: "8 built-in reports covering wastage costs, supplier spend, stock aging, and expiry losses — exportable to CSV in one click.",
   },
 ];
 
@@ -264,6 +289,8 @@ type PricingCard = {
   limits: string[];
   features: PricingFeature[];
   currency: string;
+  isCustom?: boolean;
+  cta?: string;
 };
 
 function limitLabel(val: number | null, unit: string, singular?: string): string {
@@ -273,9 +300,17 @@ function limitLabel(val: number | null, unit: string, singular?: string): string
   return `${val.toLocaleString()} ${u}`;
 }
 
+function isCustomPricing(plan: PublicPlan): boolean {
+  if (plan.priceDisplayMode === "CUSTOM") return true;
+  if (plan.priceDisplayMode === "FIXED") return false;
+  const n = (plan.name + " " + plan.code).toLowerCase();
+  return n.includes("business") || n.includes("enterprise");
+}
+
 function planToCard(plan: PublicPlan): PricingCard {
   const visual = PLAN_VISUAL[plan.code] ?? { color: "#64748b", bg: "#f8fafc", highlight: false };
-  const isFree = plan.monthlyPrice === 0 && plan.annualPrice === 0;
+  const custom = isCustomPricing(plan);
+  const isFree = !custom && plan.monthlyPrice === 0 && plan.annualPrice === 0;
 
   const limits: string[] = [
     limitLabel(plan.maxUsers, "users", "user"),
@@ -307,7 +342,9 @@ function planToCard(plan: PublicPlan): PricingCard {
     highlight: visual.highlight,
     limits,
     features,
-    currency: plan.currency,
+    currency: "$",
+    isCustom: custom,
+    cta: plan.ctaText ?? undefined,
   };
 }
 
@@ -316,11 +353,8 @@ const STATIC_PRICING: PricingCard[] = [
     tier: "Free",
     price: "0",
     period: "forever",
-    desc: "Everything you need to replace your spreadsheet and get started.",
-    color: "#64748b",
-    bg: "#f8fafc",
-    highlight: false,
-    currency: "$",
+    desc: "For testing and very small teams replacing spreadsheets.",
+    color: "#64748b", bg: "#f8fafc", highlight: false, currency: "$", cta: "Start Free",
     limits: ["3 users", "1 location", "50 items"],
     features: [
       { label: "Expiry tracking",      included: true  },
@@ -339,11 +373,8 @@ const STATIC_PRICING: PricingCard[] = [
     tier: "Basic",
     price: "19",
     period: "/ mo",
-    desc: "For growing teams who need real inventory control across multiple locations.",
-    color: "#6366f1",
-    bg: "#eef2ff",
-    highlight: true,
-    currency: "$",
+    desc: "For growing teams that need real inventory control across multiple locations.",
+    color: "#6366f1", bg: "#eef2ff", highlight: true, currency: "$", cta: "Choose Basic",
     limits: ["10 users", "5 locations", "500 items"],
     features: [
       { label: "Expiry tracking",      included: true  },
@@ -362,11 +393,8 @@ const STATIC_PRICING: PricingCard[] = [
     tier: "Pro",
     price: "49",
     period: "/ mo",
-    desc: "Unlimited everything. Advanced analytics, custom roles, and full team control.",
-    color: "#7c3aed",
-    bg: "#f5f3ff",
-    highlight: false,
-    currency: "$",
+    desc: "For multi-location operations needing advanced tracking and custom roles.",
+    color: "#7c3aed", bg: "#f5f3ff", highlight: false, currency: "$", cta: "Choose Pro",
     limits: ["Unlimited users", "Unlimited locations", "Unlimited items"],
     features: [
       { label: "Expiry tracking",      included: true },
@@ -383,26 +411,36 @@ const STATIC_PRICING: PricingCard[] = [
   },
   {
     tier: "Business",
-    price: "99",
+    price: "0",
     period: "/ mo",
     desc: "Enterprise-grade inventory management with dedicated support and custom onboarding.",
-    color: "#0ea5e9",
-    bg: "#f0f9ff",
-    highlight: false,
-    currency: "$",
+    color: "#0ea5e9", bg: "#f0f9ff", highlight: false, currency: "$", cta: "Contact Sales",
+    isCustom: true,
     limits: ["Unlimited users", "Unlimited locations", "Unlimited items"],
     features: [
-      { label: "Everything in Pro",    included: true },
-      { label: "Custom onboarding",    included: true },
+      { label: "Everything in Pro",      included: true },
+      { label: "Custom onboarding",      included: true },
       { label: "Priority phone support", included: true },
-      { label: "SLA guarantee",        included: true },
-      { label: "Bulk data import",     included: true },
-      { label: "Custom integrations",  included: true },
-      { label: "Quarterly reviews",    included: true },
-      { label: "Negotiated pricing",   included: true },
+      { label: "SLA guarantee",          included: true },
+      { label: "Bulk data import",       included: true },
+      { label: "Custom integrations",    included: true },
+      { label: "Quarterly reviews",      included: true },
+      { label: "Negotiated pricing",     included: true },
     ],
   },
 ];
+
+const CHECK_ICON = (
+  <svg className="lp-pricing-check" viewBox="0 0 16 16" fill="currentColor">
+    <path fillRule="evenodd" d="M13.707 4.293a1 1 0 010 1.414l-7 7a1 1 0 01-1.414 0l-3-3a1 1 0 011.414-1.414L6 10.586l6.293-6.293a1 1 0 011.414 0z" />
+  </svg>
+);
+
+const CROSS_ICON = (
+  <svg className="lp-pricing-cross" viewBox="0 0 16 16" fill="currentColor">
+    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L8 6.586l2.293-2.293a1 1 0 111.414 1.414L9.414 8l2.293 2.293a1 1 0 01-1.414 1.414L8 9.414l-2.293 2.293a1 1 0 01-1.414-1.414L6.586 8 4.293 5.707a1 1 0 010-1.414z" />
+  </svg>
+);
 
 export function LandingPage() {
   const { isAuthenticated } = useAuth();
@@ -412,43 +450,36 @@ export function LandingPage() {
   useEffect(() => {
     getPublicPlans()
       .then(({ plans }) => {
-        if (plans.length > 0) {
-          setPricing(plans.map(planToCard));
-        }
+        if (plans.length > 0) setPricing(plans.map(planToCard));
       })
-      .catch(() => {
-        // keep static fallback
-      });
+      .catch(() => { /* keep static fallback */ });
   }, []);
 
   function handlePrimaryCta() {
-    if (isAuthenticated) {
-      navigate("/dashboard");
-    } else {
-      navigate("/signup");
-    }
+    navigate(isAuthenticated ? "/dashboard" : "/signup");
   }
 
   return (
     <div className="lp-root">
       <Navbar />
 
-      {/* ── Hero ───────────────────────────────────── */}
+      {/* ── Hero ─────────────────────────────────────── */}
       <section className="lp-hero">
         <div className="lp-hero-bg" aria-hidden />
+        <div className="lp-hero-glow" aria-hidden />
         <div className="lp-container lp-hero-inner">
           <div className="lp-hero-copy">
             <div className="lp-hero-eyebrow">Inventory management, simplified</div>
             <h1 className="lp-hero-headline">
-              Stop losing money to
-              <span className="lp-hero-headline-accent"> expired stock and empty shelves.</span>
+              Stop expiry losses, stockouts, and
+              <span className="lp-hero-headline-accent"> inventory blind spots.</span>
             </h1>
             <p className="lp-hero-sub">
               ShelfSense gives restaurants, retail stores, and warehouses a real-time view of their stock, expiry dates, and team activity — across every location, without the spreadsheets.
             </p>
             <div className="lp-hero-actions">
               <button type="button" className="lp-btn lp-btn--hero-primary" onClick={handlePrimaryCta}>
-                {isAuthenticated ? "Go to dashboard →" : "Start for free →"}
+                {isAuthenticated ? "Go to app →" : "Start free →"}
               </button>
               <button type="button" className="lp-btn lp-btn--hero-ghost" onClick={() => scrollTo("features")}>
                 See how it works ↓
@@ -467,13 +498,13 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ── Stats bar ──────────────────────────────── */}
+      {/* ── Stats bar ─────────────────────────────────── */}
       <section className="lp-stats-bar">
         <div className="lp-container lp-stats-inner">
           {[
-            { value: "8", label: "Built-in analytics reports" },
-            { value: "CSV", label: "One-click data export" },
-            { value: "Free", label: "During the preview period" },
+            { value: "8",      label: "Built-in analytics reports" },
+            { value: "CSV",    label: "One-click data export" },
+            { value: "Free",   label: "During the preview period" },
             { value: "< 5 min", label: "To set up your workspace" },
           ].map((s) => (
             <div key={s.label} className="lp-stat">
@@ -484,7 +515,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ── Features ──────────────────────────────── */}
+      {/* ── Features ──────────────────────────────────── */}
       <section className="lp-features" id="features">
         <div className="lp-container">
           <div className="lp-section-header">
@@ -509,7 +540,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ── Who it's for ──────────────────────────── */}
+      {/* ── Who it's for ──────────────────────────────── */}
       <section className="lp-showcase" id="who">
         <div className="lp-container">
           <div className="lp-section-header">
@@ -520,7 +551,7 @@ export function LandingPage() {
             </p>
           </div>
 
-          <div className="lp-features-grid">
+          <div className="lp-features-grid lp-features-grid--3">
             {WHO_FOR.map((w) => (
               <div key={w.title} className="lp-feature-card">
                 <div className="lp-feature-icon" style={{ background: "#f8fafc", color: "#334155", fontSize: "1.5rem" }}>
@@ -534,8 +565,8 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ── Product deep-dive ─────────────────────── */}
-      <section className="lp-showcase">
+      {/* ── Product showcase — alerts ─────────────────── */}
+      <section className="lp-showcase lp-showcase--light">
         <div className="lp-container lp-showcase-inner">
           <div className="lp-showcase-copy">
             <div className="lp-section-eyebrow">See it in action</div>
@@ -567,14 +598,14 @@ export function LandingPage() {
           <div className="lp-showcase-visual">
             <div className="lp-showcase-card">
               <div className="lp-sc-header">
-                <span className="lp-sc-title">Alerts</span>
+                <span className="lp-sc-title">Active Alerts</span>
                 <span className="lp-sc-count">9 active</span>
               </div>
               {[
-                { icon: "📦", name: "Pasta Sauce", msg: "Only 3 units left — reorder point is 10", tag: "low", tagLabel: "Critical" },
-                { icon: "⏰", name: "Coffee Beans", msg: "5 batches expire within 7 days", tag: "expiry", tagLabel: "Expiring" },
-                { icon: "📦", name: "Olive Oil", msg: "9 units remaining — below minimum", tag: "low", tagLabel: "Low stock" },
-                { icon: "⏰", name: "Vanilla Extract", msg: "2 batches expire in 3 days", tag: "expiry", tagLabel: "Urgent" },
+                { icon: "📦", name: "Pasta Sauce",     msg: "Only 3 units left — reorder point is 10",  tag: "low",    tagLabel: "Critical" },
+                { icon: "⏰", name: "Coffee Beans",    msg: "5 batches expire within 7 days",            tag: "expiry", tagLabel: "Expiring" },
+                { icon: "📦", name: "Olive Oil",       msg: "9 units remaining — below minimum",         tag: "low",    tagLabel: "Low stock" },
+                { icon: "⏰", name: "Vanilla Extract", msg: "2 batches expire in 3 days",                tag: "expiry", tagLabel: "Urgent"   },
               ].map((a) => (
                 <div key={a.name} className="lp-sc-alert-row">
                   <span className="lp-sc-alert-icon">{a.icon}</span>
@@ -590,20 +621,78 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ── Pricing ───────────────────────────────── */}
+      {/* ── Trust section ─────────────────────────────── */}
+      <section className="lp-trust-section">
+        <div className="lp-container">
+          <div className="lp-trust-strip">
+            {([
+              {
+                icon: (
+                  <svg viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/></svg>
+                ),
+                label: "No credit card required",
+              },
+              {
+                icon: (
+                  <svg viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd"/></svg>
+                ),
+                label: "Set up in under 5 minutes",
+              },
+              {
+                icon: (
+                  <svg viewBox="0 0 20 20" fill="currentColor"><path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v1h8v-1zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-1a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v1h-3zM4.75 14.094A5.973 5.973 0 004 17v1H1v-1a3 3 0 013.75-2.906z"/></svg>
+                ),
+                label: "Role-based team access",
+              },
+              {
+                icon: (
+                  <svg viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd"/></svg>
+                ),
+                label: "Export your data anytime",
+              },
+              {
+                icon: (
+                  <svg viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/><path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd"/></svg>
+                ),
+                label: "Restaurants, retail & warehouses",
+              },
+            ] as { icon: React.ReactNode; label: string }[]).map((item, i, arr) => (
+              <div key={item.label} className="lp-trust-row-item">
+                <span className="lp-trust-pill-icon">{item.icon}</span>
+                <span className="lp-trust-pill-label">{item.label}</span>
+                {i < arr.length - 1 && <span className="lp-trust-sep" aria-hidden />}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Pricing ────────────────────────────────────── */}
       <section className="lp-pricing" id="pricing">
         <div className="lp-container">
           <div className="lp-section-header">
             <div className="lp-section-eyebrow">Simple pricing</div>
             <h2 className="lp-section-title">Start free. Pay only when you're ready to grow.</h2>
             <p className="lp-section-sub">
-              No credit card required. No setup fees. No contracts. Upgrade only if you need more items, locations, or team members.
+              No credit card required. No setup fees. No contracts. Upgrade when you need more items, locations, or team members.
             </p>
           </div>
 
-          <div className="lp-pricing-note">
-            <span className="lp-pricing-note-icon">💬</span>
-            Online payment not live yet? No problem — select your plan and our team will reach out to activate your account manually.
+          <div className="lp-pricing-meta-row">
+            <span className="lp-pricing-meta-badge">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              All plans billed in <strong>USD</strong>
+            </span>
+            <span className="lp-pricing-meta-dot" />
+            <span className="lp-pricing-meta-badge">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.8 19.79 19.79 0 01.22 1.18 2 2 0 012.18 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.91 7.09a16 16 0 006 6l.56-.56a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/></svg>
+              Manual activation available
+            </span>
+            <span className="lp-pricing-meta-dot" />
+            <span className="lp-pricing-meta-badge">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              No contracts or setup fees
+            </span>
           </div>
 
           <div className="lp-pricing-grid">
@@ -614,11 +703,18 @@ export function LandingPage() {
               >
                 {plan.highlight && <div className="lp-pricing-popular">Most popular</div>}
                 <div className="lp-pricing-tier" style={{ color: plan.color }}>{plan.tier}</div>
-                <div className="lp-pricing-price">
-                  <span className="lp-pricing-currency">{plan.currency}</span>
-                  <span className="lp-pricing-amount">{plan.price}</span>
-                  <span className="lp-pricing-period">{plan.period}</span>
-                </div>
+                {plan.isCustom ? (
+                  <div className="lp-pricing-price lp-pricing-price--custom">
+                    <span className="lp-pricing-custom-label">Custom pricing</span>
+                    <span className="lp-pricing-custom-sub">Tailored for larger teams</span>
+                  </div>
+                ) : (
+                  <div className="lp-pricing-price">
+                    <span className="lp-pricing-currency">$</span>
+                    <span className="lp-pricing-amount">{plan.price}</span>
+                    <span className="lp-pricing-period">{plan.period}</span>
+                  </div>
+                )}
                 <p className="lp-pricing-desc">{plan.desc}</p>
                 {plan.limits.length > 0 && (
                   <div className="lp-pricing-limits">
@@ -630,15 +726,7 @@ export function LandingPage() {
                 <ul className="lp-pricing-features">
                   {plan.features.map((f) => (
                     <li key={f.label} className={`lp-pricing-feature${f.included ? "" : " lp-pricing-feature--dim"}`}>
-                      {f.included ? (
-                        <svg className="lp-pricing-check" viewBox="0 0 16 16" fill="currentColor">
-                          <path fillRule="evenodd" d="M13.707 4.293a1 1 0 010 1.414l-7 7a1 1 0 01-1.414 0l-3-3a1 1 0 011.414-1.414L6 10.586l6.293-6.293a1 1 0 011.414 0z" />
-                        </svg>
-                      ) : (
-                        <svg className="lp-pricing-cross" viewBox="0 0 16 16" fill="currentColor">
-                          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L8 6.586l2.293-2.293a1 1 0 111.414 1.414L9.414 8l2.293 2.293a1 1 0 01-1.414 1.414L8 9.414l-2.293 2.293a1 1 0 01-1.414-1.414L6.586 8 4.293 5.707a1 1 0 010-1.414z" />
-                        </svg>
-                      )}
+                      {f.included ? CHECK_ICON : CROSS_ICON}
                       {f.label}
                     </li>
                   ))}
@@ -651,15 +739,21 @@ export function LandingPage() {
                 >
                   {isAuthenticated
                     ? "Open dashboard"
+                    : plan.cta
+                    ? plan.cta
+                    : plan.isCustom
+                    ? "Contact Sales"
                     : plan.tier === "Free"
                     ? "Start Free"
-                    : plan.tier === "Business"
-                    ? "Contact Sales"
                     : `Choose ${plan.tier}`}
                 </button>
                 {!isAuthenticated && (
-                  <p style={{ textAlign: "center", fontSize: "0.75rem", color: "#94a3b8", marginTop: "0.5rem" }}>
-                    {plan.tier === "Free" ? "No credit card required" : "Manual activation available"}
+                  <p className="lp-pricing-footnote">
+                    {plan.isCustom
+                      ? "Custom quotation available"
+                      : plan.tier === "Free"
+                      ? "No credit card required"
+                      : "Manual activation available"}
                   </p>
                 )}
               </div>
@@ -668,17 +762,17 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ── CTA banner ────────────────────────────── */}
+      {/* ── CTA banner ─────────────────────────────────── */}
       <section className="lp-cta">
         <div className="lp-cta-bg" aria-hidden />
         <div className="lp-container lp-cta-inner">
           <h2 className="lp-cta-title">Your stock is costing you more than you think.</h2>
           <p className="lp-cta-sub">
-            Every expired product, every emergency reorder, every stockout is a cost that ShelfSense helps you avoid. Set up your workspace in minutes — free, no card needed.
+            Every expired product, every emergency reorder, every stockout is a cost ShelfSense helps you avoid. Set up your workspace in minutes — free, no card needed.
           </p>
           <div className="lp-cta-actions">
             <button type="button" className="lp-btn lp-btn--cta-primary" onClick={handlePrimaryCta}>
-              {isAuthenticated ? "Back to dashboard →" : "Create your free account →"}
+              {isAuthenticated ? "Go to app →" : "Create your free workspace →"}
             </button>
             {!isAuthenticated && (
               <Link to="/login" className="lp-btn lp-btn--cta-ghost">Sign in</Link>
@@ -687,13 +781,15 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ── Footer ───────────────────────────────── */}
+      {/* ── Footer ─────────────────────────────────────── */}
       <footer className="lp-footer">
         <div className="lp-container lp-footer-inner">
           <div className="lp-footer-brand">
-            <span className="lp-nav-logo-mark lp-footer-logo-mark">S</span>
-            <span className="lp-nav-logo-text lp-footer-logo-text">ShelfSense</span>
-            <p className="lp-footer-tagline">Inventory management for businesses that can't afford blind spots.</p>
+            <div className="lp-footer-brand-row">
+              <span className="lp-nav-logo-mark lp-footer-logo-mark">S</span>
+              <span className="lp-nav-logo-text lp-footer-logo-text">ShelfSense</span>
+            </div>
+            <p className="lp-footer-tagline">Inventory management for businesses that cannot afford blind spots.</p>
           </div>
           <div className="lp-footer-links">
             <div className="lp-footer-col">
@@ -709,15 +805,17 @@ export function LandingPage() {
             </div>
             <div className="lp-footer-col">
               <span className="lp-footer-col-title">Legal</span>
-              <Link to="/privacy" className="lp-footer-link">Privacy policy</Link>
-              <Link to="/terms" className="lp-footer-link">Terms of service</Link>
+              <Link to="/privacy" className="lp-footer-link">Privacy Policy</Link>
+              <Link to="/terms" className="lp-footer-link">Terms of Service</Link>
+              <Link to="/refund" className="lp-footer-link">Refund Policy</Link>
               <a href="mailto:hello@shelfsense.com" className="lp-footer-link">Contact us</a>
             </div>
           </div>
         </div>
         <div className="lp-footer-bottom">
-          <div className="lp-container">
-            © {new Date().getFullYear()} ShelfSense. All rights reserved.
+          <div className="lp-container lp-footer-bottom-inner">
+            <span>© {new Date().getFullYear()} ShelfSense. All rights reserved.</span>
+            <span className="lp-footer-bottom-tagline">Built for real inventory teams.</span>
           </div>
         </div>
       </footer>

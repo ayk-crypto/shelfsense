@@ -1,0 +1,117 @@
+Update ShelfSense pricing plan display logic so that Business / Enterprise plans can show “Custom pricing” instead of showing $0.
+
+Current issue:
+- Pricing plans are customizable from the Super Admin backend.
+- The Business plan currently has amount = 0 and CTA = Contact Sales.
+- On the public pricing page, Business is displayed as “$0 forever”, which is misleading.
+- Business should behave like enterprise plans on other SaaS websites: no fixed price shown, only “Custom pricing” / “Contact sales”.
+
+Required change:
+
+1. Add plan price display mode
+Add a new field to the Plan model if not already available:
+
+priceDisplayMode enum/string:
+- FIXED
+- CUSTOM
+
+Default should be FIXED.
+
+Suggested behavior:
+- FIXED = show normal price using amount and billing cycle.
+- CUSTOM = hide numeric price and show “Custom pricing”.
+
+If using Prisma enum, add:
+enum PlanPriceDisplayMode {
+  FIXED
+  CUSTOM
+}
+
+Plan model:
+priceDisplayMode PlanPriceDisplayMode @default(FIXED)
+
+Create a proper Prisma migration for this. Do not use db push for production.
+
+2. Existing plan data migration
+After adding the field:
+- Set Free, Basic, and Pro plans to FIXED.
+- Set Business plan to CUSTOM.
+
+Use safe migration logic based on plan slug/name if available:
+- slug = 'business' OR name ILIKE '%business%' OR name ILIKE '%enterprise%'
+Then priceDisplayMode = CUSTOM.
+
+3. Super Admin plan editor
+Update the admin plan form to include a pricing display option:
+
+Pricing display:
+- Fixed price
+- Custom pricing / Contact sales
+
+If Fixed price is selected:
+- Show amount field
+- Show billing cycle field
+- Show currency as USD only
+
+If Custom pricing is selected:
+- Amount can remain 0 internally
+- Hide or disable amount field if appropriate
+- Show helper text:
+  “Custom pricing hides the numeric amount on the public pricing page and shows Contact Sales instead.”
+
+Important:
+- Currency for ShelfSense plans must remain USD.
+- Do not use workspace currency for plan pricing.
+
+4. Public pricing page display logic
+Update pricing card rendering:
+
+If plan.priceDisplayMode === "CUSTOM":
+- Do not show "$0"
+- Show:
+  Main price text: "Custom pricing"
+  Optional subtext: "Tailored for larger teams"
+- CTA should be:
+  "Contact Sales"
+- Small note:
+  "We’ll prepare a quotation based on your users, locations, and operational needs."
+
+If plan.priceDisplayMode === "FIXED":
+- Show existing price format:
+  Free: "$0 forever"
+  Monthly paid: "$19 / mo"
+  Annual if applicable according to existing logic.
+
+5. Fallback logic
+If priceDisplayMode is missing/null:
+- Treat Business/Enterprise plan as CUSTOM if:
+  plan.cta text includes "Contact Sales"
+  OR plan.slug/name includes "business" or "enterprise"
+- Otherwise treat as FIXED.
+
+This prevents old records from breaking the pricing page.
+
+6. UX copy for Business card
+Use this for the Business plan:
+
+Price:
+“Custom pricing”
+
+Description:
+“Enterprise-grade inventory management with dedicated support and custom onboarding.”
+
+CTA:
+“Contact Sales”
+
+Footer note:
+“Custom quotation available”
+
+7. Validation/testing
+Test these scenarios:
+- Free plan amount = 0 and priceDisplayMode = FIXED → shows "$0 forever"
+- Business plan amount = 0 and priceDisplayMode = CUSTOM → shows "Custom pricing"
+- Basic plan amount = 19 and priceDisplayMode = FIXED → shows "$19 / mo"
+- Pro plan amount = 49 and priceDisplayMode = FIXED → shows "$49 / mo"
+- Admin can update Business plan display mode without breaking the public page.
+- Build passes.
+- Prisma migration is created and committed.

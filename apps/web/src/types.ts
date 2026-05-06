@@ -167,6 +167,8 @@ export interface PublicPlan {
   enableCustomRoles: boolean;
   enableEmailAlerts: boolean;
   enableDailyOps: boolean;
+  priceDisplayMode: "FIXED" | "CUSTOM";
+  ctaText: string | null;
   sortOrder: number;
 }
 
@@ -251,12 +253,15 @@ export interface AuditLog {
 
 export interface AuditLogsResponse {
   logs: AuditLog[];
+  pagination: { page: number; limit: number; total: number; pages: number };
 }
 
 export interface AuditLogFilters {
   fromDate?: string;
   toDate?: string;
   action?: string;
+  search?: string;
+  page?: number;
 }
 
 export interface StockSummaryItem {
@@ -1211,6 +1216,8 @@ export interface AdminPlan {
   enableCustomRoles: boolean;
   enableEmailAlerts: boolean;
   enableDailyOps: boolean;
+  priceDisplayMode: "FIXED" | "CUSTOM";
+  ctaText: string | null;
   isPublic: boolean;
   isActive: boolean;
   sortOrder: number;

@@ -119,14 +119,15 @@ export function AdminUsersPage() {
     setParam(key, current === value ? "" : value);
   }
 
-  async function handleToggleDisable(user: AdminUser) {
+  const [disableTarget, setDisableTarget] = useState<AdminUser | null>(null);
+
+  async function execToggleDisable(user: AdminUser) {
     if (user.platformRole === "SUPER_ADMIN") return;
-    const newState = !user.isDisabled;
-    if (newState && !window.confirm(`Disable ${user.name}? They will be blocked from logging in.`)) return;
+    setDisableTarget(null);
     setActionLoading(user.id);
     setActionError(null);
     try {
-      await updateUserStatus(user.id, newState);
+      await updateUserStatus(user.id, !user.isDisabled);
       load();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Action failed");
@@ -135,10 +136,34 @@ export function AdminUsersPage() {
     }
   }
 
+  function handleToggleDisable(user: AdminUser) {
+    if (user.platformRole === "SUPER_ADMIN") return;
+    if (!user.isDisabled) { setDisableTarget(user); return; }
+    void execToggleDisable(user);
+  }
+
   const hasFilters = !!(search || verified || disabled || role || plan || subscriptionStatus || includePlatformAdmins);
 
   return (
     <div className="admin-page">
+      {disableTarget && (
+        <div className="ud-confirm-overlay" onClick={() => setDisableTarget(null)}>
+          <div className="ud-confirm-box" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+            <h3 className="ud-confirm-title">Disable User Account</h3>
+            <p className="ud-confirm-message">
+              Disable <strong>{disableTarget.name}</strong> ({disableTarget.email})?
+              They will be immediately blocked from logging in. You can re-enable them at any time.
+            </p>
+            <div className="ud-confirm-actions">
+              <button className="btn btn--ghost btn--sm" onClick={() => setDisableTarget(null)}>Cancel</button>
+              <button className="btn btn--danger btn--sm" onClick={() => void execToggleDisable(disableTarget)}>
+                Disable Account
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="admin-page-header">
         <div>
           <h1 className="admin-page-title">Users</h1>

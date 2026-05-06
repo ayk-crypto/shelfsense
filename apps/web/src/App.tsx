@@ -58,6 +58,9 @@ import { BillingSuccessPage } from "./pages/BillingSuccessPage";
 import { BillingFailedPage } from "./pages/BillingFailedPage";
 import { BillingPendingPage } from "./pages/BillingPendingPage";
 import { BillingSettingsPage } from "./pages/BillingSettingsPage";
+import { TermsPage } from "./pages/TermsPage";
+import { PrivacyPage } from "./pages/PrivacyPage";
+import { RefundPage } from "./pages/RefundPage";
 import { useEffect, useState } from "react";
 import type { OnboardingStatus, WorkspaceSettings } from "./types";
 import type { Role } from "./types";
@@ -320,6 +323,9 @@ export function App() {
           />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
+          <Route path="/terms" element={<TermsPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/refund" element={<RefundPage />} />
           <Route
             path="/onboarding"
             element={

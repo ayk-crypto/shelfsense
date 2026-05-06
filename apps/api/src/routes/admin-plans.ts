@@ -42,6 +42,8 @@ const PLAN_SELECT = {
   enableCustomRoles: true,
   enableEmailAlerts: true,
   enableDailyOps: true,
+  ctaText: true,
+  priceDisplayMode: true,
   isPublic: true,
   isActive: true,
   sortOrder: true,
@@ -86,6 +88,8 @@ adminPlansRouter.post("/", asyncHandler(async (req, res) => {
     enableCustomRoles?: boolean;
     enableEmailAlerts?: boolean;
     enableDailyOps?: boolean;
+    ctaText?: string | null;
+    priceDisplayMode?: "FIXED" | "CUSTOM";
     isPublic?: boolean;
     sortOrder?: number;
   };
@@ -106,7 +110,7 @@ adminPlansRouter.post("/", asyncHandler(async (req, res) => {
       description: body.description?.trim() ?? null,
       monthlyPrice: body.monthlyPrice ?? 0,
       annualPrice: body.annualPrice ?? 0,
-      currency: body.currency ?? "PKR",
+      currency: "USD",
       trialDays: body.trialDays ?? 0,
       maxUsers: body.maxUsers ?? null,
       maxLocations: body.maxLocations ?? null,
@@ -124,6 +128,8 @@ adminPlansRouter.post("/", asyncHandler(async (req, res) => {
       enableCustomRoles: body.enableCustomRoles ?? false,
       enableEmailAlerts: body.enableEmailAlerts ?? true,
       enableDailyOps: body.enableDailyOps ?? true,
+      ctaText: body.ctaText?.trim() ?? null,
+      priceDisplayMode: body.priceDisplayMode ?? "FIXED",
       isPublic: body.isPublic ?? true,
       sortOrder: body.sortOrder ?? 0,
     },
@@ -167,6 +173,8 @@ adminPlansRouter.patch("/:id", asyncHandler(async (req, res) => {
     enableCustomRoles: boolean;
     enableEmailAlerts: boolean;
     enableDailyOps: boolean;
+    ctaText: string | null;
+    priceDisplayMode: "FIXED" | "CUSTOM";
     isPublic: boolean;
     sortOrder: number;
   }>;
@@ -179,7 +187,6 @@ adminPlansRouter.patch("/:id", asyncHandler(async (req, res) => {
   if (body.description !== undefined) data.description = body.description;
   if (body.monthlyPrice !== undefined) data.monthlyPrice = body.monthlyPrice;
   if (body.annualPrice !== undefined) data.annualPrice = body.annualPrice;
-  if (body.currency !== undefined) data.currency = body.currency;
   if (body.trialDays !== undefined) data.trialDays = body.trialDays;
   if (body.maxUsers !== undefined) data.maxUsers = body.maxUsers;
   if (body.maxLocations !== undefined) data.maxLocations = body.maxLocations;
@@ -197,6 +204,8 @@ adminPlansRouter.patch("/:id", asyncHandler(async (req, res) => {
   if (body.enableCustomRoles !== undefined) data.enableCustomRoles = body.enableCustomRoles;
   if (body.enableEmailAlerts !== undefined) data.enableEmailAlerts = body.enableEmailAlerts;
   if (body.enableDailyOps !== undefined) data.enableDailyOps = body.enableDailyOps;
+  if (body.ctaText !== undefined) data.ctaText = body.ctaText?.trim() ?? null;
+  if (body.priceDisplayMode !== undefined) data.priceDisplayMode = body.priceDisplayMode;
   if (body.isPublic !== undefined) data.isPublic = body.isPublic;
   if (body.sortOrder !== undefined) data.sortOrder = body.sortOrder;
 

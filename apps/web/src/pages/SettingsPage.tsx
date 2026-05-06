@@ -291,7 +291,7 @@ export function SettingsPage() {
                     <option key={c.value} value={c.value}>{c.label}</option>
                   ))}
                 </select>
-                <span className="stg-hint">Used in cost calculations and reports</span>
+                <span className="stg-hint">Used for inventory costs, item valuations, and business reports. Changing this does not affect your ShelfSense subscription billing.</span>
               </div>
               <div className="stg-field">
                 <label className="stg-label" htmlFor="ws-phone">Owner Phone</label>

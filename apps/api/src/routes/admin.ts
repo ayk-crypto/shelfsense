@@ -886,9 +886,17 @@ adminRouter.get("/audit-logs", asyncHandler(async (req, res) => {
   const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? "50"), 10)));
   const skip = (page - 1) * limit;
   const action = typeof req.query.action === "string" ? req.query.action.trim() : undefined;
+  const search = typeof req.query.search === "string" ? req.query.search.trim() : undefined;
+  const fromDateRaw = typeof req.query.fromDate === "string" ? req.query.fromDate.trim() : undefined;
+  const toDateRaw = typeof req.query.toDate === "string" ? req.query.toDate.trim() : undefined;
+
+  const fromDate = fromDateRaw ? new Date(fromDateRaw) : undefined;
+  const toDate = toDateRaw ? (() => { const d = new Date(toDateRaw); if (/^\d{4}-\d{2}-\d{2}$/.test(toDateRaw)) d.setHours(23, 59, 59, 999); return d; })() : undefined;
 
   const where: Record<string, unknown> = {};
   if (action) where.action = action;
+  if (search) where.admin = { OR: [{ name: { contains: search, mode: "insensitive" } }, { email: { contains: search, mode: "insensitive" } }] };
+  if (fromDate || toDate) where.createdAt = { gte: fromDate, lte: toDate };
 
   const [total, logs] = await Promise.all([
     prisma.adminAuditLog.count({ where }),
@@ -902,5 +910,5 @@ adminRouter.get("/audit-logs", asyncHandler(async (req, res) => {
     }),
   ]);
 
-  return res.json({ logs, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
+  return res.json({ logs, pagination: { page, limit, total, pages: Math.ceil(total / limit) || 1 } });
 }));

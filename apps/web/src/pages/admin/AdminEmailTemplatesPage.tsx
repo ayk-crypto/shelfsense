@@ -146,8 +146,10 @@ function TemplateModal({
     }
   }
 
-  async function handleReset() {
-    if (!window.confirm("Reset this template to the default? Your changes will be lost.")) return;
+  const [resetConfirm, setResetConfirm] = useState(false);
+
+  async function execReset() {
+    setResetConfirm(false);
     setSaving(true);
     try {
       await resetAdminEmailTemplate(templateKey);
@@ -172,6 +174,22 @@ function TemplateModal({
   }
 
   return (
+    <>
+    {resetConfirm && (
+      <div className="ud-confirm-overlay" onClick={() => setResetConfirm(false)}>
+        <div className="ud-confirm-box" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+          <h3 className="ud-confirm-title">Reset to Default</h3>
+          <p className="ud-confirm-message">
+            Reset <strong>{template?.name ?? templateKey}</strong> to the system default? Any custom
+            changes you've made will be permanently discarded.
+          </p>
+          <div className="ud-confirm-actions">
+            <button className="btn btn--ghost btn--sm" onClick={() => setResetConfirm(false)}>Cancel</button>
+            <button className="btn btn--danger btn--sm" onClick={() => void execReset()}>Reset to Default</button>
+          </div>
+        </div>
+      </div>
+    )}
     <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal modal--xl">
         <div className="modal-header">
@@ -240,7 +258,7 @@ function TemplateModal({
           ) : null}
         </div>
         <div className="modal-footer" style={{ justifyContent: "space-between" }}>
-          <button className="btn btn--ghost" onClick={handleReset} disabled={saving}>Reset to Default</button>
+          <button className="btn btn--ghost" onClick={() => setResetConfirm(true)} disabled={saving}>Reset to Default</button>
           <div style={{ display: "flex", gap: 8 }}>
             <button className="btn btn--ghost" onClick={onClose} disabled={saving}>Cancel</button>
             <button className="btn btn--primary" onClick={handleSave} disabled={saving || loading}>
@@ -250,5 +268,6 @@ function TemplateModal({
         </div>
       </div>
     </div>
+    </>
   );
 }

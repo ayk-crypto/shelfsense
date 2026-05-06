@@ -1,0 +1,57 @@
+Create three public legal policy pages for ShelfSense:
+
+1. /terms
+2. /privacy
+3. /refund
+
+Requirements:
+- These pages must be accessible without authentication.
+- Add them to the public routing of the frontend app.
+- Add footer links to Terms, Privacy Policy, and Refund Policy on public pages, login page, signup page, pricing/payment plan page, and checkout-related pages.
+- Keep the design consistent with ShelfSense branding.
+- Use a clean SaaS legal page layout with title, effective date, sections, and readable spacing.
+- Add placeholder company name as “SenseStack Technologies” unless already configured elsewhere.
+- Product name should be “ShelfSense”.
+- Billing currency should be USD.
+- Mention that ShelfSense is a subscription-based SaaS platform for inventory, stock, expiry, and business operations management.
+- Do not require backend authentication for these routes.
+- Ensure the routes work in production after deployment.
+
+Content instructions:
+
+Terms page should include:
+- Acceptance of terms
+- Description of service
+- Account registration and workspace responsibility
+- Subscription plans and billing in USD
+- Trial/free plan and paid plan terms
+- Acceptable use
+- Customer data ownership
+- Service availability
+- Limitation of liability
+- Termination
+- Changes to terms
+- Contact information placeholder
+
+Privacy Policy page should include:
+- What data we collect: account details, workspace data, inventory data, usage logs, billing/customer payment references
+- How data is used: account management, service delivery, support, security, billing, product improvement
+- Payment data: payments are processed by third-party payment providers and ShelfSense does not store full card details
+- Data sharing: only with service providers required to operate the service
+- Security measures
+- Data retention
+- User rights
+- Cookies/analytics placeholder
+- Contact information placeholder
+
+Refund Policy page should include:
+- Subscription payments are billed in USD
+- Free plan has no charges
+- Paid plans may be cancelled anytime, but access remains until the end of the paid billing period
+- Refunds are generally not automatic after successful subscription payment, except where required by law or approved case-by-case
+- Duplicate charges, billing errors, or accidental payments can be reviewed
+- Refund requests must be submitted within 7 or 14 days of payment
+- Business/custom plans may have separate written terms
+- Contact information placeholder
+
+Also create reusable LegalPage layout/component if appropriate.
