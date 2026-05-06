@@ -9,14 +9,20 @@ services:
     runtime: node
     rootDir: .
     branch: main
-    buildCommand: npm install && npm run build:api
-    startCommand: npm run start --workspace @shelfsense/api
+    # Migrations run during build so a failed migration aborts the deploy
+    # before any broken code goes live. DIRECT_URL (non-pooled Neon string)
+    # is required because prisma migrate deploy issues DDL which pgBouncer
+    # (the pooled connection) does not support.
+    buildCommand: npm install && npm run migrate:prod && npm run build:api
+    startCommand: npm run start:raw --workspace @shelfsense/api
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
       # Set every key below manually in the Render dashboard (sync: false = not stored here)
       - key: DATABASE_URL          # Neon POOLED connection string — production project
+        sync: false
+      - key: DIRECT_URL            # Neon DIRECT (non-pooled) connection string — used by prisma migrate deploy
         sync: false
       - key: JWT_SECRET            # ≥32 chars random secret — generate once, never share
         sync: false
@@ -71,13 +77,15 @@ services:
     runtime: node
     rootDir: .
     branch: staging
-    buildCommand: npm install && npm run build:api
-    startCommand: npm run start --workspace @shelfsense/api
+    buildCommand: npm install && npm run migrate:prod && npm run build:api
+    startCommand: npm run start:raw --workspace @shelfsense/api
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: staging
       - key: DATABASE_URL          # Neon POOLED connection string — staging project (DIFFERENT from production)
+        sync: false
+      - key: DIRECT_URL            # Neon DIRECT (non-pooled) connection string — staging project
         sync: false
       - key: JWT_SECRET            # Different secret from production
         sync: false

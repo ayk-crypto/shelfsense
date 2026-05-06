@@ -7,6 +7,12 @@ const databaseUrl =
   process.env["DATABASE_URL"] ??
   "postgresql://postgres:postgres@localhost:5432/shelfsense?schema=public";
 
+// DIRECT_URL must be the non-pooled Neon connection string.
+// Prisma uses directUrl for `prisma migrate deploy` (DDL statements that
+// cannot run through pgBouncer) and the regular url for runtime queries.
+// In local dev without a pooler, fall back to DATABASE_URL.
+const directUrl = process.env["DIRECT_URL"] ?? databaseUrl;
+
 export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
@@ -14,5 +20,6 @@ export default defineConfig({
   },
   datasource: {
     url: databaseUrl,
+    directUrl,
   },
 });
