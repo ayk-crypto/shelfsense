@@ -17708,6 +17708,48 @@ body {
   margin-bottom: 24px;
 }
 
+/* ─── User detail confirm dialog ─────────────────────────── */
+.ud-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9000;
+  padding: 16px;
+  backdrop-filter: blur(2px);
+}
+
+.ud-confirm-box {
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.18);
+  padding: 28px 28px 24px;
+  max-width: 400px;
+  width: 100%;
+}
+
+.ud-confirm-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 10px;
+}
+
+.ud-confirm-message {
+  font-size: 13.5px;
+  color: #475569;
+  margin: 0 0 24px;
+  line-height: 1.6;
+}
+
+.ud-confirm-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
 /* ─── Admin Misc ────────────────────────────────────────── */
 .admin-loading {
   display: flex;

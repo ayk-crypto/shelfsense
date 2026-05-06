@@ -9,9 +9,8 @@ function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
 
-function fmtAmount(amount: number, currency: string) {
-  const symbol = currency === "USD" ? "$" : currency;
-  return `${symbol} ${amount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+function fmtAmount(amount: number, _currency?: string) {
+  return `$ ${amount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 }
 
 function fmtMethod(method: string) {
