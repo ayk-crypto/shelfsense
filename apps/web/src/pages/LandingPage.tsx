@@ -290,6 +290,7 @@ type PricingCard = {
   features: PricingFeature[];
   currency: string;
   isCustom?: boolean;
+  cta?: string;
 };
 
 function limitLabel(val: number | null, unit: string, singular?: string): string {
@@ -343,6 +344,7 @@ function planToCard(plan: PublicPlan): PricingCard {
     features,
     currency: "$",
     isCustom: custom,
+    cta: plan.ctaText ?? undefined,
   };
 }
 
@@ -352,7 +354,7 @@ const STATIC_PRICING: PricingCard[] = [
     price: "0",
     period: "forever",
     desc: "For testing and very small teams replacing spreadsheets.",
-    color: "#64748b", bg: "#f8fafc", highlight: false, currency: "$",
+    color: "#64748b", bg: "#f8fafc", highlight: false, currency: "$", cta: "Start Free",
     limits: ["3 users", "1 location", "50 items"],
     features: [
       { label: "Expiry tracking",      included: true  },
@@ -372,7 +374,7 @@ const STATIC_PRICING: PricingCard[] = [
     price: "19",
     period: "/ mo",
     desc: "For growing teams that need real inventory control across multiple locations.",
-    color: "#6366f1", bg: "#eef2ff", highlight: true, currency: "$",
+    color: "#6366f1", bg: "#eef2ff", highlight: true, currency: "$", cta: "Choose Basic",
     limits: ["10 users", "5 locations", "500 items"],
     features: [
       { label: "Expiry tracking",      included: true  },
@@ -392,7 +394,7 @@ const STATIC_PRICING: PricingCard[] = [
     price: "49",
     period: "/ mo",
     desc: "For multi-location operations needing advanced tracking and custom roles.",
-    color: "#7c3aed", bg: "#f5f3ff", highlight: false, currency: "$",
+    color: "#7c3aed", bg: "#f5f3ff", highlight: false, currency: "$", cta: "Choose Pro",
     limits: ["Unlimited users", "Unlimited locations", "Unlimited items"],
     features: [
       { label: "Expiry tracking",      included: true },
@@ -412,7 +414,7 @@ const STATIC_PRICING: PricingCard[] = [
     price: "0",
     period: "/ mo",
     desc: "Enterprise-grade inventory management with dedicated support and custom onboarding.",
-    color: "#0ea5e9", bg: "#f0f9ff", highlight: false, currency: "$",
+    color: "#0ea5e9", bg: "#f0f9ff", highlight: false, currency: "$", cta: "Contact Sales",
     isCustom: true,
     limits: ["Unlimited users", "Unlimited locations", "Unlimited items"],
     features: [
@@ -737,10 +739,12 @@ export function LandingPage() {
                 >
                   {isAuthenticated
                     ? "Open dashboard"
+                    : plan.cta
+                    ? plan.cta
                     : plan.isCustom
                     ? "Contact Sales"
                     : plan.tier === "Free"
-                    ? "Start free"
+                    ? "Start Free"
                     : `Choose ${plan.tier}`}
                 </button>
                 {!isAuthenticated && (

@@ -168,6 +168,7 @@ export interface PublicPlan {
   enableEmailAlerts: boolean;
   enableDailyOps: boolean;
   priceDisplayMode: "FIXED" | "CUSTOM";
+  ctaText: string | null;
   sortOrder: number;
 }
 
@@ -1216,6 +1217,7 @@ export interface AdminPlan {
   enableEmailAlerts: boolean;
   enableDailyOps: boolean;
   priceDisplayMode: "FIXED" | "CUSTOM";
+  ctaText: string | null;
   isPublic: boolean;
   isActive: boolean;
   sortOrder: number;

@@ -42,6 +42,7 @@ const PLAN_SELECT = {
   enableCustomRoles: true,
   enableEmailAlerts: true,
   enableDailyOps: true,
+  ctaText: true,
   priceDisplayMode: true,
   isPublic: true,
   isActive: true,
@@ -87,6 +88,7 @@ adminPlansRouter.post("/", asyncHandler(async (req, res) => {
     enableCustomRoles?: boolean;
     enableEmailAlerts?: boolean;
     enableDailyOps?: boolean;
+    ctaText?: string | null;
     priceDisplayMode?: "FIXED" | "CUSTOM";
     isPublic?: boolean;
     sortOrder?: number;
@@ -126,6 +128,7 @@ adminPlansRouter.post("/", asyncHandler(async (req, res) => {
       enableCustomRoles: body.enableCustomRoles ?? false,
       enableEmailAlerts: body.enableEmailAlerts ?? true,
       enableDailyOps: body.enableDailyOps ?? true,
+      ctaText: body.ctaText?.trim() ?? null,
       priceDisplayMode: body.priceDisplayMode ?? "FIXED",
       isPublic: body.isPublic ?? true,
       sortOrder: body.sortOrder ?? 0,
@@ -170,6 +173,7 @@ adminPlansRouter.patch("/:id", asyncHandler(async (req, res) => {
     enableCustomRoles: boolean;
     enableEmailAlerts: boolean;
     enableDailyOps: boolean;
+    ctaText: string | null;
     priceDisplayMode: "FIXED" | "CUSTOM";
     isPublic: boolean;
     sortOrder: number;
@@ -200,6 +204,7 @@ adminPlansRouter.patch("/:id", asyncHandler(async (req, res) => {
   if (body.enableCustomRoles !== undefined) data.enableCustomRoles = body.enableCustomRoles;
   if (body.enableEmailAlerts !== undefined) data.enableEmailAlerts = body.enableEmailAlerts;
   if (body.enableDailyOps !== undefined) data.enableDailyOps = body.enableDailyOps;
+  if (body.ctaText !== undefined) data.ctaText = body.ctaText?.trim() ?? null;
   if (body.priceDisplayMode !== undefined) data.priceDisplayMode = body.priceDisplayMode;
   if (body.isPublic !== undefined) data.isPublic = body.isPublic;
   if (body.sortOrder !== undefined) data.sortOrder = body.sortOrder;

@@ -31,6 +31,7 @@ const PUBLIC_PLAN_SELECT = {
   enableEmailAlerts: true,
   enableDailyOps: true,
   priceDisplayMode: true,
+  ctaText: true,
   sortOrder: true,
 } as const;
 

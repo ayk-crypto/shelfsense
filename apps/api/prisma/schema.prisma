@@ -608,6 +608,7 @@ model Plan {
   enableCustomRoles         Boolean   @default(false)
   enableEmailAlerts         Boolean   @default(true)
   enableDailyOps            Boolean   @default(true)
+  ctaText                   String?
   priceDisplayMode          PlanPriceDisplayMode @default(FIXED)
   isPublic                  Boolean   @default(true)
   isActive                  Boolean   @default(true)
