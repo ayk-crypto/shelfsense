@@ -46,6 +46,9 @@ A SaaS application for smart inventory and expiry tracking targeted at small bus
 - `apps/api/src/lib/payment-provider/`: Payment gateway abstraction
 - `apps/api/src/lib/paddle-config.ts`: Paddle price ID resolution + helpers
 - `apps/web/src/lib/paddle.ts`: Paddle.js initialization helper (frontend)
+- `apps/api/src/middleware/require-plan-feature.ts`: Backend plan feature guard middleware
+- `apps/web/src/context/PlanFeaturesContext.tsx`: Frontend plan features context + hook + FREE defaults
+- `apps/web/src/components/PlanFeatureGate.tsx`: Upgrade wall component for locked features
 - `docs/deployment.md`: Full deployment guide and environment variable reference
 
 ## Architecture decisions
@@ -55,6 +58,7 @@ A SaaS application for smart inventory and expiry tracking targeted at small bus
 - **Onboarding Workflow**: A mandatory 6-step wizard plus plan selection, enforced by `OnboardingGuard` to ensure completion before full app access.
 - **Payment Gateway Abstraction**: A modular `payment-provider` interface allows easy switching or adding payment providers (mock, PayFast, Safepay stubs, Paddle).
 - **Paddle Integration**: Overlay checkout — backend returns `priceId` + `customData`, frontend opens Paddle overlay via `@paddle/paddle-js`. Subscription activation happens only after HMAC-verified webhook (`transaction.completed`). Raw body captured via express.json `verify` hook for `/webhooks/paddle`.
+- **Plan Feature Enforcement**: Dual-layer gating — backend `requirePlanFeature` middleware returns 403 `PLAN_FEATURE_REQUIRED` for locked routes; frontend `PlanFeaturesContext` + `PlanFeatureGate` component shows upgrade walls. Feature flags flow from `GET /subscriptions/current` into context, defaulting to FREE until loaded.
 - **Scheduled Tasks with Anti-Spam**: Critical alerts (low-stock, expiry) and daily digests are scheduled, with per-workspace timestamps to prevent spamming.
 
 ## Product

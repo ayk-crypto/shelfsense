@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
+import { PlanFeatureGate } from "../components/PlanFeatureGate";
+import { usePlanFeatures } from "../context/PlanFeaturesContext";
 import {
   cancelPurchase,
   createPurchase,
@@ -90,6 +92,7 @@ function numberValue(value: string) {
 }
 
 export function PurchasesPage() {
+  const planFeatures = usePlanFeatures();
   const [searchParams, setSearchParams] = useSearchParams();
   const handledReorderRedirect = useRef(false);
   const { activeLocationId } = useLocation();
@@ -213,6 +216,10 @@ export function PurchasesPage() {
         <p>Loading purchases...</p>
       </div>
     );
+  }
+
+  if (!planFeatures.enablePurchases && !planFeatures.isLoading) {
+    return <PlanFeatureGate feature="enablePurchases">{null}</PlanFeatureGate>;
   }
 
   if (fetchError) {

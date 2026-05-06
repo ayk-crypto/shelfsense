@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { createSupplier, deleteSupplier, getSuppliers, updateSupplier } from "../api/suppliers";
 import { useAuth } from "../context/AuthContext";
+import { PlanFeatureGate } from "../components/PlanFeatureGate";
+import { usePlanFeatures } from "../context/PlanFeaturesContext";
 import type { CreateSupplierInput, Supplier } from "../types";
 
 interface Toast {
@@ -43,6 +45,7 @@ function formatDate(dateStr: string) {
 }
 
 export function SuppliersPage() {
+  const planFeatures = usePlanFeatures();
   const { user } = useAuth();
   const canManage = user?.role === "OWNER" || user?.role === "MANAGER";
 
@@ -111,6 +114,10 @@ export function SuppliersPage() {
         <div className="alert alert--error">{fetchError}</div>
       </div>
     );
+  }
+
+  if (!planFeatures.enableSuppliers && !planFeatures.isLoading) {
+    return <PlanFeatureGate feature="enableSuppliers">{null}</PlanFeatureGate>;
   }
 
   return (

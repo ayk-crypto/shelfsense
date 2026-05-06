@@ -8,6 +8,7 @@ import { getActiveAnnouncements, type CustomerAnnouncement } from "../api/announ
 import { useAuth } from "../context/AuthContext";
 import { useLocation } from "../context/LocationContext";
 import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
+import { PlanFeaturesContext, planFeaturesFromSubscription } from "../context/PlanFeaturesContext";
 import type { CurrentSubscription, Notification } from "../types";
 
 export function AppShell() {
@@ -33,6 +34,7 @@ export function AppShell() {
   const [isDesktopShell, setIsDesktopShell] = useState(() => window.innerWidth >= 768);
   const [commandSearch, setCommandSearch] = useState("");
   const [subscription, setSubscription] = useState<CurrentSubscription | null>(null);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(true);
   const [announcements, setAnnouncements] = useState<CustomerAnnouncement[]>([]);
   const [dismissedIds, setDismissedIds] = useState<ReadonlySet<string>>(() => {
     try {
@@ -46,6 +48,7 @@ export function AppShell() {
   const canViewAlerts = user?.role === "OWNER" || user?.role === "MANAGER" || user?.role === "OPERATOR";
   const canManageTeam = user?.role === "OWNER";
   const workspaceName = settings.name.trim() || "ShelfSense";
+  const planFeatures = planFeaturesFromSubscription(subscription?.plan ?? null, subscriptionLoading);
 
   useEffect(() => {
     async function loadShellSignals() {
@@ -78,11 +81,11 @@ export function AppShell() {
   }, [canViewAlerts, activeLocationId]);
 
   useEffect(() => {
-    if (user?.role !== "OWNER") return;
     getCurrentSubscription()
       .then((res) => setSubscription(res.subscription))
-      .catch(() => {});
-  }, [user?.role]);
+      .catch(() => {})
+      .finally(() => setSubscriptionLoading(false));
+  }, []);
 
   useEffect(() => {
     getActiveAnnouncements()
@@ -208,6 +211,7 @@ export function AppShell() {
   }
 
   return (
+    <PlanFeaturesContext.Provider value={planFeatures}>
     <div className="shell">
       <aside className="sidebar">
         {/* ── Brand header ── */}
@@ -678,6 +682,7 @@ export function AppShell() {
         </div>
       )}
     </div>
+    </PlanFeaturesContext.Provider>
   );
 }
 

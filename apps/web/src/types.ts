@@ -183,6 +183,22 @@ export interface SubscriptionPreview {
   canActivateWithoutPayment: boolean;
 }
 
+export interface CurrentSubscriptionPlan {
+  id: string;
+  name: string;
+  code: string;
+  enablePurchases: boolean;
+  enableSuppliers: boolean;
+  enableTeamManagement: boolean;
+  enableCustomRoles: boolean;
+  enableAdvancedReports: boolean;
+  enableEmailAlerts: boolean;
+  enableDailyOps: boolean;
+  enableReports: boolean;
+  enableExpiryTracking: boolean;
+  enableBarcodeScanning: boolean;
+}
+
 export interface CurrentSubscription {
   id: string;
   status: string;
@@ -190,7 +206,7 @@ export interface CurrentSubscription {
   amount: number;
   currency: string;
   manualNotes: string | null;
-  plan: { id: string; name: string; code: string };
+  plan: CurrentSubscriptionPlan;
 }
 
 export interface UpdateWorkspaceSettingsInput {

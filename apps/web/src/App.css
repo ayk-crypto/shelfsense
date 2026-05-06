@@ -25189,3 +25189,91 @@ body {
   margin: 0 0 8px;
 }
 .billing-contact-sales-note p:last-child { margin: 0; }
+
+/* ── Plan feature gate ──────────────────────────────────────────────────── */
+.plan-gate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  padding: 40px 24px;
+}
+
+.plan-gate--inline {
+  min-height: 0;
+  padding: 32px 16px;
+}
+
+.plan-gate__card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 40px 36px;
+  max-width: 440px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 4px 24px rgba(0,0,0,.06);
+}
+
+.plan-gate__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  background: #f1f5f9;
+  margin: 0 auto 20px;
+  color: #64748b;
+}
+
+.plan-gate__icon svg {
+  width: 28px;
+  height: 28px;
+}
+
+.plan-gate__title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 10px;
+  letter-spacing: -0.01em;
+}
+
+.plan-gate__body {
+  font-size: 14px;
+  color: #64748b;
+  line-height: 1.6;
+  margin: 0 0 24px;
+}
+
+.plan-gate__actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+/* locked button in header actions */
+.plan-locked-btn {
+  opacity: 0.85;
+  cursor: pointer;
+}
+
+/* locked report nav item */
+.rpt-nav-btn--locked {
+  opacity: 0.6;
+  cursor: pointer;
+  position: relative;
+}
+
+.rpt-nav-btn--locked:hover {
+  opacity: 0.85;
+}
+
+.rpt-nav-lock {
+  width: 13px;
+  height: 13px;
+  margin-left: auto;
+  color: #94a3b8;
+  flex-shrink: 0;
+}

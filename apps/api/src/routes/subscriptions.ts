@@ -64,7 +64,23 @@ subscriptionsRouter.get("/current", requireAuth, asyncHandler(async (req, res) =
       currentPeriodStart: true,
       currentPeriodEnd: true,
       manualNotes: true,
-      plan: { select: { id: true, name: true, code: true } },
+      plan: {
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          enablePurchases: true,
+          enableSuppliers: true,
+          enableTeamManagement: true,
+          enableCustomRoles: true,
+          enableAdvancedReports: true,
+          enableEmailAlerts: true,
+          enableDailyOps: true,
+          enableReports: true,
+          enableExpiryTracking: true,
+          enableBarcodeScanning: true,
+        },
+      },
     },
   });
 

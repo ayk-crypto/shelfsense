@@ -3,6 +3,7 @@ import type { Response } from "express";
 import { prisma } from "../db/prisma.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/require-permission.js";
+import { requirePlanFeature } from "../middleware/require-plan-feature.js";
 import { asyncHandler } from "../utils/async-handler.js";
 
 export const reportsRouter = Router();
@@ -81,6 +82,7 @@ reportsRouter.get(
   "/inventory-valuation",
   requireAuth,
   requirePermission("reports:export"),
+  requirePlanFeature("enableAdvancedReports"),
   asyncHandler(async (req, res) => {
     const workspaceId = req.user!.workspaceId!;
     const f = parseFilters(req.query as Record<string, unknown>);
@@ -155,6 +157,7 @@ reportsRouter.get(
   "/wastage-cost",
   requireAuth,
   requirePermission("reports:export"),
+  requirePlanFeature("enableAdvancedReports"),
   asyncHandler(async (req, res) => {
     const workspaceId = req.user!.workspaceId!;
     const f = parseFilters(req.query as Record<string, unknown>);
@@ -301,6 +304,7 @@ reportsRouter.get(
   "/supplier-spend",
   requireAuth,
   requirePermission("reports:export"),
+  requirePlanFeature("enableAdvancedReports"),
   asyncHandler(async (req, res) => {
     const workspaceId = req.user!.workspaceId!;
     const f = parseFilters(req.query as Record<string, unknown>);

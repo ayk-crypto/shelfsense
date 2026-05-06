@@ -10,6 +10,7 @@ import {
   updateCustomRole,
   updateTeamUser,
 } from "../api/team";
+import { usePlanFeatures, REQUIRED_PLAN } from "../context/PlanFeaturesContext";
 import type { CreateCustomRoleInput, CreateTeamUserInput, CustomRole, Permission, TeamMember } from "../types";
 import { MANAGER_PERMISSIONS, OPERATOR_PERMISSIONS, PERMISSION_DEFS } from "../types";
 
@@ -24,6 +25,7 @@ let toastSeq = 0;
 type Tab = "members" | "roles";
 
 export function TeamPage() {
+  const features = usePlanFeatures();
   const [tab, setTab] = useState<Tab>("members");
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
@@ -127,12 +129,19 @@ export function TeamPage() {
               <button className="btn btn--secondary" onClick={() => setShowInactive((v) => !v)}>
                 {showInactive ? "Hide inactive" : "Show inactive"}
               </button>
-              <button className="btn btn--primary" onClick={() => setAddOpen(true)}>
-                + Add User
-              </button>
+              {features.enableTeamManagement && (
+                <button className="btn btn--primary" onClick={() => setAddOpen(true)}>
+                  + Add User
+                </button>
+              )}
+              {!features.enableTeamManagement && !features.isLoading && (
+                <button className="btn btn--primary plan-locked-btn" onClick={() => window.location.href = "/plan"}>
+                  🔒 Upgrade to Add Users
+                </button>
+              )}
             </>
           )}
-          {tab === "roles" && (
+          {tab === "roles" && features.enableCustomRoles && (
             <button className="btn btn--primary" onClick={() => setCreatingRole(true)}>
               + Create Role
             </button>
@@ -196,7 +205,27 @@ export function TeamPage() {
         </>
       )}
 
-      {tab === "roles" && (
+      {tab === "roles" && !features.enableCustomRoles && !features.isLoading && (
+        <div className="plan-gate plan-gate--inline">
+          <div className="plan-gate__card">
+            <div className="plan-gate__icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+            </div>
+            <h2 className="plan-gate__title">{REQUIRED_PLAN.enableCustomRoles} plan required</h2>
+            <p className="plan-gate__body">
+              Custom roles aren't available on the <strong>{features.planName}</strong> plan. Upgrade to <strong>{REQUIRED_PLAN.enableCustomRoles}</strong> to create named roles with granular permissions.
+            </p>
+            <div className="plan-gate__actions">
+              <a href="/plan" className="btn btn--primary">View plans</a>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tab === "roles" && (features.enableCustomRoles || features.isLoading) && (
         <div className="roles-tab">
           {customRoles.length === 0 ? (
             <div className="roles-empty-state">

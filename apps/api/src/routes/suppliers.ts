@@ -2,6 +2,7 @@ import { Router } from "express";
 import { Role } from "../generated/prisma/enums.js";
 import { prisma } from "../db/prisma.js";
 import { requireActiveWorkspace, requireAuth, requireRole } from "../middleware/auth.js";
+import { requirePlanFeature } from "../middleware/require-plan-feature.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { logAction } from "../utils/audit-log.js";
 
@@ -9,6 +10,7 @@ export const suppliersRouter = Router();
 
 suppliersRouter.use(requireAuth);
 suppliersRouter.use(requireActiveWorkspace);
+suppliersRouter.use(requirePlanFeature("enableSuppliers"));
 
 const MAX_SUPPLIER_NAME_LENGTH = 120;
 const MAX_SUPPLIER_PHONE_LENGTH = 32;

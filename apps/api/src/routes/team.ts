@@ -5,6 +5,7 @@ import { Prisma } from "../generated/prisma/client.js";
 import { Role } from "../generated/prisma/enums.js";
 import { prisma } from "../db/prisma.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
+import { requirePlanFeature } from "../middleware/require-plan-feature.js";
 import { asyncHandler } from "../utils/async-handler.js";
 
 export const teamRouter = Router();
@@ -36,7 +37,7 @@ teamRouter.get("/", asyncHandler(async (req, res) => {
   return res.json({ members: members.map(formatMember) });
 }));
 
-teamRouter.post("/users", asyncHandler(async (req, res) => {
+teamRouter.post("/users", requirePlanFeature("enableTeamManagement"), asyncHandler(async (req, res) => {
   const workspaceId = req.user?.workspaceId ?? null;
   if (!workspaceId) return res.status(403).json({ error: "Workspace access required" });
 
@@ -140,7 +141,7 @@ teamRouter.post("/users", asyncHandler(async (req, res) => {
   return res.status(201).json({ user: result });
 }));
 
-teamRouter.patch("/users/:userId", asyncHandler(async (req, res) => {
+teamRouter.patch("/users/:userId", requirePlanFeature("enableTeamManagement"), asyncHandler(async (req, res) => {
   const workspaceId = req.user?.workspaceId ?? null;
   const actorUserId = req.user?.userId ?? null;
   if (!workspaceId || !actorUserId) return res.status(403).json({ error: "Workspace access required" });
@@ -229,7 +230,7 @@ teamRouter.patch("/users/:userId", asyncHandler(async (req, res) => {
   return res.json({ user: formatMember(member) });
 }));
 
-teamRouter.patch("/users/:userId/deactivate", asyncHandler(async (req, res) => {
+teamRouter.patch("/users/:userId/deactivate", requirePlanFeature("enableTeamManagement"), asyncHandler(async (req, res) => {
   const workspaceId = req.user?.workspaceId ?? null;
   const actorUserId = req.user?.userId ?? null;
   if (!workspaceId || !actorUserId) return res.status(403).json({ error: "Workspace access required" });
@@ -270,7 +271,7 @@ teamRouter.patch("/users/:userId/deactivate", asyncHandler(async (req, res) => {
   return res.json({ user: formatMember(member) });
 }));
 
-teamRouter.patch("/users/:userId/reactivate", asyncHandler(async (req, res) => {
+teamRouter.patch("/users/:userId/reactivate", requirePlanFeature("enableTeamManagement"), asyncHandler(async (req, res) => {
   const workspaceId = req.user?.workspaceId ?? null;
   const actorUserId = req.user?.userId ?? null;
   if (!workspaceId || !actorUserId) return res.status(403).json({ error: "Workspace access required" });
@@ -332,7 +333,7 @@ teamRouter.get("/custom-roles", asyncHandler(async (req, res) => {
   });
 }));
 
-teamRouter.post("/custom-roles", asyncHandler(async (req, res) => {
+teamRouter.post("/custom-roles", requirePlanFeature("enableCustomRoles"), asyncHandler(async (req, res) => {
   const workspaceId = req.user?.workspaceId ?? null;
   if (!workspaceId) return res.status(403).json({ error: "Workspace access required" });
 
@@ -379,7 +380,7 @@ teamRouter.post("/custom-roles", asyncHandler(async (req, res) => {
   }
 }));
 
-teamRouter.patch("/custom-roles/:roleId", asyncHandler(async (req, res) => {
+teamRouter.patch("/custom-roles/:roleId", requirePlanFeature("enableCustomRoles"), asyncHandler(async (req, res) => {
   const workspaceId = req.user?.workspaceId ?? null;
   if (!workspaceId) return res.status(403).json({ error: "Workspace access required" });
 
@@ -452,7 +453,7 @@ teamRouter.patch("/custom-roles/:roleId", asyncHandler(async (req, res) => {
   });
 }));
 
-teamRouter.delete("/custom-roles/:roleId", asyncHandler(async (req, res) => {
+teamRouter.delete("/custom-roles/:roleId", requirePlanFeature("enableCustomRoles"), asyncHandler(async (req, res) => {
   const workspaceId = req.user?.workspaceId ?? null;
   if (!workspaceId) return res.status(403).json({ error: "Workspace access required" });
 

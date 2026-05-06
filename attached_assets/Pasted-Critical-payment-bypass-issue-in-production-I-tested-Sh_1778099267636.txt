@@ -1,0 +1,41 @@
+Critical payment bypass issue in production.
+
+I tested ShelfSense after Paddle integration. I had a user on Basic, switched it back to Free, then clicked switch to Basic/Pro. The plan switched directly without opening Paddle checkout or asking for payment.
+
+This is a serious billing bypass. Please investigate and fix.
+
+Expected behavior:
+- Free plan can be activated internally.
+- Basic and Pro must always go through Paddle checkout for normal workspace users.
+- Business must show Contact Sales/manual flow.
+- Only platform admin/manual admin subscription screens may activate paid plans without Paddle.
+- Frontend success page must never activate paid plans.
+- Any old endpoint that directly changes a workspace subscription to BASIC/PRO from user-facing billing pages must be blocked or restricted.
+
+Please check:
+1. PlanSelectionPage flow
+2. BillingCheckoutPage flow
+3. Any “switch plan”, “activate plan”, “change plan”, “select plan”, or subscription update endpoint
+4. Existing provider/manual billing fallback logic
+5. Authorization rules: workspace owner/admin vs platform admin
+6. Whether isPaddleConfigured() false causes fallback to old manual flow
+7. Whether PAYMENT_PROVIDER=paddle is being honored on backend
+8. Whether user-facing endpoints allow paid plan activation without verified webhook
+
+Required fix:
+- In customer-facing/user-facing billing flow:
+  - FREE can update subscription directly.
+  - BASIC/PRO must return checkout flow only.
+  - If Paddle is not configured, show error: “Online payment is currently unavailable. Please contact support.”
+  - Do not fall back to manual provider activation.
+- Backend must reject any user-facing request that tries to activate BASIC/PRO directly when PAYMENT_PROVIDER=paddle.
+- Paid subscription activation must only happen from:
+  1. verified Paddle webhook, or
+  2. platform admin manual subscription management endpoint.
+- Add clear logs when a paid plan activation is blocked.
+- After fix, test:
+  1. Free → Basic opens Paddle checkout, does not activate directly.
+  2. Free → Pro opens Paddle checkout, does not activate directly.
+  3. Closing Paddle checkout leaves user on Free.
+  4. Only successful verified webhook activates Basic/Pro.
+  5. Platform admin manual activation still works from admin panel only.

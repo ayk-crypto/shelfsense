@@ -10,8 +10,10 @@ import {
   getUsageReport,
   getWastageCost,
 } from "../api/reports";
+import { useNavigate } from "react-router-dom";
 import { useLocation } from "../context/LocationContext";
 import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
+import { usePlanFeatures, REQUIRED_PLAN } from "../context/PlanFeaturesContext";
 import type {
   AdjustmentVarianceResponse,
   AdjustmentVarianceRow,
@@ -54,6 +56,7 @@ interface ReportDef {
   showSupplier: boolean;
   csvEndpoint: string;
   csvFilename: string;
+  isAdvanced?: boolean;
 }
 
 const REPORTS: ReportDef[] = [
@@ -67,6 +70,7 @@ const REPORTS: ReportDef[] = [
     showSupplier: false,
     csvEndpoint: "inventory-valuation",
     csvFilename: "inventory-valuation.csv",
+    isAdvanced: true,
   },
   {
     id: "wastage-cost",
@@ -78,6 +82,7 @@ const REPORTS: ReportDef[] = [
     showSupplier: false,
     csvEndpoint: "wastage-cost",
     csvFilename: "wastage-cost.csv",
+    isAdvanced: true,
   },
   {
     id: "usage",
@@ -100,6 +105,7 @@ const REPORTS: ReportDef[] = [
     showSupplier: true,
     csvEndpoint: "supplier-spend",
     csvFilename: "supplier-spend.csv",
+    isAdvanced: true,
   },
   {
     id: "stock-aging",
@@ -194,6 +200,8 @@ function fmtDateTime(iso: string): string {
 // ─── Main component ────────────────────────────────────────────────────────
 
 export function ReportsPage() {
+  const planFeatures = usePlanFeatures();
+  const navigate = useNavigate();
   const { locations } = useLocation();
   const { settings } = useWorkspaceSettings();
   const currency = settings.currency || "";
@@ -284,18 +292,28 @@ export function ReportsPage() {
       <div className="rpt-layout">
         {/* ── Sidebar nav ── */}
         <nav className="rpt-nav" aria-label="Report navigation">
-          {REPORTS.map((r) => (
-            <button
-              key={r.id}
-              type="button"
-              className={`rpt-nav-btn${activeId === r.id ? " rpt-nav-btn--active" : ""}`}
-              style={activeId === r.id ? ({ "--rpt-accent": r.color } as React.CSSProperties) : undefined}
-              onClick={() => handleSwitchReport(r.id)}
-            >
-              <span className="rpt-nav-dot" style={activeId === r.id ? { background: r.color } : undefined} />
-              <span className="rpt-nav-label">{r.label}</span>
-            </button>
-          ))}
+          {REPORTS.map((r) => {
+            const isLocked = r.isAdvanced && !planFeatures.enableAdvancedReports && !planFeatures.isLoading;
+            return (
+              <button
+                key={r.id}
+                type="button"
+                className={`rpt-nav-btn${activeId === r.id ? " rpt-nav-btn--active" : ""}${isLocked ? " rpt-nav-btn--locked" : ""}`}
+                style={activeId === r.id && !isLocked ? ({ "--rpt-accent": r.color } as React.CSSProperties) : undefined}
+                onClick={() => isLocked ? navigate("/plan") : handleSwitchReport(r.id)}
+                title={isLocked ? `Upgrade to ${REQUIRED_PLAN.enableAdvancedReports} to access this report` : undefined}
+              >
+                <span className="rpt-nav-dot" style={activeId === r.id && !isLocked ? { background: r.color } : undefined} />
+                <span className="rpt-nav-label">{r.label}</span>
+                {isLocked && (
+                  <svg className="rpt-nav-lock" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="7" width="10" height="8" rx="1.5" />
+                    <path d="M5 7V5a3 3 0 0 1 6 0v2" />
+                  </svg>
+                )}
+              </button>
+            );
+          })}
         </nav>
 
         {/* ── Main panel ── */}
@@ -323,6 +341,27 @@ export function ReportsPage() {
               Export CSV
             </button>
           </div>
+
+          {activeDef.isAdvanced && !planFeatures.enableAdvancedReports && !planFeatures.isLoading && (
+            <div className="plan-gate plan-gate--inline">
+              <div className="plan-gate__card">
+                <div className="plan-gate__icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  </svg>
+                </div>
+                <h2 className="plan-gate__title">{REQUIRED_PLAN.enableAdvancedReports} plan required</h2>
+                <p className="plan-gate__body">
+                  This report isn't available on your current <strong>{planFeatures.planName}</strong> plan.
+                  Upgrade to <strong>{REQUIRED_PLAN.enableAdvancedReports}</strong> or higher to access all advanced analytics.
+                </p>
+                <div className="plan-gate__actions">
+                  <button className="btn btn--primary" onClick={() => navigate("/plan")}>View plans</button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {csvError && (
             <div className="alert alert--error" style={{ marginBottom: 12 }}>{csvError}</div>
