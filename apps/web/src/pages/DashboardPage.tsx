@@ -738,42 +738,112 @@ export function DashboardPage() {
         </div>
       )}
 
-      {/* ── Inventory Summary (all roles) ── */}
+      {/* ── Inventory Snapshot (all roles) ── */}
       <div className="db-body">
-        <div className="db-card db-card--full">
-          <div className="db-card-head">
-            <div className="db-card-head-left">
-              <svg className="db-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-              </svg>
-              <h2 className="db-card-title">Inventory Summary</h2>
-              <span className="db-card-helper">{totalItems} items</span>
+        <InventorySnapshot summary={summary} totalItems={totalItems} currency={currency} formatDate={formatDate} />
+      </div>
+
+    </div>
+  );
+}
+
+const INV_PAGE_SIZE = 8;
+
+type InvFilter = "all" | "low" | "ok";
+
+function InventorySnapshot({
+  summary,
+  totalItems,
+  currency,
+  formatDate,
+}: {
+  summary: StockSummaryItem[];
+  totalItems: number;
+  currency: string;
+  formatDate: (d: string | null) => string;
+}) {
+  const [filter, setFilter] = useState<InvFilter>("all");
+  const [search, setSearch] = useState("");
+  const [showAll, setShowAll] = useState(false);
+
+  const lowCount = summary.filter((i) => i.isLowStock).length;
+
+  const filtered = summary
+    .filter((item) => {
+      if (filter === "low") return item.isLowStock;
+      if (filter === "ok") return !item.isLowStock;
+      return true;
+    })
+    .filter((item) =>
+      search.trim() === "" || item.itemName.toLowerCase().includes(search.trim().toLowerCase())
+    )
+    .sort((a, b) => {
+      if (a.isLowStock !== b.isLowStock) return a.isLowStock ? -1 : 1;
+      return a.itemName.localeCompare(b.itemName);
+    });
+
+  const visible = showAll ? filtered : filtered.slice(0, INV_PAGE_SIZE);
+  const hasMore = filtered.length > INV_PAGE_SIZE && !showAll;
+
+  return (
+    <div className="db-card db-card--full">
+      <div className="db-card-head">
+        <div className="db-card-head-left">
+          <svg className="db-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+          </svg>
+          <h2 className="db-card-title">Inventory</h2>
+          <span className="db-card-helper">{totalItems} items</span>
+        </div>
+        <Link to="/items" className="btn btn--secondary btn--sm">View All</Link>
+      </div>
+
+      {summary.length === 0 ? (
+        <div className="empty-state">No items found in this workspace.</div>
+      ) : (
+        <>
+          <div className="inv-snap-toolbar">
+            <div className="inv-snap-filters">
+              {(["all", "low", "ok"] as InvFilter[]).map((f) => (
+                <button
+                  key={f}
+                  className={`inv-snap-filter-btn${filter === f ? " inv-snap-filter-btn--active" : ""}`}
+                  onClick={() => { setFilter(f); setShowAll(false); }}
+                >
+                  {f === "all" ? `All (${totalItems})` : f === "low" ? `Low stock (${lowCount})` : `OK (${totalItems - lowCount})`}
+                </button>
+              ))}
             </div>
-            <Link to="/items" className="btn btn--secondary btn--sm">View All Items</Link>
+            <input
+              className="inv-snap-search"
+              type="search"
+              placeholder="Search items…"
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setShowAll(false); }}
+            />
           </div>
-          {summary.length === 0 ? (
-            <div className="empty-state">No items found in this workspace.</div>
+
+          {visible.length === 0 ? (
+            <div className="empty-state empty-state--compact">No items match this filter.</div>
           ) : (
             <div className="table-wrap">
-              <table className="table">
+              <table className="table table--compact">
                 <thead>
                   <tr>
                     <th>Item</th>
                     <th className="text-right">Qty</th>
                     <th>Unit</th>
-                    <th className="text-right">Min Level</th>
                     <th>Status</th>
                     <th className="text-right">Value</th>
                     <th>Nearest Expiry</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {summary.map((item) => (
+                  {visible.map((item) => (
                     <tr key={item.itemId} className={item.isLowStock ? "row--warn" : ""}>
                       <td className="td-name">{item.itemName}</td>
-                      <td className="text-right td-num">{item.totalQuantity}</td>
+                      <td className="text-right td-num">{formatNumber(item.totalQuantity)}</td>
                       <td className="td-unit">{item.unit}</td>
-                      <td className="text-right td-num">{item.minStockLevel}</td>
                       <td>
                         {item.isLowStock ? (
                           <span className="badge badge--orange">Low stock</span>
@@ -789,9 +859,23 @@ export function DashboardPage() {
               </table>
             </div>
           )}
-        </div>
-      </div>
 
+          {(hasMore || showAll) && (
+            <div className="inv-snap-footer">
+              {hasMore && (
+                <button className="btn btn--ghost btn--sm" onClick={() => setShowAll(true)}>
+                  Show all {filtered.length} items
+                </button>
+              )}
+              {showAll && filtered.length > INV_PAGE_SIZE && (
+                <button className="btn btn--ghost btn--sm" onClick={() => setShowAll(false)}>
+                  Show less
+                </button>
+              )}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

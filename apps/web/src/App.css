@@ -24023,3 +24023,75 @@ body {
   color: var(--text-muted);
   font-size: 11px;
 }
+
+/* ========================================
+   Inventory Snapshot Widget
+   ======================================== */
+
+.inv-snap-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.inv-snap-filters {
+  display: flex;
+  gap: 4px;
+}
+
+.inv-snap-filter-btn {
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 20px;
+  background: transparent;
+  color: var(--color-text-secondary, #64748b);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  white-space: nowrap;
+}
+
+.inv-snap-filter-btn:hover {
+  background: var(--color-bg-subtle, #f8fafc);
+  border-color: var(--color-border-strong, #cbd5e1);
+}
+
+.inv-snap-filter-btn--active {
+  background: var(--color-primary, #4f46e5);
+  border-color: var(--color-primary, #4f46e5);
+  color: #fff;
+}
+
+.inv-snap-search {
+  height: 32px;
+  padding: 0 10px;
+  font-size: 13px;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 6px;
+  background: var(--color-surface, #fff);
+  color: var(--color-text, #1e293b);
+  width: 200px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.inv-snap-search:focus {
+  border-color: var(--color-primary, #4f46e5);
+}
+
+.inv-snap-footer {
+  display: flex;
+  justify-content: center;
+  padding: 10px 0 2px;
+  border-top: 1px solid var(--color-border, #e2e8f0);
+  margin-top: 8px;
+}
+
+.table--compact td,
+.table--compact th {
+  padding: 7px 10px;
+}
