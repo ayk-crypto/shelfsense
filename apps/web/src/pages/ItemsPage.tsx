@@ -66,6 +66,9 @@ interface ImportItemRow {
   barcode: string;
   minStockLevel: number;
   trackExpiry: boolean;
+  purchaseUnit: string;
+  purchaseConversionFactor: number | null;
+  issueUnit: string;
   errors: string[];
   status: "pending" | "imported" | "failed";
 }
@@ -1247,6 +1250,7 @@ function AddItemModal({
   const { settings: modalSettings } = useWorkspaceSettings();
   const unitOptions = modalSettings.customUnits.length > 0 ? modalSettings.customUnits : FALLBACK_UNIT_OPTIONS;
   const categoryOptions = modalSettings.customCategories.length > 0 ? modalSettings.customCategories : FALLBACK_CATEGORY_OPTIONS;
+  const purchaseUnitOptions = modalSettings.customPurchaseUnits ?? [];
   const [form, setForm] = useState<CreateItemInput>({
     name: "",
     unit: unitOptions[0] ?? FALLBACK_UNIT_OPTIONS[0],
@@ -1259,7 +1263,6 @@ function AddItemModal({
     issueUnit: null,
     displayBothUnits: false,
   });
-  const [uomExpanded, setUomExpanded] = useState(false);
   const [saving, setSaving] = useState(false);
   const firstRef = useRef<HTMLInputElement>(null);
 
@@ -1296,21 +1299,88 @@ function AddItemModal({
             required
           />
         </div>
-        <div className="form-group">
-          <label className="form-label">Unit *</label>
-          <select
-            className="form-select"
-            value={form.unit}
-            onChange={(e) => setForm({ ...form, unit: e.target.value })}
-            required
-          >
-            {unitOptions.map((unit) => (
-              <option key={unit} value={unit}>
-                {unit}
-              </option>
-            ))}
-          </select>
+
+        <div className="item-units-section">
+          <div className="item-units-section__title">Units</div>
+          <div className="form-group">
+            <label className="form-label">Stock Unit *</label>
+            <select
+              className="form-select"
+              value={form.unit}
+              onChange={(e) => setForm({ ...form, unit: e.target.value })}
+              required
+            >
+              {unitOptions.map((unit) => (
+                <option key={unit} value={unit}>{unit}</option>
+              ))}
+            </select>
+            <p className="form-helper">How stock is counted and stored internally.</p>
+          </div>
+          <div className="form-row-2col">
+            <div className="form-group">
+              <label className="form-label">Purchase Unit</label>
+              <input
+                className="form-input"
+                list="add-purchase-unit-options"
+                value={form.purchaseUnit ?? ""}
+                onChange={(e) => setForm({ ...form, purchaseUnit: e.target.value || null })}
+                placeholder="e.g. Carton"
+              />
+              {purchaseUnitOptions.length > 0 && (
+                <datalist id="add-purchase-unit-options">
+                  {purchaseUnitOptions.map((u) => <option key={u} value={u} />)}
+                </datalist>
+              )}
+              <p className="form-helper">The larger unit you buy in (optional).</p>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Qty per Purchase Unit</label>
+              <input
+                className="form-input"
+                type="number"
+                min={0.0001}
+                step="any"
+                value={form.purchaseConversionFactor ?? ""}
+                onChange={(e) => setForm({ ...form, purchaseConversionFactor: e.target.value ? Number(e.target.value) : null })}
+                placeholder={form.purchaseUnit ? `How many ${form.unit} per ${form.purchaseUnit}` : "e.g. 12"}
+                disabled={!form.purchaseUnit}
+              />
+              <p className="form-helper">
+                {form.purchaseUnit
+                  ? `1 ${form.purchaseUnit} = ? ${form.unit}`
+                  : "Enter a Purchase Unit first"}
+              </p>
+            </div>
+          </div>
+          {form.purchaseUnit && form.purchaseConversionFactor && form.purchaseConversionFactor > 0 && (
+            <p className="uom-hint uom-hint--form">
+              1 {form.purchaseUnit} = {form.purchaseConversionFactor} {form.unit}
+            </p>
+          )}
+          <div className="form-group">
+            <label className="form-label">Issue / Usage Unit Label</label>
+            <input
+              className="form-input"
+              value={form.issueUnit ?? ""}
+              onChange={(e) => setForm({ ...form, issueUnit: e.target.value || null })}
+              placeholder="e.g. Portion (optional, display only)"
+            />
+            <p className="form-helper">Display label for stock-out. Stock is always tracked in the Stock Unit.</p>
+          </div>
+          <div className="form-group form-group--inline">
+            <input
+              id="displayBothUnits"
+              type="checkbox"
+              checked={form.displayBothUnits ?? false}
+              onChange={(e) => setForm({ ...form, displayBothUnits: e.target.checked })}
+              disabled={!form.purchaseUnit || !form.purchaseConversionFactor}
+            />
+            <label htmlFor="displayBothUnits" className="form-label form-label--check">
+              Show quantity in both units in inventory
+            </label>
+          </div>
         </div>
+
         <div className="form-group">
           <label className="form-label">Category</label>
           <select
@@ -1319,9 +1389,7 @@ function AddItemModal({
             onChange={(e) => setForm({ ...form, category: e.target.value })}
           >
             {categoryOptions.map((category) => (
-              <option key={category} value={category}>
-                {category}
-              </option>
+              <option key={category} value={category}>{category}</option>
             ))}
           </select>
         </div>
@@ -1367,71 +1435,6 @@ function AddItemModal({
           </label>
         </div>
 
-        <div className="uom-section">
-          <button
-            type="button"
-            className="uom-section__toggle"
-            onClick={() => setUomExpanded((v) => !v)}
-          >
-            <span className="uom-section__toggle-label">Unit of Measure (UoM)</span>
-            <span className="uom-section__toggle-icon">{uomExpanded ? "▲" : "▼"}</span>
-          </button>
-          {uomExpanded && (
-            <div className="uom-section__body">
-              <div className="form-row-2col">
-                <div className="form-group">
-                  <label className="form-label">Purchase Unit</label>
-                  <input
-                    className="form-input"
-                    value={form.purchaseUnit ?? ""}
-                    onChange={(e) => setForm({ ...form, purchaseUnit: e.target.value || null })}
-                    placeholder="e.g. Carton"
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Conversion Factor</label>
-                  <input
-                    className="form-input"
-                    type="number"
-                    min={0.0001}
-                    step="any"
-                    value={form.purchaseConversionFactor ?? ""}
-                    onChange={(e) => setForm({ ...form, purchaseConversionFactor: e.target.value ? Number(e.target.value) : null })}
-                    placeholder="e.g. 12"
-                    disabled={!form.purchaseUnit}
-                  />
-                </div>
-              </div>
-              {form.purchaseUnit && form.purchaseConversionFactor && form.purchaseConversionFactor > 0 && (
-                <p className="uom-hint uom-hint--form">
-                  1 {form.purchaseUnit} = {form.purchaseConversionFactor} {form.unit}
-                </p>
-              )}
-              <div className="form-group">
-                <label className="form-label">Issue / Usage Unit Label</label>
-                <input
-                  className="form-input"
-                  value={form.issueUnit ?? ""}
-                  onChange={(e) => setForm({ ...form, issueUnit: e.target.value || null })}
-                  placeholder="e.g. Portion (optional, display only)"
-                />
-              </div>
-              <div className="form-group form-group--inline">
-                <input
-                  id="displayBothUnits"
-                  type="checkbox"
-                  checked={form.displayBothUnits ?? false}
-                  onChange={(e) => setForm({ ...form, displayBothUnits: e.target.checked })}
-                  disabled={!form.purchaseUnit || !form.purchaseConversionFactor}
-                />
-                <label htmlFor="displayBothUnits" className="form-label form-label--check">
-                  Show quantity in both units in inventory
-                </label>
-              </div>
-            </div>
-          )}
-        </div>
-
         <div className="modal-footer">
           <button type="button" className="btn btn--ghost" onClick={onClose}>
             Cancel
@@ -1464,6 +1467,7 @@ function EditItemModal({
   const { settings: editSettings } = useWorkspaceSettings();
   const unitOptions = editSettings.customUnits.length > 0 ? editSettings.customUnits : FALLBACK_UNIT_OPTIONS;
   const categoryOptions = editSettings.customCategories.length > 0 ? editSettings.customCategories : FALLBACK_CATEGORY_OPTIONS;
+  const purchaseUnitOptions = editSettings.customPurchaseUnits ?? [];
   const [form, setForm] = useState<CreateItemInput>({
     name: item.name,
     unit: item.unit,
@@ -1477,7 +1481,6 @@ function EditItemModal({
     issueUnit: item.issueUnit ?? null,
     displayBothUnits: item.displayBothUnits ?? false,
   });
-  const [uomExpanded, setUomExpanded] = useState(!!(item.purchaseUnit));
   const [saving, setSaving] = useState(false);
   const firstRef = useRef<HTMLInputElement>(null);
 
@@ -1517,21 +1520,88 @@ function EditItemModal({
             required
           />
         </div>
-        <div className="form-group">
-          <label className="form-label">Unit *</label>
-          <select
-            className="form-select"
-            value={form.unit}
-            onChange={(e) => setForm({ ...form, unit: e.target.value })}
-            required
-          >
-            {unitOptions.map((unit) => (
-              <option key={unit} value={unit}>
-                {unit}
-              </option>
-            ))}
-          </select>
+
+        <div className="item-units-section">
+          <div className="item-units-section__title">Units</div>
+          <div className="form-group">
+            <label className="form-label">Stock Unit *</label>
+            <select
+              className="form-select"
+              value={form.unit}
+              onChange={(e) => setForm({ ...form, unit: e.target.value })}
+              required
+            >
+              {unitOptions.map((unit) => (
+                <option key={unit} value={unit}>{unit}</option>
+              ))}
+            </select>
+            <p className="form-helper">How stock is counted and stored internally.</p>
+          </div>
+          <div className="form-row-2col">
+            <div className="form-group">
+              <label className="form-label">Purchase Unit</label>
+              <input
+                className="form-input"
+                list="edit-purchase-unit-options"
+                value={form.purchaseUnit ?? ""}
+                onChange={(e) => setForm({ ...form, purchaseUnit: e.target.value || null })}
+                placeholder="e.g. Carton"
+              />
+              {purchaseUnitOptions.length > 0 && (
+                <datalist id="edit-purchase-unit-options">
+                  {purchaseUnitOptions.map((u) => <option key={u} value={u} />)}
+                </datalist>
+              )}
+              <p className="form-helper">The larger unit you buy in (optional).</p>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Qty per Purchase Unit</label>
+              <input
+                className="form-input"
+                type="number"
+                min={0.0001}
+                step="any"
+                value={form.purchaseConversionFactor ?? ""}
+                onChange={(e) => setForm({ ...form, purchaseConversionFactor: e.target.value ? Number(e.target.value) : null })}
+                placeholder={form.purchaseUnit ? `How many ${form.unit} per ${form.purchaseUnit}` : "e.g. 12"}
+                disabled={!form.purchaseUnit}
+              />
+              <p className="form-helper">
+                {form.purchaseUnit
+                  ? `1 ${form.purchaseUnit} = ? ${form.unit}`
+                  : "Enter a Purchase Unit first"}
+              </p>
+            </div>
+          </div>
+          {form.purchaseUnit && form.purchaseConversionFactor && form.purchaseConversionFactor > 0 && (
+            <p className="uom-hint uom-hint--form">
+              1 {form.purchaseUnit} = {form.purchaseConversionFactor} {form.unit}
+            </p>
+          )}
+          <div className="form-group">
+            <label className="form-label">Issue / Usage Unit Label</label>
+            <input
+              className="form-input"
+              value={form.issueUnit ?? ""}
+              onChange={(e) => setForm({ ...form, issueUnit: e.target.value || null })}
+              placeholder="e.g. Portion (optional, display only)"
+            />
+            <p className="form-helper">Display label for stock-out. Stock is always tracked in the Stock Unit.</p>
+          </div>
+          <div className="form-group form-group--inline">
+            <input
+              id="editDisplayBothUnits"
+              type="checkbox"
+              checked={form.displayBothUnits ?? false}
+              onChange={(e) => setForm({ ...form, displayBothUnits: e.target.checked })}
+              disabled={!form.purchaseUnit || !form.purchaseConversionFactor}
+            />
+            <label htmlFor="editDisplayBothUnits" className="form-label form-label--check">
+              Show quantity in both units in inventory
+            </label>
+          </div>
         </div>
+
         <div className="form-group">
           <label className="form-label">Category</label>
           <input
@@ -1543,9 +1613,7 @@ function EditItemModal({
           />
           <datalist id="edit-item-category-options">
             {categoryOptions.map((category) => (
-              <option key={category} value={category}>
-                {category}
-              </option>
+              <option key={category} value={category}>{category}</option>
             ))}
           </datalist>
           {item.category && !categoryOptions.includes(item.category) && (
@@ -1591,71 +1659,6 @@ function EditItemModal({
           <label htmlFor="editTrackExpiry" className="form-label form-label--check">
             Track expiry dates
           </label>
-        </div>
-
-        <div className="uom-section">
-          <button
-            type="button"
-            className="uom-section__toggle"
-            onClick={() => setUomExpanded((v) => !v)}
-          >
-            <span className="uom-section__toggle-label">Unit of Measure (UoM)</span>
-            <span className="uom-section__toggle-icon">{uomExpanded ? "▲" : "▼"}</span>
-          </button>
-          {uomExpanded && (
-            <div className="uom-section__body">
-              <div className="form-row-2col">
-                <div className="form-group">
-                  <label className="form-label">Purchase Unit</label>
-                  <input
-                    className="form-input"
-                    value={form.purchaseUnit ?? ""}
-                    onChange={(e) => setForm({ ...form, purchaseUnit: e.target.value || null })}
-                    placeholder="e.g. Carton"
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Conversion Factor</label>
-                  <input
-                    className="form-input"
-                    type="number"
-                    min={0.0001}
-                    step="any"
-                    value={form.purchaseConversionFactor ?? ""}
-                    onChange={(e) => setForm({ ...form, purchaseConversionFactor: e.target.value ? Number(e.target.value) : null })}
-                    placeholder="e.g. 12"
-                    disabled={!form.purchaseUnit}
-                  />
-                </div>
-              </div>
-              {form.purchaseUnit && form.purchaseConversionFactor && form.purchaseConversionFactor > 0 && (
-                <p className="uom-hint uom-hint--form">
-                  1 {form.purchaseUnit} = {form.purchaseConversionFactor} {form.unit}
-                </p>
-              )}
-              <div className="form-group">
-                <label className="form-label">Issue / Usage Unit Label</label>
-                <input
-                  className="form-input"
-                  value={form.issueUnit ?? ""}
-                  onChange={(e) => setForm({ ...form, issueUnit: e.target.value || null })}
-                  placeholder="e.g. Portion (optional, display only)"
-                />
-              </div>
-              <div className="form-group form-group--inline">
-                <input
-                  id="editDisplayBothUnits"
-                  type="checkbox"
-                  checked={form.displayBothUnits ?? false}
-                  onChange={(e) => setForm({ ...form, displayBothUnits: e.target.checked })}
-                  disabled={!form.purchaseUnit || !form.purchaseConversionFactor}
-                />
-                <label htmlFor="editDisplayBothUnits" className="form-label form-label--check">
-                  Show quantity in both units in inventory
-                </label>
-              </div>
-            </div>
-          )}
         </div>
 
         <div className="modal-footer">
@@ -1761,6 +1764,9 @@ function ImportItemsModal({
           barcode: row.barcode || undefined,
           minStockLevel: row.minStockLevel,
           trackExpiry: row.trackExpiry,
+          purchaseUnit: row.purchaseUnit || null,
+          purchaseConversionFactor: row.purchaseConversionFactor,
+          issueUnit: row.issueUnit || null,
         });
         imported += 1;
         setImportedCount(imported);
@@ -1783,11 +1789,11 @@ function ImportItemsModal({
   }
 
   function downloadSampleTemplate() {
-    const headers = ["name", "unit", "category", "sku", "barcode", "minStockLevel", "trackExpiry"];
+    const headers = ["name", "unit", "category", "sku", "barcode", "minStockLevel", "trackExpiry", "purchaseUnit", "purchaseConversionFactor", "issueUnit"];
     const sampleRows = [
-      ["Chicken Breast", "kg", "Raw Material", "CHK-BRST", "SS100000001", "10", "yes"],
-      ["Paper Cups", "pack", "Packaging", "CUP-250", "", "5", "no"],
-      ["Cooking Oil", "liter", "Ingredients", "OIL-COOK", "", "20", "no"],
+      ["Chicken Breast", "kg", "Raw Material", "CHK-BRST", "SS100000001", "10", "yes", "", "", ""],
+      ["Paper Cups", "pack", "Packaging", "CUP-250", "", "5", "no", "Carton", "24", ""],
+      ["Cooking Oil", "liter", "Ingredients", "OIL-COOK", "", "20", "no", "Jerry Can", "5", "Portion"],
     ];
     const csv = [headers, ...sampleRows].map((row) => row.map(escapeCsvCell).join(",")).join("\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
@@ -3058,6 +3064,9 @@ function validateImportRows(records: Array<Record<string, unknown>>, existingIte
     if (!Number.isFinite(row.minStockLevel) || row.minStockLevel < 0) {
       errors.push("Min stock level must be zero or greater");
     }
+    if (row.purchaseUnit && !row.purchaseConversionFactor) {
+      errors.push("purchaseConversionFactor is required when purchaseUnit is set");
+    }
 
     return { ...row, errors };
   });
@@ -3074,6 +3083,9 @@ function normalizeImportRecord(record: Record<string, unknown>) {
   const unit = normalizeUnit(rawUnit);
   const minStockLevelResult = parseOptionalNumber(values.get("minstocklevel"));
   const trackExpiryResult = parseOptionalBoolean(values.get("trackexpiry"));
+  const purchaseUnit = parseImportString(values.get("purchaseunit"));
+  const purchaseConversionFactorResult = parseOptionalConversionFactor(values.get("purchaseconversionfactor"));
+  const issueUnit = parseImportString(values.get("issueunit"));
 
   return {
     name: parseImportString(values.get("name")),
@@ -3083,9 +3095,13 @@ function normalizeImportRecord(record: Record<string, unknown>) {
     barcode: parseImportString(values.get("barcode")),
     minStockLevel: minStockLevelResult.value,
     trackExpiry: trackExpiryResult.value,
+    purchaseUnit,
+    purchaseConversionFactor: purchaseConversionFactorResult.value,
+    issueUnit,
     errors: [
       ...minStockLevelResult.errors,
       ...trackExpiryResult.errors,
+      ...purchaseConversionFactorResult.errors,
     ],
   };
 }
@@ -3118,6 +3134,16 @@ function parseOptionalNumber(value: unknown) {
   return Number.isFinite(parsed)
     ? { value: parsed, errors: [] }
     : { value: 0, errors: ["Min stock level must be a number"] };
+}
+
+function parseOptionalConversionFactor(value: unknown) {
+  const raw = parseImportString(value);
+  if (!raw) return { value: null as number | null, errors: [] };
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return { value: null as number | null, errors: ["purchaseConversionFactor must be a positive number"] };
+  }
+  return { value: parsed as number | null, errors: [] };
 }
 
 function parseOptionalBoolean(value: unknown) {

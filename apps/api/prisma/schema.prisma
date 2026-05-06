@@ -240,6 +240,7 @@ model Workspace {
   businessType                   String?
   customUnits                    String[]    @default([])
   customCategories               String[]    @default([])
+  customPurchaseUnits            String[]    @default([])
   plan                           PlanTier    @default(FREE)
   suspended                      Boolean     @default(false)
   suspendedAt                    DateTime?

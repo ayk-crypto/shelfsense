@@ -24095,3 +24095,20 @@ body {
 .table--compact th {
   padding: 7px 10px;
 }
+
+/* ── Item Units Section (Add/Edit Item modal) ── */
+.item-units-section {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 16px;
+  background: var(--surface-2, #f9fafb);
+}
+.item-units-section__title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted, #6b7280);
+  margin-bottom: 12px;
+}

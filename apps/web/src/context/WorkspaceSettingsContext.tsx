@@ -24,6 +24,7 @@ const DEFAULT_SETTINGS: WorkspaceSettings = {
   dailyDigestEnabled: false,
   customUnits: [],
   customCategories: [],
+  customPurchaseUnits: [],
 };
 
 interface WorkspaceSettingsContextValue {

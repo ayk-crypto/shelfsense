@@ -120,6 +120,7 @@ export interface WorkspaceSettings {
   dailyDigestEnabled: boolean;
   customUnits: string[];
   customCategories: string[];
+  customPurchaseUnits: string[];
 }
 
 export interface WorkspaceSettingsResponse {
@@ -209,6 +210,7 @@ export interface UpdateWorkspaceSettingsInput {
   dailyDigestEnabled?: boolean;
   customUnits?: string[];
   customCategories?: string[];
+  customPurchaseUnits?: string[];
 }
 
 export interface Location {

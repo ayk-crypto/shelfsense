@@ -55,6 +55,7 @@ workspaceRouter.get("/settings", requireAuth, asyncHandler(async (req, res) => {
       dailyDigestEnabled: true,
       customUnits: true,
       customCategories: true,
+      customPurchaseUnits: true,
     },
   });
 
@@ -125,6 +126,7 @@ workspaceRouter.patch("/settings", requireAuth, requireRole([Role.OWNER]), async
       dailyDigestEnabled: true,
       customUnits: true,
       customCategories: true,
+      customPurchaseUnits: true,
     },
   });
 
@@ -215,6 +217,7 @@ function parseWorkspaceSettingsInput(body: unknown) {
     dailyDigestEnabled?: unknown;
     customUnits?: unknown;
     customCategories?: unknown;
+    customPurchaseUnits?: unknown;
   };
 
   const result: Record<string, unknown> = {
@@ -241,6 +244,9 @@ function parseWorkspaceSettingsInput(body: unknown) {
 
   const cats = parseStringArray(input.customCategories);
   if (cats !== undefined) result.customCategories = cats;
+
+  const purchaseUnits = parseStringArray(input.customPurchaseUnits);
+  if (purchaseUnits !== undefined) result.customPurchaseUnits = purchaseUnits;
 
   return Object.fromEntries(Object.entries(result).filter(([, v]) => v !== undefined));
 }
@@ -291,6 +297,7 @@ function normalizeWorkspaceSettings(settings: {
   dailyDigestEnabled: boolean | null;
   customUnits?: string[];
   customCategories?: string[];
+  customPurchaseUnits?: string[];
 }) {
   return {
     id: settings.id,
@@ -318,5 +325,6 @@ function normalizeWorkspaceSettings(settings: {
     dailyDigestEnabled: settings.dailyDigestEnabled ?? DEFAULT_WORKSPACE_SETTINGS.dailyDigestEnabled,
     customUnits: settings.customUnits ?? [],
     customCategories: settings.customCategories ?? [],
+    customPurchaseUnits: settings.customPurchaseUnits ?? [],
   };
 }
