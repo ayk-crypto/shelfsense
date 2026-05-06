@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   createStockCount,
@@ -6,6 +6,8 @@ import {
   getStockCount,
   getStockCounts,
   getStockCountStock,
+  rejectStockCount,
+  returnForRecount,
   updateStockCount,
 } from "../api/stockCounts";
 import { useAuth } from "../context/AuthContext";
@@ -38,8 +40,12 @@ function StockCountWorkspace() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
+  const [actioning, setActioning] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showApproveConfirm, setShowApproveConfirm] = useState(false);
+  const [managerActionType, setManagerActionType] = useState<"return" | "reject" | null>(null);
+  const [managerComment, setManagerComment] = useState("");
 
   useEffect(() => {
     if (!selectedLocationId && activeLocationId) setSelectedLocationId(activeLocationId);
@@ -98,6 +104,8 @@ function StockCountWorkspace() {
 
   const totalVariance = countedLines.reduce((t, l) => t + l.variance, 0);
   const nonZeroVarianceCount = countedLines.filter((l) => roundQuantity(l.variance) !== 0).length;
+  const affectedItems = countedLines
+    .filter((l): l is typeof l & { item: StockCountStockItem } => l.item !== undefined && roundQuantity(l.variance) !== 0);
 
   function addItem(item: StockCountStockItem) {
     setLines((cur) => [...cur, { itemId: item.id, physicalQuantity: formatQuantity(item.systemQuantity) }]);
@@ -130,7 +138,7 @@ function StockCountWorkspace() {
       setDraftId(res.count.id);
       setLines(res.count.items.map((item) => ({ itemId: item.itemId, physicalQuantity: formatQuantity(item.physicalQuantity) })));
       setCounts((await getStockCounts()).counts);
-      setMessage("Draft saved. Managers and owners can finalize when the count is reviewed.");
+      setMessage("Draft saved. Managers and owners can approve when the count is reviewed.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save stock count");
     } finally {
@@ -145,7 +153,7 @@ function StockCountWorkspace() {
     setMessage(null);
     try {
       await finalizeStockCount(draftId);
-      setMessage("Stock count finalized and adjustment movements posted.");
+      setMessage("Stock count approved and adjustment movements posted.");
       setDraftId(null);
       setLines([]);
       const [stockRes, countsRes] = await Promise.all([
@@ -155,20 +163,44 @@ function StockCountWorkspace() {
       setStockItems(stockRes.items);
       setCounts(countsRes.counts);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to finalize stock count");
+      setError(err instanceof Error ? err.message : "Failed to approve stock count");
     } finally {
       setFinalizing(false);
     }
   }
 
+  async function handleManagerAction() {
+    if (!draftId || actioning || !canFinalize || !managerActionType) return;
+    setActioning(true);
+    setError(null);
+    setMessage(null);
+    try {
+      if (managerActionType === "return") {
+        await returnForRecount(draftId, managerComment.trim() || undefined);
+        setMessage("Count returned for recount. The team can now re-submit a corrected count.");
+      } else {
+        await rejectStockCount(draftId, managerComment.trim() || undefined);
+        setMessage("Count rejected.");
+      }
+      setDraftId(null);
+      setLines([]);
+      setManagerActionType(null);
+      setManagerComment("");
+      setCounts((await getStockCounts()).counts);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to perform manager action");
+    } finally {
+      setActioning(false);
+    }
+  }
+
   return (
     <div className="stock-count-page">
-      {/* ── Page header ── */}
       <div className="sc-header">
         <div className="sc-header-left">
-          <span className="daily-ops-kicker">Cycle Count</span>
-          <h1 className="page-title">Count stock and post variance adjustments</h1>
-          <p className="page-subtitle">Select a branch, add items, enter physical counts, then save a draft or finalize.</p>
+          <span className="daily-ops-kicker">Physical Count</span>
+          <h1 className="page-title">Physical Inventory Count</h1>
+          <p className="page-subtitle">Select a location, add items, enter physical counts, then save a draft or approve to post adjustments.</p>
         </div>
         <div className="sc-metrics">
           <ScMetric label="Lines" value={String(lines.length)} />
@@ -195,7 +227,6 @@ function StockCountWorkspace() {
       )}
 
       <form className="sc-workspace" onSubmit={handleSaveDraft}>
-        {/* ── Left: Setup panel ── */}
         <aside className="sc-panel sc-panel--setup">
           <div className="sc-panel-head">
             <div>
@@ -243,7 +274,6 @@ function StockCountWorkspace() {
             </div>
           </div>
 
-          {/* ── Item search ── */}
           <div className="sc-search-section">
             <div className="form-group">
               <label className="form-label" htmlFor="sc-search">Add items to count</label>
@@ -294,7 +324,6 @@ function StockCountWorkspace() {
           </div>
         </aside>
 
-        {/* ── Right: Counted items panel ── */}
         <section className="sc-panel sc-panel--lines">
           <div className="sc-panel-head">
             <div>
@@ -313,15 +342,36 @@ function StockCountWorkspace() {
               >
                 {saving ? <><span className="btn-spinner btn-spinner--xs" /> Saving…</> : draftId ? "Update Draft" : "Save Draft"}
               </button>
-              <button
-                type="button"
-                className="btn btn--primary btn--sm"
-                disabled={!draftId || !canFinalize || finalizing}
-                onClick={() => { void handleFinalize(); }}
-                title={!canFinalize ? "Only managers and owners can finalize stock counts" : undefined}
-              >
-                {finalizing ? <><span className="btn-spinner btn-spinner--xs" /> Finalizing…</> : "Finalize Count"}
-              </button>
+              {draftId && canFinalize && (
+                <>
+                  <button
+                    type="button"
+                    className="btn btn--warning btn--sm"
+                    disabled={actioning}
+                    onClick={() => { setManagerActionType("return"); setManagerComment(""); }}
+                    title="Return this count for the operator to recount"
+                  >
+                    Return for Recount
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn--danger btn--sm"
+                    disabled={actioning}
+                    onClick={() => { setManagerActionType("reject"); setManagerComment(""); }}
+                    title="Reject this count — no adjustments will be made"
+                  >
+                    Reject Count
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn--primary btn--sm"
+                    disabled={finalizing}
+                    onClick={() => setShowApproveConfirm(true)}
+                  >
+                    {finalizing ? <><span className="btn-spinner btn-spinner--xs" /> Approving…</> : "Approve & Adjust Stock"}
+                  </button>
+                </>
+              )}
             </div>
           </div>
 
@@ -381,8 +431,27 @@ function StockCountWorkspace() {
         </section>
       </form>
 
-      {/* ── History ── */}
       <StockCountHistory counts={counts} onOpen={(id) => navigate(`/stock-count/${id}`)} />
+
+      {showApproveConfirm && (
+        <ApprovalConfirmModal
+          affectedItems={affectedItems}
+          onConfirm={() => { setShowApproveConfirm(false); void handleFinalize(); }}
+          onCancel={() => setShowApproveConfirm(false)}
+          loading={finalizing}
+        />
+      )}
+
+      {managerActionType && (
+        <ManagerActionDialog
+          type={managerActionType}
+          comment={managerComment}
+          onCommentChange={setManagerComment}
+          onConfirm={() => { void handleManagerAction(); }}
+          onCancel={() => { setManagerActionType(null); setManagerComment(""); }}
+          loading={actioning}
+        />
+      )}
     </div>
   );
 }
@@ -394,7 +463,11 @@ function StockCountDetail({ id }: { id: string }) {
   const [count, setCount] = useState<StockCount | null>(null);
   const [loading, setLoading] = useState(true);
   const [finalizing, setFinalizing] = useState(false);
+  const [actioning, setActioning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showApproveConfirm, setShowApproveConfirm] = useState(false);
+  const [managerActionType, setManagerActionType] = useState<"return" | "reject" | null>(null);
+  const [managerComment, setManagerComment] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -421,9 +494,30 @@ function StockCountDetail({ id }: { id: string }) {
       const res = await finalizeStockCount(count.id);
       setCount(res.count);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to finalize stock count");
+      setError(err instanceof Error ? err.message : "Failed to approve stock count");
     } finally {
       setFinalizing(false);
+    }
+  }
+
+  async function handleManagerAction() {
+    if (!count || !canFinalize || actioning || !managerActionType) return;
+    setActioning(true);
+    setError(null);
+    try {
+      let res;
+      if (managerActionType === "return") {
+        res = await returnForRecount(count.id, managerComment.trim() || undefined);
+      } else {
+        res = await rejectStockCount(count.id, managerComment.trim() || undefined);
+      }
+      setCount(res.count);
+      setManagerActionType(null);
+      setManagerComment("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to perform manager action");
+    } finally {
+      setActioning(false);
     }
   }
 
@@ -445,6 +539,16 @@ function StockCountDetail({ id }: { id: string }) {
   }
 
   const totalVariance = count.items.reduce((t, item) => t + item.variance, 0);
+  const affectedItems = count.items.filter((item) => roundQuantity(item.variance) !== 0).map((item) => ({
+    item: { name: item.itemName },
+    physicalQuantity: item.physicalQuantity,
+    systemQuantity: item.systemQuantity,
+    variance: item.variance,
+    itemId: item.itemId,
+  }));
+  const isDraft = count.status === "DRAFT";
+  const isReturned = count.status === "RETURNED";
+  const isRejected = count.status === "REJECTED";
 
   return (
     <div className="stock-count-page">
@@ -464,14 +568,42 @@ function StockCountDetail({ id }: { id: string }) {
           <button type="button" className="btn btn--ghost btn--sm" onClick={() => navigate("/stock-count")}>
             ← Back
           </button>
-          {count.status === "DRAFT" && (
+          {isDraft && canFinalize && (
+            <>
+              <button
+                type="button"
+                className="btn btn--warning btn--sm"
+                disabled={actioning}
+                onClick={() => { setManagerActionType("return"); setManagerComment(""); }}
+              >
+                Return for Recount
+              </button>
+              <button
+                type="button"
+                className="btn btn--danger btn--sm"
+                disabled={actioning}
+                onClick={() => { setManagerActionType("reject"); setManagerComment(""); }}
+              >
+                Reject Count
+              </button>
+              <button
+                type="button"
+                className="btn btn--primary btn--sm"
+                disabled={finalizing}
+                onClick={() => setShowApproveConfirm(true)}
+              >
+                {finalizing ? <><span className="btn-spinner btn-spinner--xs" /> Approving…</> : "Approve & Adjust Stock"}
+              </button>
+            </>
+          )}
+          {isReturned && canFinalize && (
             <button
               type="button"
-              className="btn btn--primary btn--sm"
-              disabled={!canFinalize || finalizing}
-              onClick={() => { void handleFinalize(); }}
+              className="btn btn--danger btn--sm"
+              disabled={actioning}
+              onClick={() => { setManagerActionType("reject"); setManagerComment(""); }}
             >
-              {finalizing ? <><span className="btn-spinner btn-spinner--xs" /> Finalizing…</> : "Finalize Count"}
+              Reject Count
             </button>
           )}
         </div>
@@ -479,13 +611,52 @@ function StockCountDetail({ id }: { id: string }) {
 
       {error && <div className="alert alert--error">{error}</div>}
 
+      {(isReturned || isRejected) && (
+        <div className={`sc-manager-banner sc-manager-banner--${isReturned ? "returned" : "rejected"}`}>
+          <div className="sc-manager-banner-icon">
+            {isReturned ? (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                <path d="M3 3v5h5" />
+              </svg>
+            ) : (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <path d="m15 9-6 6" /><path d="m9 9 6 6" />
+              </svg>
+            )}
+          </div>
+          <div className="sc-manager-banner-body">
+            <strong className="sc-manager-banner-title">
+              {isReturned ? "Returned for Recount" : "Count Rejected"}
+            </strong>
+            {isReturned ? (
+              <p>
+                Returned by {count.returnedBy?.name ?? "manager"} on {formatDateTime(count.returnedAt!)}.
+                {count.managerComment && <> — <em>{count.managerComment}</em></>}
+              </p>
+            ) : (
+              <p>
+                Rejected by {count.rejectedBy?.name ?? "manager"} on {formatDateTime(count.rejectedAt!)}.
+                {count.managerComment && <> — <em>{count.managerComment}</em></>}
+              </p>
+            )}
+            {isReturned && (
+              <p className="sc-manager-banner-hint">Start a new count from the <button type="button" className="sc-inline-link" onClick={() => navigate("/stock-count")}>Physical Count</button> page.</p>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="sc-detail-stats">
         <DetailStat label="Location" value={count.location.name} />
         <DetailStat label="Created by" value={count.createdBy.name} />
         <DetailStat label="Status" value={formatStatus(count.status)} />
         <DetailStat label="Net variance" value={formatSigned(totalVariance)} tone={varianceTone(totalVariance)} />
-        <DetailStat label="Finalized by" value={count.finalizedBy?.name ?? "—"} />
-        <DetailStat label="Finalized" value={count.finalizedAt ? formatDateTime(count.finalizedAt) : "—"} />
+        {count.finalizedBy && <DetailStat label="Approved by" value={count.finalizedBy.name} />}
+        {count.finalizedAt && <DetailStat label="Approved" value={formatDateTime(count.finalizedAt)} />}
+        {count.returnedBy && <DetailStat label="Returned by" value={count.returnedBy.name} />}
+        {count.rejectedBy && <DetailStat label="Rejected by" value={count.rejectedBy.name} />}
       </div>
 
       {count.note && (
@@ -528,6 +699,157 @@ function StockCountDetail({ id }: { id: string }) {
           </table>
         </div>
       </div>
+
+      {showApproveConfirm && (
+        <ApprovalConfirmModal
+          affectedItems={affectedItems}
+          onConfirm={() => { setShowApproveConfirm(false); void handleFinalize(); }}
+          onCancel={() => setShowApproveConfirm(false)}
+          loading={finalizing}
+        />
+      )}
+
+      {managerActionType && (
+        <ManagerActionDialog
+          type={managerActionType}
+          comment={managerComment}
+          onCommentChange={setManagerComment}
+          onConfirm={() => { void handleManagerAction(); }}
+          onCancel={() => { setManagerActionType(null); setManagerComment(""); }}
+          loading={actioning}
+        />
+      )}
+    </div>
+  );
+}
+
+function ApprovalConfirmModal({
+  affectedItems,
+  onConfirm,
+  onCancel,
+  loading,
+}: {
+  affectedItems: Array<{ item: { name: string }; systemQuantity: number; physicalQuantity: number; variance: number; itemId: string }>;
+  onConfirm: () => void;
+  onCancel: () => void;
+  loading: boolean;
+}) {
+  return (
+    <div className="modal-overlay" onClick={onCancel} role="dialog" aria-modal="true" aria-labelledby="approve-modal-title">
+      <div className="modal-box modal-box--md" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2 className="modal-title" id="approve-modal-title">Confirm: Approve &amp; Adjust Stock</h2>
+          <button type="button" className="modal-close" onClick={onCancel} aria-label="Close">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
+          </button>
+        </div>
+        <div className="modal-body">
+          {affectedItems.length === 0 ? (
+            <p className="sc-approve-no-variance">No variance detected. No stock adjustments will be made — all item quantities match.</p>
+          ) : (
+            <>
+              <p className="sc-approve-intro">The following items have variances and will have their stock adjusted:</p>
+              <div className="sc-approve-table-wrap">
+                <table className="sc-approve-table">
+                  <thead>
+                    <tr>
+                      <th>Item</th>
+                      <th>System</th>
+                      <th>Physical</th>
+                      <th>Adjustment</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {affectedItems.map((item) => (
+                      <tr key={item.itemId}>
+                        <td><strong>{item.item.name}</strong></td>
+                        <td>{formatQuantity(item.systemQuantity)}</td>
+                        <td>{formatQuantity(item.physicalQuantity)}</td>
+                        <td>
+                          <span className={`sc-variance-pill sc-variance-pill--${varianceTone(item.variance)}`}>
+                            {formatSigned(item.variance)}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+        <div className="modal-footer">
+          <button type="button" className="btn btn--ghost" onClick={onCancel} disabled={loading}>Cancel</button>
+          <button type="button" className="btn btn--primary" onClick={onConfirm} disabled={loading}>
+            {loading ? <><span className="btn-spinner btn-spinner--xs" /> Approving…</> : "Approve & Adjust Stock"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ManagerActionDialog({
+  type,
+  comment,
+  onCommentChange,
+  onConfirm,
+  onCancel,
+  loading,
+}: {
+  type: "return" | "reject";
+  comment: string;
+  onCommentChange: (v: string) => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+  loading: boolean;
+}) {
+  const textRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => { textRef.current?.focus(); }, []);
+
+  const isReturn = type === "return";
+  return (
+    <div className="modal-overlay" onClick={onCancel} role="dialog" aria-modal="true">
+      <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2 className="modal-title">{isReturn ? "Return for Recount" : "Reject Count"}</h2>
+          <button type="button" className="modal-close" onClick={onCancel} aria-label="Close">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
+          </button>
+        </div>
+        <div className="modal-body">
+          <p className="sc-action-dialog-desc">
+            {isReturn
+              ? "Send this count back to the operator for correction. Add a comment explaining what needs to be recounted."
+              : "Permanently reject this count. No stock adjustments will be made. This cannot be undone."}
+          </p>
+          <div className="form-group">
+            <label className="form-label" htmlFor="manager-comment">
+              Manager comment <span className="form-label-opt">(optional)</span>
+            </label>
+            <textarea
+              id="manager-comment"
+              ref={textRef}
+              className="form-input"
+              rows={3}
+              value={comment}
+              onChange={(e) => onCommentChange(e.target.value)}
+              placeholder={isReturn ? "e.g. Recount freezer section, items 3–8 appear incorrect" : "e.g. Count conducted outside of business hours, invalid"}
+            />
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button type="button" className="btn btn--ghost" onClick={onCancel} disabled={loading}>Cancel</button>
+          <button
+            type="button"
+            className={`btn ${isReturn ? "btn--warning" : "btn--danger"}`}
+            onClick={onConfirm}
+            disabled={loading}
+          >
+            {loading ? <><span className="btn-spinner btn-spinner--xs" /> Processing…</> : isReturn ? "Return for Recount" : "Reject Count"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -549,7 +871,7 @@ function StockCountHistory({ counts, onOpen }: { counts: StockCountSummary[]; on
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" />
           </svg>
           <p className="sc-empty-title">No counts yet</p>
-          <p className="sc-empty-sub">Saved drafts and finalized counts will appear here.</p>
+          <p className="sc-empty-sub">Saved drafts and approved counts will appear here.</p>
         </div>
       ) : (
         <div className="sc-history-list">
@@ -641,7 +963,12 @@ function varianceTone(value: number): "positive" | "negative" | "zero" {
 }
 
 function formatStatus(status: StockCount["status"]) {
-  return status === "FINALIZED" ? "Finalized" : "Draft";
+  switch (status) {
+    case "FINALIZED": return "Approved";
+    case "RETURNED": return "Returned";
+    case "REJECTED": return "Rejected";
+    default: return "Draft";
+  }
 }
 
 function formatDateTime(value: string) {

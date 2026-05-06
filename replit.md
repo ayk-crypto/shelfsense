@@ -56,14 +56,17 @@ A SaaS application for smart inventory and expiry tracking targeted at small bus
 
 ## Product
 
-- **Inventory Management**: SKU, barcode, min stock, expiry tracking, batch management, stock movement logging (in, out, wastage, adjustment).
+- **Inventory Management**: SKU, barcode, min stock, expiry tracking, batch management, stock movement logging (in, out, wastage, adjustment, opening_balance).
+- **Opening Stock Setup**: Per-item modal ("Opening stock" in item action menu) creates StockBatch + StockMovement(reason="opening_balance"). POST /stock/opening.
+- **Receive Stock** (formerly "Stock In"): Direct receive and PO-based receiving with batch/cost/expiry/supplier fields.
 - **Purchase Order System**: Lifecycle management (DRAFT to RECEIVED/CANCELLED) with supplier and cost intelligence.
+- **Physical Inventory Count**: Full cycle-count workflow with DRAFT → Approve & Adjust Stock (FINALIZED), Return for Recount (RETURNED), Reject Count (REJECTED). Manager comment + approval confirmation modal with variance table.
 - **Reporting**: 8 server-side analytics reports with CSV export (e.g., Inventory Valuation, Wastage Cost).
 - **Subscription Management**: Tiered plans (FREE, BASIC, PRO) with server-side limit enforcement and a dedicated plan selection/management UI.
 - **User & Access Control**: Multi-level roles (OWNER, MANAGER, OPERATOR) and a custom role builder with granular permissions.
 - **Platform Administration**: Dedicated `/admin` panel for SUPER_ADMINs with isolated UI and comprehensive management features for workspaces and users.
 - **Notifications**: In-app notifications and scheduled email alerts for low stock, expiring items, and daily digests.
-- **Onboarding**: Guided setup process for new workspaces, including plan selection.
+- **Onboarding**: Guided setup wizard + post-onboarding checklist widget on Dashboard (4 steps, auto-detects completion, dismissable).
 
 ## User preferences
 

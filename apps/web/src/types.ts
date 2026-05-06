@@ -478,7 +478,20 @@ export interface StockTrendResponse {
   days: number;
 }
 
-export type StockCountStatus = "DRAFT" | "FINALIZED";
+export type StockCountStatus = "DRAFT" | "FINALIZED" | "RETURNED" | "REJECTED";
+
+export interface OpeningStockInput {
+  itemId: string;
+  locationId: string;
+  quantity: number;
+  unitCost?: number;
+  batchNo?: string;
+  supplierId?: string;
+  supplierName?: string;
+  expiryDate?: string;
+  expiryEstimated?: boolean;
+  notes?: string;
+}
 
 export interface StockCountStockItem {
   id: string;
@@ -519,9 +532,12 @@ export interface StockCount {
   id: string;
   status: StockCountStatus;
   note: string | null;
+  managerComment: string | null;
   createdAt: string;
   updatedAt: string;
   finalizedAt: string | null;
+  returnedAt: string | null;
+  rejectedAt: string | null;
   location: {
     id: string;
     name: string;
@@ -532,6 +548,16 @@ export interface StockCount {
     email: string;
   };
   finalizedBy: {
+    id: string;
+    name: string;
+    email: string;
+  } | null;
+  returnedBy: {
+    id: string;
+    name: string;
+    email: string;
+  } | null;
+  rejectedBy: {
     id: string;
     name: string;
     email: string;

@@ -124,8 +124,8 @@ stockCountsRouter.patch("/:id", requireRole([Role.OWNER, Role.MANAGER, Role.OPER
       });
 
       if (!existing) throw new NotFoundError("Stock count not found");
-      if (existing.status !== StockCountStatus.DRAFT) {
-        throw new InvalidStockCountError("Finalized counts cannot be edited");
+      if (existing.status !== StockCountStatus.DRAFT && existing.status !== StockCountStatus.RETURNED) {
+        throw new InvalidStockCountError("Only draft or returned counts can be edited");
       }
 
       await assertActiveLocation(tx, workspaceId, input.locationId!);
@@ -137,6 +137,7 @@ stockCountsRouter.patch("/:id", requireRole([Role.OWNER, Role.MANAGER, Role.OPER
         data: {
           locationId: input.locationId!,
           note: input.note,
+          status: StockCountStatus.DRAFT,
           items: { create: preparedItems },
         },
         select: countDetailSelect,
@@ -157,6 +158,108 @@ stockCountsRouter.patch("/:id", requireRole([Role.OWNER, Role.MANAGER, Role.OPER
       });
 
       return count;
+    });
+
+    return res.json({ count: result });
+  } catch (error) {
+    if (error instanceof NotFoundError) return res.status(404).json({ error: error.message });
+    if (error instanceof InvalidStockCountError) return res.status(400).json({ error: error.message });
+    throw error;
+  }
+}));
+
+stockCountsRouter.post("/:id/return-for-recount", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
+  const workspaceId = getWorkspaceId(req);
+  if (!workspaceId) return res.status(403).json({ error: "Workspace access required" });
+
+  const managerComment = parseOptionalString((req.body as { managerComment?: unknown }).managerComment) ?? null;
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const count = await tx.stockCount.findFirst({
+        where: { id: req.params.id, workspaceId },
+        select: { id: true, status: true },
+      });
+
+      if (!count) throw new NotFoundError("Stock count not found");
+      if (count.status !== StockCountStatus.DRAFT) {
+        throw new InvalidStockCountError("Only draft counts can be returned for recount");
+      }
+
+      const updated = await tx.stockCount.update({
+        where: { id: count.id },
+        data: {
+          status: StockCountStatus.RETURNED,
+          returnedById: req.user!.userId,
+          returnedAt: new Date(),
+          managerComment: managerComment ?? null,
+        },
+        select: countDetailSelect,
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId: req.user!.userId,
+          workspaceId,
+          action: "STOCK_COUNT_RETURNED",
+          entity: "StockCount",
+          entityId: count.id,
+          meta: { managerComment } as Prisma.InputJsonValue,
+        },
+      });
+
+      return updated;
+    });
+
+    return res.json({ count: result });
+  } catch (error) {
+    if (error instanceof NotFoundError) return res.status(404).json({ error: error.message });
+    if (error instanceof InvalidStockCountError) return res.status(400).json({ error: error.message });
+    throw error;
+  }
+}));
+
+stockCountsRouter.post("/:id/reject", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
+  const workspaceId = getWorkspaceId(req);
+  if (!workspaceId) return res.status(403).json({ error: "Workspace access required" });
+
+  const managerComment = parseOptionalString((req.body as { managerComment?: unknown }).managerComment) ?? null;
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const count = await tx.stockCount.findFirst({
+        where: { id: req.params.id, workspaceId },
+        select: { id: true, status: true },
+      });
+
+      if (!count) throw new NotFoundError("Stock count not found");
+      if (count.status === StockCountStatus.FINALIZED || count.status === StockCountStatus.REJECTED) {
+        throw new InvalidStockCountError("This count cannot be rejected");
+      }
+
+      const updated = await tx.stockCount.update({
+        where: { id: count.id },
+        data: {
+          status: StockCountStatus.REJECTED,
+          rejectedById: req.user!.userId,
+          rejectedAt: new Date(),
+          managerComment: managerComment ?? null,
+        },
+        select: countDetailSelect,
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId: req.user!.userId,
+          workspaceId,
+          action: "STOCK_COUNT_REJECTED",
+          entity: "StockCount",
+          entityId: count.id,
+          meta: { managerComment } as Prisma.InputJsonValue,
+        },
+      });
+
+      return updated;
     });
 
     return res.json({ count: result });
@@ -254,12 +357,17 @@ const countListSelect = {
   id: true,
   status: true,
   note: true,
+  managerComment: true,
   createdAt: true,
   updatedAt: true,
   finalizedAt: true,
+  returnedAt: true,
+  rejectedAt: true,
   location: { select: { id: true, name: true } },
   createdBy: { select: { id: true, name: true, email: true } },
   finalizedBy: { select: { id: true, name: true, email: true } },
+  returnedBy: { select: { id: true, name: true, email: true } },
+  rejectedBy: { select: { id: true, name: true, email: true } },
   items: { select: { id: true, variance: true } },
 } satisfies Prisma.StockCountSelect;
 
@@ -267,12 +375,17 @@ const countDetailSelect = {
   id: true,
   status: true,
   note: true,
+  managerComment: true,
   createdAt: true,
   updatedAt: true,
   finalizedAt: true,
+  returnedAt: true,
+  rejectedAt: true,
   location: { select: { id: true, name: true } },
   createdBy: { select: { id: true, name: true, email: true } },
   finalizedBy: { select: { id: true, name: true, email: true } },
+  returnedBy: { select: { id: true, name: true, email: true } },
+  rejectedBy: { select: { id: true, name: true, email: true } },
   items: {
     orderBy: { itemName: "asc" },
     select: {

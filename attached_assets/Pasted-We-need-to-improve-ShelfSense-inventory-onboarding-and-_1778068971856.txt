@@ -1,0 +1,62 @@
+We need to improve ShelfSense inventory onboarding and physical inventory flow.
+
+Current issue:
+Physical Inventory Count only allows selecting an item, viewing system quantity, entering physical counted quantity, and showing variance. It does not allow entering batch/expiry details. This is not suitable for first-time onboarding or expiry-tracked inventory.
+
+Required product design:
+Separate three inventory flows:
+
+1. Opening Stock Setup
+Used when a new workspace/customer is starting ShelfSense and wants to enter existing stock.
+- Add a new feature/button: “Add Opening Stock”
+- It should create stock using a movement reason/type: OPENING_STOCK or Opening Balance
+- It should support batch creation for batch/expiry-tracked items
+- Fields:
+  - item
+  - location if locations exist
+  - quantity
+  - unit cost optional
+  - batch/lot number optional
+  - expiry date required only if item.expiryTrackingEnabled = true
+  - supplier optional
+  - notes optional
+  - expiry date estimated checkbox optional
+- It should create StockBatch records where applicable and StockMovement records with type OPENING_STOCK or STOCK_IN with reason “Opening Balance”
+- Opening stock should be available from item detail page and onboarding checklist.
+
+2. Stock In / Receive Stock
+Used for future purchases.
+- Keep current Stock In flow but label it clearly as Receive Stock or Add Purchase Stock
+- Support supplier, invoice number, purchase date, batch number, expiry date, unit cost, and notes
+- It should create batches and stock movements normally.
+
+3. Physical Inventory Count
+Used for later verification, not first-time batch setup.
+- Keep physical count for variance checking.
+- Rename manager action from “Finalize Count” to “Approve & Adjust Stock”
+- Add manager actions:
+  - Approve & Adjust Stock
+  - Return for Recount
+  - Reject Count
+- Add manager comments.
+- For batch-tracked items, enhance physical count to support batch-level counting:
+  - Show existing batches with system quantity, expiry date, and physical quantity field
+  - Allow adding an “unlisted batch found” row during count with quantity, expiry date, and notes
+  - Variance should be calculated per batch and also total per item
+- For non-batch items, current item-level count is acceptable.
+- On approval, create adjustment movements for variances and update StockBatch quantities accordingly.
+- Add confirmation modal before approval showing affected items, system qty, physical qty, and variance.
+
+Onboarding UX:
+Add an inventory setup checklist for new workspaces:
+- Add items
+- Assign categories/units
+- Enable expiry/batch tracking
+- Add opening stock
+- Invite staff
+- First physical count optional
+
+Important:
+Opening Stock Setup should be the recommended path for new customers to enter existing inventory.
+Physical Inventory should be positioned as an audit/verification tool after stock exists in the system.
+Make UI labels clear and business-friendly.

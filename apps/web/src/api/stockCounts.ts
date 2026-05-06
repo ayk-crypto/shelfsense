@@ -33,3 +33,19 @@ export async function updateStockCount(id: string, data: SaveStockCountInput): P
 export async function finalizeStockCount(id: string): Promise<StockCountResponse> {
   return apiClient.post<StockCountResponse>(`/stock-counts/${encodeURIComponent(id)}/finalize`, {}, true);
 }
+
+export async function returnForRecount(id: string, managerComment?: string): Promise<StockCountResponse> {
+  return apiClient.post<StockCountResponse>(
+    `/stock-counts/${encodeURIComponent(id)}/return-for-recount`,
+    { managerComment },
+    true,
+  );
+}
+
+export async function rejectStockCount(id: string, managerComment?: string): Promise<StockCountResponse> {
+  return apiClient.post<StockCountResponse>(
+    `/stock-counts/${encodeURIComponent(id)}/reject`,
+    { managerComment },
+    true,
+  );
+}

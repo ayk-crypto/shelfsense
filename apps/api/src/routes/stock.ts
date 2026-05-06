@@ -124,6 +124,100 @@ stockRouter.post("/in", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(as
   }
 }));
 
+stockRouter.post("/opening", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
+  const workspaceId = getWorkspaceId(req);
+  if (!workspaceId) return res.status(403).json({ error: "Workspace access required" });
+
+  const body = req.body as Record<string, unknown>;
+  const itemId = typeof body.itemId === "string" ? body.itemId.trim() : undefined;
+  const locationId = typeof body.locationId === "string" ? body.locationId.trim() : undefined;
+  const quantity = typeof body.quantity === "number" && Number.isFinite(body.quantity) ? body.quantity : undefined;
+  const unitCost = typeof body.unitCost === "number" && Number.isFinite(body.unitCost) ? body.unitCost : undefined;
+  const batchNo = typeof body.batchNo === "string" && body.batchNo.trim() ? body.batchNo.trim() : undefined;
+  const supplierId = typeof body.supplierId === "string" && body.supplierId.trim() ? body.supplierId.trim() : undefined;
+  const supplierName = typeof body.supplierName === "string" && body.supplierName.trim() ? body.supplierName.trim() : undefined;
+  const notes = typeof body.notes === "string" && body.notes.trim() ? body.notes.trim() : undefined;
+  const expiryEstimated = body.expiryEstimated === true;
+  let expiryDate: Date | null | "invalid" = null;
+  if (body.expiryDate && typeof body.expiryDate === "string") {
+    const d = new Date(body.expiryDate);
+    expiryDate = Number.isNaN(d.getTime()) ? "invalid" : d;
+  }
+
+  if (!itemId || !locationId || quantity === undefined) {
+    return res.status(400).json({ error: "Item, location, and quantity are required" });
+  }
+  if (quantity <= 0) return res.status(400).json({ error: "Quantity must be greater than zero" });
+  if (expiryDate === "invalid") return res.status(400).json({ error: "Expiry date must be a valid date" });
+
+  const item = await prisma.item.findFirst({
+    where: { id: itemId, workspaceId, isActive: true },
+    select: { id: true, name: true, unit: true, trackExpiry: true },
+  });
+  if (!item) return res.status(404).json({ error: "Item not found" });
+
+  if (item.trackExpiry && !expiryDate) {
+    return res.status(400).json({ error: "Expiry date is required for expiry-tracked items" });
+  }
+
+  try {
+    const result = await runSerializableWrite(async (tx) => {
+      await assertActiveLocation(tx, workspaceId, locationId);
+      await assertActiveItem(tx, workspaceId, itemId);
+
+      const noteText = [
+        notes,
+        expiryEstimated ? "(expiry date estimated)" : null,
+      ].filter(Boolean).join(" — ") || "Opening stock balance";
+
+      const batch = await tx.stockBatch.create({
+        data: {
+          itemId,
+          workspaceId,
+          locationId,
+          quantity,
+          remainingQuantity: quantity,
+          unitCost: unitCost ?? null,
+          expiryDate: expiryDate || null,
+          batchNo: batchNo ?? null,
+          supplierId: supplierId ?? null,
+          supplierName: supplierName ?? null,
+        },
+      });
+
+      const movement = await tx.stockMovement.create({
+        data: {
+          workspaceId,
+          locationId,
+          itemId,
+          batchId: batch.id,
+          type: StockMovementType.STOCK_IN,
+          quantity,
+          unitCost: unitCost ?? null,
+          reason: "opening_balance",
+          note: noteText,
+        },
+      });
+
+      return { batch, movement };
+    });
+
+    await logAction({
+      userId: req.user!.userId,
+      workspaceId,
+      action: "OPENING_STOCK",
+      entity: "Stock",
+      entityId: itemId,
+      meta: { itemName: item.name, unit: item.unit, quantity, locationId, batchNo },
+    });
+
+    return res.status(201).json(result);
+  } catch (error) {
+    if (isWriteConflict(error)) return res.status(409).json({ error: "Inventory changed. Please retry." });
+    throw error;
+  }
+}));
+
 stockRouter.post("/out", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), asyncHandler(async (req, res) => {
   const workspaceId = getWorkspaceId(req);
 

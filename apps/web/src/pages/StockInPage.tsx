@@ -398,9 +398,9 @@ export function StockInPage() {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 5v14M5 12l7 7 7-7" />
             </svg>
-            Stock In
+            Receive Stock
           </div>
-          <h1 className="page-title">Stock In</h1>
+          <h1 className="page-title">Receive Stock</h1>
           <p className="page-subtitle">
             {mode === "direct"
               ? <>Add items directly to stock with batch numbers, costs, expiry dates, and supplier info. Use <strong>+ Add batch</strong> on any row to record multiple batches.</>
@@ -428,7 +428,7 @@ export function StockInPage() {
           className={`stock-entry-mode-btn${mode === "direct" ? " stock-entry-mode-btn--active" : ""}`}
           onClick={() => void switchMode("direct")}
         >
-          Direct Stock In
+          Direct Receive
         </button>
         <button
           type="button"
@@ -773,7 +773,7 @@ export function StockInPage() {
                     <path d="M12 5v14M5 12l7 7 7-7" />
                   </svg>
                 )}
-                {submitting ? "Recording…" : `Record Stock In (${validRowCount} batch${validRowCount !== 1 ? "es" : ""})`}
+                {submitting ? "Recording…" : `Record Receipt (${validRowCount} batch${validRowCount !== 1 ? "es" : ""})`}
               </button>
             </div>
           </div>
@@ -787,7 +787,7 @@ export function StockInPage() {
               </svg>
             </div>
             <h3>No items added yet</h3>
-            <p>Use the search above to find items and add them to this stock-in entry.</p>
+            <p>Use the search above to find items and add them to this receiving entry.</p>
           </div>
         )
       )}

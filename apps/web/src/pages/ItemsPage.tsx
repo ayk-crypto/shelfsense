@@ -2,7 +2,7 @@ import JsBarcode from "jsbarcode";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { archiveItem, createItem, getItems, reactivateItem, updateItem } from "../api/items";
-import { getStockMovements, getStockSummary, stockIn, stockOut, stockTransfer } from "../api/stock";
+import { addOpeningStock, getStockMovements, getStockSummary, stockIn, stockOut, stockTransfer } from "../api/stock";
 import { useAuth } from "../context/AuthContext";
 import { useLocation } from "../context/LocationContext";
 import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
@@ -113,6 +113,7 @@ export function ItemsPage() {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanPrefillBarcode, setScanPrefillBarcode] = useState<string | undefined>();
   const [stockInItem, setStockInItem] = useState<Item | null>(null);
+  const [openingStockItem, setOpeningStockItem] = useState<Item | null>(null);
   const [stockOutItem, setStockOutItem] = useState<Item | null>(null);
   const [adjustItem, setAdjustItem] = useState<Item | null>(null);
   const [transferItem, setTransferItem] = useState<Item | null>(null);
@@ -741,6 +742,11 @@ export function ItemsPage() {
                                   Adjust quantity
                                 </button>
                               )}
+                              {item.isActive && canManageStock && (
+                                <button className="row-action-menu-item" role="menuitem" onClick={() => { setOpenActionMenuItemId(null); setOpeningStockItem(item); }}>
+                                  Opening stock
+                                </button>
+                              )}
                               <button className="row-action-menu-item" role="menuitem" onClick={() => { setOpenActionMenuItemId(null); navigate(`/items/${item.id}/batches`); }}>
                                 Batch details
                               </button>
@@ -907,6 +913,11 @@ export function ItemsPage() {
                               Adjust quantity
                             </button>
                           )}
+                          {item.isActive && canManageStock && (
+                            <button className="row-action-menu-item" role="menuitem" onClick={() => { setOpenActionMenuItemId(null); setOpeningStockItem(item); }}>
+                              Opening stock
+                            </button>
+                          )}
                           <button className="row-action-menu-item" role="menuitem" onClick={() => { setOpenActionMenuItemId(null); navigate(`/items/${item.id}/batches`); }}>
                             Batch details
                           </button>
@@ -1020,6 +1031,21 @@ export function ItemsPage() {
             showToast("Stock added successfully.", "success");
             void refreshSummary();
             void refreshUsageInsights();
+          }}
+          onError={(msg) => showToast(msg, "error")}
+        />
+      )}
+
+      {openingStockItem && (
+        <OpeningStockModal
+          item={openingStockItem}
+          locations={locations}
+          defaultLocationId={activeLocationId}
+          onClose={() => setOpeningStockItem(null)}
+          onSuccess={() => {
+            setOpeningStockItem(null);
+            showToast("Opening stock added.", "success");
+            void refreshSummary();
           }}
           onError={(msg) => showToast(msg, "error")}
         />
@@ -2199,6 +2225,180 @@ function StockInModal({
           >
             {saving ? <span className="btn-spinner" /> : null}
             {saving ? "Saving…" : "Add Stock"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function OpeningStockModal({
+  item,
+  locations,
+  defaultLocationId,
+  onClose,
+  onSuccess,
+  onError,
+}: {
+  item: Item;
+  locations: Location[];
+  defaultLocationId: string;
+  onClose: () => void;
+  onSuccess: () => void;
+  onError: (msg: string) => void;
+}) {
+  const [locationId, setLocationId] = useState(defaultLocationId);
+  const [qty, setQty] = useState("");
+  const [unitCost, setUnitCost] = useState("");
+  const [batchNo, setBatchNo] = useState("");
+  const [expiryDate, setExpiryDate] = useState("");
+  const [expiryEstimated, setExpiryEstimated] = useState(false);
+  const [supplierName, setSupplierName] = useState("");
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+  const firstRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { firstRef.current?.focus(); }, []);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const quantity = parseFloat(qty);
+    if (!quantity || quantity <= 0) return;
+    setSaving(true);
+    try {
+      await addOpeningStock({
+        itemId: item.id,
+        locationId,
+        quantity,
+        unitCost: unitCost ? parseFloat(unitCost) : undefined,
+        batchNo: batchNo.trim() || undefined,
+        expiryDate: expiryDate || undefined,
+        expiryEstimated: expiryEstimated || undefined,
+        supplierName: supplierName.trim() || undefined,
+        notes: notes.trim() || undefined,
+      });
+      onSuccess();
+    } catch (err) {
+      onError(err instanceof Error && err.message ? err.message : "Unable to add opening stock. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal title={`Opening Stock — ${item.name}`} onClose={onClose}>
+      <form onSubmit={(e) => { void handleSubmit(e); }}>
+        <p className="form-hint" style={{ marginBottom: "1rem" }}>
+          Record your starting inventory balance for this item. This creates a stock-in movement with reason <strong>opening_balance</strong>.
+        </p>
+
+        {locations.length > 1 && (
+          <div className="form-group">
+            <label className="form-label">Location *</label>
+            <select
+              className="form-select"
+              value={locationId}
+              onChange={(e) => setLocationId(e.target.value)}
+            >
+              {locations.map((loc) => (
+                <option key={loc.id} value={loc.id}>{loc.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Opening quantity * ({item.unit})</label>
+            <input
+              ref={firstRef}
+              className="form-input"
+              type="number"
+              min={0.001}
+              step="any"
+              value={qty}
+              onChange={(e) => setQty(e.target.value)}
+              placeholder="0"
+              required
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Unit cost <span className="form-label-opt">(optional)</span></label>
+            <input
+              className="form-input"
+              type="number"
+              min={0}
+              step="any"
+              value={unitCost}
+              onChange={(e) => setUnitCost(e.target.value)}
+              placeholder="0.00"
+            />
+          </div>
+        </div>
+
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Batch / Lot no. <span className="form-label-opt">(optional)</span></label>
+            <input
+              className="form-input"
+              value={batchNo}
+              onChange={(e) => setBatchNo(e.target.value)}
+              placeholder="e.g. LOT-001"
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Supplier name <span className="form-label-opt">(optional)</span></label>
+            <input
+              className="form-input"
+              value={supplierName}
+              onChange={(e) => setSupplierName(e.target.value)}
+              placeholder="Supplier name"
+            />
+          </div>
+        </div>
+
+        {item.trackExpiry && (
+          <div className="form-group">
+            <label className="form-label">Expiry date *</label>
+            <input
+              className="form-input"
+              type="date"
+              value={expiryDate}
+              onChange={(e) => setExpiryDate(e.target.value)}
+              required={item.trackExpiry}
+            />
+            <label className="form-checkbox-label" style={{ marginTop: "0.4rem" }}>
+              <input
+                type="checkbox"
+                checked={expiryEstimated}
+                onChange={(e) => setExpiryEstimated(e.target.checked)}
+              />
+              Expiry date is estimated
+            </label>
+          </div>
+        )}
+
+        <div className="form-group">
+          <label className="form-label">Notes <span className="form-label-opt">(optional)</span></label>
+          <input
+            className="form-input"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="e.g. Counted at period start"
+          />
+        </div>
+
+        <div className="modal-footer">
+          <button type="button" className="btn btn--ghost" onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            type="submit"
+            className="btn btn--primary"
+            disabled={saving || !qty || parseFloat(qty) <= 0 || (item.trackExpiry && !expiryDate)}
+          >
+            {saving ? <span className="btn-spinner" /> : null}
+            {saving ? "Saving…" : "Record Opening Stock"}
           </button>
         </div>
       </form>

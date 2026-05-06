@@ -37,6 +37,8 @@ enum StockMovementType {
 enum StockCountStatus {
   DRAFT
   FINALIZED
+  RETURNED
+  REJECTED
 }
 
 enum PurchaseStatus {
@@ -172,6 +174,8 @@ model User {
   notifications         Notification[]
   createdStockCounts    StockCount[]    @relation("StockCountCreatedBy")
   finalizedStockCounts  StockCount[]    @relation("StockCountFinalizedBy")
+  returnedStockCounts   StockCount[]    @relation("StockCountReturnedBy")
+  rejectedStockCounts   StockCount[]    @relation("StockCountRejectedBy")
   passwordResetTokens   PasswordResetToken[]
   emailVerifTokens      EmailVerifToken[]
   adminAuditLogs        AdminAuditLog[]
@@ -434,21 +438,28 @@ model StockMovement {
 }
 
 model StockCount {
-  id            String           @id @default(uuid()) @db.Uuid
-  workspaceId   String           @db.Uuid
-  locationId    String           @db.Uuid
-  createdById   String           @db.Uuid
-  finalizedById String?          @db.Uuid
-  status        StockCountStatus @default(DRAFT)
-  note          String?
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
-  finalizedAt   DateTime?
-  workspace     Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  location      Location         @relation(fields: [locationId], references: [id], onDelete: Restrict)
-  createdBy     User             @relation("StockCountCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  finalizedBy   User?            @relation("StockCountFinalizedBy", fields: [finalizedById], references: [id], onDelete: Restrict)
-  items         StockCountItem[]
+  id              String           @id @default(uuid()) @db.Uuid
+  workspaceId     String           @db.Uuid
+  locationId      String           @db.Uuid
+  createdById     String           @db.Uuid
+  finalizedById   String?          @db.Uuid
+  returnedById    String?          @db.Uuid
+  rejectedById    String?          @db.Uuid
+  status          StockCountStatus @default(DRAFT)
+  note            String?
+  managerComment  String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  finalizedAt     DateTime?
+  returnedAt      DateTime?
+  rejectedAt      DateTime?
+  workspace       Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  location        Location         @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  createdBy       User             @relation("StockCountCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  finalizedBy     User?            @relation("StockCountFinalizedBy", fields: [finalizedById], references: [id], onDelete: Restrict)
+  returnedBy      User?            @relation("StockCountReturnedBy", fields: [returnedById], references: [id], onDelete: Restrict)
+  rejectedBy      User?            @relation("StockCountRejectedBy", fields: [rejectedById], references: [id], onDelete: Restrict)
+  items           StockCountItem[]
 
   @@index([workspaceId])
   @@index([locationId])

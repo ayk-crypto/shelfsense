@@ -108,6 +108,29 @@ export function DashboardPage() {
     wastage: string | null;
     usage: string | null;
   }>({ alerts: null, wastage: null, usage: null });
+  const [checklistDismissed, setChecklistDismissed] = useState(() => {
+    try { return localStorage.getItem("ss_onboarding_dismissed") === "1"; } catch { return false; }
+  });
+  const [checklistManualDone, setChecklistManualDone] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem("ss_onboarding_done");
+      return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+    } catch { return new Set(); }
+  });
+
+  function toggleChecklistStep(id: string) {
+    setChecklistManualDone((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) { next.delete(id); } else { next.add(id); }
+      try { localStorage.setItem("ss_onboarding_done", JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  }
+
+  function dismissChecklist() {
+    setChecklistDismissed(true);
+    try { localStorage.setItem("ss_onboarding_dismissed", "1"); } catch {}
+  }
 
   useEffect(() => {
     async function load() {
@@ -281,6 +304,15 @@ export function DashboardPage() {
         <h1 className="page-title">Today&apos;s operations</h1>
         <p className="page-subtitle">{workspaceName} inventory health, reorder work, and usage signals.</p>
       </div>
+
+      {canAccessManagement && !checklistDismissed && (
+        <OnboardingChecklist
+          summary={summary}
+          manualDone={checklistManualDone}
+          onToggle={toggleChecklistStep}
+          onDismiss={dismissChecklist}
+        />
+      )}
 
       <DashboardGroup
         title="Overview"
@@ -824,6 +856,117 @@ function WastageTrend({
     <span className={`wastage-trend wastage-trend--${trend}`}>
       {icon} {label}
     </span>
+  );
+}
+
+function OnboardingChecklist({
+  summary,
+  manualDone,
+  onToggle,
+  onDismiss,
+}: {
+  summary: StockSummaryItem[];
+  manualDone: Set<string>;
+  onToggle: (id: string) => void;
+  onDismiss: () => void;
+}) {
+  const hasItems = summary.length > 0;
+  const hasStock = summary.some((s) => s.totalQuantity > 0);
+  const hasReorderLevels = summary.some((s) => s.minStockLevel > 0) || manualDone.has("reorder_levels");
+  const hasCount = manualDone.has("first_count");
+
+  const steps = [
+    {
+      id: "add_items",
+      label: "Add your inventory items",
+      hint: "Create the products or ingredients you track.",
+      done: hasItems,
+      auto: true,
+      href: "/items",
+      linkLabel: "Go to Items",
+    },
+    {
+      id: "opening_stock",
+      label: "Record opening stock balances",
+      hint: "Set starting quantities for each item via Opening stock in the item menu.",
+      done: hasStock || manualDone.has("opening_stock"),
+      auto: hasStock,
+      href: "/items",
+      linkLabel: "Open an item → Opening stock",
+    },
+    {
+      id: "reorder_levels",
+      label: "Set reorder levels",
+      hint: "Define minimum stock levels so you get low-stock alerts.",
+      done: hasReorderLevels,
+      auto: summary.some((s) => s.minStockLevel > 0),
+      href: "/items",
+      linkLabel: "Edit an item to set Min Stock",
+    },
+    {
+      id: "first_count",
+      label: "Run your first physical inventory count",
+      hint: "Verify on-hand quantities match your records.",
+      done: hasCount,
+      auto: false,
+      href: "/stock-count",
+      linkLabel: "Go to Physical Count",
+    },
+  ];
+
+  const completedCount = steps.filter((s) => s.done).length;
+  if (completedCount === steps.length) return null;
+  const pct = Math.round((completedCount / steps.length) * 100);
+
+  return (
+    <div className="onboarding-checklist">
+      <div className="oc-header">
+        <div className="oc-header-text">
+          <h2 className="oc-title">Getting started</h2>
+          <span className="oc-progress-text">{completedCount} of {steps.length} steps complete</span>
+        </div>
+        <button type="button" className="oc-dismiss" onClick={onDismiss} aria-label="Dismiss checklist">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M18 6 6 18" /><path d="m6 6 12 12" />
+          </svg>
+        </button>
+      </div>
+      <div className="oc-progress-bar-track">
+        <div className="oc-progress-bar-fill" style={{ width: `${pct}%` }} />
+      </div>
+      <div className="oc-steps">
+        {steps.map((step) => (
+          <div key={step.id} className={`oc-step${step.done ? " oc-step--done" : ""}`}>
+            <button
+              type="button"
+              className="oc-checkbox"
+              onClick={() => { if (!step.auto) onToggle(step.id); }}
+              aria-label={step.done ? `${step.label} — done` : `Mark ${step.label} as done`}
+              title={step.auto ? "Automatically detected" : "Click to mark complete"}
+              style={step.auto ? { cursor: "default" } : undefined}
+            >
+              {step.done ? (
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              ) : null}
+            </button>
+            <div className="oc-step-body">
+              <span className="oc-step-label">{step.label}</span>
+              {!step.done && <span className="oc-step-hint">{step.hint}</span>}
+            </div>
+            {!step.done && (
+              <Link to={step.href} className="oc-step-link">
+                {step.linkLabel}
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="m9 18 6-6-6-6" />
+                </svg>
+              </Link>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
