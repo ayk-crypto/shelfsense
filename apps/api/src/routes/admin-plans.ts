@@ -106,7 +106,7 @@ adminPlansRouter.post("/", asyncHandler(async (req, res) => {
       description: body.description?.trim() ?? null,
       monthlyPrice: body.monthlyPrice ?? 0,
       annualPrice: body.annualPrice ?? 0,
-      currency: body.currency ?? "PKR",
+      currency: "USD",
       trialDays: body.trialDays ?? 0,
       maxUsers: body.maxUsers ?? null,
       maxLocations: body.maxLocations ?? null,
@@ -179,7 +179,6 @@ adminPlansRouter.patch("/:id", asyncHandler(async (req, res) => {
   if (body.description !== undefined) data.description = body.description;
   if (body.monthlyPrice !== undefined) data.monthlyPrice = body.monthlyPrice;
   if (body.annualPrice !== undefined) data.annualPrice = body.annualPrice;
-  if (body.currency !== undefined) data.currency = body.currency;
   if (body.trialDays !== undefined) data.trialDays = body.trialDays;
   if (body.maxUsers !== undefined) data.maxUsers = body.maxUsers;
   if (body.maxLocations !== undefined) data.maxLocations = body.maxLocations;

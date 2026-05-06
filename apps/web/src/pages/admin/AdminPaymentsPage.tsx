@@ -10,7 +10,8 @@ function fmtDate(iso: string) {
 }
 
 function fmtAmount(amount: number, currency: string) {
-  return `${currency} ${amount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+  const symbol = currency === "USD" ? "$" : currency;
+  return `${symbol} ${amount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 }
 
 function fmtMethod(method: string) {
@@ -171,7 +172,7 @@ export function AdminPaymentsPage() {
   const statCards = [
     {
       label: "Total Collected",
-      value: summary ? `PKR ${(summary.totalCollected).toLocaleString()}` : "—",
+      value: summary ? `$ ${(summary.totalCollected).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}` : "—",
       accent: "#10b981",
       onClick: undefined,
       active: false,

@@ -9,9 +9,9 @@ function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
 
-function fmtAmount(currency: string, amount: number) {
+function fmtAmount(_currency: string, amount: number) {
   if (amount === 0) return <span className="subs-amount-free">Free</span>;
-  return <span className="subs-amount">{currency} {amount.toLocaleString()}</span>;
+  return <span className="subs-amount">$ {amount.toLocaleString()}</span>;
 }
 
 function daysUntil(iso: string) {
@@ -130,7 +130,7 @@ function ActivateModal({ sub, onClose, onActivated }: ActivateModalProps) {
             <div className={`subs-activate-plan-badge subs-plan-${planCode.toLowerCase()}`}>
               {sub.plan.name}
               {sub.amount > 0 && (
-                <span className="subs-activate-plan-price"> · {sub.currency} {sub.amount.toLocaleString()}</span>
+                <span className="subs-activate-plan-price"> · $ {sub.amount.toLocaleString()}</span>
               )}
             </div>
           </div>

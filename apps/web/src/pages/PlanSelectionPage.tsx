@@ -82,14 +82,14 @@ function PlanCard({
           <span className="plan-price-amount">Free</span>
         ) : (
           <>
-            <span className="plan-price-currency">{plan.currency}</span>
+            <span className="plan-price-currency">$</span>
             <span className="plan-price-amount">{monthlyEquiv.toLocaleString()}</span>
             <span className="plan-price-period">/mo</span>
           </>
         )}
         {billingCycle === "ANNUAL" && !isFree && (
           <div className="plan-price-annual-note">
-            {plan.currency} {plan.annualPrice.toLocaleString()} billed annually
+            $ {plan.annualPrice.toLocaleString()} billed annually
           </div>
         )}
       </div>
@@ -402,6 +402,9 @@ export function PlanSelectionPage() {
         <p className="plan-sel-subtitle">
           Start free and upgrade as you grow. No credit card required to get started.
         </p>
+        <p className="plan-sel-billing-note">
+          ShelfSense subscription plans are billed in USD. Your workspace currency can be configured later for inventory and reporting.
+        </p>
 
         <div className="plan-billing-toggle">
           <button
@@ -489,12 +492,12 @@ export function PlanSelectionPage() {
                 <div className="plan-price-summary">
                   <div className="plan-price-row">
                     <span>{billingCycle === "ANNUAL" ? "Annual total" : "Monthly total"}</span>
-                    <span>{selectedPlan.currency} {baseAmount.toLocaleString()}</span>
+                    <span>$ {baseAmount.toLocaleString()}</span>
                   </div>
                   {discountAmount > 0 && (
                     <div className="plan-price-row plan-price-row--discount">
                       <span>Promo discount</span>
-                      <span>− {selectedPlan.currency} {discountAmount.toLocaleString()}</span>
+                      <span>− $ {discountAmount.toLocaleString()}</span>
                     </div>
                   )}
                   <div className="plan-price-row plan-price-row--total">
@@ -502,7 +505,7 @@ export function PlanSelectionPage() {
                     <span>
                       {payableAmount === 0
                         ? "Free"
-                        : `${selectedPlan.currency} ${payableAmount.toLocaleString()}`}
+                        : `$ ${payableAmount.toLocaleString()}`}
                     </span>
                   </div>
                 </div>

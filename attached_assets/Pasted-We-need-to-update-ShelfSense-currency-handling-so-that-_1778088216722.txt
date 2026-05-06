@@ -1,0 +1,73 @@
+We need to update ShelfSense currency handling so that SaaS subscription/payment plans are always tracked in USD, while each customer workspace can still choose its own business currency for inventory/items/reports.
+
+Current requirement:
+
+1. Platform billing / subscription plans
+- All ShelfSense plans must use USD only.
+- Admin panel pricing, plan management, subscription assignment, payment tracking, manual payments, revenue summaries, billing history, and subscription invoices should show currency as USD / $.
+- Remove or disable any ability to select another currency for platform plans.
+- Existing Plan records should default to currency = "USD".
+- Existing Subscription records should default to currency = "USD".
+- Existing Payment/Billing records related to ShelfSense subscriptions should default to currency = "USD".
+- In admin billing UI, display prices like:
+  - $0 / month
+  - $9 / month
+  - $19 / month
+  - $99 / month
+- Do not use workspace currency for subscription prices.
+
+2. Workspace / customer business currency
+- Each workspace should still be able to configure its own operational currency from workspace settings.
+- This currency should be used for:
+  - item cost
+  - inventory valuation
+  - supplier/vendor amounts if applicable
+  - reports
+  - invoices/orders inside the customer workspace, if the module uses customer business currency
+- Example: A Pakistani restaurant can set workspace currency as PKR, but their ShelfSense subscription plan is still billed in USD.
+
+3. Backend logic
+- Add a clear separation between:
+  - billingCurrency = "USD" for ShelfSense subscription/payment plan logic
+  - workspace.currency for customer operational data
+- Ensure APIs for admin plans/subscriptions/payments always return USD for billing currency.
+- Ensure workspace APIs continue returning the workspace-selected currency for inventory/business use.
+- Add defensive logic so if plan.currency or subscription.currency is missing/null, it falls back to USD.
+- If there are enums/constants for supported currencies, ensure USD is used for platform billing by default.
+
+4. Database/migration
+- Check schema.prisma for Plan, Subscription, Payment, Billing, Workspace, or related models.
+- If plan/subscription/payment currency fields already exist, create a proper Prisma migration to set USD as default where needed.
+- Do not use prisma db push for production changes.
+- Migration should safely update existing records:
+  UPDATE relevant billing tables SET currency = 'USD' WHERE currency IS NULL OR currency = '';
+- If default values are needed, add them in Prisma schema and migration.
+- Do not change customer workspace currency values.
+
+5. Frontend/admin panel
+- In Super Admin / Plans page:
+  - Remove currency dropdown if present.
+  - Show all plan prices in USD.
+  - Use $ symbol.
+- In Super Admin / Subscriptions page:
+  - Show plan amount and payment history in USD.
+  - Do not show customer workspace currency for billing amount.
+- In customer workspace settings:
+  - Keep currency selection available for their own business/inventory currency.
+  - Add helper text:
+    "This currency is used for your inventory, item costs, and business reports. ShelfSense subscription billing is charged separately in USD."
+
+6. UX copy
+- On pricing/signup/payment plan screen, show:
+  "ShelfSense subscription plans are billed in USD. Your workspace currency can be configured later for inventory and reporting."
+- On workspace settings currency field, show:
+  "Changing this does not affect your ShelfSense subscription billing."
+
+7. Validation/testing
+- Test with a workspace currency set to PKR.
+- Confirm inventory item costs show PKR.
+- Confirm admin subscription/payment screens still show USD.
+- Confirm signup pricing screen shows USD.
+- Confirm changing workspace currency does not change subscription currency.
+- Confirm build passes.
+- Confirm Prisma migration is generated and committed.

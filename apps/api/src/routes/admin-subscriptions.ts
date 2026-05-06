@@ -114,7 +114,6 @@ adminSubscriptionsRouter.patch("/:id", asyncHandler(async (req, res) => {
   if (body.planId !== undefined) data.planId = body.planId;
   if (body.status !== undefined) data.status = body.status;
   if (body.billingCycle !== undefined) data.billingCycle = body.billingCycle;
-  if (body.currency !== undefined) data.currency = body.currency;
   if (body.amount !== undefined) data.amount = body.amount;
   if (body.trialEndsAt !== undefined) data.trialEndsAt = body.trialEndsAt ? new Date(body.trialEndsAt) : null;
   if (body.currentPeriodStart !== undefined) data.currentPeriodStart = body.currentPeriodStart ? new Date(body.currentPeriodStart) : null;
@@ -165,7 +164,7 @@ adminSubscriptionsRouter.post("/workspaces/:workspaceId", asyncHandler(async (re
       planId: body.planId,
       status: (body.status as never) ?? "TRIAL",
       billingCycle: (body.billingCycle as never) ?? "MANUAL",
-      currency: body.currency ?? "PKR",
+      currency: "USD",
       amount: body.amount ?? 0,
       trialEndsAt: body.trialEndsAt ? new Date(body.trialEndsAt) : null,
       currentPeriodStart: body.currentPeriodStart ? new Date(body.currentPeriodStart) : null,
@@ -202,7 +201,6 @@ adminSubscriptionsRouter.patch("/workspaces/:workspaceId", asyncHandler(async (r
   if (body.planId !== undefined) data.planId = body.planId;
   if (body.status !== undefined) data.status = body.status;
   if (body.billingCycle !== undefined) data.billingCycle = body.billingCycle;
-  if (body.currency !== undefined) data.currency = body.currency;
   if (body.amount !== undefined) data.amount = body.amount;
   if (body.trialEndsAt !== undefined) data.trialEndsAt = body.trialEndsAt ? new Date(body.trialEndsAt as string) : null;
   if (body.currentPeriodStart !== undefined) data.currentPeriodStart = body.currentPeriodStart ? new Date(body.currentPeriodStart as string) : null;

@@ -79,9 +79,9 @@ export function AdminPlansPage() {
               </div>
               {plan.description && <p className="admin-plan-card-desc">{plan.description}</p>}
               <div className="admin-plan-pricing">
-                <span className="admin-plan-price">{plan.currency} {plan.monthlyPrice.toLocaleString()}<span className="admin-plan-period">/mo</span></span>
+                <span className="admin-plan-price">$ {plan.monthlyPrice.toLocaleString()}<span className="admin-plan-period">/mo</span></span>
                 {plan.annualPrice > 0 && (
-                  <span className="admin-plan-price-alt">{plan.currency} {plan.annualPrice.toLocaleString()}/yr</span>
+                  <span className="admin-plan-price-alt">$ {plan.annualPrice.toLocaleString()}/yr</span>
                 )}
               </div>
               <div className="admin-plan-limits">
@@ -144,7 +144,6 @@ function PlanModal({ plan, onClose, onSaved }: { plan: AdminPlan | null; onClose
     description: plan?.description ?? "",
     monthlyPrice: plan?.monthlyPrice ?? 0,
     annualPrice: plan?.annualPrice ?? 0,
-    currency: plan?.currency ?? "PKR",
     trialDays: plan?.trialDays ?? 0,
     maxUsers: plan?.maxUsers != null ? String(plan.maxUsers) : "",
     maxLocations: plan?.maxLocations != null ? String(plan.maxLocations) : "",
@@ -216,16 +215,12 @@ function PlanModal({ plan, onClose, onSaved }: { plan: AdminPlan | null; onClose
               <input className="form-input" value={form.description} onChange={(e) => set("description", e.target.value)} />
             </div>
             <div className="form-group">
-              <label className="form-label">Monthly Price</label>
+              <label className="form-label">Monthly Price (USD)</label>
               <input className="form-input" type="number" value={form.monthlyPrice} onChange={(e) => set("monthlyPrice", parseFloat(e.target.value) || 0)} />
             </div>
             <div className="form-group">
-              <label className="form-label">Annual Price</label>
+              <label className="form-label">Annual Price (USD)</label>
               <input className="form-input" type="number" value={form.annualPrice} onChange={(e) => set("annualPrice", parseFloat(e.target.value) || 0)} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Currency</label>
-              <input className="form-input" value={form.currency} onChange={(e) => set("currency", e.target.value)} />
             </div>
             <div className="form-group">
               <label className="form-label">Trial Days</label>
