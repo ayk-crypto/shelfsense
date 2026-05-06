@@ -242,7 +242,7 @@ import type {
 
 export function getSupportTickets(params: {
   page?: number; limit?: number; status?: string; priority?: string;
-  source?: string; search?: string; workspaceId?: string; assignedToUserId?: string;
+  source?: string; category?: string; search?: string; workspaceId?: string; assignedToUserId?: string;
 } = {}): Promise<SupportTicketsResponse> {
   return apiClient.get(`/admin/support/tickets${qs(params)}`);
 }
@@ -263,10 +263,18 @@ export function updateTicketPriority(id: string, priority: string): Promise<{ ti
   return apiClient.patch(`/admin/support/tickets/${id}/priority`, { priority });
 }
 
+export function updateTicketCategory(id: string, category: string | null): Promise<{ ticket: SupportTicket }> {
+  return apiClient.patch(`/admin/support/tickets/${id}/category`, { category });
+}
+
 export function addTicketNote(id: string, note: string): Promise<{ note: SupportInternalNote }> {
   return apiClient.post(`/admin/support/tickets/${id}/notes`, { note });
 }
 
 export function assignTicket(id: string, assignedToUserId: string | null): Promise<{ ticket: SupportTicket }> {
   return apiClient.patch(`/admin/support/tickets/${id}/assign`, { assignedToUserId });
+}
+
+export function getAdminNotificationsSummary(): Promise<import("../types").AdminNotificationSummary> {
+  return apiClient.get("/admin/support/summary");
 }

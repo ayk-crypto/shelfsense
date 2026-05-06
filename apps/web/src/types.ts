@@ -1297,6 +1297,16 @@ export type TicketPriority = "LOW" | "NORMAL" | "HIGH" | "URGENT";
 export type TicketSource = "EMAIL" | "PORTAL" | "ADMIN";
 export type MessageDirection = "INBOUND" | "OUTBOUND" | "INTERNAL";
 
+export type TicketCategory = "billing" | "technical" | "account" | "feature" | "general";
+
+export const TICKET_CATEGORIES: { value: TicketCategory; label: string }[] = [
+  { value: "billing",   label: "Billing & Payments" },
+  { value: "technical", label: "Technical Issue" },
+  { value: "account",   label: "Account & Access" },
+  { value: "feature",   label: "Feature Request" },
+  { value: "general",   label: "General Question" },
+];
+
 export interface SupportTicket {
   id: string;
   ticketNumber: number;
@@ -1304,6 +1314,7 @@ export interface SupportTicket {
   status: TicketStatus;
   priority: TicketPriority;
   source: TicketSource;
+  category: TicketCategory | null;
   workspaceId: string | null;
   userId: string | null;
   requesterEmail: string;
@@ -1318,6 +1329,25 @@ export interface SupportTicket {
   user: { id: string; name: string; email: string } | null;
   assignedTo: { id: string; name: string; email: string } | null;
   _count?: { messages: number };
+}
+
+export interface AdminNotificationSummary {
+  openCount: number;
+  pendingCount: number;
+  urgentCount: number;
+  totalActive: number;
+  recentOpen: Array<{
+    id: string;
+    ticketNumber: number;
+    subject: string;
+    status: TicketStatus;
+    priority: TicketPriority;
+    category: TicketCategory | null;
+    requesterEmail: string;
+    requesterName: string | null;
+    lastMessageAt: string;
+    workspace: { id: string; name: string } | null;
+  }>;
 }
 
 export interface SupportMessage {

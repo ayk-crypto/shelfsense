@@ -18,6 +18,7 @@ const TICKET_SELECT = {
   status: true,
   priority: true,
   source: true,
+  category: true,
   workspaceId: true,
   userId: true,
   requesterEmail: true,
@@ -62,6 +63,7 @@ supportRouter.get("/tickets", asyncHandler(async (req, res) => {
 
   const where: Prisma.SupportTicketWhereInput = { workspaceId };
   if (q.status) where.status = q.status as never;
+  if (q.category) where.category = q.category;
 
   const [tickets, total] = await Promise.all([
     prisma.supportTicket.findMany({
@@ -84,9 +86,16 @@ supportRouter.post("/tickets", asyncHandler(async (req, res) => {
   const user = req.user!;
   if (!workspaceId) return res.status(400).json({ error: "No active workspace" });
 
-  const { subject, message } = req.body as { subject?: string; message?: string };
+  const { subject, message, category } = req.body as {
+    subject?: string;
+    message?: string;
+    category?: string;
+  };
   if (!subject?.trim()) return res.status(400).json({ error: "subject is required" });
   if (!message?.trim()) return res.status(400).json({ error: "message is required" });
+
+  const validCategories = ["billing", "technical", "account", "feature", "general"];
+  const safeCategory = category && validCategories.includes(category) ? category : "general";
 
   const ticket = await prisma.$transaction(async (tx) => {
     const t = await tx.supportTicket.create({
@@ -95,6 +104,7 @@ supportRouter.post("/tickets", asyncHandler(async (req, res) => {
         status: "OPEN",
         priority: "NORMAL",
         source: "PORTAL",
+        category: safeCategory,
         workspaceId,
         userId: user.id,
         requesterEmail: user.email,
@@ -120,7 +130,7 @@ supportRouter.post("/tickets", asyncHandler(async (req, res) => {
         ticketId: t.id,
         eventType: "created",
         actorUserId: user.id,
-        metadata: { source: "PORTAL" } as Prisma.InputJsonValue,
+        metadata: { source: "PORTAL", category: safeCategory } as Prisma.InputJsonValue,
       },
     });
 

@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { getSupportTickets } from "../../api/admin";
-import type { SupportTicket, TicketStatus, TicketPriority } from "../../types";
+import type { SupportTicket, TicketStatus, TicketPriority, TicketCategory } from "../../types";
+import { TICKET_CATEGORIES } from "../../types";
 
 const STATUS_LABELS: Record<TicketStatus, string> = {
   OPEN: "Open", PENDING: "Pending", RESOLVED: "Resolved", CLOSED: "Closed",
@@ -16,6 +17,13 @@ const PRIORITY_LABELS: Record<TicketPriority, string> = {
 const PRIORITY_CLASS: Record<TicketPriority, string> = {
   LOW: "ticket-priority--low", NORMAL: "ticket-priority--normal",
   HIGH: "ticket-priority--high", URGENT: "ticket-priority--urgent",
+};
+const CATEGORY_CLASS: Record<TicketCategory, string> = {
+  billing:   "tc-cat--billing",
+  technical: "tc-cat--technical",
+  account:   "tc-cat--account",
+  feature:   "tc-cat--feature",
+  general:   "tc-cat--general",
 };
 
 function fmtTime(iso: string) {
@@ -40,25 +48,42 @@ export function AdminInboxPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
 
   const load = useCallback(() => {
     setLoading(true);
-    getSupportTickets({ page, limit: 25, search: search || undefined, status: statusFilter || undefined, priority: priorityFilter || undefined })
+    getSupportTickets({
+      page,
+      limit: 25,
+      search: search || undefined,
+      status: statusFilter || undefined,
+      priority: priorityFilter || undefined,
+      category: categoryFilter || undefined,
+    })
       .then((r) => { setTickets(r.tickets); setTotal(r.total); setPages(r.pages); setError(null); })
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load tickets"))
       .finally(() => setLoading(false));
-  }, [page, search, statusFilter, priorityFilter]);
+  }, [page, search, statusFilter, priorityFilter, categoryFilter]);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { setPage(1); }, [search, statusFilter, priorityFilter]);
+  useEffect(() => { setPage(1); }, [search, statusFilter, priorityFilter, categoryFilter]);
+
+  const hasFilters = search || statusFilter || priorityFilter || categoryFilter;
+
+  function clearFilters() {
+    setSearch(""); setStatusFilter(""); setPriorityFilter(""); setCategoryFilter("");
+  }
 
   return (
     <div className="admin-page">
       <div className="admin-page-header">
         <div>
           <h1 className="admin-page-title">Support Inbox</h1>
-          <p className="admin-page-subtitle">Manage inbound support requests from workspace users · {total} ticket{total !== 1 ? "s" : ""} total</p>
+          <p className="admin-page-subtitle">
+            Manage inbound support requests from workspace users · {total} ticket{total !== 1 ? "s" : ""} total
+          </p>
         </div>
+        <button className="btn btn--secondary btn--sm" onClick={load}>Refresh</button>
       </div>
 
       <div className="inbox-filters">
@@ -82,7 +107,34 @@ export function AdminInboxPage() {
           <option value="NORMAL">Normal</option>
           <option value="LOW">Low</option>
         </select>
-        <button className="btn btn--secondary btn--sm" onClick={load}>Refresh</button>
+        <select className="field-input inbox-filter-select" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
+          <option value="">All categories</option>
+          {TICKET_CATEGORIES.map((c) => (
+            <option key={c.value} value={c.value}>{c.label}</option>
+          ))}
+        </select>
+        {hasFilters && (
+          <button className="btn btn--ghost btn--sm" onClick={clearFilters}>Clear</button>
+        )}
+      </div>
+
+      {/* Category quick-filter pills */}
+      <div className="inbox-cat-pills">
+        <button
+          className={`inbox-cat-pill ${!categoryFilter ? "inbox-cat-pill--active" : ""}`}
+          onClick={() => setCategoryFilter("")}
+        >
+          All
+        </button>
+        {TICKET_CATEGORIES.map((c) => (
+          <button
+            key={c.value}
+            className={`inbox-cat-pill inbox-cat-pill--${c.value} ${categoryFilter === c.value ? "inbox-cat-pill--active" : ""}`}
+            onClick={() => setCategoryFilter(categoryFilter === c.value ? "" : c.value)}
+          >
+            {c.label}
+          </button>
+        ))}
       </div>
 
       {loading ? (
@@ -96,8 +148,8 @@ export function AdminInboxPage() {
             <polyline points="22,6 12,13 2,6"/>
           </svg>
           <p>No tickets found</p>
-          {(search || statusFilter || priorityFilter) && (
-            <button className="btn btn--secondary btn--sm" onClick={() => { setSearch(""); setStatusFilter(""); setPriorityFilter(""); }}>
+          {hasFilters && (
+            <button className="btn btn--secondary btn--sm" onClick={clearFilters}>
               Clear filters
             </button>
           )}
@@ -110,10 +162,10 @@ export function AdminInboxPage() {
                 <tr>
                   <th>#</th>
                   <th>Subject</th>
+                  <th>Category</th>
                   <th>Requester</th>
                   <th>Status</th>
                   <th>Priority</th>
-                  <th>Source</th>
                   <th>Assigned</th>
                   <th>Last Activity</th>
                 </tr>
@@ -132,13 +184,21 @@ export function AdminInboxPage() {
                         <span className="inbox-msg-count">{t._count.messages}</span>
                       )}
                     </td>
+                    <td>
+                      {t.category ? (
+                        <span className={`tc-cat-badge ${CATEGORY_CLASS[t.category]}`}>
+                          {TICKET_CATEGORIES.find((c) => c.value === t.category)?.label ?? t.category}
+                        </span>
+                      ) : (
+                        <span className="inbox-unassigned">—</span>
+                      )}
+                    </td>
                     <td className="inbox-requester">
                       <div className="inbox-requester-email">{t.requesterEmail}</div>
                       {t.workspace && <div className="inbox-requester-ws">{t.workspace.name}</div>}
                     </td>
                     <td><span className={`ticket-status ${STATUS_CLASS[t.status]}`}>{STATUS_LABELS[t.status]}</span></td>
                     <td><span className={`ticket-priority ${PRIORITY_CLASS[t.priority]}`}>{PRIORITY_LABELS[t.priority]}</span></td>
-                    <td className="inbox-source">{t.source}</td>
                     <td className="inbox-assignee">
                       {t.assignedTo ? (
                         <span className="inbox-assignee-name">{t.assignedTo.name}</span>

@@ -732,6 +732,7 @@ model SupportTicket {
   status           TicketStatus    @default(OPEN)
   priority         TicketPriority  @default(NORMAL)
   source           TicketSource    @default(EMAIL)
+  category         String?
   workspaceId      String?         @db.Uuid
   userId           String?         @db.Uuid
   requesterEmail   String
@@ -751,6 +752,7 @@ model SupportTicket {
 
   @@index([status])
   @@index([priority])
+  @@index([category])
   @@index([workspaceId])
   @@index([userId])
   @@index([assignedToUserId])

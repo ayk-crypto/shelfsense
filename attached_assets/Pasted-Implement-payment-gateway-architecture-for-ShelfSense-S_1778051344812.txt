@@ -1,0 +1,123 @@
+Implement payment gateway architecture for ShelfSense SaaS.
+
+Context:
+ShelfSense already has multi-tenant workspaces, users, memberships, plans/pricing UI, signup/onboarding flow, and admin billing screens. I want a safe payment system that supports Free and Paid plans, coupons, monthly/annual billing, and future gateway integration.
+
+Important:
+Do not directly integrate live payment credentials yet. First build a provider-based billing architecture with a MOCK provider for development/staging, and prepare adapter structure for PayFast/Safepay later.
+
+Requirements:
+
+1. Add billing database models:
+- Plan
+- Coupon
+- Subscription
+- Payment
+- Invoice
+- BillingEvent
+
+Subscription should support:
+- workspaceId
+- planId
+- status: TRIALING, ACTIVE, PAST_DUE, CANCELLED, EXPIRED
+- billingCycle: MONTHLY, ANNUAL
+- currentPeriodStart
+- currentPeriodEnd
+- gatewayProvider
+- gatewayCustomerId
+- gatewaySubscriptionId
+
+Payment should support:
+- workspaceId
+- subscriptionId
+- amount
+- currency
+- status: PENDING, PAID, FAILED, REFUNDED
+- gatewayProvider
+- gatewayReference
+- metadata
+- paidAt
+
+Coupon should support:
+- code
+- discountType: PERCENTAGE or FIXED
+- discountValue
+- maxRedemptions
+- redeemedCount
+- expiresAt
+- active
+
+2. Backend APIs:
+- GET /billing/plans
+- POST /billing/validate-coupon
+- POST /billing/checkout
+- GET /billing/subscription/current
+- POST /billing/webhooks/mock
+- POST /admin/billing/plans
+- PATCH /admin/billing/plans/:id
+- POST /admin/billing/coupons
+- PATCH /admin/billing/coupons/:id
+- GET /admin/billing/subscriptions
+- GET /admin/billing/payments
+
+3. Checkout flow:
+- If user selects Free plan, activate Free subscription immediately.
+- If user selects paid plan, create pending Payment and Subscription record.
+- For now, MOCK provider should return a fake checkout URL.
+- Add a mock success endpoint/page that simulates gateway webhook.
+- Subscription should only become ACTIVE after backend webhook verification, not from frontend redirect.
+
+4. Coupon logic:
+- Coupon must be validated on backend.
+- Support percentage discount and fixed discount.
+- Support 100% coupon, where paid plan can be activated without external payment.
+- Coupon should not reduce amount below zero.
+- Track coupon redemption count.
+
+5. Signup/onboarding integration:
+- After email verification, force user to complete plan selection if no active subscription exists.
+- Signup completion should show 100% only after:
+  a) email verified
+  b) workspace created
+  c) plan selected
+  d) subscription active or free plan active
+
+6. Access control:
+- If subscription is missing, expired, or unpaid, redirect user to billing/plan selection page.
+- Free plan should enforce limits.
+- Paid plans should enforce their own limits.
+
+7. Admin:
+- Admin can view subscriptions and payments.
+- Admin can manually mark a payment as paid if needed.
+- Admin can assign/extend subscription manually.
+- Every admin billing action should create BillingEvent audit log.
+
+8. Architecture:
+Create payment provider abstraction:
+- PaymentProvider interface
+- MockPaymentProvider
+- PayFastPaymentProvider placeholder
+- SafepayPaymentProvider placeholder
+
+Use environment variable:
+PAYMENT_PROVIDER=mock
+
+Do not store card details.
+Do not trust frontend amount.
+Calculate amount on backend from plan, billing cycle, and coupon.
+Add idempotency handling for webhook events.
+Add clear error messages and logs.
+
+9. Frontend:
+Add/complete:
+- Plan selection page
+- Coupon input
+- Billing cycle monthly/annual toggle
+- Payment pending page
+- Payment success page
+- Payment failed/cancelled page
+- Current subscription page in settings
+- Admin billing pages if not already complete
+
+Make UI professional, mobile responsive, SaaS-style, and consistent with ShelfSense branding.
