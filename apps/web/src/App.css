@@ -22073,3 +22073,271 @@ body {
   font-size: 13px;
   color: #6366f1;
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   SUBSCRIPTIONS PAGE
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Pending badge next to subtitle */
+.subs-pending-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 10px;
+  padding: 2px 8px;
+  background: #fef3c7;
+  color: #b45309;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* Plan badges in table */
+.subs-plan-badge {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .01em;
+}
+.subs-plan-free    { background: #f1f5f9; color: #475569; }
+.subs-plan-starter { background: #ede9fe; color: #6d28d9; }
+.subs-plan-basic   { background: #dbeafe; color: #1d4ed8; }
+.subs-plan-pro     { background: #d1fae5; color: #065f46; }
+.subs-plan-enterprise { background: #fef3c7; color: #92400e; }
+
+/* Billing cycle pill */
+.subs-billing-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.subs-billing-monthly { background: #f0fdf4; color: #15803d; }
+.subs-billing-annual  { background: #eff6ff; color: #1d4ed8; }
+.subs-billing-manual  { background: #f8fafc; color: #64748b; }
+
+/* Amount in table */
+.subs-amount      { font-weight: 600; color: #0f172a; }
+.subs-amount-free { color: #94a3b8; font-style: italic; }
+
+/* Period / days-left */
+.subs-period-date { font-size: 13px; color: #334155; }
+.subs-days-left   { font-size: 11px; color: #64748b; margin-top: 1px; }
+.subs-days-left--warn    { color: #d97706; font-weight: 600; }
+.subs-days-left--expired { color: #dc2626; font-weight: 600; }
+
+/* Coupon chip */
+.subs-coupon-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: #f0fdf4;
+  color: #15803d;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: ui-monospace, monospace;
+  border: 1px solid #bbf7d0;
+}
+
+/* Workspace cell */
+.subs-ws-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.subs-ws-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  letter-spacing: .03em;
+}
+.subs-ws-name { font-weight: 600; font-size: 13px; }
+
+/* Row highlight for pending */
+.subs-row--pending { background: #fffbeb; }
+.subs-row--pending:hover { background: #fef9c3 !important; }
+
+/* Activate button (inline in table) */
+.subs-activate-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  background: #6366f1;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s;
+}
+.subs-activate-btn:hover { background: #4f46e5; }
+
+/* Empty state */
+.admin-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 60px 0;
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+/* ─── Activate Modal internals ─────────────────────────── */
+
+/* Workspace + plan info card */
+.subs-activate-info-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  margin-bottom: 20px;
+}
+.subs-activate-ws {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.subs-activate-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  letter-spacing: .03em;
+}
+.subs-activate-ws-text { display: flex; flex-direction: column; gap: 2px; }
+.subs-activate-ws-name { font-weight: 700; font-size: 14px; color: #0f172a; }
+.subs-activate-ws-email { font-size: 12px; color: #64748b; }
+
+.subs-activate-plan-badge {
+  padding: 5px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.subs-activate-plan-price { font-weight: 500; opacity: .8; }
+
+/* Field wrapper */
+.subs-activate-field { margin-bottom: 18px; }
+.subs-activate-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+
+/* Billing cycle pill toggle */
+.subs-cycle-toggle {
+  display: inline-flex;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #f8fafc;
+}
+.subs-cycle-btn {
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.subs-cycle-btn:hover { background: #f1f5f9; color: #334155; }
+.subs-cycle-btn--active {
+  background: #6366f1;
+  color: #fff;
+  border-radius: 8px;
+}
+.subs-cycle-btn--active:hover { background: #4f46e5; }
+
+/* Date quick presets */
+.subs-date-presets {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.subs-date-preset {
+  padding: 4px 11px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6366f1;
+  background: #ede9fe;
+  border: 1px solid #c4b5fd;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background .12s;
+}
+.subs-date-preset:hover { background: #ddd6fe; }
+
+/* Date input */
+.subs-date-input {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #0f172a;
+  background: #fff;
+  box-sizing: border-box;
+}
+.subs-date-input:focus { outline: none; border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,.1); }
+
+/* Activation summary card */
+.subs-activate-summary {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-top: 4px;
+}
+.subs-activate-summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 0;
+  border-bottom: 1px solid #d1fae5;
+}
+.subs-activate-summary-row:last-child { border-bottom: none; padding-bottom: 0; }
+.subs-activate-summary-row:first-child { padding-top: 0; }
+.subs-activate-summary-label { font-size: 12px; color: #15803d; font-weight: 500; }
+.subs-activate-summary-value { font-size: 13px; font-weight: 700; color: #065f46; }
+.subs-activate-summary-date  { color: #047857; }
+
+/* CTA button with icon */
+.subs-activate-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

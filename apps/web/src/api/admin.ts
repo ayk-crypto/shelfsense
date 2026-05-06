@@ -170,7 +170,7 @@ export function updateAdminCouponStatus(id: string, isActive: boolean): Promise<
 
 // ── Subscriptions ─────────────────────────────────────────────────────────────
 
-export function getAdminSubscriptions(params: { page?: number; limit?: number; status?: string } = {}): Promise<AdminSubscriptionsResponse> {
+export function getAdminSubscriptions(params: { page?: number; limit?: number; status?: string; search?: string } = {}): Promise<AdminSubscriptionsResponse> {
   return apiClient.get(`/admin/subscriptions${qs(params)}`);
 }
 
