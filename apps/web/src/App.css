@@ -378,6 +378,17 @@ body {
   bottom: auto;
 }
 
+/* When the bell lives in the sidebar footer, the sidebar's overflow-y:auto
+   clips absolutely-positioned children. Use fixed positioning instead so the
+   panel escapes the sidebar and opens to the right of it. */
+.sidebar .notification-panel {
+  position: fixed;
+  bottom: 80px;
+  left: calc(var(--sidebar-w) + 8px);
+  right: auto;
+  top: auto;
+}
+
 .notification-panel-header {
   display: flex;
   align-items: flex-start;
