@@ -63,9 +63,15 @@ export function errorHandler(
       method: req.method,
       path: req.path,
       status,
+      userId: req.user?.userId ?? null,
+      workspaceId: req.user?.workspaceId ?? null,
       error: error instanceof Error ? error.message : String(error),
+      errorName: error instanceof Error ? error.constructor.name : typeof error,
       stack: error instanceof Error ? error.stack : undefined,
       prismaCode: getPrismaCode(error),
+      prismaMeta: error instanceof Prisma.PrismaClientKnownRequestError
+        ? (error.meta as Record<string, unknown> | undefined) ?? null
+        : null,
     });
   }
 
