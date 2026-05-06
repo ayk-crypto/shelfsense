@@ -40,7 +40,7 @@ function Navbar() {
           ) : (
             <>
               <Link to="/login" className="lp-btn lp-btn--ghost">Sign in</Link>
-              <Link to="/signup" className="lp-btn lp-btn--primary">Get started free</Link>
+              <Link to="/signup" className="lp-btn lp-btn--primary">Start free</Link>
             </>
           )}
         </nav>
@@ -60,78 +60,109 @@ function Navbar() {
 
 function AppMockup() {
   return (
-    <div className="lp-mockup">
-      <div className="lp-mockup-chrome">
-        <div className="lp-mockup-chrome-bar">
-          <span className="lp-mockup-dot lp-mockup-dot--red" />
-          <span className="lp-mockup-dot lp-mockup-dot--yellow" />
-          <span className="lp-mockup-dot lp-mockup-dot--green" />
-          <div className="lp-mockup-url">app.shelfsense.com/items</div>
+    <div className="lp-mockup-wrap">
+      {/* Floating alert notification */}
+      <div className="lp-mockup-float lp-mockup-float--alert">
+        <span className="lp-mf-pulse" />
+        <div className="lp-mf-content">
+          <div className="lp-mf-title">3 items expiring soon</div>
+          <div className="lp-mf-sub">Coffee Beans · Vanilla Extract · Milk</div>
         </div>
-        <div className="lp-mockup-body">
-          <aside className="lp-ms-sidebar">
-            <div className="lp-ms-logo-wrap">
-              <span className="lp-ms-logo">S</span>
-              <span className="lp-ms-workspace">My Workspace</span>
-            </div>
-            {[
-              { label: "Today", active: false },
-              { label: "Inventory", active: true },
-              { label: "Stock In", active: false },
-              { label: "Alerts", active: false },
-              { label: "Reports", active: false },
-            ].map((item) => (
-              <div key={item.label} className={`lp-ms-item ${item.active ? "lp-ms-item--active" : ""}`}>
-                {item.label}
-              </div>
-            ))}
-          </aside>
+        <span className="lp-mf-badge lp-mf-badge--danger">Urgent</span>
+      </div>
 
-          <main className="lp-ms-main">
-            <div className="lp-ms-topbar">
-              <span className="lp-ms-title">Inventory</span>
-              <span className="lp-ms-add">+ Add Item</span>
-            </div>
+      {/* Floating restock card */}
+      <div className="lp-mockup-float lp-mockup-float--restock">
+        <div className="lp-mf-icon">📦</div>
+        <div className="lp-mf-content">
+          <div className="lp-mf-title">Olive Oil — Low stock</div>
+          <div className="lp-mf-sub">9 units left · Reorder point: 20</div>
+        </div>
+      </div>
 
-            <div className="lp-ms-stats">
-              <div className="lp-ms-stat">
-                <span className="lp-ms-stat-n">48</span>
-                <span className="lp-ms-stat-l">Items</span>
-              </div>
-              <div className="lp-ms-stat">
-                <span className="lp-ms-stat-n" style={{ color: "#f59e0b" }}>6</span>
-                <span className="lp-ms-stat-l">Low stock</span>
-              </div>
-              <div className="lp-ms-stat">
-                <span className="lp-ms-stat-n" style={{ color: "#ef4444" }}>3</span>
-                <span className="lp-ms-stat-l">Expiring</span>
-              </div>
-            </div>
-
-            <div className="lp-ms-table">
-              <div className="lp-ms-thead">
-                <span>Item</span><span>Category</span><span>Stock</span><span>Status</span>
+      <div className="lp-mockup">
+        <div className="lp-mockup-chrome">
+          <div className="lp-mockup-chrome-bar">
+            <span className="lp-mockup-dot lp-mockup-dot--red" />
+            <span className="lp-mockup-dot lp-mockup-dot--yellow" />
+            <span className="lp-mockup-dot lp-mockup-dot--green" />
+            <div className="lp-mockup-url">app.shelfsense.com/inventory</div>
+          </div>
+          <div className="lp-mockup-body">
+            {/* Sidebar */}
+            <aside className="lp-ms-sidebar">
+              <div className="lp-ms-logo-wrap">
+                <span className="lp-ms-logo">S</span>
+                <span className="lp-ms-workspace">My Workspace</span>
               </div>
               {[
-                { name: "Pasta Sauce", cat: "Food", stock: "42 units", badge: "low", badgeLabel: "Low stock" },
-                { name: "Coffee Beans", cat: "Beverage", stock: "15 units", badge: "warn", badgeLabel: "Expiring" },
-                { name: "Hand Sanitizer", cat: "Medical", stock: "128 units", badge: null, badgeLabel: "" },
-                { name: "Paper Towels", cat: "Supplies", stock: "320 units", badge: null, badgeLabel: "" },
-                { name: "Olive Oil", cat: "Food", stock: "9 units", badge: "low", badgeLabel: "Low stock" },
-              ].map((row) => (
-                <div key={row.name} className="lp-ms-row">
-                  <span className="lp-ms-row-name">{row.name}</span>
-                  <span className="lp-ms-row-cat">{row.cat}</span>
-                  <span className="lp-ms-row-stock">{row.stock}</span>
-                  <span>
-                    {row.badge === "low" && <span className="lp-ms-badge lp-ms-badge--low">{row.badgeLabel}</span>}
-                    {row.badge === "warn" && <span className="lp-ms-badge lp-ms-badge--warn">{row.badgeLabel}</span>}
-                    {!row.badge && <span className="lp-ms-badge lp-ms-badge--ok">In stock</span>}
-                  </span>
+                { label: "Dashboard",  active: false, badge: null },
+                { label: "Inventory",  active: true,  badge: null },
+                { label: "Receive",    active: false, badge: null },
+                { label: "Alerts",     active: false, badge: "9"  },
+                { label: "Reports",    active: false, badge: null },
+              ].map((item) => (
+                <div key={item.label} className={`lp-ms-item ${item.active ? "lp-ms-item--active" : ""}`}>
+                  <span className="lp-ms-item-label">{item.label}</span>
+                  {item.badge && <span className="lp-ms-item-badge">{item.badge}</span>}
                 </div>
               ))}
-            </div>
-          </main>
+            </aside>
+
+            {/* Main content */}
+            <main className="lp-ms-main">
+              <div className="lp-ms-topbar">
+                <span className="lp-ms-title">Inventory</span>
+                <div className="lp-ms-topbar-right">
+                  <span className="lp-ms-filter-btn">Filter</span>
+                  <span className="lp-ms-add">+ Add Item</span>
+                </div>
+              </div>
+
+              <div className="lp-ms-stats">
+                <div className="lp-ms-stat">
+                  <span className="lp-ms-stat-n">48</span>
+                  <span className="lp-ms-stat-l">Total items</span>
+                </div>
+                <div className="lp-ms-stat">
+                  <span className="lp-ms-stat-n lp-ms-stat-n--ok">39</span>
+                  <span className="lp-ms-stat-l">In stock</span>
+                </div>
+                <div className="lp-ms-stat">
+                  <span className="lp-ms-stat-n lp-ms-stat-n--warn">6</span>
+                  <span className="lp-ms-stat-l">Low stock</span>
+                </div>
+                <div className="lp-ms-stat">
+                  <span className="lp-ms-stat-n lp-ms-stat-n--danger">3</span>
+                  <span className="lp-ms-stat-l">Expiring</span>
+                </div>
+              </div>
+
+              <div className="lp-ms-table">
+                <div className="lp-ms-thead">
+                  <span>Item</span><span>Category</span><span>Stock</span><span>Status</span>
+                </div>
+                {[
+                  { name: "Pasta Sauce",    cat: "Food",     stock: "42 units",  badge: "low",  badgeLabel: "Low stock" },
+                  { name: "Coffee Beans",   cat: "Beverage", stock: "15 units",  badge: "warn", badgeLabel: "Expiring"  },
+                  { name: "Hand Sanitizer", cat: "Medical",  stock: "128 units", badge: null,   badgeLabel: ""          },
+                  { name: "Paper Towels",   cat: "Supplies", stock: "320 units", badge: null,   badgeLabel: ""          },
+                  { name: "Olive Oil",      cat: "Food",     stock: "9 units",   badge: "low",  badgeLabel: "Low stock" },
+                ].map((row) => (
+                  <div key={row.name} className="lp-ms-row">
+                    <span className="lp-ms-row-name">{row.name}</span>
+                    <span className="lp-ms-row-cat">{row.cat}</span>
+                    <span className="lp-ms-row-stock">{row.stock}</span>
+                    <span>
+                      {row.badge === "low"  && <span className="lp-ms-badge lp-ms-badge--low">{row.badgeLabel}</span>}
+                      {row.badge === "warn" && <span className="lp-ms-badge lp-ms-badge--warn">{row.badgeLabel}</span>}
+                      {!row.badge           && <span className="lp-ms-badge lp-ms-badge--ok">In stock</span>}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </main>
+          </div>
         </div>
       </div>
     </div>
@@ -147,8 +178,7 @@ const FEATURES = [
         <line x1="12" y1="22.08" x2="12" y2="12" />
       </svg>
     ),
-    color: "#6366f1",
-    bg: "#eef2ff",
+    color: "#6366f1", bg: "#eef2ff",
     title: "Always know what you have",
     desc: "Stock levels update the moment your team records a movement, purchase, or adjustment — no more guessing, no end-of-day reconciliation.",
   },
@@ -162,10 +192,9 @@ const FEATURES = [
         <path d="M9 16l2 2 4-4" />
       </svg>
     ),
-    color: "#ef4444",
-    bg: "#fef2f2",
+    color: "#ef4444", bg: "#fef2f2",
     title: "Catch expiry before it costs you",
-    desc: "Get automatic alerts days or weeks before items expire. Stop writing off stock you didn't know was about to go bad.",
+    desc: "Automatic alerts days or weeks before items expire. Stop writing off stock you didn't know was about to go bad.",
   },
   {
     icon: (
@@ -174,8 +203,7 @@ const FEATURES = [
         <circle cx="12" cy="10" r="3" />
       </svg>
     ),
-    color: "#10b981",
-    bg: "#ecfdf5",
+    color: "#10b981", bg: "#ecfdf5",
     title: "Manage every site from one place",
     desc: "Run multiple stores, warehouses, or kitchens from a single dashboard. Transfer stock between locations in seconds — no emails, no calls.",
   },
@@ -188,8 +216,7 @@ const FEATURES = [
         <line x1="16" y1="17" x2="8" y2="17" />
       </svg>
     ),
-    color: "#f59e0b",
-    bg: "#fffbeb",
+    color: "#f59e0b", bg: "#fffbeb",
     title: "Restock without the back-and-forth",
     desc: "Create purchase orders, track them from draft to received, and watch stock levels update automatically when deliveries arrive.",
   },
@@ -202,8 +229,7 @@ const FEATURES = [
         <path d="M16 3.13a4 4 0 0 1 0 7.75" />
       </svg>
     ),
-    color: "#3b82f6",
-    bg: "#eff6ff",
+    color: "#3b82f6", bg: "#eff6ff",
     title: "Your team, with the right access",
     desc: "Invite staff and set their role — Owner, Manager, or Operator. Everyone sees what they need, nothing they don't.",
   },
@@ -216,10 +242,9 @@ const FEATURES = [
         <polyline points="3 20 21 20" />
       </svg>
     ),
-    color: "#8b5cf6",
-    bg: "#f5f3ff",
+    color: "#8b5cf6", bg: "#f5f3ff",
     title: "See where money is being lost",
-    desc: "8 built-in reports covering wastage costs, supplier spend, stock aging, and expiry losses — all exportable to CSV in one click.",
+    desc: "8 built-in reports covering wastage costs, supplier spend, stock aging, and expiry losses — exportable to CSV in one click.",
   },
 ];
 
@@ -307,7 +332,7 @@ function planToCard(plan: PublicPlan): PricingCard {
     highlight: visual.highlight,
     limits,
     features,
-    currency: plan.currency,
+    currency: "$",
   };
 }
 
@@ -316,11 +341,8 @@ const STATIC_PRICING: PricingCard[] = [
     tier: "Free",
     price: "0",
     period: "forever",
-    desc: "Everything you need to replace your spreadsheet and get started.",
-    color: "#64748b",
-    bg: "#f8fafc",
-    highlight: false,
-    currency: "$",
+    desc: "For testing and very small teams replacing spreadsheets.",
+    color: "#64748b", bg: "#f8fafc", highlight: false, currency: "$",
     limits: ["3 users", "1 location", "50 items"],
     features: [
       { label: "Expiry tracking",      included: true  },
@@ -339,11 +361,8 @@ const STATIC_PRICING: PricingCard[] = [
     tier: "Basic",
     price: "19",
     period: "/ mo",
-    desc: "For growing teams who need real inventory control across multiple locations.",
-    color: "#6366f1",
-    bg: "#eef2ff",
-    highlight: true,
-    currency: "$",
+    desc: "For growing teams that need real inventory control across multiple locations.",
+    color: "#6366f1", bg: "#eef2ff", highlight: true, currency: "$",
     limits: ["10 users", "5 locations", "500 items"],
     features: [
       { label: "Expiry tracking",      included: true  },
@@ -362,11 +381,8 @@ const STATIC_PRICING: PricingCard[] = [
     tier: "Pro",
     price: "49",
     period: "/ mo",
-    desc: "Unlimited everything. Advanced analytics, custom roles, and full team control.",
-    color: "#7c3aed",
-    bg: "#f5f3ff",
-    highlight: false,
-    currency: "$",
+    desc: "For multi-location operations needing advanced tracking and custom roles.",
+    color: "#7c3aed", bg: "#f5f3ff", highlight: false, currency: "$",
     limits: ["Unlimited users", "Unlimited locations", "Unlimited items"],
     features: [
       { label: "Expiry tracking",      included: true },
@@ -385,24 +401,33 @@ const STATIC_PRICING: PricingCard[] = [
     tier: "Business",
     price: "99",
     period: "/ mo",
-    desc: "Enterprise-grade inventory management with dedicated support and custom onboarding.",
-    color: "#0ea5e9",
-    bg: "#f0f9ff",
-    highlight: false,
-    currency: "$",
+    desc: "For larger teams needing stronger controls, SLA support, and custom onboarding.",
+    color: "#0ea5e9", bg: "#f0f9ff", highlight: false, currency: "$",
     limits: ["Unlimited users", "Unlimited locations", "Unlimited items"],
     features: [
-      { label: "Everything in Pro",    included: true },
-      { label: "Custom onboarding",    included: true },
+      { label: "Everything in Pro",      included: true },
+      { label: "Custom onboarding",      included: true },
       { label: "Priority phone support", included: true },
-      { label: "SLA guarantee",        included: true },
-      { label: "Bulk data import",     included: true },
-      { label: "Custom integrations",  included: true },
-      { label: "Quarterly reviews",    included: true },
-      { label: "Negotiated pricing",   included: true },
+      { label: "SLA guarantee",          included: true },
+      { label: "Bulk data import",       included: true },
+      { label: "Custom integrations",    included: true },
+      { label: "Quarterly reviews",      included: true },
+      { label: "Negotiated pricing",     included: true },
     ],
   },
 ];
+
+const CHECK_ICON = (
+  <svg className="lp-pricing-check" viewBox="0 0 16 16" fill="currentColor">
+    <path fillRule="evenodd" d="M13.707 4.293a1 1 0 010 1.414l-7 7a1 1 0 01-1.414 0l-3-3a1 1 0 011.414-1.414L6 10.586l6.293-6.293a1 1 0 011.414 0z" />
+  </svg>
+);
+
+const CROSS_ICON = (
+  <svg className="lp-pricing-cross" viewBox="0 0 16 16" fill="currentColor">
+    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L8 6.586l2.293-2.293a1 1 0 111.414 1.414L9.414 8l2.293 2.293a1 1 0 01-1.414 1.414L8 9.414l-2.293 2.293a1 1 0 01-1.414-1.414L6.586 8 4.293 5.707a1 1 0 010-1.414z" />
+  </svg>
+);
 
 export function LandingPage() {
   const { isAuthenticated } = useAuth();
@@ -412,43 +437,36 @@ export function LandingPage() {
   useEffect(() => {
     getPublicPlans()
       .then(({ plans }) => {
-        if (plans.length > 0) {
-          setPricing(plans.map(planToCard));
-        }
+        if (plans.length > 0) setPricing(plans.map(planToCard));
       })
-      .catch(() => {
-        // keep static fallback
-      });
+      .catch(() => { /* keep static fallback */ });
   }, []);
 
   function handlePrimaryCta() {
-    if (isAuthenticated) {
-      navigate("/dashboard");
-    } else {
-      navigate("/signup");
-    }
+    navigate(isAuthenticated ? "/dashboard" : "/signup");
   }
 
   return (
     <div className="lp-root">
       <Navbar />
 
-      {/* ── Hero ───────────────────────────────────── */}
+      {/* ── Hero ─────────────────────────────────────── */}
       <section className="lp-hero">
         <div className="lp-hero-bg" aria-hidden />
+        <div className="lp-hero-glow" aria-hidden />
         <div className="lp-container lp-hero-inner">
           <div className="lp-hero-copy">
             <div className="lp-hero-eyebrow">Inventory management, simplified</div>
             <h1 className="lp-hero-headline">
-              Stop losing money to
-              <span className="lp-hero-headline-accent"> expired stock and empty shelves.</span>
+              Stop expiry losses, stockouts, and
+              <span className="lp-hero-headline-accent"> inventory blind spots.</span>
             </h1>
             <p className="lp-hero-sub">
               ShelfSense gives restaurants, retail stores, and warehouses a real-time view of their stock, expiry dates, and team activity — across every location, without the spreadsheets.
             </p>
             <div className="lp-hero-actions">
               <button type="button" className="lp-btn lp-btn--hero-primary" onClick={handlePrimaryCta}>
-                {isAuthenticated ? "Go to dashboard →" : "Start for free →"}
+                {isAuthenticated ? "Go to app →" : "Start free →"}
               </button>
               <button type="button" className="lp-btn lp-btn--hero-ghost" onClick={() => scrollTo("features")}>
                 See how it works ↓
@@ -467,13 +485,13 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ── Stats bar ──────────────────────────────── */}
+      {/* ── Stats bar ─────────────────────────────────── */}
       <section className="lp-stats-bar">
         <div className="lp-container lp-stats-inner">
           {[
-            { value: "8", label: "Built-in analytics reports" },
-            { value: "CSV", label: "One-click data export" },
-            { value: "Free", label: "During the preview period" },
+            { value: "8",      label: "Built-in analytics reports" },
+            { value: "CSV",    label: "One-click data export" },
+            { value: "Free",   label: "During the preview period" },
             { value: "< 5 min", label: "To set up your workspace" },
           ].map((s) => (
             <div key={s.label} className="lp-stat">
@@ -484,7 +502,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ── Features ──────────────────────────────── */}
+      {/* ── Features ──────────────────────────────────── */}
       <section className="lp-features" id="features">
         <div className="lp-container">
           <div className="lp-section-header">
@@ -509,7 +527,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ── Who it's for ──────────────────────────── */}
+      {/* ── Who it's for ──────────────────────────────── */}
       <section className="lp-showcase" id="who">
         <div className="lp-container">
           <div className="lp-section-header">
@@ -520,7 +538,7 @@ export function LandingPage() {
             </p>
           </div>
 
-          <div className="lp-features-grid">
+          <div className="lp-features-grid lp-features-grid--3">
             {WHO_FOR.map((w) => (
               <div key={w.title} className="lp-feature-card">
                 <div className="lp-feature-icon" style={{ background: "#f8fafc", color: "#334155", fontSize: "1.5rem" }}>
@@ -534,8 +552,8 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ── Product deep-dive ─────────────────────── */}
-      <section className="lp-showcase">
+      {/* ── Product showcase — alerts ─────────────────── */}
+      <section className="lp-showcase lp-showcase--light">
         <div className="lp-container lp-showcase-inner">
           <div className="lp-showcase-copy">
             <div className="lp-section-eyebrow">See it in action</div>
@@ -567,14 +585,14 @@ export function LandingPage() {
           <div className="lp-showcase-visual">
             <div className="lp-showcase-card">
               <div className="lp-sc-header">
-                <span className="lp-sc-title">Alerts</span>
+                <span className="lp-sc-title">Active Alerts</span>
                 <span className="lp-sc-count">9 active</span>
               </div>
               {[
-                { icon: "📦", name: "Pasta Sauce", msg: "Only 3 units left — reorder point is 10", tag: "low", tagLabel: "Critical" },
-                { icon: "⏰", name: "Coffee Beans", msg: "5 batches expire within 7 days", tag: "expiry", tagLabel: "Expiring" },
-                { icon: "📦", name: "Olive Oil", msg: "9 units remaining — below minimum", tag: "low", tagLabel: "Low stock" },
-                { icon: "⏰", name: "Vanilla Extract", msg: "2 batches expire in 3 days", tag: "expiry", tagLabel: "Urgent" },
+                { icon: "📦", name: "Pasta Sauce",     msg: "Only 3 units left — reorder point is 10",  tag: "low",    tagLabel: "Critical" },
+                { icon: "⏰", name: "Coffee Beans",    msg: "5 batches expire within 7 days",            tag: "expiry", tagLabel: "Expiring" },
+                { icon: "📦", name: "Olive Oil",       msg: "9 units remaining — below minimum",         tag: "low",    tagLabel: "Low stock" },
+                { icon: "⏰", name: "Vanilla Extract", msg: "2 batches expire in 3 days",                tag: "expiry", tagLabel: "Urgent"   },
               ].map((a) => (
                 <div key={a.name} className="lp-sc-alert-row">
                   <span className="lp-sc-alert-icon">{a.icon}</span>
@@ -590,15 +608,43 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ── Pricing ───────────────────────────────── */}
+      {/* ── Trust section ─────────────────────────────── */}
+      <section className="lp-trust-section">
+        <div className="lp-container">
+          <div className="lp-trust-inner">
+            <div className="lp-trust-heading">Built for real inventory teams</div>
+            <div className="lp-trust-grid">
+              {[
+                { icon: "✓", text: "No credit card required" },
+                { icon: "✓", text: "Setup in under 5 minutes" },
+                { icon: "✓", text: "Export your data anytime" },
+                { icon: "✓", text: "Workspace-based access control" },
+                { icon: "✓", text: "Works for restaurants, retail, warehouses & suppliers" },
+              ].map((item) => (
+                <div key={item.text} className="lp-trust-item">
+                  <span className="lp-trust-icon">{item.icon}</span>
+                  <span>{item.text}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Pricing ────────────────────────────────────── */}
       <section className="lp-pricing" id="pricing">
         <div className="lp-container">
           <div className="lp-section-header">
             <div className="lp-section-eyebrow">Simple pricing</div>
             <h2 className="lp-section-title">Start free. Pay only when you're ready to grow.</h2>
             <p className="lp-section-sub">
-              No credit card required. No setup fees. No contracts. Upgrade only if you need more items, locations, or team members.
+              No credit card required. No setup fees. No contracts. Upgrade when you need more items, locations, or team members.
             </p>
+          </div>
+
+          <div className="lp-pricing-usd-note">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            Subscription plans are billed in <strong>USD</strong>. Your workspace currency is configured separately for inventory costs and reports.
           </div>
 
           <div className="lp-pricing-note">
@@ -615,7 +661,7 @@ export function LandingPage() {
                 {plan.highlight && <div className="lp-pricing-popular">Most popular</div>}
                 <div className="lp-pricing-tier" style={{ color: plan.color }}>{plan.tier}</div>
                 <div className="lp-pricing-price">
-                  <span className="lp-pricing-currency">{plan.currency}</span>
+                  <span className="lp-pricing-currency">$</span>
                   <span className="lp-pricing-amount">{plan.price}</span>
                   <span className="lp-pricing-period">{plan.period}</span>
                 </div>
@@ -630,15 +676,7 @@ export function LandingPage() {
                 <ul className="lp-pricing-features">
                   {plan.features.map((f) => (
                     <li key={f.label} className={`lp-pricing-feature${f.included ? "" : " lp-pricing-feature--dim"}`}>
-                      {f.included ? (
-                        <svg className="lp-pricing-check" viewBox="0 0 16 16" fill="currentColor">
-                          <path fillRule="evenodd" d="M13.707 4.293a1 1 0 010 1.414l-7 7a1 1 0 01-1.414 0l-3-3a1 1 0 011.414-1.414L6 10.586l6.293-6.293a1 1 0 011.414 0z" />
-                        </svg>
-                      ) : (
-                        <svg className="lp-pricing-cross" viewBox="0 0 16 16" fill="currentColor">
-                          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L8 6.586l2.293-2.293a1 1 0 111.414 1.414L9.414 8l2.293 2.293a1 1 0 01-1.414 1.414L8 9.414l-2.293 2.293a1 1 0 01-1.414-1.414L6.586 8 4.293 5.707a1 1 0 010-1.414z" />
-                        </svg>
-                      )}
+                      {f.included ? CHECK_ICON : CROSS_ICON}
                       {f.label}
                     </li>
                   ))}
@@ -652,13 +690,13 @@ export function LandingPage() {
                   {isAuthenticated
                     ? "Open dashboard"
                     : plan.tier === "Free"
-                    ? "Start Free"
+                    ? "Start free"
                     : plan.tier === "Business"
-                    ? "Contact Sales"
+                    ? "Contact sales"
                     : `Choose ${plan.tier}`}
                 </button>
                 {!isAuthenticated && (
-                  <p style={{ textAlign: "center", fontSize: "0.75rem", color: "#94a3b8", marginTop: "0.5rem" }}>
+                  <p className="lp-pricing-footnote">
                     {plan.tier === "Free" ? "No credit card required" : "Manual activation available"}
                   </p>
                 )}
@@ -668,17 +706,17 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ── CTA banner ────────────────────────────── */}
+      {/* ── CTA banner ─────────────────────────────────── */}
       <section className="lp-cta">
         <div className="lp-cta-bg" aria-hidden />
         <div className="lp-container lp-cta-inner">
           <h2 className="lp-cta-title">Your stock is costing you more than you think.</h2>
           <p className="lp-cta-sub">
-            Every expired product, every emergency reorder, every stockout is a cost that ShelfSense helps you avoid. Set up your workspace in minutes — free, no card needed.
+            Every expired product, every emergency reorder, every stockout is a cost ShelfSense helps you avoid. Set up your workspace in minutes — free, no card needed.
           </p>
           <div className="lp-cta-actions">
             <button type="button" className="lp-btn lp-btn--cta-primary" onClick={handlePrimaryCta}>
-              {isAuthenticated ? "Back to dashboard →" : "Create your free account →"}
+              {isAuthenticated ? "Go to app →" : "Create your free workspace →"}
             </button>
             {!isAuthenticated && (
               <Link to="/login" className="lp-btn lp-btn--cta-ghost">Sign in</Link>
@@ -687,13 +725,15 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ── Footer ───────────────────────────────── */}
+      {/* ── Footer ─────────────────────────────────────── */}
       <footer className="lp-footer">
         <div className="lp-container lp-footer-inner">
           <div className="lp-footer-brand">
-            <span className="lp-nav-logo-mark lp-footer-logo-mark">S</span>
-            <span className="lp-nav-logo-text lp-footer-logo-text">ShelfSense</span>
-            <p className="lp-footer-tagline">Inventory management for businesses that can't afford blind spots.</p>
+            <div className="lp-footer-brand-row">
+              <span className="lp-nav-logo-mark lp-footer-logo-mark">S</span>
+              <span className="lp-nav-logo-text lp-footer-logo-text">ShelfSense</span>
+            </div>
+            <p className="lp-footer-tagline">Inventory management for businesses that cannot afford blind spots.</p>
           </div>
           <div className="lp-footer-links">
             <div className="lp-footer-col">
@@ -716,8 +756,9 @@ export function LandingPage() {
           </div>
         </div>
         <div className="lp-footer-bottom">
-          <div className="lp-container">
-            © {new Date().getFullYear()} ShelfSense. All rights reserved.
+          <div className="lp-container lp-footer-bottom-inner">
+            <span>© {new Date().getFullYear()} ShelfSense. All rights reserved.</span>
+            <span className="lp-footer-bottom-tagline">Built for real inventory teams.</span>
           </div>
         </div>
       </footer>
