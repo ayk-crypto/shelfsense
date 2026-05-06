@@ -440,6 +440,13 @@ billingRouter.post(
       });
     }
 
+    if (env.paymentProvider !== "paddle") {
+      return res.status(400).json({
+        error: "Paddle checkout is not available. The active payment provider is not Paddle.",
+        code: "PADDLE_NOT_CONFIGURED",
+      });
+    }
+
     if (upperCode === "FREE") {
       return res.status(400).json({ error: "Free plan does not go through Paddle checkout. Use /billing/checkout instead." });
     }
