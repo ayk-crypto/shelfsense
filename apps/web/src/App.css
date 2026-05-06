@@ -22341,3 +22341,44 @@ body {
   align-items: center;
   gap: 6px;
 }
+
+/* ─── Announcement card: delete button + inline confirm ─── */
+.ann-icon-btn--danger { color: #94a3b8; }
+.ann-icon-btn--danger:hover { background: #fee2e2; color: #dc2626; border-color: #fca5a5; }
+
+.ann-delete-confirm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  animation: fadeIn .15s ease;
+}
+.ann-delete-confirm-text {
+  font-size: 12.5px;
+  color: #dc2626;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.ann-delete-confirm-btn {
+  padding: 4px 12px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background .12s;
+}
+.ann-delete-confirm-btn--yes {
+  background: #dc2626;
+  color: #fff;
+  border-color: #dc2626;
+}
+.ann-delete-confirm-btn--yes:hover { background: #b91c1c; }
+.ann-delete-confirm-btn--no {
+  background: #f1f5f9;
+  color: #475569;
+  border-color: #e2e8f0;
+}
+.ann-delete-confirm-btn--no:hover { background: #e2e8f0; }
+.ann-delete-confirm-btn:disabled { opacity: .6; cursor: not-allowed; }
+
+@keyframes fadeIn { from { opacity: 0; transform: translateX(6px); } to { opacity: 1; transform: translateX(0); } }

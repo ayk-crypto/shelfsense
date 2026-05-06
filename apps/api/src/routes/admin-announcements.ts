@@ -132,6 +132,20 @@ adminAnnouncementsRouter.patch("/:id", asyncHandler(async (req, res) => {
   return res.json({ announcement: updated });
 }));
 
+adminAnnouncementsRouter.delete("/:id", asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const adminId = req.user!.id;
+
+  const ann = await prisma.announcement.findUnique({ where: { id }, select: { id: true, title: true } });
+  if (!ann) return res.status(404).json({ error: "Announcement not found" });
+
+  await prisma.announcement.delete({ where: { id } });
+
+  await logAdminAction(adminId, "announcement_deleted", "announcement", id, { title: ann.title });
+
+  return res.json({ ok: true });
+}));
+
 adminAnnouncementsRouter.patch("/:id/status", asyncHandler(async (req, res) => {
   const { id } = req.params;
   const adminId = req.user!.id;

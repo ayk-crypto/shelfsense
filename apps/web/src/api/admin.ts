@@ -250,6 +250,10 @@ export function updateAdminAnnouncementStatus(id: string, isActive: boolean): Pr
   return apiClient.patch(`/admin/announcements/${id}/status`, { isActive });
 }
 
+export function deleteAdminAnnouncement(id: string): Promise<{ ok: boolean }> {
+  return apiClient.delete(`/admin/announcements/${id}`);
+}
+
 // ── System Health ─────────────────────────────────────────────────────────────
 
 export function getAdminSystemHealth(): Promise<{ health: AdminSystemHealth }> {
