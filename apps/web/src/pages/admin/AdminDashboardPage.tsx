@@ -82,7 +82,7 @@ export function AdminDashboardPage() {
       <div className="admin-mrr-banner">
         <div className="admin-mrr-main">
           <span className="admin-mrr-label">Estimated MRR</span>
-          <span className="admin-mrr-value">PKR {(ov?.estimatedMrr ?? 0).toLocaleString()}</span>
+          <span className="admin-mrr-value">$ {(ov?.estimatedMrr ?? 0).toLocaleString()}</span>
         </div>
         <Link to="/admin/subscriptions" className="admin-mrr-link">View subscriptions →</Link>
       </div>
