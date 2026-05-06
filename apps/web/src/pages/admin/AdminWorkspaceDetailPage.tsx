@@ -8,6 +8,12 @@ import {
 } from "../../api/admin";
 import type { AdminWorkspaceDetail, AdminPlan } from "../../types";
 
+// Maps Plan table codes → workspace PlanTier enum values
+const PLAN_CODE_TO_TIER: Record<string, string> = {
+  FREE: "FREE", STARTER: "BASIC", BASIC: "BASIC",
+  PRO: "PRO", BUSINESS: "PRO", CUSTOM: "PRO",
+};
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatDate(iso: string) {
@@ -79,14 +85,15 @@ function ChangePlanModal({
           ) : (
             <div className="wsd-plan-grid">
               {plans.map((plan) => {
-                const isCurrent = plan.code === currentPlan;
+                const planTier = PLAN_CODE_TO_TIER[plan.code?.toUpperCase()] ?? plan.code;
+                const isCurrent = plan.code === currentPlan || planTier === currentPlan;
                 const isSelected = selected === plan.code;
                 return (
                   <button
                     key={plan.id}
                     type="button"
                     className={`wsd-plan-card ${isSelected ? "wsd-plan-card--selected" : ""} ${isCurrent ? "wsd-plan-card--current" : ""}`}
-                    onClick={() => !isCurrent && setSelected(plan.code)}
+                    onClick={() => { if (!isCurrent) setSelected(plan.code); }}
                     disabled={isCurrent}
                   >
                     {isCurrent && <div className="wsd-plan-card-current-tag">Current</div>}
@@ -265,13 +272,13 @@ export function AdminWorkspaceDetailPage() {
   const [modal, setModal] = useState<ModalType>(null);
   const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  function load() {
+  function load(silent = false) {
     if (!id) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     getAdminWorkspace(id)
       .then(setData)
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load workspace"))
-      .finally(() => setLoading(false));
+      .catch((err) => { if (!silent) setError(err instanceof Error ? err.message : "Failed to load workspace"); })
+      .finally(() => { if (!silent) setLoading(false); });
   }
 
   useEffect(() => { load(); }, [id]);
@@ -285,10 +292,11 @@ export function AdminWorkspaceDetailPage() {
     if (!id) return;
     setActionLoading(true);
     try {
-      await updateWorkspacePlan(id, { plan: planCode });
+      const result = await updateWorkspacePlan(id, { plan: planCode });
       setModal(null);
-      showToast("success", `Plan updated to ${planCode}.`);
-      load();
+      const resolvedTier = (result as { newPlan?: string }).newPlan ?? (PLAN_CODE_TO_TIER[planCode.toUpperCase()] ?? planCode);
+      showToast("success", `Plan updated to ${resolvedTier}.`);
+      load(true);
     } catch (err) {
       showToast("error", err instanceof Error ? err.message : "Action failed");
     } finally {

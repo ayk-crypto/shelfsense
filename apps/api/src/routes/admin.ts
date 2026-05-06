@@ -517,27 +517,73 @@ adminRouter.patch("/workspaces/:id/plan", asyncHandler(async (req, res) => {
   const workspace = await prisma.workspace.findUnique({ where: { id }, select: { id: true, name: true, plan: true } });
   if (!workspace) return res.status(404).json({ error: "Workspace not found" });
 
-  const validPlans = ["FREE", "BASIC", "PRO"];
-  if (plan && !validPlans.includes(plan)) {
-    return res.status(400).json({ error: "Invalid plan value" });
+  // Map plan codes (e.g. STARTER, BUSINESS) to PlanTier enum values (FREE, BASIC, PRO)
+  const PLAN_CODE_TO_TIER: Record<string, string> = {
+    FREE: "FREE", STARTER: "BASIC", BASIC: "BASIC",
+    PRO: "PRO", BUSINESS: "PRO", CUSTOM: "PRO",
+  };
+  const validPlanTiers = ["FREE", "BASIC", "PRO"];
+
+  let resolvedTier: string | undefined;
+  if (plan !== undefined) {
+    const upper = plan.toUpperCase();
+    if (validPlanTiers.includes(upper)) {
+      resolvedTier = upper;
+    } else if (PLAN_CODE_TO_TIER[upper]) {
+      resolvedTier = PLAN_CODE_TO_TIER[upper];
+    } else {
+      // Last resort: look up plan by code in the Plan table
+      const planRecord = await prisma.plan.findFirst({
+        where: { code: { equals: plan, mode: "insensitive" } },
+        select: { code: true },
+      });
+      if (planRecord) {
+        resolvedTier = PLAN_CODE_TO_TIER[planRecord.code.toUpperCase()];
+      }
+      if (!resolvedTier) {
+        return res.status(400).json({ error: "Invalid plan value" });
+      }
+    }
   }
 
   const updateData: Record<string, unknown> = {};
-  if (plan) updateData.plan = plan;
+  if (resolvedTier) updateData.plan = resolvedTier;
   if (trialEndsAt !== undefined) updateData.trialEndsAt = trialEndsAt ? new Date(trialEndsAt) : null;
   if (subscriptionStatus !== undefined) updateData.subscriptionStatus = subscriptionStatus;
+
+  // If changing the plan tier, also sync the latest subscription's planId to a matching plan
+  if (resolvedTier) {
+    const latestSub = await prisma.subscription.findFirst({
+      where: { workspaceId: id },
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
+    });
+    if (latestSub) {
+      const matchingPlan = await prisma.plan.findFirst({
+        where: { code: { in: [resolvedTier, resolvedTier.charAt(0) + resolvedTier.slice(1).toLowerCase()], mode: "insensitive" }, isActive: true },
+        orderBy: { createdAt: "asc" },
+        select: { id: true },
+      });
+      if (matchingPlan) {
+        await prisma.subscription.update({
+          where: { id: latestSub.id },
+          data: { planId: matchingPlan.id },
+        });
+      }
+    }
+  }
 
   await prisma.workspace.update({ where: { id }, data: updateData });
 
   await logAdminAction(adminId, "workspace_plan_changed", "workspace", id, {
     workspaceName: workspace.name,
     oldPlan: workspace.plan,
-    newPlan: plan ?? workspace.plan,
+    newPlan: resolvedTier ?? workspace.plan,
     trialEndsAt: trialEndsAt ?? null,
     subscriptionStatus: subscriptionStatus ?? null,
   });
 
-  return res.json({ ok: true });
+  return res.json({ ok: true, newPlan: resolvedTier ?? workspace.plan });
 }));
 
 // ── Users ──────────────────────────────────────────────────────────────
