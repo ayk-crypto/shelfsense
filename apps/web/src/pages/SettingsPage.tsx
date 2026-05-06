@@ -182,6 +182,14 @@ export function SettingsPage() {
     setUcCategories((prev) => prev.filter((x) => x !== c));
   }
 
+  const unitEntries = newUnit.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
+  const unitDupes = unitEntries.filter((e) => ucUnits.includes(e));
+  const unitHasNew = unitEntries.some((e) => !ucUnits.includes(e));
+
+  const categoryEntries = newCategory.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
+  const categoryDupes = categoryEntries.filter((e) => ucCategories.includes(e));
+  const categoryHasNew = categoryEntries.some((e) => !ucCategories.includes(e));
+
   if (loading) {
     return (
       <div className="page-loading">
@@ -537,19 +545,28 @@ export function SettingsPage() {
               ))}
             </div>
             <div className="uc-add-row">
-              <input
-                className="form-input uc-add-input"
-                value={newUnit}
-                onChange={(e) => setNewUnit(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addUnit(); } }}
-                placeholder="e.g. carton, tray, bundle"
-                maxLength={120}
-              />
+              <div className="uc-add-field">
+                <input
+                  className={`form-input uc-add-input${unitDupes.length > 0 && !unitHasNew ? " uc-add-input--error" : ""}`}
+                  value={newUnit}
+                  onChange={(e) => setNewUnit(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addUnit(); } }}
+                  placeholder="e.g. carton, tray, bundle"
+                  maxLength={120}
+                />
+                {unitDupes.length > 0 && (
+                  <span className="uc-dupe-hint">
+                    {unitHasNew
+                      ? `Already in list (will skip): ${unitDupes.join(", ")}`
+                      : `Already in list: ${unitDupes.join(", ")}`}
+                  </span>
+                )}
+              </div>
               <button
                 type="button"
                 className="btn btn--sm btn--ghost"
                 onClick={addUnit}
-                disabled={!newUnit.trim()}
+                disabled={!newUnit.trim() || !unitHasNew}
               >
                 Add
               </button>
@@ -587,19 +604,28 @@ export function SettingsPage() {
               ))}
             </div>
             <div className="uc-add-row">
-              <input
-                className="form-input uc-add-input"
-                value={newCategory}
-                onChange={(e) => setNewCategory(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCategory(); } }}
-                placeholder="e.g. Dairy, Produce, Frozen"
-                maxLength={200}
-              />
+              <div className="uc-add-field">
+                <input
+                  className={`form-input uc-add-input${categoryDupes.length > 0 && !categoryHasNew ? " uc-add-input--error" : ""}`}
+                  value={newCategory}
+                  onChange={(e) => setNewCategory(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCategory(); } }}
+                  placeholder="e.g. Dairy, Produce, Frozen"
+                  maxLength={200}
+                />
+                {categoryDupes.length > 0 && (
+                  <span className="uc-dupe-hint">
+                    {categoryHasNew
+                      ? `Already in list (will skip): ${categoryDupes.join(", ")}`
+                      : `Already in list: ${categoryDupes.join(", ")}`}
+                  </span>
+                )}
+              </div>
               <button
                 type="button"
                 className="btn btn--sm btn--ghost"
                 onClick={addCategory}
-                disabled={!newCategory.trim()}
+                disabled={!newCategory.trim() || !categoryHasNew}
               >
                 Add
               </button>
