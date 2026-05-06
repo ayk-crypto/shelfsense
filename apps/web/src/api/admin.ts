@@ -188,7 +188,11 @@ export function activateAdminSubscription(id: string, data: { billingCycle: stri
 
 // ── Payments ──────────────────────────────────────────────────────────────────
 
-export function getAdminPayments(params: { page?: number; limit?: number; status?: string; workspaceId?: string } = {}): Promise<AdminPaymentsResponse> {
+export function getAdminPaymentsSummary(): Promise<import("../types").AdminPaymentsSummary> {
+  return apiClient.get("/admin/payments/summary");
+}
+
+export function getAdminPayments(params: { page?: number; limit?: number; status?: string; workspaceId?: string; search?: string } = {}): Promise<AdminPaymentsResponse> {
   return apiClient.get(`/admin/payments${qs(params)}`);
 }
 

@@ -37,16 +37,35 @@ const PAYMENT_SELECT = {
   subscription: { select: { id: true, plan: { select: { name: true, code: true } } } },
 } as const;
 
+adminPaymentsRouter.get("/summary", asyncHandler(async (_req, res) => {
+  const [totalPaid, totalPending, totalFailed, totalRefunded, paidAggregate] = await Promise.all([
+    prisma.payment.count({ where: { status: PaymentStatus.PAID } }),
+    prisma.payment.count({ where: { status: PaymentStatus.PENDING } }),
+    prisma.payment.count({ where: { status: PaymentStatus.FAILED } }),
+    prisma.payment.count({ where: { status: PaymentStatus.REFUNDED } }),
+    prisma.payment.aggregate({ where: { status: PaymentStatus.PAID }, _sum: { amount: true } }),
+  ]);
+  return res.json({
+    totalPaid,
+    totalPending,
+    totalFailed,
+    totalRefunded,
+    totalCollected: paidAggregate._sum.amount ?? 0,
+  });
+}));
+
 adminPaymentsRouter.get("/", asyncHandler(async (req, res) => {
   const page = Math.max(1, parseInt(String(req.query.page ?? "1"), 10));
   const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? "20"), 10)));
   const skip = (page - 1) * limit;
   const status = typeof req.query.status === "string" ? req.query.status : undefined;
   const workspaceId = typeof req.query.workspaceId === "string" ? req.query.workspaceId : undefined;
+  const search = typeof req.query.search === "string" ? req.query.search.trim() : undefined;
 
-  const where: Record<string, unknown> = {};
-  if (status) where.status = status;
+  const where: Prisma.PaymentWhereInput = {};
+  if (status) where.status = status as PaymentStatus;
   if (workspaceId) where.workspaceId = workspaceId;
+  if (search) where.workspace = { name: { contains: search, mode: "insensitive" } };
 
   const [total, payments] = await Promise.all([
     prisma.payment.count({ where }),

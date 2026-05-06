@@ -1230,6 +1230,7 @@ export interface AdminSubscriptionsResponse {
 export interface AdminPayment {
   id: string;
   workspaceId: string;
+  subscriptionId?: string | null;
   amount: number;
   currency: string;
   paymentMethod: string;
@@ -1239,7 +1240,16 @@ export interface AdminPayment {
   notes: string | null;
   createdAt: string;
   workspace: { id: string; name: string };
-  recordedBy?: { name: string } | null;
+  recordedBy?: { id: string; name: string; email: string } | null;
+  subscription?: { id: string; plan: { name: string; code: string } } | null;
+}
+
+export interface AdminPaymentsSummary {
+  totalPaid: number;
+  totalPending: number;
+  totalFailed: number;
+  totalRefunded: number;
+  totalCollected: number;
 }
 
 export interface AdminPaymentsResponse {
