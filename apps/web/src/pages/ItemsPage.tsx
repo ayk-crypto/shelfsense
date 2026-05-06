@@ -1519,6 +1519,8 @@ function ImportItemsModal({
   onSuccess: (importedCount: number) => void;
   onError: (msg: string) => void;
 }) {
+  const { settings: importSettings } = useWorkspaceSettings();
+  const unitOptions = importSettings.customUnits.length > 0 ? importSettings.customUnits : FALLBACK_UNIT_OPTIONS;
   const [fileName, setFileName] = useState("");
   const [rows, setRows] = useState<ImportItemRow[]>([]);
   const [parseError, setParseError] = useState<string | null>(null);
