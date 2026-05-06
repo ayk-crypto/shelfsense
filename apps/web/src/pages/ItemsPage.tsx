@@ -1522,18 +1522,18 @@ function ImportItemsModal({
   const [importing, setImporting] = useState(false);
   const [importedCount, setImportedCount] = useState(0);
   const [apiFailedCount, setApiFailedCount] = useState(0);
+  const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const importableRows = rows.filter((row) => row.status !== "pending" || row.errors.length === 0);
+  const validRows = rows.filter((row) => row.errors.length === 0);
   const pendingValidRows = rows.filter((row) => row.status === "pending" && row.errors.length === 0);
-  const invalidCount = rows.length - importableRows.length;
-  const failedRowsCount = invalidCount + apiFailedCount;
+  const invalidRows = rows.filter((row) => row.errors.length > 0);
   const canImport = !parsing && !importing && pendingValidRows.length > 0;
+  const importProgress = pendingValidRows.length + importedCount > 0
+    ? Math.round((importedCount / (pendingValidRows.length + importedCount + apiFailedCount)) * 100)
+    : 0;
 
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  async function processFile(file: File) {
     setFileName(file.name);
     setRows([]);
     setParseError(null);
@@ -1543,16 +1543,27 @@ function ImportItemsModal({
 
     try {
       if (!isSupportedImportFile(file.name)) {
-        throw new Error("Please choose a .csv or .xlsx file.");
+        throw new Error("Please upload a .csv or .xlsx file.");
       }
-
       const parsedRows = await parseImportFile(file);
       setRows(validateImportRows(parsedRows, existingItems));
     } catch (err) {
-      setParseError(err instanceof Error ? err.message : "Could not parse import file");
+      setParseError(err instanceof Error ? err.message : "Could not read the file. Please check the format and try again.");
     } finally {
       setParsing(false);
     }
+  }
+
+  function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) void processFile(file);
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) void processFile(file);
   }
 
   async function handleImport() {
@@ -1577,23 +1588,18 @@ function ImportItemsModal({
           minStockLevel: row.minStockLevel,
           trackExpiry: row.trackExpiry,
         });
-
         imported += 1;
         setImportedCount(imported);
-        setRows((prev) => prev.map((candidate) => (
-          candidate.rowNumber === row.rowNumber
-            ? { ...candidate, status: "imported" }
-            : candidate
-        )));
+        setRows((prev) => prev.map((c) =>
+          c.rowNumber === row.rowNumber ? { ...c, status: "imported" } : c,
+        ));
       } catch (err) {
         failed += 1;
         setApiFailedCount(failed);
         const message = err instanceof Error ? err.message : "Import failed";
-        setRows((prev) => prev.map((candidate) => (
-          candidate.rowNumber === row.rowNumber
-            ? { ...candidate, status: "failed", errors: [...candidate.errors, message] }
-            : candidate
-        )));
+        setRows((prev) => prev.map((c) =>
+          c.rowNumber === row.rowNumber ? { ...c, status: "failed", errors: [...c.errors, message] } : c,
+        ));
       }
     }
 
@@ -1607,6 +1613,7 @@ function ImportItemsModal({
     const sampleRows = [
       ["Chicken Breast", "kg", "Raw Material", "CHK-BRST", "SS100000001", "10", "yes"],
       ["Paper Cups", "pack", "Packaging", "CUP-250", "", "5", "no"],
+      ["Cooking Oil", "liter", "Ingredients", "OIL-COOK", "", "20", "no"],
     ];
     const csv = [headers, ...sampleRows].map((row) => row.map(escapeCsvCell).join(",")).join("\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
@@ -1617,104 +1624,201 @@ function ImportItemsModal({
     URL.revokeObjectURL(url);
   }
 
+  const hasFile = fileName !== "";
+
   return (
     <Modal title="Import Items" onClose={onClose}>
       <div className="import-modal">
-        <div className="import-guidance">
-          <p>
-            Upload a CSV or Excel file with columns:
-            {" "}
-            <strong>name</strong>, <strong>unit</strong>, category, sku, barcode, minStockLevel, trackExpiry.
-          </p>
-          <p>
-            Required: name and unit. Units must be one of: {UNIT_OPTIONS.join(", ")}.
-            trackExpiry accepts true/false, yes/no, or 1/0.
-          </p>
-        </div>
 
-        <div className="import-actions">
+        {/* ── Upload zone ── */}
+        <div
+          className={`import-drop-zone ${dragging ? "import-drop-zone--over" : ""} ${hasFile && !parseError ? "import-drop-zone--has-file" : ""}`}
+          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={handleDrop}
+          onClick={() => fileInputRef.current?.click()}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => e.key === "Enter" && fileInputRef.current?.click()}
+          aria-label="Upload file"
+        >
           <input
             ref={fileInputRef}
-            className="import-file-input"
             type="file"
             accept=".csv,.xlsx"
-            onChange={(e) => { void handleFileChange(e); }}
+            style={{ display: "none" }}
+            onChange={handleFileInput}
           />
-          <button type="button" className="btn btn--ghost" onClick={() => fileInputRef.current?.click()}>
-            Choose file
-          </button>
-          <button type="button" className="btn btn--secondary" onClick={downloadSampleTemplate}>
-            Download sample template
+
+          {parsing ? (
+            <div className="import-drop-content">
+              <div className="spinner" />
+              <p className="import-drop-label">Reading {fileName}…</p>
+            </div>
+          ) : hasFile && !parseError ? (
+            <div className="import-drop-content">
+              <div className="import-drop-file-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <p className="import-drop-filename">{fileName}</p>
+              <p className="import-drop-change">Click to choose a different file</p>
+            </div>
+          ) : (
+            <div className="import-drop-content">
+              <div className="import-drop-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                </svg>
+              </div>
+              <p className="import-drop-label">
+                {dragging ? "Drop file here" : "Drop your CSV or Excel file here"}
+              </p>
+              <p className="import-drop-sub">or <span className="import-drop-browse">click to browse</span></p>
+            </div>
+          )}
+        </div>
+
+        {/* ── Template download ── */}
+        <div className="import-template-row">
+          <div className="import-columns-hint">
+            <span className="import-col import-col--req">name</span>
+            <span className="import-col import-col--req">unit</span>
+            <span className="import-col">category</span>
+            <span className="import-col">sku</span>
+            <span className="import-col">barcode</span>
+            <span className="import-col">minStockLevel</span>
+            <span className="import-col">trackExpiry</span>
+          </div>
+          <button type="button" className="btn btn--ghost btn--sm" onClick={downloadSampleTemplate} style={{ flexShrink: 0 }}>
+            <svg viewBox="0 0 20 20" fill="currentColor" style={{ width: 14, height: 14 }} aria-hidden="true">
+              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+            Template
           </button>
         </div>
 
-        {fileName && <p className="import-file-name">{fileName}</p>}
-        {parsing && <p className="import-status">Parsing file...</p>}
-        {parseError && <div className="alert alert--error">{parseError}</div>}
+        {/* ── Parse error ── */}
+        {parseError && (
+          <div className="import-parse-error">
+            <svg viewBox="0 0 20 20" fill="currentColor" style={{ width: 16, height: 16, flexShrink: 0 }} aria-hidden="true">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+            <div>
+              <strong>Could not read file</strong>
+              <p>{parseError}</p>
+            </div>
+          </div>
+        )}
 
+        {/* ── Summary stats ── */}
         {rows.length > 0 && (
-          <>
-            <div className="import-summary">
-              <span>{rows.length} rows parsed</span>
-              <span>{importableRows.length} valid</span>
-              <span>{failedRowsCount} failed rows</span>
-              {importing || importedCount > 0 ? (
-                <strong>Imported {importedCount} of {importableRows.length}</strong>
-              ) : null}
+          <div className="import-stats-row">
+            <div className="import-stat">
+              <span className="import-stat-val">{rows.length}</span>
+              <span className="import-stat-label">Total rows</span>
             </div>
+            <div className="import-stat import-stat--success">
+              <span className="import-stat-val">{validRows.length}</span>
+              <span className="import-stat-label">Valid</span>
+            </div>
+            {invalidRows.length > 0 && (
+              <div className="import-stat import-stat--error">
+                <span className="import-stat-val">{invalidRows.length}</span>
+                <span className="import-stat-label">Errors</span>
+              </div>
+            )}
+            {importing && (
+              <div className="import-stat import-stat--importing">
+                <span className="import-stat-val">{importedCount}</span>
+                <span className="import-stat-label">Imported</span>
+              </div>
+            )}
+          </div>
+        )}
 
-            <div className="import-preview-wrap">
-              <table className="table import-preview-table">
-                <thead>
-                  <tr>
-                    <th>Row</th>
-                    <th>Name</th>
-                    <th>Unit</th>
-                    <th>Category</th>
-                    <th>SKU</th>
-                    <th>Barcode</th>
-                    <th className="text-right">Min</th>
-                    <th>Expiry</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row) => (
-                    <tr key={row.rowNumber} className={row.errors.length > 0 ? "row--warn" : ""}>
-                      <td>{row.rowNumber}</td>
-                      <td>{row.name || "-"}</td>
-                      <td>{row.unit || "-"}</td>
-                      <td>{row.category || "-"}</td>
-                      <td>{row.sku || "-"}</td>
-                      <td>{row.barcode || "-"}</td>
-                      <td className="text-right">{row.minStockLevel}</td>
-                      <td>{row.trackExpiry ? "Yes" : "No"}</td>
-                      <td>
-                        {row.errors.length > 0 ? (
-                          <span className="import-row-errors">{row.errors.join("; ")}</span>
-                        ) : row.status === "imported" ? (
-                          <span className="badge badge--green">Imported</span>
-                        ) : row.status === "failed" ? (
-                          <span className="badge badge--red">Failed</span>
-                        ) : (
-                          <span className="badge badge--gray">Ready</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        {/* ── Progress bar ── */}
+        {importing && (
+          <div className="import-progress-wrap">
+            <div className="import-progress-bar">
+              <div className="import-progress-fill" style={{ width: `${importProgress}%` }} />
             </div>
-          </>
+            <span className="import-progress-label">Importing {importedCount} of {pendingValidRows.length + importedCount + apiFailedCount}…</span>
+          </div>
+        )}
+
+        {/* ── Preview table ── */}
+        {rows.length > 0 && (
+          <div className="import-preview-wrap">
+            <table className="table import-preview-table">
+              <thead>
+                <tr>
+                  <th style={{ width: 40 }}>#</th>
+                  <th>Name</th>
+                  <th>Unit</th>
+                  <th>Category</th>
+                  <th>SKU</th>
+                  <th className="text-right" style={{ width: 52 }}>Min</th>
+                  <th style={{ width: 60 }}>Expiry</th>
+                  <th style={{ width: 120 }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.rowNumber} className={row.errors.length > 0 ? "import-row--error" : row.status === "imported" ? "import-row--done" : ""}>
+                    <td className="import-cell-num">{row.rowNumber}</td>
+                    <td>{row.name || <span className="import-cell-empty">—</span>}</td>
+                    <td>{row.unit || <span className="import-cell-empty">—</span>}</td>
+                    <td>{row.category || <span className="import-cell-empty">—</span>}</td>
+                    <td>{row.sku || <span className="import-cell-empty">—</span>}</td>
+                    <td className="text-right">{row.minStockLevel || 0}</td>
+                    <td>{row.trackExpiry ? "Yes" : "No"}</td>
+                    <td>
+                      {row.errors.length > 0 ? (
+                        <span className="import-row-error-badge" title={row.errors.join("; ")}>
+                          <svg viewBox="0 0 16 16" fill="currentColor" style={{ width: 12, height: 12 }} aria-hidden="true">
+                            <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 11a.75.75 0 110-1.5.75.75 0 010 1.5zm.75-4.5a.75.75 0 01-1.5 0v-3a.75.75 0 011.5 0v3z" />
+                          </svg>
+                          {row.errors[0].length > 22 ? `${row.errors[0].slice(0, 22)}…` : row.errors[0]}
+                        </span>
+                      ) : row.status === "imported" ? (
+                        <span className="import-row-ok-badge">
+                          <svg viewBox="0 0 16 16" fill="currentColor" style={{ width: 12, height: 12 }} aria-hidden="true">
+                            <path fillRule="evenodd" d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z" clipRule="evenodd" />
+                          </svg>
+                          Imported
+                        </span>
+                      ) : row.status === "failed" ? (
+                        <span className="import-row-error-badge">Failed</span>
+                      ) : (
+                        <span className="import-row-ready-badge">Ready</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
 
         <div className="modal-footer">
           <button type="button" className="btn btn--ghost" onClick={onClose} disabled={importing}>
             Close
           </button>
-          <button type="button" className="btn btn--primary" onClick={() => { void handleImport(); }} disabled={!canImport}>
-            {importing ? <span className="btn-spinner" /> : null}
-            {importing ? "Importing..." : `Import ${pendingValidRows.length} valid rows`}
+          <button
+            type="button"
+            className="btn btn--primary"
+            onClick={() => { void handleImport(); }}
+            disabled={!canImport}
+          >
+            {importing
+              ? <><div className="spinner spinner--sm spinner--white" /> Importing…</>
+              : pendingValidRows.length > 0
+              ? `Import ${pendingValidRows.length} item${pendingValidRows.length === 1 ? "" : "s"}`
+              : rows.length > 0
+              ? "No valid rows to import"
+              : "Select a file"}
           </button>
         </div>
       </div>
@@ -2483,14 +2587,18 @@ async function parseImportFile(file: File) {
   }
 
   const readXlsxFile = (await import("read-excel-file/browser")).default;
-  const sheets = await readXlsxFile(file);
-  const firstSheet = sheets[0];
+  // The runtime return is Row[] for a single-sheet read; cast through unknown to satisfy TS
+  const result = (await readXlsxFile(file)) as unknown;
+  // Handle both Sheet[] (if multi-sheet mode) and Row[] (default mode)
+  const rows: unknown[][] = Array.isArray(result) && result.length > 0 && result[0] !== null && typeof result[0] === "object" && !Array.isArray(result[0]) && "data" in (result[0] as object)
+    ? ((result[0] as { data: unknown[][] }).data ?? [])
+    : (result as unknown[][]);
 
-  if (!firstSheet) {
-    throw new Error("The selected file does not contain a worksheet.");
+  if (!rows || rows.length === 0) {
+    throw new Error("The selected file is empty or contains no rows.");
   }
 
-  return tableRowsToRecords(firstSheet.data);
+  return tableRowsToRecords(rows);
 }
 
 function tableRowsToRecords(rows: unknown[][]) {
@@ -2649,8 +2757,9 @@ function normalizeUnit(value: string) {
   return UNIT_OPTIONS.find((unit) => unit.toLowerCase() === lower) ?? trimmed;
 }
 
-function normalizeBarcode(value: string) {
-  return value.trim().toLowerCase();
+function normalizeBarcode(value: string | null | undefined) {
+  if (!value) return "";
+  return String(value).trim().toLowerCase();
 }
 
 function parseOptionalNumber(value: unknown) {

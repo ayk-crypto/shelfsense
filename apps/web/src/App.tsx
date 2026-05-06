@@ -17,6 +17,7 @@ import { AdminSystemHealthPage } from "./pages/admin/AdminSystemHealthPage";
 import { AdminInboxPage } from "./pages/admin/AdminInboxPage";
 import { AdminTicketDetailPage } from "./pages/admin/AdminTicketDetailPage";
 import { AdminTeamPage } from "./pages/admin/AdminTeamPage";
+import { AdminBillingPage } from "./pages/admin/AdminBillingPage";
 import { getOnboardingStatus } from "./api/onboarding";
 import { getWorkspaceSettings } from "./api/workspace";
 import { AppShell } from "./components/AppShell";
@@ -462,6 +463,7 @@ export function App() {
             <Route path="inbox" element={<AdminInboxPage />} />
             <Route path="inbox/:id" element={<AdminTicketDetailPage />} />
             <Route path="team" element={<AdminTeamPage />} />
+            <Route path="billing" element={<AdminBillingPage />} />
           </Route>
           <Route path="/" element={<LandingPage />} />
           <Route path="*" element={<DefaultRedirect />} />
