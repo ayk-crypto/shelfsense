@@ -14705,6 +14705,32 @@ body {
   height: 100%;
 }
 
+.rpt-error-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: rgba(245, 158, 11, 0.09);
+  border: 1.5px solid rgba(245, 158, 11, 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #d97706;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.rpt-error-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.rpt-error-heading {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0 0 6px;
+}
+
 /* Summary cards */
 .rpt-results {
   display: flex;

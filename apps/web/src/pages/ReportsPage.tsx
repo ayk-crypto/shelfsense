@@ -434,11 +434,21 @@ export function ReportsPage() {
             </div>
           )}
 
-          {/* Error */}
-          {!state.loading && state.error && (
+          {/* Error — suppress when plan gate is already shown above */}
+          {!state.loading && state.error && !(activeDef.isAdvanced && !planFeatures.enableAdvancedReports && !planFeatures.isLoading) && (
             <div className="rpt-state-block">
-              <div className="alert alert--error" style={{ maxWidth: 500 }}>{state.error}</div>
-              <button type="button" className="btn btn--ghost" style={{ marginTop: 12 }} onClick={handleApplyFilters}>Retry</button>
+              <div className="rpt-error-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="8" x2="12" y2="12" />
+                  <line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+              </div>
+              <p className="rpt-error-heading">Could not load report</p>
+              <p className="rpt-state-msg">{state.error}</p>
+              <button type="button" className="btn btn--secondary btn--sm" style={{ marginTop: 16 }} onClick={handleApplyFilters}>
+                Try again
+              </button>
             </div>
           )}
 
