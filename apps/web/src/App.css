@@ -17750,6 +17750,133 @@ body {
   justify-content: flex-end;
 }
 
+/* ─── ud-confirm variants (workspace suspend / reactivate) ─ */
+.ud-confirm-box--wide {
+  max-width: 520px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.ud-confirm-box--danger { border-top: 3px solid #ef4444; }
+.ud-confirm-box--success { border-top: 3px solid #22c55e; }
+
+.ud-confirm-stripe {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 20px 24px 18px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.ud-confirm-stripe--danger { background: #fef2f2; }
+.ud-confirm-stripe--success { background: #f0fdf4; }
+
+.ud-confirm-stripe-icon {
+  font-size: 22px;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.ud-confirm-stripe-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 2px;
+}
+
+.ud-confirm-stripe-sub {
+  font-size: 12.5px;
+  color: #64748b;
+}
+
+.ud-confirm-body {
+  padding: 20px 24px 4px;
+}
+
+.ud-confirm-body .ud-confirm-message {
+  margin-bottom: 16px;
+}
+
+.ud-confirm-field {
+  margin-bottom: 16px;
+}
+
+.ud-confirm-field-label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 6px;
+}
+
+.ud-confirm-field-opt {
+  font-weight: 400;
+  color: #94a3b8;
+  margin-left: 4px;
+}
+
+.ud-confirm-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: #0f172a;
+  resize: vertical;
+  font-family: inherit;
+  transition: border-color 0.15s;
+  background: #f8fafc;
+}
+
+.ud-confirm-textarea:focus {
+  outline: none;
+  border-color: #6366f1;
+  background: #fff;
+}
+
+.ud-confirm-expected {
+  display: inline-block;
+  background: #f1f5f9;
+  color: #dc2626;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 12.5px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  user-select: all;
+}
+
+.ud-confirm-phrase-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 13px;
+  color: #0f172a;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  transition: border-color 0.15s, background 0.15s;
+  background: #f8fafc;
+}
+
+.ud-confirm-phrase-input:focus {
+  outline: none;
+  border-color: #6366f1;
+  background: #fff;
+}
+
+.ud-confirm-phrase-input--match {
+  border-color: #22c55e !important;
+  background: #f0fdf4 !important;
+}
+
+.ud-confirm-box--wide .ud-confirm-actions {
+  padding: 16px 24px 20px;
+  border-top: 1px solid #f1f5f9;
+  margin-top: 0;
+}
+
 /* ─── Admin Misc ────────────────────────────────────────── */
 .admin-loading {
   display: flex;

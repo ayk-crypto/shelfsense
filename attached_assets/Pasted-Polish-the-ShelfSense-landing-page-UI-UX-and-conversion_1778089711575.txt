@@ -1,0 +1,137 @@
+Polish the ShelfSense landing page UI/UX and conversion copy without changing the core app logic.
+
+Current page is already live and working. Please improve it with professional SaaS-level polish, better readability, stronger conversion flow, and responsive behavior.
+
+Important context:
+- ShelfSense is an inventory management SaaS for restaurants, retail stores, warehouses, and suppliers.
+- It helps businesses track stock, expiry, low stock, transfers, reports, and team accountability.
+- SaaS subscription pricing is always billed in USD.
+- Workspace currency is separate and used only for inventory, item costs, valuation, and business reports.
+- If user is logged in, CTA should show “Go to app” or “Open dashboard”.
+- If user is logged out, CTA should show “Start free” / “Create free workspace” / “Sign in”.
+
+Required landing page improvements:
+
+1. CTA logic and wording
+- Keep conditional CTA behavior:
+  - Logged out: “Start free”, “Create free workspace”, “Sign in”
+  - Logged in: “Go to app” or “Open dashboard”
+- Prefer “Go to app” for logged-in users in the navbar and hero section.
+- Pricing cards:
+  - Logged out: “Start free” or “Choose plan”
+  - Logged in: “Open dashboard” or “Manage plan” depending on current app logic.
+- Final CTA:
+  - Logged out: “Create your free workspace”
+  - Logged in: “Go to app”
+
+2. Hero section polish
+- Improve headline and subheadline for stronger conversion.
+- Suggested headline options:
+  Option A: “Know what is expiring, what is low, and where your stock is going.”
+  Option B: “Stop expiry losses, stockouts, and manual inventory confusion.”
+  Option C: “Inventory control for businesses that cannot afford blind spots.”
+- Use the best option that fits the existing layout.
+- Keep the pain-focused message around expired stock, low stock, and inventory visibility.
+- Ensure hero text is readable on all screen sizes.
+- Improve spacing between headline, paragraph, CTA buttons, and trust bullets.
+
+3. Visual polish
+- Increase body text readability slightly.
+- Improve contrast of muted/secondary text.
+- Make card headings more prominent.
+- Ensure section spacing feels premium and balanced.
+- Keep the current purple SaaS branding direction, but make it feel cleaner and more polished.
+- Maintain soft shadows, rounded cards, and modern SaaS look.
+- Avoid making the page too colorful or childish.
+
+4. Product preview card
+- Keep the dashboard preview in the hero.
+- Improve its visual sharpness if needed:
+  - Better spacing
+  - Cleaner table rows
+  - More realistic status badges
+  - Better contrast
+  - Slightly stronger shadow
+- Make sure it scales nicely on mobile.
+
+5. Feature sections
+- Keep the existing sections:
+  - How it works
+  - Who it’s for
+  - Alerts before problems become losses
+  - Pricing
+  - Final CTA
+- Improve feature card copy so it sounds less generic and more business-focused.
+- Use simple, practical language.
+- Avoid overclaiming.
+- Make sure each card explains a real user benefit.
+
+Suggested feature card style:
+- Short heading
+- 1–2 line explanation
+- Light icon area
+- Consistent spacing
+
+6. Add trust / assurance section
+Add a small trust section before pricing or near the final CTA.
+
+Suggested copy:
+“Built for real inventory teams”
+
+Bullets:
+- No credit card required
+- Setup in under 5 minutes
+- Export your data anytime
+- Workspace-based access control
+- Works for restaurants, retail stores, warehouses, and suppliers
+
+Keep this section clean and lightweight, not too large.
+
+7. Pricing section polish
+- Keep four pricing cards: Free, Basic, Pro, Business.
+- Make pricing cards visually balanced and aligned.
+- Ensure “Most popular” badge on Basic looks clean and does not overlap badly on mobile.
+- Add a small note above pricing:
+  “ShelfSense subscription plans are billed in USD. Your workspace currency can be configured separately for inventory, item costs, and reports.”
+- Ensure all plan prices use USD symbol:
+  $0
+  $19/mo
+  $49/mo
+  $99/mo
+- Make sure workspace currency is not used in pricing display.
+- Improve plan descriptions slightly:
+  - Free: for testing and very small teams
+  - Basic: for growing teams that need real inventory control
+  - Pro: for multi-location operations and advanced tracking
+  - Business: for larger teams needing stronger controls and scale
+
+8. Footer polish
+- Improve footer spacing and readability.
+- Keep product/account/legal links.
+- Make footer look professional and not empty.
+- Add a short brand line:
+  “Inventory management for businesses that cannot afford blind spots.”
+- Ensure copyright year is correct dynamically if possible.
+
+9. Mobile responsiveness
+- Carefully test landing page on:
+  - Mobile width
+  - Tablet width
+  - Desktop width
+- Hero should stack cleanly on mobile.
+- Pricing cards should not feel cramped.
+- Feature cards should have consistent spacing.
+- Buttons should be easy to tap.
+- Text should not be too small on mobile.
+
+10. Accessibility and quality
+- Use semantic HTML where possible.
+- Ensure buttons and links have proper focus states.
+- Maintain sufficient contrast.
+- Do not break existing auth/session logic.
+- Do not break routing.
+- Do not change backend APIs unless absolutely required.
+- Run build/test after changes.
+
+Final expected result:
+The landing page should feel like a polished modern SaaS homepage, with stronger conversion copy, clear pricing, USD billing clarity, better trust signals, improved readability, and excellent mobile responsiveness.

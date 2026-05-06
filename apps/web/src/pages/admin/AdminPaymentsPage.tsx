@@ -144,8 +144,10 @@ export function AdminPaymentsPage() {
     setTimeout(() => setToast(null), 4000);
   }
 
-  async function handleMarkPaid(p: AdminPayment) {
-    if (!window.confirm(`Mark ${fmtAmount(p.amount, p.currency)} as PAID for ${p.workspace.name}? This will also activate the subscription if pending.`)) return;
+  const [markPaidTarget, setMarkPaidTarget] = useState<AdminPayment | null>(null);
+
+  async function execMarkPaid(p: AdminPayment) {
+    setMarkPaidTarget(null);
     setActionLoading(p.id);
     try {
       await markAdminPaymentPaid(p.id);
@@ -158,6 +160,8 @@ export function AdminPaymentsPage() {
     }
   }
 
+  function handleMarkPaid(p: AdminPayment) { setMarkPaidTarget(p); }
+
   function copyRef(ref: string, id: string) {
     navigator.clipboard.writeText(ref).then(() => {
       setCopiedId(id);
@@ -166,6 +170,7 @@ export function AdminPaymentsPage() {
   }
 
   const hasFilters = search || status;
+  /* ↓ confirm modal rendered at page root */
   function clearFilters() { setSearch(""); setParam("status", ""); }
 
   const statCards = [
@@ -221,6 +226,25 @@ export function AdminPaymentsPage() {
 
   return (
     <div className="admin-page">
+      {markPaidTarget && (
+        <div className="ud-confirm-overlay" onClick={() => setMarkPaidTarget(null)}>
+          <div className="ud-confirm-box" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+            <h3 className="ud-confirm-title">Mark Payment as Paid</h3>
+            <p className="ud-confirm-message">
+              Mark <strong>{fmtAmount(markPaidTarget.amount, markPaidTarget.currency)}</strong> for{" "}
+              <strong>{markPaidTarget.workspace.name}</strong> as paid? This will also activate their
+              subscription if it is currently pending.
+            </p>
+            <div className="ud-confirm-actions">
+              <button className="btn btn--ghost btn--sm" onClick={() => setMarkPaidTarget(null)}>Cancel</button>
+              <button className="btn btn--primary btn--sm" onClick={() => void execMarkPaid(markPaidTarget)}>
+                Confirm &amp; Mark Paid
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toast */}
       {toast && <Toast type={toast.type} text={toast.text} onClose={() => setToast(null)} />}
 

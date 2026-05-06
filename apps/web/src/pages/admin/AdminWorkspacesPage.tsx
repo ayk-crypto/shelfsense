@@ -48,6 +48,131 @@ function StatCard({
   );
 }
 
+// ─── Suspend / Reactivate modal ───────────────────────────────────────────────
+
+function WorkspaceActionModal({
+  ws,
+  isSuspend,
+  onClose,
+  onDone,
+}: {
+  ws: AdminWorkspace;
+  isSuspend: boolean;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [reason, setReason] = useState("");
+  const [phrase, setPhrase] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const expectedPhrase = `${isSuspend ? "Suspend" : "Reactivate"} ${ws.name}`;
+  const phraseMatch = phrase.trim() === expectedPhrase;
+
+  useEffect(() => {
+    setTimeout(() => inputRef.current?.focus(), 80);
+  }, []);
+
+  async function handleConfirm() {
+    if (!phraseMatch) return;
+    setLoading(true);
+    setError(null);
+    try {
+      await updateWorkspaceStatus(ws.id, isSuspend, isSuspend && reason.trim() ? reason.trim() : undefined);
+      onDone();
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Action failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="ud-confirm-overlay" onClick={onClose}>
+      <div
+        className={`ud-confirm-box ud-confirm-box--wide${isSuspend ? " ud-confirm-box--danger" : " ud-confirm-box--success"}`}
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header stripe */}
+        <div className={`ud-confirm-stripe${isSuspend ? " ud-confirm-stripe--danger" : " ud-confirm-stripe--success"}`}>
+          <span className="ud-confirm-stripe-icon">{isSuspend ? "⛔" : "✅"}</span>
+          <div>
+            <div className="ud-confirm-stripe-title">
+              {isSuspend ? "Suspend Workspace" : "Reactivate Workspace"}
+            </div>
+            <div className="ud-confirm-stripe-sub">{ws.name}</div>
+          </div>
+        </div>
+
+        <div className="ud-confirm-body">
+          {isSuspend ? (
+            <p className="ud-confirm-message">
+              Suspending <strong>{ws.name}</strong> will immediately block all users in this workspace
+              from accessing ShelfSense. This action can be reversed at any time.
+            </p>
+          ) : (
+            <p className="ud-confirm-message">
+              Reactivating <strong>{ws.name}</strong> will restore full access for all users in this
+              workspace. Their subscription and data remain intact.
+            </p>
+          )}
+
+          {isSuspend && (
+            <div className="ud-confirm-field">
+              <label className="ud-confirm-field-label">Reason for suspension <span className="ud-confirm-field-opt">(optional)</span></label>
+              <textarea
+                className="ud-confirm-textarea"
+                rows={2}
+                placeholder="e.g. Payment overdue, Terms violation…"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+              />
+            </div>
+          )}
+
+          <div className="ud-confirm-field">
+            <label className="ud-confirm-field-label">
+              To confirm, type <code className="ud-confirm-expected">{expectedPhrase}</code> below
+            </label>
+            <input
+              ref={inputRef}
+              className={`ud-confirm-phrase-input${phraseMatch ? " ud-confirm-phrase-input--match" : ""}`}
+              type="text"
+              placeholder={expectedPhrase}
+              value={phrase}
+              onChange={(e) => setPhrase(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && phraseMatch && !loading) void handleConfirm(); }}
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </div>
+
+          {error && <div className="alert alert--error" style={{ marginTop: 8 }}>{error}</div>}
+        </div>
+
+        <div className="ud-confirm-actions">
+          <button className="btn btn--ghost btn--sm" onClick={onClose} disabled={loading}>
+            Cancel
+          </button>
+          <button
+            className={`btn btn--sm ${isSuspend ? "btn--danger" : "btn--success"}`}
+            disabled={!phraseMatch || loading}
+            onClick={() => void handleConfirm()}
+          >
+            {loading ? "…" : isSuspend ? "Suspend Workspace" : "Reactivate Workspace"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export function AdminWorkspacesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [stats, setStats] = useState<AdminWorkspacesStats | null>(null);
@@ -59,6 +184,7 @@ export function AdminWorkspacesPage() {
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<{ ws: AdminWorkspace; isSuspend: boolean } | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const page = parseInt(searchParams.get("page") ?? "1", 10);
@@ -100,30 +226,19 @@ export function AdminWorkspacesPage() {
     setParam(key, current === value ? "" : value);
   }
 
-  async function handleToggleSuspend(ws: AdminWorkspace) {
-    const newState = !ws.suspended;
-    let reason: string | undefined;
-    if (newState) {
-      const r = window.prompt("Reason for suspension (optional):");
-      if (r === null) return;
-      reason = r.trim() || undefined;
-    }
-    setActionLoading(ws.id);
-    setActionError(null);
-    try {
-      await updateWorkspaceStatus(ws.id, newState, reason);
-      load();
-    } catch (err) {
-      setActionError(err instanceof Error ? err.message : "Action failed");
-    } finally {
-      setActionLoading(null);
-    }
-  }
-
   const hasFilters = !!(search || status || plan);
 
   return (
     <div className="admin-page">
+      {pendingAction && (
+        <WorkspaceActionModal
+          ws={pendingAction.ws}
+          isSuspend={pendingAction.isSuspend}
+          onClose={() => setPendingAction(null)}
+          onDone={load}
+        />
+      )}
+
       <div className="admin-page-header">
         <div>
           <h1 className="admin-page-title">Workspaces</h1>
@@ -238,7 +353,7 @@ export function AdminWorkspacesPage() {
                         <button
                           className={`admin-action-btn admin-action-btn--${ws.suspended ? "success" : "danger"}`}
                           disabled={actionLoading === ws.id}
-                          onClick={() => handleToggleSuspend(ws)}
+                          onClick={() => setPendingAction({ ws, isSuspend: !ws.suspended })}
                         >
                           {actionLoading === ws.id ? "…" : ws.suspended ? "Reactivate" : "Suspend"}
                         </button>
@@ -281,7 +396,7 @@ export function AdminWorkspacesPage() {
                   <button
                     className={`admin-action-btn admin-action-btn--${ws.suspended ? "success" : "danger"}`}
                     disabled={actionLoading === ws.id}
-                    onClick={() => handleToggleSuspend(ws)}
+                    onClick={() => setPendingAction({ ws, isSuspend: !ws.suspended })}
                   >
                     {actionLoading === ws.id ? "…" : ws.suspended ? "Reactivate" : "Suspend"}
                   </button>
