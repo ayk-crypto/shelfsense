@@ -197,58 +197,90 @@ function parseStringArray(value: unknown): string[] | undefined {
   return [...new Set(cleaned)].slice(0, MAX_LIST_ITEMS);
 }
 
-function parseWorkspaceSettingsInput(body: unknown) {
-  const input = body as {
-    name?: unknown;
-    currency?: unknown;
-    lowStockMultiplier?: unknown;
-    expiryAlertDays?: unknown;
-    ownerPhone?: unknown;
-    businessType?: unknown;
-    notifyLowStock?: unknown;
-    notifyExpiringSoon?: unknown;
-    notifyExpired?: unknown;
-    whatsappAlertsEnabled?: unknown;
-    emailAlertsEnabled?: unknown;
-    pushAlertsEnabled?: unknown;
-    emailLowStock?: unknown;
-    emailExpiringSoon?: unknown;
-    emailExpired?: unknown;
-    dailyDigestEnabled?: unknown;
-    customUnits?: unknown;
-    customCategories?: unknown;
-    customPurchaseUnits?: unknown;
-  };
+interface WorkspaceSettingsInput {
+  name?: string;
+  currency?: string;
+  lowStockMultiplier?: number;
+  expiryAlertDays?: number;
+  ownerPhone?: string | null;
+  businessType?: string | null;
+  notifyLowStock?: boolean;
+  notifyExpiringSoon?: boolean;
+  notifyExpired?: boolean;
+  whatsappAlertsEnabled?: boolean;
+  emailAlertsEnabled?: boolean;
+  pushAlertsEnabled?: boolean;
+  emailLowStock?: boolean;
+  emailExpiringSoon?: boolean;
+  emailExpired?: boolean;
+  dailyDigestEnabled?: boolean;
+  customUnits?: string[];
+  customCategories?: string[];
+  customPurchaseUnits?: string[];
+}
 
-  const result: Record<string, unknown> = {
-    name: parseOptionalString(input.name),
-    currency: parseOptionalString(input.currency),
-    lowStockMultiplier: parseOptionalNumber(input.lowStockMultiplier),
-    expiryAlertDays: parseOptionalInteger(input.expiryAlertDays),
-    ownerPhone: parseOptionalNullableString(input.ownerPhone),
-    businessType: parseOptionalNullableString(input.businessType),
-    notifyLowStock: parseOptionalBoolean(input.notifyLowStock),
-    notifyExpiringSoon: parseOptionalBoolean(input.notifyExpiringSoon),
-    notifyExpired: parseOptionalBoolean(input.notifyExpired),
-    whatsappAlertsEnabled: parseOptionalBoolean(input.whatsappAlertsEnabled),
-    emailAlertsEnabled: parseOptionalBoolean(input.emailAlertsEnabled),
-    pushAlertsEnabled: parseOptionalBoolean(input.pushAlertsEnabled),
-    emailLowStock: parseOptionalBoolean(input.emailLowStock),
-    emailExpiringSoon: parseOptionalBoolean(input.emailExpiringSoon),
-    emailExpired: parseOptionalBoolean(input.emailExpired),
-    dailyDigestEnabled: parseOptionalBoolean(input.dailyDigestEnabled),
-  };
+function parseWorkspaceSettingsInput(body: unknown): WorkspaceSettingsInput {
+  const raw = (typeof body === "object" && body !== null ? body : {}) as Record<string, unknown>;
+  const result: WorkspaceSettingsInput = {};
 
-  const units = parseStringArray(input.customUnits);
+  const name = parseOptionalString(raw["name"]);
+  if (name !== undefined) result.name = name;
+
+  const currency = parseOptionalString(raw["currency"]);
+  if (currency !== undefined) result.currency = currency;
+
+  const lowStockMultiplier = parseOptionalNumber(raw["lowStockMultiplier"]);
+  if (lowStockMultiplier !== undefined) result.lowStockMultiplier = lowStockMultiplier;
+
+  const expiryAlertDays = parseOptionalInteger(raw["expiryAlertDays"]);
+  if (expiryAlertDays !== undefined) result.expiryAlertDays = expiryAlertDays;
+
+  const ownerPhone = parseOptionalNullableString(raw["ownerPhone"]);
+  if (ownerPhone !== undefined) result.ownerPhone = ownerPhone;
+
+  const businessType = parseOptionalNullableString(raw["businessType"]);
+  if (businessType !== undefined) result.businessType = businessType;
+
+  const notifyLowStock = parseOptionalBoolean(raw["notifyLowStock"]);
+  if (notifyLowStock !== undefined) result.notifyLowStock = notifyLowStock;
+
+  const notifyExpiringSoon = parseOptionalBoolean(raw["notifyExpiringSoon"]);
+  if (notifyExpiringSoon !== undefined) result.notifyExpiringSoon = notifyExpiringSoon;
+
+  const notifyExpired = parseOptionalBoolean(raw["notifyExpired"]);
+  if (notifyExpired !== undefined) result.notifyExpired = notifyExpired;
+
+  const whatsappAlertsEnabled = parseOptionalBoolean(raw["whatsappAlertsEnabled"]);
+  if (whatsappAlertsEnabled !== undefined) result.whatsappAlertsEnabled = whatsappAlertsEnabled;
+
+  const emailAlertsEnabled = parseOptionalBoolean(raw["emailAlertsEnabled"]);
+  if (emailAlertsEnabled !== undefined) result.emailAlertsEnabled = emailAlertsEnabled;
+
+  const pushAlertsEnabled = parseOptionalBoolean(raw["pushAlertsEnabled"]);
+  if (pushAlertsEnabled !== undefined) result.pushAlertsEnabled = pushAlertsEnabled;
+
+  const emailLowStock = parseOptionalBoolean(raw["emailLowStock"]);
+  if (emailLowStock !== undefined) result.emailLowStock = emailLowStock;
+
+  const emailExpiringSoon = parseOptionalBoolean(raw["emailExpiringSoon"]);
+  if (emailExpiringSoon !== undefined) result.emailExpiringSoon = emailExpiringSoon;
+
+  const emailExpired = parseOptionalBoolean(raw["emailExpired"]);
+  if (emailExpired !== undefined) result.emailExpired = emailExpired;
+
+  const dailyDigestEnabled = parseOptionalBoolean(raw["dailyDigestEnabled"]);
+  if (dailyDigestEnabled !== undefined) result.dailyDigestEnabled = dailyDigestEnabled;
+
+  const units = parseStringArray(raw["customUnits"]);
   if (units !== undefined) result.customUnits = units;
 
-  const cats = parseStringArray(input.customCategories);
+  const cats = parseStringArray(raw["customCategories"]);
   if (cats !== undefined) result.customCategories = cats;
 
-  const purchaseUnits = parseStringArray(input.customPurchaseUnits);
+  const purchaseUnits = parseStringArray(raw["customPurchaseUnits"]);
   if (purchaseUnits !== undefined) result.customPurchaseUnits = purchaseUnits;
 
-  return Object.fromEntries(Object.entries(result).filter(([, v]) => v !== undefined));
+  return result;
 }
 
 function parseOptionalString(value: unknown) {
