@@ -19,6 +19,11 @@ interface Row {
   qty: string;
   reason: string;
   note: string;
+  enteredUnit: "base" | "purchase";
+}
+
+function fmtQty(n: number) {
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 4 }).format(n);
 }
 
 interface RowResult {
@@ -71,6 +76,7 @@ export function StockOutPage() {
             qty: "",
             reason: "kitchen_usage",
             note: "",
+            enteredUnit: preselected.purchaseUnit ? "purchase" : "base",
           }]);
           setSearch("");
           setShowDropdown(false);
@@ -122,7 +128,7 @@ export function StockOutPage() {
   function addItem(item: Item) {
     setRows((prev) => [
       ...prev,
-      { rowId: crypto.randomUUID(), item, qty: "", reason: "kitchen_usage", note: "" },
+      { rowId: crypto.randomUUID(), item, qty: "", reason: "kitchen_usage", note: "", enteredUnit: item.purchaseUnit ? "purchase" : "base" },
     ]);
     setSearch("");
     setShowDropdown(false);
@@ -168,12 +174,17 @@ export function StockOutPage() {
         out.push({ rowId: row.rowId, itemName: row.item.name, status: "error", error: "Invalid quantity — skipped" });
         continue;
       }
+      const enteredQty = parseFloat(row.qty);
+      const isPurchaseUnit = row.enteredUnit === "purchase" && !!row.item.purchaseUnit && !!row.item.purchaseConversionFactor;
+      const baseQty = isPurchaseUnit ? enteredQty * row.item.purchaseConversionFactor! : enteredQty;
       try {
         await stockOut({
           itemId: row.item.id,
-          quantity: parseFloat(row.qty),
+          quantity: baseQty,
           reason: row.reason || undefined,
           note: [row.note.trim(), globalNote.trim()].filter(Boolean).join(" · ") || undefined,
+          enteredQuantity: isPurchaseUnit ? enteredQty : undefined,
+          enteredUnit: isPurchaseUnit ? row.item.purchaseUnit! : undefined,
         });
         out.push({ rowId: row.rowId, itemName: row.item.name, status: "success" });
       } catch (err) {
@@ -331,17 +342,47 @@ export function StockOutPage() {
                           <span className="stock-entry-item-cat">{row.item.category}</span>
                         )}
                       </td>
-                      <td className="stock-entry-td-unit">{row.item.unit}</td>
+                      <td className="stock-entry-td-unit">
+                        {row.item.unit}
+                        {row.item.purchaseUnit && (
+                          <span className="stock-entry-unit-sub">&nbsp;/{row.item.purchaseUnit}</span>
+                        )}
+                      </td>
                       <td className="stock-entry-td-stock">
                         {s !== undefined ? (
-                          <span className={`stock-entry-stock-chip ${s.isLowStock ? "stock-entry-stock-chip--low" : ""}`}>
-                            {fmt(s.totalQuantity)}
-                          </span>
+                          <>
+                            <span className={`stock-entry-stock-chip ${s.isLowStock ? "stock-entry-stock-chip--low" : ""}`}>
+                              {fmt(s.totalQuantity)}
+                            </span>
+                            {row.item.displayBothUnits && row.item.purchaseUnit && row.item.purchaseConversionFactor && s.totalQuantity > 0 && (
+                              <span className="qty-dual">
+                                {fmtQty(s.totalQuantity / row.item.purchaseConversionFactor)} {row.item.purchaseUnit}
+                              </span>
+                            )}
+                          </>
                         ) : (
                           <span className="stock-entry-na">—</span>
                         )}
                       </td>
                       <td className="stock-entry-td-qty">
+                        {row.item.purchaseUnit && (
+                          <div className="uom-toggle">
+                            <button
+                              type="button"
+                              className={`uom-toggle-btn${row.enteredUnit === "base" ? " uom-toggle-btn--active" : ""}`}
+                              onClick={() => setRows((prev) => prev.map((r) => r.rowId === row.rowId ? { ...r, enteredUnit: "base", qty: "" } : r))}
+                            >
+                              {row.item.unit}
+                            </button>
+                            <button
+                              type="button"
+                              className={`uom-toggle-btn${row.enteredUnit === "purchase" ? " uom-toggle-btn--active" : ""}`}
+                              onClick={() => setRows((prev) => prev.map((r) => r.rowId === row.rowId ? { ...r, enteredUnit: "purchase", qty: "" } : r))}
+                            >
+                              {row.item.purchaseUnit}
+                            </button>
+                          </div>
+                        )}
                         <input
                           className={`stock-entry-input ${qtyInvalid ? "stock-entry-input--error" : overStock ? "stock-entry-input--warn" : ""}`}
                           type="number"
@@ -351,6 +392,11 @@ export function StockOutPage() {
                           value={row.qty}
                           onChange={(e) => updateRow(row.rowId, "qty", e.target.value)}
                         />
+                        {row.enteredUnit === "purchase" && row.item.purchaseUnit && row.item.purchaseConversionFactor && row.qty && parseFloat(row.qty) > 0 && (
+                          <div className="uom-hint">
+                            = {fmtQty(parseFloat(row.qty) * row.item.purchaseConversionFactor)} {row.item.unit}
+                          </div>
+                        )}
                       </td>
                       <td className="stock-entry-td-reason">
                         <select

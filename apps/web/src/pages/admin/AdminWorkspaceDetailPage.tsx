@@ -8,6 +8,12 @@ import {
 } from "../../api/admin";
 import type { AdminWorkspaceDetail, AdminPlan } from "../../types";
 
+// Maps Plan table codes → workspace PlanTier enum values
+const PLAN_CODE_TO_TIER: Record<string, string> = {
+  FREE: "FREE", STARTER: "BASIC", BASIC: "BASIC",
+  PRO: "PRO", BUSINESS: "PRO", CUSTOM: "PRO",
+};
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatDate(iso: string) {
@@ -79,14 +85,15 @@ function ChangePlanModal({
           ) : (
             <div className="wsd-plan-grid">
               {plans.map((plan) => {
-                const isCurrent = plan.code === currentPlan;
+                const planTier = PLAN_CODE_TO_TIER[plan.code?.toUpperCase()] ?? plan.code;
+                const isCurrent = plan.code === currentPlan || planTier === currentPlan;
                 const isSelected = selected === plan.code;
                 return (
                   <button
                     key={plan.id}
                     type="button"
                     className={`wsd-plan-card ${isSelected ? "wsd-plan-card--selected" : ""} ${isCurrent ? "wsd-plan-card--current" : ""}`}
-                    onClick={() => !isCurrent && setSelected(plan.code)}
+                    onClick={() => { if (!isCurrent) setSelected(plan.code); }}
                     disabled={isCurrent}
                   >
                     {isCurrent && <div className="wsd-plan-card-current-tag">Current</div>}
@@ -251,6 +258,41 @@ function SuspendModal({
   );
 }
 
+// ─── Tab Bar ─────────────────────────────────────────────────────────────────
+
+type Tab = "overview" | "members" | "subscription" | "payments" | "activity";
+
+function TabBar({ active, onChange, counts }: {
+  active: Tab;
+  onChange: (t: Tab) => void;
+  counts: { members: number; payments: number; activity: number };
+}) {
+  const tabs: { id: Tab; label: string; count?: number }[] = [
+    { id: "overview", label: "Overview" },
+    { id: "members", label: "Members", count: counts.members },
+    { id: "subscription", label: "Subscription" },
+    { id: "payments", label: "Payments", count: counts.payments },
+    { id: "activity", label: "Activity", count: counts.activity },
+  ];
+
+  return (
+    <div className="admin-tabs">
+      {tabs.map((tab) => (
+        <button
+          key={tab.id}
+          className={`admin-tab-btn${active === tab.id ? " admin-tab-btn--active" : ""}`}
+          onClick={() => onChange(tab.id)}
+        >
+          {tab.label}
+          {tab.count != null && tab.count > 0 && (
+            <span className="admin-tab-count">{tab.count}</span>
+          )}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 type ModalType = "changePlan" | "extendTrial" | "suspend" | null;
@@ -264,14 +306,15 @@ export function AdminWorkspaceDetailPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [modal, setModal] = useState<ModalType>(null);
   const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [activeTab, setActiveTab] = useState<Tab>("overview");
 
-  function load() {
+  function load(silent = false) {
     if (!id) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     getAdminWorkspace(id)
       .then(setData)
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load workspace"))
-      .finally(() => setLoading(false));
+      .catch((err) => { if (!silent) setError(err instanceof Error ? err.message : "Failed to load workspace"); })
+      .finally(() => { if (!silent) setLoading(false); });
   }
 
   useEffect(() => { load(); }, [id]);
@@ -285,10 +328,11 @@ export function AdminWorkspaceDetailPage() {
     if (!id) return;
     setActionLoading(true);
     try {
-      await updateWorkspacePlan(id, { plan: planCode });
+      const result = await updateWorkspacePlan(id, { plan: planCode });
       setModal(null);
-      showToast("success", `Plan updated to ${planCode}.`);
-      load();
+      const resolvedTier = (result as { newPlan?: string }).newPlan ?? (PLAN_CODE_TO_TIER[planCode.toUpperCase()] ?? planCode);
+      showToast("success", `Plan updated to ${resolvedTier}.`);
+      load(true);
     } catch (err) {
       showToast("error", err instanceof Error ? err.message : "Action failed");
     } finally {
@@ -374,9 +418,7 @@ export function AdminWorkspaceDetailPage() {
             <h1 className="wsd-name">{ws.name}</h1>
             <div className="wsd-meta-row">
               <span className="admin-muted" style={{ fontSize: 13 }}>Created {formatDate(ws.createdAt)}</span>
-              {ws.businessType && (
-                <span className="wsd-meta-dot" />
-              )}
+              {ws.businessType && <span className="wsd-meta-dot" />}
               {ws.businessType && <span className="admin-muted" style={{ fontSize: 13 }}>{ws.businessType}</span>}
               <span className="wsd-meta-dot" />
               <span className="admin-muted" style={{ fontSize: 13 }}>{ws.currency}</span>
@@ -408,7 +450,7 @@ export function AdminWorkspaceDetailPage() {
         </div>
       )}
 
-      {/* Quick Stats */}
+      {/* Quick Stats (always visible) */}
       <div className="wsd-stats">
         <StatBox label="Items" value={ws.itemCount} />
         <StatBox label="Members" value={ws.memberships.length} />
@@ -450,80 +492,137 @@ export function AdminWorkspaceDetailPage() {
         )}
       </div>
 
-      {/* Info cards */}
-      <div className="admin-detail-grid" style={{ marginBottom: 28 }}>
-        {/* Workspace Info */}
-        <div className="admin-detail-card">
-          <h3 className="admin-detail-card-title">Workspace Info</h3>
-          <dl className="admin-dl">
-            <dt>ID</dt>
-            <dd><span className="admin-code" style={{ fontSize: 11 }}>{ws.id}</span></dd>
-            <dt>Onboarding</dt>
-            <dd>
-              {ws.onboardingCompleted
-                ? <span className="admin-status-badge admin-status-badge--active" style={{ fontSize: 11 }}>Completed</span>
-                : <span className="admin-status-badge admin-status-badge--yellow" style={{ fontSize: 11 }}>Incomplete</span>}
-            </dd>
-            <dt>Trial Ends</dt>
-            <dd>{ws.trialEndsAt ? formatDate(ws.trialEndsAt) : <span className="admin-muted">—</span>}</dd>
-            <dt>Sub Status</dt>
-            <dd>{ws.subscriptionStatus ?? <span className="admin-muted">—</span>}</dd>
-          </dl>
-        </div>
+      {/* Tab bar */}
+      <TabBar
+        active={activeTab}
+        onChange={setActiveTab}
+        counts={{
+          members: ws.memberships.length,
+          payments: ws.payments?.length ?? 0,
+          activity: data.recentActivity.length,
+        }}
+      />
 
-        {/* Owner */}
-        <div className="admin-detail-card">
-          <h3 className="admin-detail-card-title">Owner</h3>
-          <div className="wsd-owner-row">
-            <div className="wsd-owner-avatar">{ws.owner.name.slice(0, 2).toUpperCase()}</div>
-            <div>
-              <Link to={`/admin/users/${ws.owner.id}`} className="admin-link" style={{ fontWeight: 600, fontSize: 14 }}>
-                {ws.owner.name}
-              </Link>
-              <div className="admin-muted" style={{ fontSize: 12.5, marginTop: 2 }}>{ws.owner.email}</div>
-            </div>
-            {ws.owner.emailVerified && (
-              <span className="wsd-verified-badge" title="Email verified">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              </span>
-            )}
-          </div>
-          <dl className="admin-dl" style={{ marginTop: 14 }}>
-            <dt>Joined</dt><dd>{formatDate(ws.owner.createdAt)}</dd>
-            <dt>Verified</dt><dd>{ws.owner.emailVerified ? "Yes" : "No"}</dd>
-          </dl>
-        </div>
-
-        {/* Locations */}
-        {ws.locations.length > 0 && (
+      {/* ── Overview Tab ───────────────────────────────────────────────── */}
+      {activeTab === "overview" && (
+        <div className="admin-detail-grid" style={{ marginTop: 20 }}>
+          {/* Workspace Info */}
           <div className="admin-detail-card">
-            <h3 className="admin-detail-card-title">Locations ({ws.locations.length})</h3>
-            <div className="wsd-location-list">
-              {ws.locations.map((loc) => (
-                <div key={loc.id} className="wsd-location-item">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
-                    <circle cx="12" cy="10" r="3" />
-                  </svg>
-                  <span>{loc.name}</span>
-                  <span className="admin-muted" style={{ fontSize: 11, marginLeft: "auto" }}>{formatDate(loc.createdAt)}</span>
-                </div>
-              ))}
-            </div>
+            <h3 className="admin-detail-card-title">Workspace Info</h3>
+            <dl className="admin-dl">
+              <dt>ID</dt>
+              <dd><span className="admin-code" style={{ fontSize: 11 }}>{ws.id}</span></dd>
+              <dt>Onboarding</dt>
+              <dd>
+                {ws.onboardingCompleted
+                  ? <span className="admin-status-badge admin-status-badge--active" style={{ fontSize: 11 }}>Completed</span>
+                  : <span className="admin-status-badge admin-status-badge--yellow" style={{ fontSize: 11 }}>Incomplete</span>}
+              </dd>
+              <dt>Trial Ends</dt>
+              <dd>{ws.trialEndsAt ? formatDate(ws.trialEndsAt) : <span className="admin-muted">—</span>}</dd>
+              <dt>Sub Status</dt>
+              <dd>{ws.subscriptionStatus ?? <span className="admin-muted">—</span>}</dd>
+              <dt>Plan</dt>
+              <dd><span className={`admin-plan-badge admin-plan-badge--${planCode.toLowerCase()}`}>{planCode}</span></dd>
+            </dl>
           </div>
-        )}
-      </div>
 
-      {/* Subscription */}
-      {sub ? (
-        <div className="admin-section">
+          {/* Owner */}
+          <div className="admin-detail-card">
+            <h3 className="admin-detail-card-title">Owner</h3>
+            <div className="wsd-owner-row">
+              <div className="wsd-owner-avatar">{ws.owner.name.slice(0, 2).toUpperCase()}</div>
+              <div>
+                <Link to={`/admin/users/${ws.owner.id}`} className="admin-link" style={{ fontWeight: 600, fontSize: 14 }}>
+                  {ws.owner.name}
+                </Link>
+                <div className="admin-muted" style={{ fontSize: 12.5, marginTop: 2 }}>{ws.owner.email}</div>
+              </div>
+              {ws.owner.emailVerified && (
+                <span className="wsd-verified-badge" title="Email verified">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </span>
+              )}
+            </div>
+            <dl className="admin-dl" style={{ marginTop: 14 }}>
+              <dt>Joined</dt><dd>{formatDate(ws.owner.createdAt)}</dd>
+              <dt>Verified</dt><dd>{ws.owner.emailVerified ? "Yes" : "No"}</dd>
+            </dl>
+          </div>
+
+          {/* Locations */}
+          {ws.locations.length > 0 && (
+            <div className="admin-detail-card">
+              <h3 className="admin-detail-card-title">Locations ({ws.locations.length})</h3>
+              <div className="wsd-location-list">
+                {ws.locations.map((loc) => (
+                  <div key={loc.id} className="wsd-location-item">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+                      <circle cx="12" cy="10" r="3" />
+                    </svg>
+                    <span>{loc.name}</span>
+                    <span className="admin-muted" style={{ fontSize: 11, marginLeft: "auto" }}>{formatDate(loc.createdAt)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Members Tab ────────────────────────────────────────────────── */}
+      {activeTab === "members" && (
+        <div className="admin-section" style={{ marginTop: 20 }}>
+          <h2 className="admin-section-title">Members ({ws.memberships.length})</h2>
+          <div className="admin-table-wrap">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th>Verified</th>
+                  <th>Status</th>
+                  <th>Joined</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ws.memberships.map((m) => (
+                  <tr key={m.id}>
+                    <td>
+                      <Link to={`/admin/users/${m.user.id}`} className="admin-link">{m.user.name}</Link>
+                    </td>
+                    <td className="admin-muted">{m.user.email}</td>
+                    <td><span className="admin-badge admin-badge--gray">{m.role}</span></td>
+                    <td>{m.user.emailVerified
+                      ? <span style={{ color: "#16a34a", fontWeight: 600, fontSize: 12 }}>Yes</span>
+                      : <span className="admin-muted" style={{ fontSize: 12 }}>No</span>}
+                    </td>
+                    <td>
+                      {m.isActive
+                        ? <span className="admin-status-badge admin-status-badge--active">Active</span>
+                        : <span className="admin-status-badge admin-status-badge--suspended">Inactive</span>}
+                    </td>
+                    <td className="admin-muted">{formatDate(m.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Subscription Tab ───────────────────────────────────────────── */}
+      {activeTab === "subscription" && (
+        <div className="admin-section" style={{ marginTop: 20 }}>
           <div className="admin-section-header">
             <h2 className="admin-section-title">Subscription</h2>
             <Link to="/admin/subscriptions" className="admin-section-link">View all →</Link>
           </div>
-          <div className="admin-detail-grid">
+          {sub ? (
             <div className="admin-detail-card wsd-sub-card">
               <div className="wsd-sub-header">
                 <div>
@@ -559,105 +658,85 @@ export function AdminWorkspaceDetailPage() {
                 )}
               </dl>
             </div>
-
-            {ws.payments && ws.payments.length > 0 && (
-              <div className="admin-detail-card">
-                <h3 className="admin-detail-card-title">Recent Payments</h3>
-                <div className="wsd-payment-list">
-                  {ws.payments.slice(0, 5).map((p) => (
-                    <div key={p.id} className="wsd-payment-row">
-                      <div>
-                        <div className="wsd-payment-amount">{p.currency} {p.amount?.toLocaleString() ?? "—"}</div>
-                        <div className="wsd-payment-meta">{p.paymentMethod?.replace(/_/g, " ") ?? "—"} · {p.paidAt ? formatDate(p.paidAt) : "Pending"}</div>
-                      </div>
-                      <span className={`admin-status-badge admin-status-badge--${p.status === "PAID" ? "active" : "yellow"}`}>
-                        {p.status}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      ) : (
-        <div className="admin-section">
-          <h2 className="admin-section-title">Subscription</h2>
-          <div className="wsd-no-sub">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
-              <line x1="1" y1="10" x2="23" y2="10" />
-            </svg>
-            <p>No active subscription</p>
-          </div>
+          ) : (
+            <div className="wsd-no-sub">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
+                <line x1="1" y1="10" x2="23" y2="10" />
+              </svg>
+              <p>No active subscription</p>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Members */}
-      <div className="admin-section">
-        <h2 className="admin-section-title">Members ({ws.memberships.length})</h2>
-        <div className="admin-table-wrap">
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Role</th>
-                <th>Verified</th>
-                <th>Status</th>
-                <th>Joined</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ws.memberships.map((m) => (
-                <tr key={m.id}>
-                  <td>
-                    <Link to={`/admin/users/${m.user.id}`} className="admin-link">{m.user.name}</Link>
-                  </td>
-                  <td className="admin-muted">{m.user.email}</td>
-                  <td><span className="admin-badge admin-badge--gray">{m.role}</span></td>
-                  <td>{m.user.emailVerified
-                    ? <span style={{ color: "#16a34a", fontWeight: 600, fontSize: 12 }}>Yes</span>
-                    : <span className="admin-muted" style={{ fontSize: 12 }}>No</span>}
-                  </td>
-                  <td>
-                    {m.isActive
-                      ? <span className="admin-status-badge admin-status-badge--active">Active</span>
-                      : <span className="admin-status-badge admin-status-badge--suspended">Inactive</span>}
-                  </td>
-                  <td className="admin-muted">{formatDate(m.createdAt)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Recent Activity */}
-      <div className="admin-section">
-        <h2 className="admin-section-title">Recent Stock Activity</h2>
-        {data.recentActivity.length === 0 ? (
-          <p className="admin-empty">No recent activity.</p>
-        ) : (
-          <div className="admin-table-wrap">
-            <table className="admin-table">
-              <thead>
-                <tr><th>Item</th><th>Type</th><th>Qty</th><th>Time</th></tr>
-              </thead>
-              <tbody>
-                {data.recentActivity.map((m) => (
-                  <tr key={m.id}>
-                    <td>{m.item.name}</td>
-                    <td><span className="admin-action-badge">{m.type.replace(/_/g, " ")}</span></td>
-                    <td>{m.quantity}</td>
-                    <td className="admin-muted">{formatDate(m.createdAt)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {/* ── Payments Tab ───────────────────────────────────────────────── */}
+      {activeTab === "payments" && (
+        <div className="admin-section" style={{ marginTop: 20 }}>
+          <div className="admin-section-header">
+            <h2 className="admin-section-title">Payments</h2>
+            <Link to="/admin/payments" className="admin-section-link">View all →</Link>
           </div>
-        )}
-      </div>
+          {ws.payments && ws.payments.length > 0 ? (
+            <div className="admin-table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Amount</th>
+                    <th>Method</th>
+                    <th>Status</th>
+                    <th>Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ws.payments.map((p) => (
+                    <tr key={p.id}>
+                      <td><strong>{p.currency} {p.amount?.toLocaleString() ?? "—"}</strong></td>
+                      <td className="admin-muted">{p.paymentMethod?.replace(/_/g, " ") ?? "—"}</td>
+                      <td>
+                        <span className={`admin-status-badge admin-status-badge--${p.status === "PAID" ? "active" : "yellow"}`}>
+                          {p.status}
+                        </span>
+                      </td>
+                      <td className="admin-muted">{p.paidAt ? formatDateTime(p.paidAt) : "Pending"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="admin-empty">No payments recorded.</p>
+          )}
+        </div>
+      )}
+
+      {/* ── Activity Tab ───────────────────────────────────────────────── */}
+      {activeTab === "activity" && (
+        <div className="admin-section" style={{ marginTop: 20 }}>
+          <h2 className="admin-section-title">Recent Stock Activity</h2>
+          {data.recentActivity.length === 0 ? (
+            <p className="admin-empty">No recent activity.</p>
+          ) : (
+            <div className="admin-table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr><th>Item</th><th>Type</th><th>Qty</th><th>Time</th></tr>
+                </thead>
+                <tbody>
+                  {data.recentActivity.map((m) => (
+                    <tr key={m.id}>
+                      <td>{m.item.name}</td>
+                      <td><span className="admin-action-badge">{m.type.replace(/_/g, " ")}</span></td>
+                      <td>{m.quantity}</td>
+                      <td className="admin-muted">{formatDate(m.createdAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Modals */}
       {modal === "changePlan" && (

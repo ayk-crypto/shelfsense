@@ -37,6 +37,8 @@ enum StockMovementType {
 enum StockCountStatus {
   DRAFT
   FINALIZED
+  RETURNED
+  REJECTED
 }
 
 enum PurchaseStatus {
@@ -88,6 +90,16 @@ enum PaymentMethod {
   EASYPAISA
   JAZZCASH
   OTHER
+  MOCK
+  PAYFAST
+  SAFEPAY
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PAID
+  VOID
 }
 
 enum PaymentStatus {
@@ -154,6 +166,7 @@ model User {
   passwordResetRequired Boolean         @default(false)
   failedLoginAttempts   Int             @default(0)
   lockedUntil           DateTime?
+  lastLoginAt           DateTime?
   createdAt             DateTime        @default(now())
   ownedSpaces           Workspace[]     @relation("WorkspaceOwner")
   memberships           Membership[]
@@ -161,6 +174,8 @@ model User {
   notifications         Notification[]
   createdStockCounts    StockCount[]    @relation("StockCountCreatedBy")
   finalizedStockCounts  StockCount[]    @relation("StockCountFinalizedBy")
+  returnedStockCounts   StockCount[]    @relation("StockCountReturnedBy")
+  rejectedStockCounts   StockCount[]    @relation("StockCountRejectedBy")
   passwordResetTokens   PasswordResetToken[]
   emailVerifTokens      EmailVerifToken[]
   adminAuditLogs        AdminAuditLog[]
@@ -223,6 +238,9 @@ model Workspace {
   onboardingCompleted            Boolean     @default(false)
   onboardingStep                 Int         @default(0)
   businessType                   String?
+  customUnits                    String[]    @default([])
+  customCategories               String[]    @default([])
+  customPurchaseUnits            String[]    @default([])
   plan                           PlanTier    @default(FREE)
   suspended                      Boolean     @default(false)
   suspendedAt                    DateTime?
@@ -245,6 +263,8 @@ model Workspace {
   stockCounts                    StockCount[]
   subscriptions                  Subscription[]
   payments                       Payment[]
+  invoices                       Invoice[]
+  billingEvents                  BillingEvent[]
   supportTickets                 SupportTicket[]
 }
 
@@ -343,24 +363,28 @@ model Membership {
 }
 
 model Item {
-  id              String          @id @default(uuid()) @db.Uuid
-  name            String
-  sku             String?
-  barcode         String?
-  unit            String
-  category        String?
-  minStockLevel   Float           @default(0)
-  trackExpiry     Boolean         @default(false)
-  isActive        Boolean         @default(true)
-  archivedAt      DateTime?
-  workspaceId     String          @db.Uuid
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  workspace       Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  stockBatches    StockBatch[]
-  stockMovements  StockMovement[]
-  purchaseItems   PurchaseItem[]
-  stockCountItems StockCountItem[]
+  id                       String          @id @default(uuid()) @db.Uuid
+  name                     String
+  sku                      String?
+  barcode                  String?
+  unit                     String
+  category                 String?
+  minStockLevel            Float           @default(0)
+  trackExpiry              Boolean         @default(false)
+  isActive                 Boolean         @default(true)
+  archivedAt               DateTime?
+  workspaceId              String          @db.Uuid
+  createdAt                DateTime        @default(now())
+  updatedAt                DateTime        @updatedAt
+  purchaseUnit             String?
+  purchaseConversionFactor Float?
+  issueUnit                String?
+  displayBothUnits         Boolean         @default(false)
+  workspace                Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  stockBatches             StockBatch[]
+  stockMovements           StockMovement[]
+  purchaseItems            PurchaseItem[]
+  stockCountItems          StockCountItem[]
 
   @@index([workspaceId])
   @@index([workspaceId, isActive])
@@ -379,6 +403,8 @@ model StockBatch {
   expiryDate        DateTime?
   batchNo           String?
   supplierName      String?
+  receivedQuantity  Float?
+  receivedUnit      String?
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
   item              Item            @relation(fields: [itemId], references: [id], onDelete: Cascade)
@@ -395,17 +421,20 @@ model StockBatch {
 }
 
 model StockMovement {
-  id          String            @id @default(uuid()) @db.Uuid
-  workspaceId String            @db.Uuid
-  locationId  String            @db.Uuid
-  itemId      String            @db.Uuid
-  batchId     String?           @db.Uuid
-  type        StockMovementType
-  quantity    Float
-  unitCost    Float?
-  reason      String?
-  note        String?
-  createdAt   DateTime          @default(now())
+  id               String            @id @default(uuid()) @db.Uuid
+  workspaceId      String            @db.Uuid
+  locationId       String            @db.Uuid
+  itemId           String            @db.Uuid
+  batchId          String?           @db.Uuid
+  type             StockMovementType
+  quantity         Float
+  unitCost         Float?
+  reason           String?
+  note             String?
+  enteredQuantity  Float?
+  enteredUnit      String?
+  conversionFactor Float?
+  createdAt        DateTime          @default(now())
   workspace   Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   location    Location          @relation(fields: [locationId], references: [id], onDelete: Cascade)
   item        Item              @relation(fields: [itemId], references: [id], onDelete: Cascade)
@@ -419,21 +448,28 @@ model StockMovement {
 }
 
 model StockCount {
-  id            String           @id @default(uuid()) @db.Uuid
-  workspaceId   String           @db.Uuid
-  locationId    String           @db.Uuid
-  createdById   String           @db.Uuid
-  finalizedById String?          @db.Uuid
-  status        StockCountStatus @default(DRAFT)
-  note          String?
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
-  finalizedAt   DateTime?
-  workspace     Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  location      Location         @relation(fields: [locationId], references: [id], onDelete: Restrict)
-  createdBy     User             @relation("StockCountCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  finalizedBy   User?            @relation("StockCountFinalizedBy", fields: [finalizedById], references: [id], onDelete: Restrict)
-  items         StockCountItem[]
+  id              String           @id @default(uuid()) @db.Uuid
+  workspaceId     String           @db.Uuid
+  locationId      String           @db.Uuid
+  createdById     String           @db.Uuid
+  finalizedById   String?          @db.Uuid
+  returnedById    String?          @db.Uuid
+  rejectedById    String?          @db.Uuid
+  status          StockCountStatus @default(DRAFT)
+  note            String?
+  managerComment  String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  finalizedAt     DateTime?
+  returnedAt      DateTime?
+  rejectedAt      DateTime?
+  workspace       Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  location        Location         @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  createdBy       User             @relation("StockCountCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  finalizedBy     User?            @relation("StockCountFinalizedBy", fields: [finalizedById], references: [id], onDelete: Restrict)
+  returnedBy      User?            @relation("StockCountReturnedBy", fields: [returnedById], references: [id], onDelete: Restrict)
+  rejectedBy      User?            @relation("StockCountRejectedBy", fields: [rejectedById], references: [id], onDelete: Restrict)
+  items           StockCountItem[]
 
   @@index([workspaceId])
   @@index([locationId])
@@ -580,25 +616,29 @@ model Plan {
 }
 
 model Subscription {
-  id                 String             @id @default(uuid()) @db.Uuid
-  workspaceId        String             @db.Uuid
-  planId             String             @db.Uuid
-  status             SubscriptionStatus @default(TRIAL)
-  billingCycle       BillingCycle       @default(MANUAL)
-  currency           String             @default("PKR")
-  amount             Float              @default(0)
-  trialEndsAt        DateTime?
-  currentPeriodStart DateTime?
-  currentPeriodEnd   DateTime?
-  nextRenewalAt      DateTime?
-  couponId           String?            @db.Uuid
-  manualNotes        String?
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-  workspace          Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  plan               Plan               @relation(fields: [planId], references: [id])
-  coupon             Coupon?            @relation(fields: [couponId], references: [id], onDelete: SetNull)
-  payments           Payment[]
+  id                      String             @id @default(uuid()) @db.Uuid
+  workspaceId             String             @db.Uuid
+  planId                  String             @db.Uuid
+  status                  SubscriptionStatus @default(TRIAL)
+  billingCycle            BillingCycle       @default(MANUAL)
+  currency                String             @default("PKR")
+  amount                  Float              @default(0)
+  trialEndsAt             DateTime?
+  currentPeriodStart      DateTime?
+  currentPeriodEnd        DateTime?
+  nextRenewalAt           DateTime?
+  couponId                String?            @db.Uuid
+  manualNotes             String?
+  gatewayProvider         String?
+  gatewayCustomerId       String?
+  gatewaySubscriptionId   String?
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
+  workspace               Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  plan                    Plan               @relation(fields: [planId], references: [id])
+  coupon                  Coupon?            @relation(fields: [couponId], references: [id], onDelete: SetNull)
+  payments                Payment[]
+  invoices                Invoice[]
 
   @@index([workspaceId])
   @@index([status])
@@ -647,6 +687,9 @@ model Payment {
   currency         String        @default("PKR")
   paymentMethod    PaymentMethod @default(OTHER)
   referenceNumber  String?
+  gatewayProvider  String?
+  gatewayReference String?
+  metadata         Json?
   status           PaymentStatus @default(PENDING)
   paidAt           DateTime?
   notes            String?
@@ -656,10 +699,56 @@ model Payment {
   workspace        Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   subscription     Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
   recordedBy       User          @relation(fields: [recordedByUserId], references: [id])
+  invoices         Invoice[]
 
   @@index([workspaceId])
   @@index([status])
   @@index([subscriptionId])
+  @@index([createdAt])
+}
+
+model Invoice {
+  id             String        @id @default(uuid()) @db.Uuid
+  workspaceId    String        @db.Uuid
+  subscriptionId String?       @db.Uuid
+  paymentId      String?       @db.Uuid
+  invoiceNumber  String        @unique
+  amount         Float
+  currency       String        @default("USD")
+  status         InvoiceStatus @default(DRAFT)
+  issuedAt       DateTime      @default(now())
+  dueAt          DateTime?
+  paidAt         DateTime?
+  notes          String?
+  lineItems      Json          @default("[]")
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  workspace      Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  subscription   Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  payment        Payment?      @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@index([status])
+  @@index([subscriptionId])
+  @@index([createdAt])
+}
+
+model BillingEvent {
+  id              String     @id @default(uuid()) @db.Uuid
+  workspaceId     String?    @db.Uuid
+  eventType       String
+  gatewayProvider String?
+  gatewayEventId  String?
+  subscriptionId  String?    @db.Uuid
+  paymentId       String?    @db.Uuid
+  payload         Json?
+  processedAt     DateTime   @default(now())
+  createdAt       DateTime   @default(now())
+  workspace       Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+
+  @@unique([gatewayProvider, gatewayEventId])
+  @@index([workspaceId])
+  @@index([eventType])
   @@index([createdAt])
 }
 
@@ -732,6 +821,7 @@ model SupportTicket {
   status           TicketStatus    @default(OPEN)
   priority         TicketPriority  @default(NORMAL)
   source           TicketSource    @default(EMAIL)
+  category         String?
   workspaceId      String?         @db.Uuid
   userId           String?         @db.Uuid
   requesterEmail   String
@@ -751,6 +841,7 @@ model SupportTicket {
 
   @@index([status])
   @@index([priority])
+  @@index([category])
   @@index([workspaceId])
   @@index([userId])
   @@index([assignedToUserId])

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { updateWorkspaceSettings } from "../api/workspace";
 import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
+import { DEFAULT_CATEGORY_OPTIONS, DEFAULT_UNIT_OPTIONS } from "../utils/inventoryDefaults";
 import type { WorkspaceSettings } from "../types";
 
 interface Toast {
@@ -49,10 +51,24 @@ export function SettingsPage() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const saveBarRef = useRef<HTMLDivElement>(null);
 
+  const effectiveUnits = (u: string[]) => (u.length > 0 ? u : DEFAULT_UNIT_OPTIONS);
+  const effectiveCategories = (c: string[]) => (c.length > 0 ? c : DEFAULT_CATEGORY_OPTIONS);
+
+  const [ucUnits, setUcUnits] = useState<string[]>(() => effectiveUnits(settings.customUnits));
+  const [ucCategories, setUcCategories] = useState<string[]>(() => effectiveCategories(settings.customCategories));
+  const [ucPurchaseUnits, setUcPurchaseUnits] = useState<string[]>(() => settings.customPurchaseUnits ?? []);
+  const [newUnit, setNewUnit] = useState("");
+  const [newCategory, setNewCategory] = useState("");
+  const [newPurchaseUnit, setNewPurchaseUnit] = useState("");
+  const [ucSaving, setUcSaving] = useState(false);
+
   useEffect(() => {
     const f = toForm(settings);
     setForm(f);
     setSavedForm(f);
+    setUcUnits(effectiveUnits(settings.customUnits));
+    setUcCategories(effectiveCategories(settings.customCategories));
+    setUcPurchaseUnits(settings.customPurchaseUnits ?? []);
   }, [settings]);
 
   const isDirty = useMemo(
@@ -123,6 +139,80 @@ export function SettingsPage() {
     }
   }
 
+  async function saveUnitsCategories() {
+    setUcSaving(true);
+    try {
+      const res = await updateWorkspaceSettings({
+        customUnits: ucUnits,
+        customCategories: ucCategories,
+        customPurchaseUnits: ucPurchaseUnits,
+      });
+      setSettings(res.settings);
+      showToast("Units & categories saved", "success");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Failed to save", "error");
+    } finally {
+      setUcSaving(false);
+    }
+  }
+
+  function addUnit() {
+    const entries = newUnit.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
+    if (entries.length === 0) return;
+    setUcUnits((prev) => {
+      const next = [...prev];
+      for (const e of entries) { if (!next.includes(e)) next.push(e); }
+      return next;
+    });
+    setNewUnit("");
+  }
+
+  function removeUnit(u: string) {
+    setUcUnits((prev) => prev.filter((x) => x !== u));
+  }
+
+  function addCategory() {
+    const entries = newCategory.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
+    if (entries.length === 0) return;
+    setUcCategories((prev) => {
+      const next = [...prev];
+      for (const e of entries) { if (!next.includes(e)) next.push(e); }
+      return next;
+    });
+    setNewCategory("");
+  }
+
+  function removeCategory(c: string) {
+    setUcCategories((prev) => prev.filter((x) => x !== c));
+  }
+
+  function addPurchaseUnit() {
+    const entries = newPurchaseUnit.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
+    if (entries.length === 0) return;
+    setUcPurchaseUnits((prev) => {
+      const next = [...prev];
+      for (const e of entries) { if (!next.includes(e)) next.push(e); }
+      return next;
+    });
+    setNewPurchaseUnit("");
+  }
+
+  function removePurchaseUnit(u: string) {
+    setUcPurchaseUnits((prev) => prev.filter((x) => x !== u));
+  }
+
+  const unitEntries = newUnit.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
+  const unitDupes = unitEntries.filter((e) => ucUnits.includes(e));
+  const unitHasNew = unitEntries.some((e) => !ucUnits.includes(e));
+
+  const categoryEntries = newCategory.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
+  const categoryDupes = categoryEntries.filter((e) => ucCategories.includes(e));
+  const categoryHasNew = categoryEntries.some((e) => !ucCategories.includes(e));
+
+  const purchaseUnitEntries = newPurchaseUnit.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
+  const purchaseUnitDupes = purchaseUnitEntries.filter((e) => ucPurchaseUnits.includes(e));
+  const purchaseUnitHasNew = purchaseUnitEntries.some((e) => !ucPurchaseUnits.includes(e));
+
   if (loading) {
     return (
       <div className="page-loading">
@@ -150,6 +240,16 @@ export function SettingsPage() {
           <p className="page-subtitle">Configure your workspace, inventory rules, and notification preferences.</p>
         </div>
       </div>
+
+      <Link to="/settings/billing" className="settings-billing-link-card">
+        <div>
+          <div className="settings-billing-link-title">Billing & Subscription</div>
+          <div className="settings-billing-link-desc">View your plan, subscription status, and payment history</div>
+        </div>
+        <svg viewBox="0 0 20 20" fill="currentColor" style={{ width: 18, height: 18, color: "#6366f1", flexShrink: 0 }} aria-hidden="true">
+          <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+        </svg>
+      </Link>
 
       <form onSubmit={(e) => { void handleSubmit(e); }}>
 
@@ -422,6 +522,211 @@ export function SettingsPage() {
           </button>
         </div>
       </form>
+
+      {/* ── Units & Categories ── */}
+      <div className="stg-card">
+        <div className="stg-card-header">
+          <div className="stg-card-icon stg-card-icon--teal">
+            <svg viewBox="0 0 20 20" fill="currentColor">
+              <path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4z" />
+            </svg>
+          </div>
+          <div className="stg-card-title">
+            <h2>Units &amp; Categories</h2>
+            <p>Customize the units of measurement and item categories used when adding or editing inventory.</p>
+          </div>
+        </div>
+        <div className="stg-card-body">
+          <div className="uc-section">
+            <div className="uc-section-header">
+              <div className="uc-section-label">Units of Measurement</div>
+              <button
+                type="button"
+                className="uc-reset-link"
+                onClick={() => setUcUnits(DEFAULT_UNIT_OPTIONS)}
+                disabled={JSON.stringify(ucUnits) === JSON.stringify(DEFAULT_UNIT_OPTIONS)}
+              >
+                Reset to defaults
+              </button>
+            </div>
+            <div className="uc-chips">
+              {ucUnits.length === 0 && (
+                <span className="uc-empty">All units removed — saving will restore defaults on next load.</span>
+              )}
+              {ucUnits.map((u) => (
+                <span key={u} className="uc-chip">
+                  {u}
+                  <button
+                    type="button"
+                    className="uc-chip-remove"
+                    onClick={() => removeUnit(u)}
+                    aria-label={`Remove ${u}`}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="uc-add-row">
+              <div className="uc-add-field">
+                <input
+                  className={`form-input uc-add-input${unitDupes.length > 0 && !unitHasNew ? " uc-add-input--error" : ""}`}
+                  value={newUnit}
+                  onChange={(e) => setNewUnit(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addUnit(); } }}
+                  placeholder="e.g. carton, tray, bundle"
+                  maxLength={120}
+                />
+                {unitDupes.length > 0 && (
+                  <span className="uc-dupe-hint">
+                    {unitHasNew
+                      ? `Already in list (will skip): ${unitDupes.join(", ")}`
+                      : `Already in list: ${unitDupes.join(", ")}`}
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                className="btn btn--sm btn--ghost"
+                onClick={addUnit}
+                disabled={!newUnit.trim() || !unitHasNew}
+              >
+                Add
+              </button>
+            </div>
+          </div>
+
+          <div className="uc-section">
+            <div className="uc-section-header">
+              <div className="uc-section-label">Purchase Units</div>
+              <button
+                type="button"
+                className="uc-reset-link"
+                onClick={() => setUcPurchaseUnits([])}
+                disabled={ucPurchaseUnits.length === 0}
+              >
+                Clear all
+              </button>
+            </div>
+            <p className="stg-hint" style={{ marginBottom: 8 }}>Pre-defined purchase units available as suggestions when adding items (e.g. Carton, Tray, Bundle).</p>
+            <div className="uc-chips">
+              {ucPurchaseUnits.length === 0 && (
+                <span className="uc-empty">No purchase units defined yet — type below to add some.</span>
+              )}
+              {ucPurchaseUnits.map((u) => (
+                <span key={u} className="uc-chip">
+                  {u}
+                  <button
+                    type="button"
+                    className="uc-chip-remove"
+                    onClick={() => removePurchaseUnit(u)}
+                    aria-label={`Remove ${u}`}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="uc-add-row">
+              <div className="uc-add-field">
+                <input
+                  className={`form-input uc-add-input${purchaseUnitDupes.length > 0 && !purchaseUnitHasNew ? " uc-add-input--error" : ""}`}
+                  value={newPurchaseUnit}
+                  onChange={(e) => setNewPurchaseUnit(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addPurchaseUnit(); } }}
+                  placeholder="e.g. Carton, Tray, Bundle"
+                  maxLength={120}
+                />
+                {purchaseUnitDupes.length > 0 && (
+                  <span className="uc-dupe-hint">
+                    {purchaseUnitHasNew
+                      ? `Already in list (will skip): ${purchaseUnitDupes.join(", ")}`
+                      : `Already in list: ${purchaseUnitDupes.join(", ")}`}
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                className="btn btn--sm btn--ghost"
+                onClick={addPurchaseUnit}
+                disabled={!newPurchaseUnit.trim() || !purchaseUnitHasNew}
+              >
+                Add
+              </button>
+            </div>
+          </div>
+
+          <div className="uc-section">
+            <div className="uc-section-header">
+              <div className="uc-section-label">Item Categories</div>
+              <button
+                type="button"
+                className="uc-reset-link"
+                onClick={() => setUcCategories(DEFAULT_CATEGORY_OPTIONS)}
+                disabled={JSON.stringify(ucCategories) === JSON.stringify(DEFAULT_CATEGORY_OPTIONS)}
+              >
+                Reset to defaults
+              </button>
+            </div>
+            <div className="uc-chips">
+              {ucCategories.length === 0 && (
+                <span className="uc-empty">All categories removed — saving will restore defaults on next load.</span>
+              )}
+              {ucCategories.map((c) => (
+                <span key={c} className="uc-chip">
+                  {c}
+                  <button
+                    type="button"
+                    className="uc-chip-remove"
+                    onClick={() => removeCategory(c)}
+                    aria-label={`Remove ${c}`}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="uc-add-row">
+              <div className="uc-add-field">
+                <input
+                  className={`form-input uc-add-input${categoryDupes.length > 0 && !categoryHasNew ? " uc-add-input--error" : ""}`}
+                  value={newCategory}
+                  onChange={(e) => setNewCategory(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCategory(); } }}
+                  placeholder="e.g. Dairy, Produce, Frozen"
+                  maxLength={200}
+                />
+                {categoryDupes.length > 0 && (
+                  <span className="uc-dupe-hint">
+                    {categoryHasNew
+                      ? `Already in list (will skip): ${categoryDupes.join(", ")}`
+                      : `Already in list: ${categoryDupes.join(", ")}`}
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                className="btn btn--sm btn--ghost"
+                onClick={addCategory}
+                disabled={!newCategory.trim() || !categoryHasNew}
+              >
+                Add
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="stg-footer-actions stg-footer-actions--card">
+          <button
+            type="button"
+            className="btn btn--primary"
+            onClick={() => { void saveUnitsCategories(); }}
+            disabled={ucSaving}
+          >
+            {ucSaving ? <span className="btn-spinner" /> : null}
+            {ucSaving ? "Saving…" : "Save Units, Purchase Units & Categories"}
+          </button>
+        </div>
+      </div>
 
       {/* ── Sticky unsaved-changes bar ── */}
       {isDirty && (

@@ -2,12 +2,13 @@ import JsBarcode from "jsbarcode";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { archiveItem, createItem, getItems, reactivateItem, updateItem } from "../api/items";
-import { getStockMovements, getStockSummary, stockIn, stockOut, stockTransfer } from "../api/stock";
+import { addOpeningStock, getStockMovements, getStockSummary, stockIn, stockOut, stockTransfer } from "../api/stock";
 import { useAuth } from "../context/AuthContext";
 import { useLocation } from "../context/LocationContext";
 import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
 import type { CreateItemInput, Item, Location, StockMovement, StockSummaryItem } from "../types";
 import { formatCurrency } from "../utils/currency";
+import { DEFAULT_CATEGORY_OPTIONS, DEFAULT_UNIT_OPTIONS } from "../utils/inventoryDefaults";
 import { getSuggestedReorderQuantity } from "../utils/reorder";
 import {
   getEstimatedDaysRemaining,
@@ -28,13 +29,8 @@ interface Toast {
 
 let toastSeq = 0;
 
-const UNIT_OPTIONS = [
-  "kg", "g", "liter", "ml", "pcs", "pack", "box", "dozen", "bottle", "can", "bag",
-];
-
-const CATEGORY_OPTIONS = [
-  "Raw Material", "Beverage", "Packaging", "Cleaning", "Finished Goods", "Other",
-];
+const FALLBACK_UNIT_OPTIONS = DEFAULT_UNIT_OPTIONS;
+const FALLBACK_CATEGORY_OPTIONS = DEFAULT_CATEGORY_OPTIONS;
 
 interface StatusInfo { label: string; variant: "green" | "orange" | "red" | "gray" }
 
@@ -70,6 +66,11 @@ interface ImportItemRow {
   barcode: string;
   minStockLevel: number;
   trackExpiry: boolean;
+  purchaseUnit: string;
+  purchaseConversionFactor: number | null;
+  issueUnit: string;
+  importMode: "new" | "update";
+  existingItemId: string | null;
   errors: string[];
   status: "pending" | "imported" | "failed";
 }
@@ -104,6 +105,8 @@ export function ItemsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const canManageStock = user?.role === "OWNER" || user?.role === "MANAGER";
   const currency = settings.currency;
+  const unitOptions = settings.customUnits.length > 0 ? settings.customUnits : FALLBACK_UNIT_OPTIONS;
+  const categoryOptions = settings.customCategories.length > 0 ? settings.customCategories : FALLBACK_CATEGORY_OPTIONS;
   const [items, setItems] = useState<Item[]>([]);
   const [summaryMap, setSummaryMap] = useState<Map<string, StockSummaryItem>>(new Map());
   const [usageMovements, setUsageMovements] = useState<StockMovement[]>([]);
@@ -115,14 +118,15 @@ export function ItemsPage() {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanPrefillBarcode, setScanPrefillBarcode] = useState<string | undefined>();
   const [stockInItem, setStockInItem] = useState<Item | null>(null);
+  const [openingStockItem, setOpeningStockItem] = useState<Item | null>(null);
   const [stockOutItem, setStockOutItem] = useState<Item | null>(null);
   const [adjustItem, setAdjustItem] = useState<Item | null>(null);
   const [transferItem, setTransferItem] = useState<Item | null>(null);
   const [barcodeItem, setBarcodeItem] = useState<Item | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(() => new Set());
-  const [bulkCategory, setBulkCategory] = useState(CATEGORY_OPTIONS[0]);
-  const [bulkUnit, setBulkUnit] = useState(UNIT_OPTIONS[0]);
+  const [bulkCategory, setBulkCategory] = useState(categoryOptions[0] ?? FALLBACK_CATEGORY_OPTIONS[0]);
+  const [bulkUnit, setBulkUnit] = useState(unitOptions[0] ?? FALLBACK_UNIT_OPTIONS[0]);
   const [bulkProgress, setBulkProgress] = useState<BulkProgress | null>(null);
   const [bulkSaving, setBulkSaving] = useState(false);
   const [busy, setBusy] = useState<Set<string>>(new Set());
@@ -140,7 +144,7 @@ export function ItemsPage() {
     () => new Map(getUsageInsights(usageMovements).map((usage) => [usage.itemId, usage])),
     [usageMovements],
   );
-  const categoryOptions = useMemo(() => {
+  const filterCategoryOptions = useMemo(() => {
     const categories = new Set<string>();
     for (const item of items) {
       if (item.category?.trim()) categories.add(item.category.trim());
@@ -474,7 +478,7 @@ export function ItemsPage() {
             aria-label="Filter by category"
           >
             <option value="all">All categories</option>
-            {categoryOptions.map((category) => (
+            {filterCategoryOptions.map((category) => (
               <option key={category} value={category}>{category}</option>
             ))}
           </select>
@@ -743,6 +747,11 @@ export function ItemsPage() {
                                   Adjust quantity
                                 </button>
                               )}
+                              {item.isActive && canManageStock && (
+                                <button className="row-action-menu-item" role="menuitem" onClick={() => { setOpenActionMenuItemId(null); setOpeningStockItem(item); }}>
+                                  Opening stock
+                                </button>
+                              )}
                               <button className="row-action-menu-item" role="menuitem" onClick={() => { setOpenActionMenuItemId(null); navigate(`/items/${item.id}/batches`); }}>
                                 Batch details
                               </button>
@@ -909,6 +918,11 @@ export function ItemsPage() {
                               Adjust quantity
                             </button>
                           )}
+                          {item.isActive && canManageStock && (
+                            <button className="row-action-menu-item" role="menuitem" onClick={() => { setOpenActionMenuItemId(null); setOpeningStockItem(item); }}>
+                              Opening stock
+                            </button>
+                          )}
                           <button className="row-action-menu-item" role="menuitem" onClick={() => { setOpenActionMenuItemId(null); navigate(`/items/${item.id}/batches`); }}>
                             Batch details
                           </button>
@@ -1022,6 +1036,21 @@ export function ItemsPage() {
             showToast("Stock added successfully.", "success");
             void refreshSummary();
             void refreshUsageInsights();
+          }}
+          onError={(msg) => showToast(msg, "error")}
+        />
+      )}
+
+      {openingStockItem && (
+        <OpeningStockModal
+          item={openingStockItem}
+          locations={locations}
+          defaultLocationId={activeLocationId}
+          onClose={() => setOpeningStockItem(null)}
+          onSuccess={() => {
+            setOpeningStockItem(null);
+            showToast("Opening stock added.", "success");
+            void refreshSummary();
           }}
           onError={(msg) => showToast(msg, "error")}
         />
@@ -1158,7 +1187,7 @@ function BulkItemsBar({
             disabled={saving}
             aria-label="Bulk category"
           >
-            {CATEGORY_OPTIONS.map((category) => (
+            {categoryOptions.map((category) => (
               <option key={category} value={category}>
                 {category}
               </option>
@@ -1177,7 +1206,7 @@ function BulkItemsBar({
             disabled={saving}
             aria-label="Bulk unit"
           >
-            {UNIT_OPTIONS.map((unit) => (
+            {unitOptions.map((unit) => (
               <option key={unit} value={unit}>
                 {unit}
               </option>
@@ -1220,13 +1249,21 @@ function AddItemModal({
   onSuccess: (item: Item) => void;
   onError: (msg: string) => void;
 }) {
+  const { settings: modalSettings } = useWorkspaceSettings();
+  const unitOptions = modalSettings.customUnits.length > 0 ? modalSettings.customUnits : FALLBACK_UNIT_OPTIONS;
+  const categoryOptions = modalSettings.customCategories.length > 0 ? modalSettings.customCategories : FALLBACK_CATEGORY_OPTIONS;
+  const purchaseUnitOptions = modalSettings.customPurchaseUnits ?? [];
   const [form, setForm] = useState<CreateItemInput>({
     name: "",
-    unit: UNIT_OPTIONS[0],
-    category: CATEGORY_OPTIONS[0],
+    unit: unitOptions[0] ?? FALLBACK_UNIT_OPTIONS[0],
+    category: categoryOptions[0] ?? FALLBACK_CATEGORY_OPTIONS[0],
     barcode: prefillBarcode ?? "",
     minStockLevel: 0,
     trackExpiry: false,
+    purchaseUnit: null,
+    purchaseConversionFactor: null,
+    issueUnit: null,
+    displayBothUnits: false,
   });
   const [saving, setSaving] = useState(false);
   const firstRef = useRef<HTMLInputElement>(null);
@@ -1264,21 +1301,78 @@ function AddItemModal({
             required
           />
         </div>
-        <div className="form-group">
-          <label className="form-label">Unit *</label>
-          <select
-            className="form-select"
-            value={form.unit}
-            onChange={(e) => setForm({ ...form, unit: e.target.value })}
-            required
-          >
-            {UNIT_OPTIONS.map((unit) => (
-              <option key={unit} value={unit}>
-                {unit}
-              </option>
-            ))}
-          </select>
+
+        <div className="item-units-section">
+          <div className="item-units-section__title">Units</div>
+          <div className="form-group">
+            <label className="form-label">Stock Unit *</label>
+            <select
+              className="form-select"
+              value={form.unit}
+              onChange={(e) => setForm({ ...form, unit: e.target.value })}
+              required
+            >
+              {unitOptions.map((unit) => (
+                <option key={unit} value={unit}>{unit}</option>
+              ))}
+            </select>
+            <p className="form-helper">How stock is counted and stored internally.</p>
+          </div>
+          <div className="form-row-2col">
+            <div className="form-group">
+              <label className="form-label">Purchase Unit</label>
+              <input
+                className="form-input"
+                list="add-purchase-unit-options"
+                value={form.purchaseUnit ?? ""}
+                onChange={(e) => setForm({ ...form, purchaseUnit: e.target.value || null })}
+                placeholder="e.g. Carton"
+              />
+              {purchaseUnitOptions.length > 0 && (
+                <datalist id="add-purchase-unit-options">
+                  {purchaseUnitOptions.map((u) => <option key={u} value={u} />)}
+                </datalist>
+              )}
+              <p className="form-helper">The larger unit you buy in (optional).</p>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Qty per Purchase Unit</label>
+              <input
+                className="form-input"
+                type="number"
+                min={0.0001}
+                step="any"
+                value={form.purchaseConversionFactor ?? ""}
+                onChange={(e) => setForm({ ...form, purchaseConversionFactor: e.target.value ? Number(e.target.value) : null })}
+                placeholder={form.purchaseUnit ? `How many ${form.unit} per ${form.purchaseUnit}` : "e.g. 12"}
+                disabled={!form.purchaseUnit}
+              />
+              <p className="form-helper">
+                {form.purchaseUnit
+                  ? `1 ${form.purchaseUnit} = ? ${form.unit}`
+                  : "Enter a Purchase Unit first"}
+              </p>
+            </div>
+          </div>
+          {form.purchaseUnit && form.purchaseConversionFactor && form.purchaseConversionFactor > 0 && (
+            <p className="uom-hint uom-hint--form">
+              1 {form.purchaseUnit} = {form.purchaseConversionFactor} {form.unit}
+            </p>
+          )}
+          <div className="form-group form-group--inline">
+            <input
+              id="displayBothUnits"
+              type="checkbox"
+              checked={form.displayBothUnits ?? false}
+              onChange={(e) => setForm({ ...form, displayBothUnits: e.target.checked })}
+              disabled={!form.purchaseUnit || !form.purchaseConversionFactor}
+            />
+            <label htmlFor="displayBothUnits" className="form-label form-label--check">
+              Show quantity in both units in inventory
+            </label>
+          </div>
         </div>
+
         <div className="form-group">
           <label className="form-label">Category</label>
           <select
@@ -1286,10 +1380,8 @@ function AddItemModal({
             value={form.category ?? ""}
             onChange={(e) => setForm({ ...form, category: e.target.value })}
           >
-            {CATEGORY_OPTIONS.map((category) => (
-              <option key={category} value={category}>
-                {category}
-              </option>
+            {categoryOptions.map((category) => (
+              <option key={category} value={category}>{category}</option>
             ))}
           </select>
         </div>
@@ -1334,6 +1426,7 @@ function AddItemModal({
             Track expiry dates
           </label>
         </div>
+
         <div className="modal-footer">
           <button type="button" className="btn btn--ghost" onClick={onClose}>
             Cancel
@@ -1363,6 +1456,10 @@ function EditItemModal({
   onSuccess: (item: Item) => void;
   onError: (msg: string) => void;
 }) {
+  const { settings: editSettings } = useWorkspaceSettings();
+  const unitOptions = editSettings.customUnits.length > 0 ? editSettings.customUnits : FALLBACK_UNIT_OPTIONS;
+  const categoryOptions = editSettings.customCategories.length > 0 ? editSettings.customCategories : FALLBACK_CATEGORY_OPTIONS;
+  const purchaseUnitOptions = editSettings.customPurchaseUnits ?? [];
   const [form, setForm] = useState<CreateItemInput>({
     name: item.name,
     unit: item.unit,
@@ -1371,6 +1468,10 @@ function EditItemModal({
     barcode: item.barcode ?? "",
     minStockLevel: item.minStockLevel,
     trackExpiry: item.trackExpiry,
+    purchaseUnit: item.purchaseUnit ?? null,
+    purchaseConversionFactor: item.purchaseConversionFactor ?? null,
+    issueUnit: item.issueUnit ?? null,
+    displayBothUnits: item.displayBothUnits ?? false,
   });
   const [saving, setSaving] = useState(false);
   const firstRef = useRef<HTMLInputElement>(null);
@@ -1411,21 +1512,78 @@ function EditItemModal({
             required
           />
         </div>
-        <div className="form-group">
-          <label className="form-label">Unit *</label>
-          <select
-            className="form-select"
-            value={form.unit}
-            onChange={(e) => setForm({ ...form, unit: e.target.value })}
-            required
-          >
-            {UNIT_OPTIONS.map((unit) => (
-              <option key={unit} value={unit}>
-                {unit}
-              </option>
-            ))}
-          </select>
+
+        <div className="item-units-section">
+          <div className="item-units-section__title">Units</div>
+          <div className="form-group">
+            <label className="form-label">Stock Unit *</label>
+            <select
+              className="form-select"
+              value={form.unit}
+              onChange={(e) => setForm({ ...form, unit: e.target.value })}
+              required
+            >
+              {unitOptions.map((unit) => (
+                <option key={unit} value={unit}>{unit}</option>
+              ))}
+            </select>
+            <p className="form-helper">How stock is counted and stored internally.</p>
+          </div>
+          <div className="form-row-2col">
+            <div className="form-group">
+              <label className="form-label">Purchase Unit</label>
+              <input
+                className="form-input"
+                list="edit-purchase-unit-options"
+                value={form.purchaseUnit ?? ""}
+                onChange={(e) => setForm({ ...form, purchaseUnit: e.target.value || null })}
+                placeholder="e.g. Carton"
+              />
+              {purchaseUnitOptions.length > 0 && (
+                <datalist id="edit-purchase-unit-options">
+                  {purchaseUnitOptions.map((u) => <option key={u} value={u} />)}
+                </datalist>
+              )}
+              <p className="form-helper">The larger unit you buy in (optional).</p>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Qty per Purchase Unit</label>
+              <input
+                className="form-input"
+                type="number"
+                min={0.0001}
+                step="any"
+                value={form.purchaseConversionFactor ?? ""}
+                onChange={(e) => setForm({ ...form, purchaseConversionFactor: e.target.value ? Number(e.target.value) : null })}
+                placeholder={form.purchaseUnit ? `How many ${form.unit} per ${form.purchaseUnit}` : "e.g. 12"}
+                disabled={!form.purchaseUnit}
+              />
+              <p className="form-helper">
+                {form.purchaseUnit
+                  ? `1 ${form.purchaseUnit} = ? ${form.unit}`
+                  : "Enter a Purchase Unit first"}
+              </p>
+            </div>
+          </div>
+          {form.purchaseUnit && form.purchaseConversionFactor && form.purchaseConversionFactor > 0 && (
+            <p className="uom-hint uom-hint--form">
+              1 {form.purchaseUnit} = {form.purchaseConversionFactor} {form.unit}
+            </p>
+          )}
+          <div className="form-group form-group--inline">
+            <input
+              id="editDisplayBothUnits"
+              type="checkbox"
+              checked={form.displayBothUnits ?? false}
+              onChange={(e) => setForm({ ...form, displayBothUnits: e.target.checked })}
+              disabled={!form.purchaseUnit || !form.purchaseConversionFactor}
+            />
+            <label htmlFor="editDisplayBothUnits" className="form-label form-label--check">
+              Show quantity in both units in inventory
+            </label>
+          </div>
         </div>
+
         <div className="form-group">
           <label className="form-label">Category</label>
           <input
@@ -1436,14 +1594,12 @@ function EditItemModal({
             placeholder="Optional category"
           />
           <datalist id="edit-item-category-options">
-            {CATEGORY_OPTIONS.map((category) => (
-              <option key={category} value={category}>
-                {category}
-              </option>
+            {categoryOptions.map((category) => (
+              <option key={category} value={category}>{category}</option>
             ))}
           </datalist>
-          {item.category && !CATEGORY_OPTIONS.includes(item.category) && (
-            <p className="form-helper">Current custom category is preserved unless you edit or clear it.</p>
+          {item.category && !categoryOptions.includes(item.category) && (
+            <p className="form-helper">Current category is preserved unless you edit or clear it.</p>
           )}
         </div>
         <div className="form-group">
@@ -1486,6 +1642,7 @@ function EditItemModal({
             Track expiry dates
           </label>
         </div>
+
         <div className="modal-footer">
           <button type="button" className="btn btn--ghost" onClick={onClose}>
             Cancel
@@ -1515,6 +1672,8 @@ function ImportItemsModal({
   onSuccess: (importedCount: number) => void;
   onError: (msg: string) => void;
 }) {
+  const { settings: importSettings } = useWorkspaceSettings();
+  const unitOptions = importSettings.customUnits.length > 0 ? importSettings.customUnits : FALLBACK_UNIT_OPTIONS;
   const [fileName, setFileName] = useState("");
   const [rows, setRows] = useState<ImportItemRow[]>([]);
   const [parseError, setParseError] = useState<string | null>(null);
@@ -1522,18 +1681,18 @@ function ImportItemsModal({
   const [importing, setImporting] = useState(false);
   const [importedCount, setImportedCount] = useState(0);
   const [apiFailedCount, setApiFailedCount] = useState(0);
+  const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const importableRows = rows.filter((row) => row.status !== "pending" || row.errors.length === 0);
+  const validRows = rows.filter((row) => row.errors.length === 0);
   const pendingValidRows = rows.filter((row) => row.status === "pending" && row.errors.length === 0);
-  const invalidCount = rows.length - importableRows.length;
-  const failedRowsCount = invalidCount + apiFailedCount;
+  const invalidRows = rows.filter((row) => row.errors.length > 0);
   const canImport = !parsing && !importing && pendingValidRows.length > 0;
+  const importProgress = pendingValidRows.length + importedCount > 0
+    ? Math.round((importedCount / (pendingValidRows.length + importedCount + apiFailedCount)) * 100)
+    : 0;
 
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  async function processFile(file: File) {
     setFileName(file.name);
     setRows([]);
     setParseError(null);
@@ -1543,16 +1702,27 @@ function ImportItemsModal({
 
     try {
       if (!isSupportedImportFile(file.name)) {
-        throw new Error("Please choose a .csv or .xlsx file.");
+        throw new Error("Please upload a .csv or .xlsx file.");
       }
-
       const parsedRows = await parseImportFile(file);
-      setRows(validateImportRows(parsedRows, existingItems));
+      setRows(validateImportRows(parsedRows, existingItems, unitOptions));
     } catch (err) {
-      setParseError(err instanceof Error ? err.message : "Could not parse import file");
+      setParseError(err instanceof Error ? err.message : "Could not read the file. Please check the format and try again.");
     } finally {
       setParsing(false);
     }
+  }
+
+  function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) void processFile(file);
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) void processFile(file);
   }
 
   async function handleImport() {
@@ -1568,7 +1738,7 @@ function ImportItemsModal({
 
     for (const row of pendingRows) {
       try {
-        await createItem({
+        const payload = {
           name: row.name,
           unit: row.unit,
           category: row.category || undefined,
@@ -1576,24 +1746,27 @@ function ImportItemsModal({
           barcode: row.barcode || undefined,
           minStockLevel: row.minStockLevel,
           trackExpiry: row.trackExpiry,
-        });
-
+          purchaseUnit: row.purchaseUnit || null,
+          purchaseConversionFactor: row.purchaseConversionFactor,
+          issueUnit: row.issueUnit || null,
+        };
+        if (row.importMode === "update" && row.existingItemId) {
+          await updateItem(row.existingItemId, payload);
+        } else {
+          await createItem(payload);
+        }
         imported += 1;
         setImportedCount(imported);
-        setRows((prev) => prev.map((candidate) => (
-          candidate.rowNumber === row.rowNumber
-            ? { ...candidate, status: "imported" }
-            : candidate
-        )));
+        setRows((prev) => prev.map((c) =>
+          c.rowNumber === row.rowNumber ? { ...c, status: "imported" } : c,
+        ));
       } catch (err) {
         failed += 1;
         setApiFailedCount(failed);
         const message = err instanceof Error ? err.message : "Import failed";
-        setRows((prev) => prev.map((candidate) => (
-          candidate.rowNumber === row.rowNumber
-            ? { ...candidate, status: "failed", errors: [...candidate.errors, message] }
-            : candidate
-        )));
+        setRows((prev) => prev.map((c) =>
+          c.rowNumber === row.rowNumber ? { ...c, status: "failed", errors: [...c.errors, message] } : c,
+        ));
       }
     }
 
@@ -1603,10 +1776,11 @@ function ImportItemsModal({
   }
 
   function downloadSampleTemplate() {
-    const headers = ["name", "unit", "category", "sku", "barcode", "minStockLevel", "trackExpiry"];
+    const headers = ["name", "unit", "category", "sku", "barcode", "minStockLevel", "trackExpiry", "purchaseUnit", "purchaseConversionFactor", "issueUnit"];
     const sampleRows = [
-      ["Chicken Breast", "kg", "Raw Material", "CHK-BRST", "SS100000001", "10", "yes"],
-      ["Paper Cups", "pack", "Packaging", "CUP-250", "", "5", "no"],
+      ["Chicken Breast", "kg", "Raw Material", "CHK-BRST", "SS100000001", "10", "yes", "", "", ""],
+      ["Paper Cups", "pack", "Packaging", "CUP-250", "", "5", "no", "Carton", "24", ""],
+      ["Cooking Oil", "liter", "Ingredients", "OIL-COOK", "", "20", "no", "Jerry Can", "5", "Portion"],
     ];
     const csv = [headers, ...sampleRows].map((row) => row.map(escapeCsvCell).join(",")).join("\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
@@ -1617,104 +1791,222 @@ function ImportItemsModal({
     URL.revokeObjectURL(url);
   }
 
+  const hasFile = fileName !== "";
+
   return (
     <Modal title="Import Items" onClose={onClose}>
       <div className="import-modal">
-        <div className="import-guidance">
-          <p>
-            Upload a CSV or Excel file with columns:
-            {" "}
-            <strong>name</strong>, <strong>unit</strong>, category, sku, barcode, minStockLevel, trackExpiry.
-          </p>
-          <p>
-            Required: name and unit. Units must be one of: {UNIT_OPTIONS.join(", ")}.
-            trackExpiry accepts true/false, yes/no, or 1/0.
-          </p>
-        </div>
 
-        <div className="import-actions">
+        {/* ── Upload zone ── */}
+        <div
+          className={`import-drop-zone ${dragging ? "import-drop-zone--over" : ""} ${hasFile && !parseError ? "import-drop-zone--has-file" : ""}`}
+          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={handleDrop}
+          onClick={() => fileInputRef.current?.click()}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => e.key === "Enter" && fileInputRef.current?.click()}
+          aria-label="Upload file"
+        >
           <input
             ref={fileInputRef}
-            className="import-file-input"
             type="file"
             accept=".csv,.xlsx"
-            onChange={(e) => { void handleFileChange(e); }}
+            style={{ display: "none" }}
+            onChange={handleFileInput}
           />
-          <button type="button" className="btn btn--ghost" onClick={() => fileInputRef.current?.click()}>
-            Choose file
-          </button>
-          <button type="button" className="btn btn--secondary" onClick={downloadSampleTemplate}>
-            Download sample template
+
+          {parsing ? (
+            <div className="import-drop-content">
+              <div className="spinner" />
+              <p className="import-drop-label">Reading {fileName}…</p>
+            </div>
+          ) : hasFile && !parseError ? (
+            <div className="import-drop-content">
+              <div className="import-drop-file-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <p className="import-drop-filename">{fileName}</p>
+              <p className="import-drop-change">Click to choose a different file</p>
+            </div>
+          ) : (
+            <div className="import-drop-content">
+              <div className="import-drop-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                </svg>
+              </div>
+              <p className="import-drop-label">
+                {dragging ? "Drop file here" : "Drop your CSV or Excel file here"}
+              </p>
+              <p className="import-drop-sub">or <span className="import-drop-browse">click to browse</span></p>
+            </div>
+          )}
+        </div>
+
+        {/* ── Template download ── */}
+        <div className="import-template-row">
+          <div className="import-columns-hint">
+            <span className="import-col import-col--req">name</span>
+            <span className="import-col import-col--req">unit</span>
+            <span className="import-col">category</span>
+            <span className="import-col">sku</span>
+            <span className="import-col">barcode</span>
+            <span className="import-col">minStockLevel</span>
+            <span className="import-col">trackExpiry</span>
+          </div>
+          <button type="button" className="btn btn--ghost btn--sm" onClick={downloadSampleTemplate} style={{ flexShrink: 0 }}>
+            <svg viewBox="0 0 20 20" fill="currentColor" style={{ width: 14, height: 14 }} aria-hidden="true">
+              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+            Template
           </button>
         </div>
 
-        {fileName && <p className="import-file-name">{fileName}</p>}
-        {parsing && <p className="import-status">Parsing file...</p>}
-        {parseError && <div className="alert alert--error">{parseError}</div>}
+        {/* ── Parse error ── */}
+        {parseError && (
+          <div className="import-parse-error">
+            <svg viewBox="0 0 20 20" fill="currentColor" style={{ width: 16, height: 16, flexShrink: 0 }} aria-hidden="true">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+            <div>
+              <strong>Could not read file</strong>
+              <p>{parseError}</p>
+            </div>
+          </div>
+        )}
 
+        {/* ── Summary stats ── */}
         {rows.length > 0 && (
-          <>
-            <div className="import-summary">
-              <span>{rows.length} rows parsed</span>
-              <span>{importableRows.length} valid</span>
-              <span>{failedRowsCount} failed rows</span>
-              {importing || importedCount > 0 ? (
-                <strong>Imported {importedCount} of {importableRows.length}</strong>
-              ) : null}
+          <div className="import-stats-row">
+            <div className="import-stat">
+              <span className="import-stat-val">{rows.length}</span>
+              <span className="import-stat-label">Total rows</span>
             </div>
+            <div className="import-stat import-stat--success">
+              <span className="import-stat-val">{validRows.length}</span>
+              <span className="import-stat-label">Valid</span>
+            </div>
+            {validRows.filter((r) => r.importMode === "new").length > 0 && (
+              <div className="import-stat import-stat--new">
+                <span className="import-stat-val">{validRows.filter((r) => r.importMode === "new").length}</span>
+                <span className="import-stat-label">New</span>
+              </div>
+            )}
+            {validRows.filter((r) => r.importMode === "update").length > 0 && (
+              <div className="import-stat import-stat--update">
+                <span className="import-stat-val">{validRows.filter((r) => r.importMode === "update").length}</span>
+                <span className="import-stat-label">Updates</span>
+              </div>
+            )}
+            {invalidRows.length > 0 && (
+              <div className="import-stat import-stat--error">
+                <span className="import-stat-val">{invalidRows.length}</span>
+                <span className="import-stat-label">Errors</span>
+              </div>
+            )}
+            {importing && (
+              <div className="import-stat import-stat--importing">
+                <span className="import-stat-val">{importedCount}</span>
+                <span className="import-stat-label">Imported</span>
+              </div>
+            )}
+          </div>
+        )}
 
-            <div className="import-preview-wrap">
-              <table className="table import-preview-table">
-                <thead>
-                  <tr>
-                    <th>Row</th>
-                    <th>Name</th>
-                    <th>Unit</th>
-                    <th>Category</th>
-                    <th>SKU</th>
-                    <th>Barcode</th>
-                    <th className="text-right">Min</th>
-                    <th>Expiry</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row) => (
-                    <tr key={row.rowNumber} className={row.errors.length > 0 ? "row--warn" : ""}>
-                      <td>{row.rowNumber}</td>
-                      <td>{row.name || "-"}</td>
-                      <td>{row.unit || "-"}</td>
-                      <td>{row.category || "-"}</td>
-                      <td>{row.sku || "-"}</td>
-                      <td>{row.barcode || "-"}</td>
-                      <td className="text-right">{row.minStockLevel}</td>
-                      <td>{row.trackExpiry ? "Yes" : "No"}</td>
-                      <td>
-                        {row.errors.length > 0 ? (
-                          <span className="import-row-errors">{row.errors.join("; ")}</span>
-                        ) : row.status === "imported" ? (
-                          <span className="badge badge--green">Imported</span>
-                        ) : row.status === "failed" ? (
-                          <span className="badge badge--red">Failed</span>
-                        ) : (
-                          <span className="badge badge--gray">Ready</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        {/* ── Progress bar ── */}
+        {importing && (
+          <div className="import-progress-wrap">
+            <div className="import-progress-bar">
+              <div className="import-progress-fill" style={{ width: `${importProgress}%` }} />
             </div>
-          </>
+            <span className="import-progress-label">Importing {importedCount} of {pendingValidRows.length + importedCount + apiFailedCount}…</span>
+          </div>
+        )}
+
+        {/* ── Preview table ── */}
+        {rows.length > 0 && (
+          <div className="import-preview-wrap">
+            <table className="table import-preview-table">
+              <thead>
+                <tr>
+                  <th style={{ width: 40 }}>#</th>
+                  <th>Name</th>
+                  <th>Unit</th>
+                  <th>Category</th>
+                  <th>SKU</th>
+                  <th className="text-right" style={{ width: 52 }}>Min</th>
+                  <th style={{ width: 60 }}>Expiry</th>
+                  <th style={{ width: 72 }}>Action</th>
+                  <th style={{ width: 120 }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.rowNumber} className={row.errors.length > 0 ? "import-row--error" : row.status === "imported" ? "import-row--done" : ""}>
+                    <td className="import-cell-num">{row.rowNumber}</td>
+                    <td>{row.name || <span className="import-cell-empty">—</span>}</td>
+                    <td>{row.unit || <span className="import-cell-empty">—</span>}</td>
+                    <td>{row.category || <span className="import-cell-empty">—</span>}</td>
+                    <td>{row.sku || <span className="import-cell-empty">—</span>}</td>
+                    <td className="text-right">{row.minStockLevel || 0}</td>
+                    <td>{row.trackExpiry ? "Yes" : "No"}</td>
+                    <td>
+                      {row.importMode === "update"
+                        ? <span className="import-action-badge import-action-badge--update">Update</span>
+                        : <span className="import-action-badge import-action-badge--new">New</span>}
+                    </td>
+                    <td>
+                      {row.errors.length > 0 ? (
+                        <span className="import-row-error-badge" title={row.errors.join("; ")}>
+                          <svg viewBox="0 0 16 16" fill="currentColor" style={{ width: 12, height: 12 }} aria-hidden="true">
+                            <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 11a.75.75 0 110-1.5.75.75 0 010 1.5zm.75-4.5a.75.75 0 01-1.5 0v-3a.75.75 0 011.5 0v3z" />
+                          </svg>
+                          {row.errors[0].length > 22 ? `${row.errors[0].slice(0, 22)}…` : row.errors[0]}
+                        </span>
+                      ) : row.status === "imported" ? (
+                        <span className="import-row-ok-badge">
+                          <svg viewBox="0 0 16 16" fill="currentColor" style={{ width: 12, height: 12 }} aria-hidden="true">
+                            <path fillRule="evenodd" d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z" clipRule="evenodd" />
+                          </svg>
+                          Imported
+                        </span>
+                      ) : row.status === "failed" ? (
+                        <span className="import-row-error-badge">Failed</span>
+                      ) : (
+                        <span className="import-row-ready-badge">Ready</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
 
         <div className="modal-footer">
           <button type="button" className="btn btn--ghost" onClick={onClose} disabled={importing}>
             Close
           </button>
-          <button type="button" className="btn btn--primary" onClick={() => { void handleImport(); }} disabled={!canImport}>
-            {importing ? <span className="btn-spinner" /> : null}
-            {importing ? "Importing..." : `Import ${pendingValidRows.length} valid rows`}
+          <button
+            type="button"
+            className="btn btn--primary"
+            onClick={() => { void handleImport(); }}
+            disabled={!canImport}
+          >
+            {(() => {
+              if (importing) return <><div className="spinner spinner--sm spinner--white" /> Importing…</>;
+              if (pendingValidRows.length === 0) return rows.length > 0 ? "No valid rows to import" : "Select a file";
+              const newCount = pendingValidRows.filter((r) => r.importMode === "new").length;
+              const updateCount = pendingValidRows.filter((r) => r.importMode === "update").length;
+              const parts: string[] = [];
+              if (newCount > 0) parts.push(`${newCount} new`);
+              if (updateCount > 0) parts.push(`${updateCount} update${updateCount === 1 ? "" : "s"}`);
+              return `Import ${pendingValidRows.length} item${pendingValidRows.length === 1 ? "" : "s"} (${parts.join(", ")})`;
+            })()}
           </button>
         </div>
       </div>
@@ -2089,6 +2381,180 @@ function StockInModal({
           >
             {saving ? <span className="btn-spinner" /> : null}
             {saving ? "Saving…" : "Add Stock"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function OpeningStockModal({
+  item,
+  locations,
+  defaultLocationId,
+  onClose,
+  onSuccess,
+  onError,
+}: {
+  item: Item;
+  locations: Location[];
+  defaultLocationId: string;
+  onClose: () => void;
+  onSuccess: () => void;
+  onError: (msg: string) => void;
+}) {
+  const [locationId, setLocationId] = useState(defaultLocationId);
+  const [qty, setQty] = useState("");
+  const [unitCost, setUnitCost] = useState("");
+  const [batchNo, setBatchNo] = useState("");
+  const [expiryDate, setExpiryDate] = useState("");
+  const [expiryEstimated, setExpiryEstimated] = useState(false);
+  const [supplierName, setSupplierName] = useState("");
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+  const firstRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { firstRef.current?.focus(); }, []);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const quantity = parseFloat(qty);
+    if (!quantity || quantity <= 0) return;
+    setSaving(true);
+    try {
+      await addOpeningStock({
+        itemId: item.id,
+        locationId,
+        quantity,
+        unitCost: unitCost ? parseFloat(unitCost) : undefined,
+        batchNo: batchNo.trim() || undefined,
+        expiryDate: expiryDate || undefined,
+        expiryEstimated: expiryEstimated || undefined,
+        supplierName: supplierName.trim() || undefined,
+        notes: notes.trim() || undefined,
+      });
+      onSuccess();
+    } catch (err) {
+      onError(err instanceof Error && err.message ? err.message : "Unable to add opening stock. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal title={`Opening Stock — ${item.name}`} onClose={onClose}>
+      <form onSubmit={(e) => { void handleSubmit(e); }}>
+        <p className="form-hint" style={{ marginBottom: "1rem" }}>
+          Record your starting inventory balance for this item. This creates a stock-in movement with reason <strong>opening_balance</strong>.
+        </p>
+
+        {locations.length > 1 && (
+          <div className="form-group">
+            <label className="form-label">Location *</label>
+            <select
+              className="form-select"
+              value={locationId}
+              onChange={(e) => setLocationId(e.target.value)}
+            >
+              {locations.map((loc) => (
+                <option key={loc.id} value={loc.id}>{loc.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Opening quantity * ({item.unit})</label>
+            <input
+              ref={firstRef}
+              className="form-input"
+              type="number"
+              min={0.001}
+              step="any"
+              value={qty}
+              onChange={(e) => setQty(e.target.value)}
+              placeholder="0"
+              required
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Unit cost <span className="form-label-opt">(optional)</span></label>
+            <input
+              className="form-input"
+              type="number"
+              min={0}
+              step="any"
+              value={unitCost}
+              onChange={(e) => setUnitCost(e.target.value)}
+              placeholder="0.00"
+            />
+          </div>
+        </div>
+
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Batch / Lot no. <span className="form-label-opt">(optional)</span></label>
+            <input
+              className="form-input"
+              value={batchNo}
+              onChange={(e) => setBatchNo(e.target.value)}
+              placeholder="e.g. LOT-001"
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Supplier name <span className="form-label-opt">(optional)</span></label>
+            <input
+              className="form-input"
+              value={supplierName}
+              onChange={(e) => setSupplierName(e.target.value)}
+              placeholder="Supplier name"
+            />
+          </div>
+        </div>
+
+        {item.trackExpiry && (
+          <div className="form-group">
+            <label className="form-label">Expiry date *</label>
+            <input
+              className="form-input"
+              type="date"
+              value={expiryDate}
+              onChange={(e) => setExpiryDate(e.target.value)}
+              required={item.trackExpiry}
+            />
+            <label className="form-checkbox-label" style={{ marginTop: "0.4rem" }}>
+              <input
+                type="checkbox"
+                checked={expiryEstimated}
+                onChange={(e) => setExpiryEstimated(e.target.checked)}
+              />
+              Expiry date is estimated
+            </label>
+          </div>
+        )}
+
+        <div className="form-group">
+          <label className="form-label">Notes <span className="form-label-opt">(optional)</span></label>
+          <input
+            className="form-input"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="e.g. Counted at period start"
+          />
+        </div>
+
+        <div className="modal-footer">
+          <button type="button" className="btn btn--ghost" onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            type="submit"
+            className="btn btn--primary"
+            disabled={saving || !qty || parseFloat(qty) <= 0 || (item.trackExpiry && !expiryDate)}
+          >
+            {saving ? <span className="btn-spinner" /> : null}
+            {saving ? "Saving…" : "Record Opening Stock"}
           </button>
         </div>
       </form>
@@ -2483,14 +2949,18 @@ async function parseImportFile(file: File) {
   }
 
   const readXlsxFile = (await import("read-excel-file/browser")).default;
-  const sheets = await readXlsxFile(file);
-  const firstSheet = sheets[0];
+  // The runtime return is Row[] for a single-sheet read; cast through unknown to satisfy TS
+  const result = (await readXlsxFile(file)) as unknown;
+  // Handle both Sheet[] (if multi-sheet mode) and Row[] (default mode)
+  const rows: unknown[][] = Array.isArray(result) && result.length > 0 && result[0] !== null && typeof result[0] === "object" && !Array.isArray(result[0]) && "data" in (result[0] as object)
+    ? ((result[0] as { data: unknown[][] }).data ?? [])
+    : (result as unknown[][]);
 
-  if (!firstSheet) {
-    throw new Error("The selected file does not contain a worksheet.");
+  if (!rows || rows.length === 0) {
+    throw new Error("The selected file is empty or contains no rows.");
   }
 
-  return tableRowsToRecords(firstSheet.data);
+  return tableRowsToRecords(rows);
 }
 
 function tableRowsToRecords(rows: unknown[][]) {
@@ -2561,11 +3031,14 @@ function parseCsvRows(text: string) {
   return rows.filter((candidate) => candidate.some((value) => value.trim() !== ""));
 }
 
-function validateImportRows(records: Array<Record<string, unknown>>, existingItems: Item[]) {
-  const existingBarcodes = new Set(
+function validateImportRows(records: Array<Record<string, unknown>>, existingItems: Item[], allUnits: string[] = FALLBACK_UNIT_OPTIONS) {
+  const existingByName = new Map(
+    existingItems.map((item) => [item.name.trim().toLowerCase(), item]),
+  );
+  const existingBarcodes = new Map(
     existingItems
-      .map((item) => normalizeBarcode(item.barcode ?? ""))
-      .filter(Boolean),
+      .filter((item) => item.barcode)
+      .map((item) => [normalizeBarcode(item.barcode ?? ""), item.id]),
   );
   const fileBarcodeCounts = new Map<string, number>();
 
@@ -2575,10 +3048,14 @@ function validateImportRows(records: Array<Record<string, unknown>>, existingIte
     if (barcodeKey) {
       fileBarcodeCounts.set(barcodeKey, (fileBarcodeCounts.get(barcodeKey) ?? 0) + 1);
     }
+    const nameKey = normalized.name.trim().toLowerCase();
+    const existingMatch = existingByName.get(nameKey) ?? null;
 
     return {
       rowNumber: index + 2,
       ...normalized,
+      importMode: (existingMatch ? "update" : "new") as "new" | "update",
+      existingItemId: existingMatch?.id ?? null,
       errors: normalized.errors,
       status: "pending" as const,
     };
@@ -2590,17 +3067,23 @@ function validateImportRows(records: Array<Record<string, unknown>>, existingIte
 
     if (!row.name) errors.push("Name is required");
     if (!row.unit) errors.push("Unit is required");
-    if (row.unit && !UNIT_OPTIONS.includes(row.unit)) {
-      errors.push(`Unit must be one of: ${UNIT_OPTIONS.join(", ")}`);
+    if (row.unit && !allUnits.includes(row.unit)) {
+      errors.push(`Unit must be one of: ${allUnits.join(", ")}`);
     }
-    if (barcodeKey && existingBarcodes.has(barcodeKey)) {
-      errors.push("Barcode already exists");
+    if (barcodeKey) {
+      const barcodeOwner = existingBarcodes.get(barcodeKey);
+      if (barcodeOwner && barcodeOwner !== row.existingItemId) {
+        errors.push("Barcode already used by a different item");
+      }
     }
     if (barcodeKey && (fileBarcodeCounts.get(barcodeKey) ?? 0) > 1) {
       errors.push("Duplicate barcode in file");
     }
     if (!Number.isFinite(row.minStockLevel) || row.minStockLevel < 0) {
       errors.push("Min stock level must be zero or greater");
+    }
+    if (row.purchaseUnit && !row.purchaseConversionFactor) {
+      errors.push("purchaseConversionFactor is required when purchaseUnit is set");
     }
 
     return { ...row, errors };
@@ -2618,6 +3101,9 @@ function normalizeImportRecord(record: Record<string, unknown>) {
   const unit = normalizeUnit(rawUnit);
   const minStockLevelResult = parseOptionalNumber(values.get("minstocklevel"));
   const trackExpiryResult = parseOptionalBoolean(values.get("trackexpiry"));
+  const purchaseUnit = parseImportString(values.get("purchaseunit"));
+  const purchaseConversionFactorResult = parseOptionalConversionFactor(values.get("purchaseconversionfactor"));
+  const issueUnit = parseImportString(values.get("issueunit"));
 
   return {
     name: parseImportString(values.get("name")),
@@ -2627,9 +3113,13 @@ function normalizeImportRecord(record: Record<string, unknown>) {
     barcode: parseImportString(values.get("barcode")),
     minStockLevel: minStockLevelResult.value,
     trackExpiry: trackExpiryResult.value,
+    purchaseUnit,
+    purchaseConversionFactor: purchaseConversionFactorResult.value,
+    issueUnit,
     errors: [
       ...minStockLevelResult.errors,
       ...trackExpiryResult.errors,
+      ...purchaseConversionFactorResult.errors,
     ],
   };
 }
@@ -2646,11 +3136,12 @@ function parseImportString(value: unknown) {
 function normalizeUnit(value: string) {
   const trimmed = value.trim();
   const lower = trimmed.toLowerCase();
-  return UNIT_OPTIONS.find((unit) => unit.toLowerCase() === lower) ?? trimmed;
+  return FALLBACK_UNIT_OPTIONS.find((unit) => unit.toLowerCase() === lower) ?? trimmed;
 }
 
-function normalizeBarcode(value: string) {
-  return value.trim().toLowerCase();
+function normalizeBarcode(value: string | null | undefined) {
+  if (!value) return "";
+  return String(value).trim().toLowerCase();
 }
 
 function parseOptionalNumber(value: unknown) {
@@ -2661,6 +3152,16 @@ function parseOptionalNumber(value: unknown) {
   return Number.isFinite(parsed)
     ? { value: parsed, errors: [] }
     : { value: 0, errors: ["Min stock level must be a number"] };
+}
+
+function parseOptionalConversionFactor(value: unknown) {
+  const raw = parseImportString(value);
+  if (!raw) return { value: null as number | null, errors: [] };
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return { value: null as number | null, errors: ["purchaseConversionFactor must be a positive number"] };
+  }
+  return { value: parsed as number | null, errors: [] };
 }
 
 function parseOptionalBoolean(value: unknown) {

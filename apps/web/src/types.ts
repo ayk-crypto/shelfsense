@@ -118,6 +118,9 @@ export interface WorkspaceSettings {
   emailExpiringSoon: boolean;
   emailExpired: boolean;
   dailyDigestEnabled: boolean;
+  customUnits: string[];
+  customCategories: string[];
+  customPurchaseUnits: string[];
 }
 
 export interface WorkspaceSettingsResponse {
@@ -205,6 +208,9 @@ export interface UpdateWorkspaceSettingsInput {
   emailExpiringSoon?: boolean;
   emailExpired?: boolean;
   dailyDigestEnabled?: boolean;
+  customUnits?: string[];
+  customCategories?: string[];
+  customPurchaseUnits?: string[];
 }
 
 export interface Location {
@@ -298,6 +304,10 @@ export interface Item {
   isActive: boolean;
   archivedAt: string | null;
   createdAt: string;
+  purchaseUnit: string | null;
+  purchaseConversionFactor: number | null;
+  issueUnit: string | null;
+  displayBothUnits: boolean;
 }
 
 export interface ItemsResponse {
@@ -379,6 +389,10 @@ export interface CreateItemInput {
   barcode?: string;
   minStockLevel: number;
   trackExpiry: boolean;
+  purchaseUnit?: string | null;
+  purchaseConversionFactor?: number | null;
+  issueUnit?: string | null;
+  displayBothUnits?: boolean;
 }
 
 export interface StockInInput {
@@ -391,6 +405,8 @@ export interface StockInInput {
   supplierId?: string;
   supplierName?: string;
   note?: string;
+  enteredQuantity?: number;
+  enteredUnit?: string;
 }
 
 export interface SupplierSuggestion {
@@ -421,6 +437,8 @@ export interface StockOutInput {
   quantity: number;
   reason?: string;
   note?: string;
+  enteredQuantity?: number;
+  enteredUnit?: string;
 }
 
 export interface StockTransferInput {
@@ -474,7 +492,20 @@ export interface StockTrendResponse {
   days: number;
 }
 
-export type StockCountStatus = "DRAFT" | "FINALIZED";
+export type StockCountStatus = "DRAFT" | "FINALIZED" | "RETURNED" | "REJECTED";
+
+export interface OpeningStockInput {
+  itemId: string;
+  locationId: string;
+  quantity: number;
+  unitCost?: number;
+  batchNo?: string;
+  supplierId?: string;
+  supplierName?: string;
+  expiryDate?: string;
+  expiryEstimated?: boolean;
+  notes?: string;
+}
 
 export interface StockCountStockItem {
   id: string;
@@ -515,9 +546,12 @@ export interface StockCount {
   id: string;
   status: StockCountStatus;
   note: string | null;
+  managerComment: string | null;
   createdAt: string;
   updatedAt: string;
   finalizedAt: string | null;
+  returnedAt: string | null;
+  rejectedAt: string | null;
   location: {
     id: string;
     name: string;
@@ -528,6 +562,16 @@ export interface StockCount {
     email: string;
   };
   finalizedBy: {
+    id: string;
+    name: string;
+    email: string;
+  } | null;
+  returnedBy: {
+    id: string;
+    name: string;
+    email: string;
+  } | null;
+  rejectedBy: {
     id: string;
     name: string;
     email: string;
@@ -1072,7 +1116,34 @@ export interface AdminUser {
   isDisabled: boolean;
   platformRole: PlatformRole;
   createdAt: string;
+  lastLoginAt: string | null;
   workspaceCount: number;
+  primaryWorkspace: {
+    id: string;
+    name: string;
+    plan: string;
+    role: string;
+    subscriptionStatus: string | null;
+  } | null;
+}
+
+export interface AdminUsersStats {
+  total: number;
+  verified: number;
+  unverified: number;
+  active: number;
+  disabled: number;
+  newThisMonth: number;
+  platformAdminCount: number;
+}
+
+export interface AdminWorkspacesStats {
+  total: number;
+  active: number;
+  suspended: number;
+  free: number;
+  paid: number;
+  pendingPayment: number;
 }
 
 export interface AdminUsersResponse {
@@ -1203,6 +1274,7 @@ export interface AdminSubscriptionsResponse {
 export interface AdminPayment {
   id: string;
   workspaceId: string;
+  subscriptionId?: string | null;
   amount: number;
   currency: string;
   paymentMethod: string;
@@ -1212,7 +1284,16 @@ export interface AdminPayment {
   notes: string | null;
   createdAt: string;
   workspace: { id: string; name: string };
-  recordedBy?: { name: string } | null;
+  recordedBy?: { id: string; name: string; email: string } | null;
+  subscription?: { id: string; plan: { name: string; code: string } } | null;
+}
+
+export interface AdminPaymentsSummary {
+  totalPaid: number;
+  totalPending: number;
+  totalFailed: number;
+  totalRefunded: number;
+  totalCollected: number;
 }
 
 export interface AdminPaymentsResponse {
@@ -1297,6 +1378,16 @@ export type TicketPriority = "LOW" | "NORMAL" | "HIGH" | "URGENT";
 export type TicketSource = "EMAIL" | "PORTAL" | "ADMIN";
 export type MessageDirection = "INBOUND" | "OUTBOUND" | "INTERNAL";
 
+export type TicketCategory = "billing" | "technical" | "account" | "feature" | "general";
+
+export const TICKET_CATEGORIES: { value: TicketCategory; label: string }[] = [
+  { value: "billing",   label: "Billing & Payments" },
+  { value: "technical", label: "Technical Issue" },
+  { value: "account",   label: "Account & Access" },
+  { value: "feature",   label: "Feature Request" },
+  { value: "general",   label: "General Question" },
+];
+
 export interface SupportTicket {
   id: string;
   ticketNumber: number;
@@ -1304,6 +1395,7 @@ export interface SupportTicket {
   status: TicketStatus;
   priority: TicketPriority;
   source: TicketSource;
+  category: TicketCategory | null;
   workspaceId: string | null;
   userId: string | null;
   requesterEmail: string;
@@ -1318,6 +1410,27 @@ export interface SupportTicket {
   user: { id: string; name: string; email: string } | null;
   assignedTo: { id: string; name: string; email: string } | null;
   _count?: { messages: number };
+}
+
+export interface AdminNotificationSummary {
+  openCount: number;
+  pendingCount: number;
+  urgentCount: number;
+  resolvedCount: number;
+  closedCount: number;
+  totalActive: number;
+  recentOpen: Array<{
+    id: string;
+    ticketNumber: number;
+    subject: string;
+    status: TicketStatus;
+    priority: TicketPriority;
+    category: TicketCategory | null;
+    requesterEmail: string;
+    requesterName: string | null;
+    lastMessageAt: string;
+    workspace: { id: string; name: string } | null;
+  }>;
 }
 
 export interface SupportMessage {

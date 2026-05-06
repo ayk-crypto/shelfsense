@@ -9,11 +9,13 @@ export function getMyTickets(params: {
   page?: number;
   limit?: number;
   status?: string;
+  category?: string;
 } = {}): Promise<SupportTicketsResponse> {
   const qs = new URLSearchParams();
   if (params.page) qs.set("page", String(params.page));
   if (params.limit) qs.set("limit", String(params.limit));
   if (params.status) qs.set("status", params.status);
+  if (params.category) qs.set("category", params.category);
   const q = qs.toString();
   return apiClient.get(`/support/tickets${q ? `?${q}` : ""}`);
 }
@@ -21,6 +23,7 @@ export function getMyTickets(params: {
 export function createSupportTicket(data: {
   subject: string;
   message: string;
+  category?: string;
 }): Promise<{ ticket: SupportTicket }> {
   return apiClient.post("/support/tickets", data);
 }

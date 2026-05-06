@@ -45,6 +45,7 @@ const TICKET_SELECT = {
   status: true,
   priority: true,
   source: true,
+  category: true,
   workspaceId: true,
   userId: true,
   requesterEmail: true,
@@ -61,6 +62,45 @@ const TICKET_SELECT = {
   _count: { select: { messages: true } },
 } as const;
 
+// ── GET /admin/support/summary ─────────────────────────────────────────────
+
+adminSupportRouter.get("/summary", asyncHandler(async (_req, res) => {
+  const [openCount, pendingCount, urgentCount, resolvedCount, closedCount, recentOpen] = await Promise.all([
+    prisma.supportTicket.count({ where: { status: "OPEN" } }),
+    prisma.supportTicket.count({ where: { status: "PENDING" } }),
+    prisma.supportTicket.count({ where: { status: "OPEN", priority: { in: ["URGENT", "HIGH"] } } }),
+    prisma.supportTicket.count({ where: { status: "RESOLVED" } }),
+    prisma.supportTicket.count({ where: { status: "CLOSED" } }),
+    prisma.supportTicket.findMany({
+      where: { status: { in: ["OPEN", "PENDING"] } },
+      orderBy: { lastMessageAt: "desc" },
+      take: 5,
+      select: {
+        id: true,
+        ticketNumber: true,
+        subject: true,
+        status: true,
+        priority: true,
+        category: true,
+        requesterEmail: true,
+        requesterName: true,
+        lastMessageAt: true,
+        workspace: { select: { id: true, name: true } },
+      },
+    }),
+  ]);
+
+  return res.json({
+    openCount,
+    pendingCount,
+    urgentCount,
+    resolvedCount,
+    closedCount,
+    totalActive: openCount + pendingCount,
+    recentOpen,
+  });
+}));
+
 // ── GET /admin/support/tickets ─────────────────────────────────────────────
 
 adminSupportRouter.get("/tickets", asyncHandler(async (req, res) => {
@@ -73,6 +113,7 @@ adminSupportRouter.get("/tickets", asyncHandler(async (req, res) => {
   if (q.status) where.status = q.status as never;
   if (q.priority) where.priority = q.priority as never;
   if (q.source) where.source = q.source as never;
+  if (q.category) where.category = q.category;
   if (q.workspaceId) where.workspaceId = q.workspaceId;
   if (q.userId) where.userId = q.userId;
   if (q.assignedToUserId) where.assignedToUserId = q.assignedToUserId;
@@ -307,6 +348,33 @@ adminSupportRouter.patch("/tickets/:id/priority", asyncHandler(async (req, res) 
 
   await logTicketEvent(id, "priority_changed", adminId, { from: ticket.priority, to: priority });
   await logAdminAction(adminId, "support_ticket_priority_changed", "support_ticket", id, { ticketNumber: ticket.ticketNumber, from: ticket.priority, to: priority });
+
+  return res.json({ ticket: updated });
+}));
+
+// ── PATCH /admin/support/tickets/:id/category ─────────────────────────────
+
+adminSupportRouter.patch("/tickets/:id/category", asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const adminId = req.user!.id;
+  const { category } = req.body as { category: string | null };
+
+  const validCategories = ["billing", "technical", "account", "feature", "general", null];
+  if (!validCategories.includes(category as never)) {
+    return res.status(400).json({ error: "Invalid category" });
+  }
+
+  const ticket = await prisma.supportTicket.findUnique({ where: { id }, select: { id: true, category: true, ticketNumber: true } });
+  if (!ticket) return res.status(404).json({ error: "Ticket not found" });
+
+  const updated = await prisma.supportTicket.update({
+    where: { id },
+    data: { category },
+    select: TICKET_SELECT,
+  });
+
+  await logTicketEvent(id, "category_changed", adminId, { from: ticket.category, to: category });
+  await logAdminAction(adminId, "support_ticket_category_changed", "support_ticket", id, { ticketNumber: ticket.ticketNumber, from: ticket.category, to: category });
 
   return res.json({ ticket: updated });
 }));

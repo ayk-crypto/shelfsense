@@ -487,7 +487,19 @@ function parseItemInput(body: unknown) {
     category?: unknown;
     minStockLevel?: unknown;
     trackExpiry?: unknown;
+    purchaseUnit?: unknown;
+    purchaseConversionFactor?: unknown;
+    issueUnit?: unknown;
+    displayBothUnits?: unknown;
   };
+
+  const purchaseConversionFactor = (() => {
+    if (input.purchaseConversionFactor === null) return null;
+    if (typeof input.purchaseConversionFactor === "number" && Number.isFinite(input.purchaseConversionFactor)) {
+      return input.purchaseConversionFactor;
+    }
+    return undefined;
+  })();
 
   return {
     name: parseOptionalString(input.name),
@@ -499,6 +511,11 @@ function parseItemInput(body: unknown) {
       typeof input.minStockLevel === "number" ? input.minStockLevel : undefined,
     trackExpiry:
       typeof input.trackExpiry === "boolean" ? input.trackExpiry : undefined,
+    purchaseUnit: parseNullableString(input.purchaseUnit),
+    purchaseConversionFactor,
+    issueUnit: parseNullableString(input.issueUnit),
+    displayBothUnits:
+      typeof input.displayBothUnits === "boolean" ? input.displayBothUnits : undefined,
   };
 }
 
@@ -569,6 +586,24 @@ function validateItemInput(input: ReturnType<typeof parseItemInput>) {
 
   if (input.minStockLevel !== undefined && input.minStockLevel < 0) {
     return "Minimum stock level cannot be negative";
+  }
+
+  if (input.purchaseUnit) {
+    if (
+      input.purchaseConversionFactor === undefined ||
+      input.purchaseConversionFactor === null ||
+      input.purchaseConversionFactor <= 0
+    ) {
+      return "Conversion factor must be greater than zero when a purchase unit is set";
+    }
+  }
+
+  if (input.purchaseUnit && input.purchaseUnit.length > MAX_ITEM_UNIT_LENGTH) {
+    return "Purchase unit must be 32 characters or fewer";
+  }
+
+  if (input.issueUnit && input.issueUnit.length > MAX_ITEM_UNIT_LENGTH) {
+    return "Issue unit must be 32 characters or fewer";
   }
 
   return null;

@@ -17,6 +17,7 @@ import { AdminSystemHealthPage } from "./pages/admin/AdminSystemHealthPage";
 import { AdminInboxPage } from "./pages/admin/AdminInboxPage";
 import { AdminTicketDetailPage } from "./pages/admin/AdminTicketDetailPage";
 import { AdminTeamPage } from "./pages/admin/AdminTeamPage";
+import { AdminBillingPage } from "./pages/admin/AdminBillingPage";
 import { getOnboardingStatus } from "./api/onboarding";
 import { getWorkspaceSettings } from "./api/workspace";
 import { AppShell } from "./components/AppShell";
@@ -51,6 +52,12 @@ import { SuppliersPage } from "./pages/SuppliersPage";
 import { TeamPage } from "./pages/TeamPage";
 import { SupportPage } from "./pages/SupportPage";
 import { SupportTicketPage } from "./pages/SupportTicketPage";
+import { BillingCheckoutPage } from "./pages/BillingCheckoutPage";
+import { MockCheckoutPage } from "./pages/MockCheckoutPage";
+import { BillingSuccessPage } from "./pages/BillingSuccessPage";
+import { BillingFailedPage } from "./pages/BillingFailedPage";
+import { BillingPendingPage } from "./pages/BillingPendingPage";
+import { BillingSettingsPage } from "./pages/BillingSettingsPage";
 import { useEffect, useState } from "react";
 import type { OnboardingStatus, WorkspaceSettings } from "./types";
 import type { Role } from "./types";
@@ -413,8 +420,23 @@ export function App() {
               path="/settings"
               element={<RoleRoute allowedRoles={["OWNER"]}><SettingsPage /></RoleRoute>}
             />
+            <Route
+              path="/settings/billing"
+              element={<RoleRoute allowedRoles={["OWNER"]}><BillingSettingsPage /></RoleRoute>}
+            />
             <Route path="/support" element={<SupportPage />} />
             <Route path="/support/:id" element={<SupportTicketPage />} />
+            <Route
+              path="/billing/checkout"
+              element={<RoleRoute allowedRoles={["OWNER"]}><BillingCheckoutPage /></RoleRoute>}
+            />
+            <Route
+              path="/billing/mock-checkout"
+              element={<MockCheckoutPage />}
+            />
+            <Route path="/billing/success" element={<BillingSuccessPage />} />
+            <Route path="/billing/failed" element={<BillingFailedPage />} />
+            <Route path="/billing/pending" element={<BillingPendingPage />} />
           </Route>
           <Route
             path="/admin"
@@ -441,6 +463,7 @@ export function App() {
             <Route path="inbox" element={<AdminInboxPage />} />
             <Route path="inbox/:id" element={<AdminTicketDetailPage />} />
             <Route path="team" element={<AdminTeamPage />} />
+            <Route path="billing" element={<AdminBillingPage />} />
           </Route>
           <Route path="/" element={<LandingPage />} />
           <Route path="*" element={<DefaultRedirect />} />

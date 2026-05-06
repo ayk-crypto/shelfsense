@@ -1,0 +1,65 @@
+Update ShelfSense pricing/plan selection customer experience.
+
+Current issue:
+Basic and Pro are showing “Coming Soon”, and Business plan is not visible. This looks bad from customer point of view and makes the product appear incomplete.
+
+Required changes:
+
+1. Remove “Coming Soon” badges/buttons from Basic and Pro plans.
+
+2. Show all customer-facing plans:
+- Free
+- Basic
+- Pro
+- Business
+
+3. Plan actions:
+- Free: button text should be “Start Free”
+- Basic: button text should be “Choose Basic”
+- Pro: button text should be “Choose Pro”
+- Business: button text should be “Contact Sales” or “Choose Business”
+
+4. Since payment gateway is not live yet:
+When a customer selects any paid plan, do not block them with Coming Soon.
+Instead:
+- Save selected plan in backend
+- Create subscription with status PENDING_ACTIVATION or PENDING_PAYMENT
+- Show a professional message:
+  “Your selected plan has been saved. Our team will contact you shortly to activate billing.”
+- Allow customer to complete signup/onboarding after selecting the plan, but keep paid features limited until admin activates the subscription.
+
+5. For Free plan:
+- Activate immediately
+- Mark subscription as ACTIVE
+- Redirect customer to dashboard
+
+6. Add Business plan to pricing/plan selection UI with realistic limits:
+Business Plan:
+- Unlimited or high item limit
+- Multiple locations
+- Multiple users
+- Advanced reports
+- Priority support
+- Custom onboarding
+- Button: “Contact Sales” or “Choose Business”
+
+7. Admin side:
+- Admin should be able to see customers with PENDING_ACTIVATION / PENDING_PAYMENT status.
+- Admin should be able to manually activate selected paid plan.
+- Admin should be able to update billing cycle and expiry date manually.
+
+8. UI wording:
+Replace “Coming Soon” with:
+- “Manual activation available”
+or simply remove badge completely.
+
+9. Customer UX:
+After selecting paid plan, show:
+Title: “Plan Selected”
+Message:
+“Thank you. Your selected plan has been saved. Since online payment is not enabled yet, our team will contact you for billing and activation.”
+
+Button:
+“Continue to Dashboard”
+
+10. Make sure plan selection progress reaches 100% after a user selects any plan, including paid plans with pending activation.

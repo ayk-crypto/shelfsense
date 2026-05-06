@@ -1,5 +1,6 @@
 import type {
   ExpiringSoonResponse,
+  OpeningStockInput,
   PriceHistoryResponse,
   StockInInput,
   StockMovementFilters,
@@ -38,6 +39,10 @@ export async function getStockMovements(
 
 export async function stockIn(data: StockInInput): Promise<unknown> {
   return apiClient.post<unknown>("/stock/in", data, true);
+}
+
+export async function addOpeningStock(data: OpeningStockInput): Promise<unknown> {
+  return apiClient.post<unknown>("/stock/opening", data, true);
 }
 
 export async function stockOut(data: StockOutInput): Promise<unknown> {

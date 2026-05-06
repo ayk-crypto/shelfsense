@@ -392,6 +392,27 @@ function computeHealth(opts: {
   return "Healthy";
 }
 
+adminRouter.get("/workspaces/stats", asyncHandler(async (_req, res) => {
+  const [total, suspended, free, paid, pendingPayment] = await Promise.all([
+    prisma.workspace.count(),
+    prisma.workspace.count({ where: { suspended: true } }),
+    prisma.workspace.count({ where: { plan: "FREE" } }),
+    prisma.workspace.count({ where: { plan: { in: ["BASIC", "PRO"] } } }),
+    prisma.workspace.count({ where: { subscriptionStatus: "MANUAL_REVIEW" } }),
+  ]);
+
+  return res.json({
+    stats: {
+      total,
+      active: total - suspended,
+      suspended,
+      free,
+      paid,
+      pendingPayment,
+    },
+  });
+}));
+
 adminRouter.get("/workspaces/:id", asyncHandler(async (req, res) => {
   const { id } = req.params;
 
@@ -517,30 +538,101 @@ adminRouter.patch("/workspaces/:id/plan", asyncHandler(async (req, res) => {
   const workspace = await prisma.workspace.findUnique({ where: { id }, select: { id: true, name: true, plan: true } });
   if (!workspace) return res.status(404).json({ error: "Workspace not found" });
 
-  const validPlans = ["FREE", "BASIC", "PRO"];
-  if (plan && !validPlans.includes(plan)) {
-    return res.status(400).json({ error: "Invalid plan value" });
+  // Map plan codes (e.g. STARTER, BUSINESS) to PlanTier enum values (FREE, BASIC, PRO)
+  const PLAN_CODE_TO_TIER: Record<string, string> = {
+    FREE: "FREE", STARTER: "BASIC", BASIC: "BASIC",
+    PRO: "PRO", BUSINESS: "PRO", CUSTOM: "PRO",
+  };
+  const validPlanTiers = ["FREE", "BASIC", "PRO"];
+
+  let resolvedTier: string | undefined;
+  if (plan !== undefined) {
+    const upper = plan.toUpperCase();
+    if (validPlanTiers.includes(upper)) {
+      resolvedTier = upper;
+    } else if (PLAN_CODE_TO_TIER[upper]) {
+      resolvedTier = PLAN_CODE_TO_TIER[upper];
+    } else {
+      // Last resort: look up plan by code in the Plan table
+      const planRecord = await prisma.plan.findFirst({
+        where: { code: { equals: plan, mode: "insensitive" } },
+        select: { code: true },
+      });
+      if (planRecord) {
+        resolvedTier = PLAN_CODE_TO_TIER[planRecord.code.toUpperCase()];
+      }
+      if (!resolvedTier) {
+        return res.status(400).json({ error: "Invalid plan value" });
+      }
+    }
   }
 
   const updateData: Record<string, unknown> = {};
-  if (plan) updateData.plan = plan;
+  if (resolvedTier) updateData.plan = resolvedTier;
   if (trialEndsAt !== undefined) updateData.trialEndsAt = trialEndsAt ? new Date(trialEndsAt) : null;
   if (subscriptionStatus !== undefined) updateData.subscriptionStatus = subscriptionStatus;
+
+  // If changing the plan tier, also sync the latest subscription's planId to a matching plan
+  if (resolvedTier) {
+    const latestSub = await prisma.subscription.findFirst({
+      where: { workspaceId: id },
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
+    });
+    if (latestSub) {
+      const matchingPlan = await prisma.plan.findFirst({
+        where: { code: { in: [resolvedTier, resolvedTier.charAt(0) + resolvedTier.slice(1).toLowerCase()], mode: "insensitive" }, isActive: true },
+        orderBy: { createdAt: "asc" },
+        select: { id: true },
+      });
+      if (matchingPlan) {
+        await prisma.subscription.update({
+          where: { id: latestSub.id },
+          data: { planId: matchingPlan.id },
+        });
+      }
+    }
+  }
 
   await prisma.workspace.update({ where: { id }, data: updateData });
 
   await logAdminAction(adminId, "workspace_plan_changed", "workspace", id, {
     workspaceName: workspace.name,
     oldPlan: workspace.plan,
-    newPlan: plan ?? workspace.plan,
+    newPlan: resolvedTier ?? workspace.plan,
     trialEndsAt: trialEndsAt ?? null,
     subscriptionStatus: subscriptionStatus ?? null,
   });
 
-  return res.json({ ok: true });
+  return res.json({ ok: true, newPlan: resolvedTier ?? workspace.plan });
 }));
 
 // ── Users ──────────────────────────────────────────────────────────────
+
+adminRouter.get("/users/stats", asyncHandler(async (_req, res) => {
+  const now = new Date();
+  const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const [total, verified, disabled, newThisMonth, platformAdminCount] = await Promise.all([
+    prisma.user.count({ where: { platformRole: PlatformRole.USER } }),
+    prisma.user.count({ where: { platformRole: PlatformRole.USER, emailVerified: true } }),
+    prisma.user.count({ where: { platformRole: PlatformRole.USER, isDisabled: true } }),
+    prisma.user.count({ where: { platformRole: PlatformRole.USER, createdAt: { gte: firstOfMonth } } }),
+    prisma.user.count({ where: { platformRole: { not: PlatformRole.USER } } }),
+  ]);
+
+  return res.json({
+    stats: {
+      total,
+      verified,
+      unverified: total - verified,
+      active: total - disabled,
+      disabled,
+      newThisMonth,
+      platformAdminCount,
+    },
+  });
+}));
 
 adminRouter.get("/users", asyncHandler(async (req, res) => {
   const page = Math.max(1, parseInt(String(req.query.page ?? "1"), 10));
@@ -549,8 +641,18 @@ adminRouter.get("/users", asyncHandler(async (req, res) => {
   const search = typeof req.query.search === "string" ? req.query.search.trim() : undefined;
   const verified = typeof req.query.verified === "string" ? req.query.verified : undefined;
   const disabled = typeof req.query.disabled === "string" ? req.query.disabled : undefined;
+  const role = typeof req.query.role === "string" ? req.query.role.trim() : undefined;
+  const plan = typeof req.query.plan === "string" ? req.query.plan.trim() : undefined;
+  const subscriptionStatus = typeof req.query.subscriptionStatus === "string" ? req.query.subscriptionStatus.trim() : undefined;
+  const includePlatformAdmins = req.query.includePlatformAdmins === "true";
 
-  const where: Record<string, unknown> = {};
+  const where: Prisma.UserWhereInput = {};
+
+  // Default: customer users only. Super admin can opt-in to see platform admins too.
+  if (!includePlatformAdmins) {
+    where.platformRole = PlatformRole.USER;
+  }
+
   if (search) {
     where.OR = [
       { name: { contains: search, mode: "insensitive" } },
@@ -562,6 +664,22 @@ adminRouter.get("/users", asyncHandler(async (req, res) => {
   if (disabled === "true") where.isDisabled = true;
   if (disabled === "false") where.isDisabled = false;
 
+  // Workspace-level filters via membership relation
+  if (role || plan || subscriptionStatus) {
+    where.memberships = {
+      some: {
+        isActive: true,
+        ...(role ? { role: role as never } : {}),
+        ...(plan || subscriptionStatus ? {
+          workspace: {
+            ...(plan ? { plan: plan as never } : {}),
+            ...(subscriptionStatus ? { subscriptionStatus } : {}),
+          },
+        } : {}),
+      },
+    };
+  }
+
   const [total, users] = await Promise.all([
     prisma.user.count({ where }),
     prisma.user.findMany({
@@ -571,14 +689,39 @@ adminRouter.get("/users", asyncHandler(async (req, res) => {
       orderBy: { createdAt: "desc" },
       select: {
         id: true, name: true, email: true, emailVerified: true,
-        isDisabled: true, platformRole: true, createdAt: true,
-        _count: { select: { memberships: true } },
+        isDisabled: true, platformRole: true, createdAt: true, lastLoginAt: true,
+        _count: { select: { memberships: { where: { isActive: true } } } },
+        memberships: {
+          where: { isActive: true },
+          orderBy: { createdAt: "asc" },
+          take: 1,
+          select: {
+            role: true,
+            workspace: { select: { id: true, name: true, plan: true, subscriptionStatus: true } },
+          },
+        },
       },
     }),
   ]);
 
   return res.json({
-    users: users.map((u) => ({ ...u, workspaceCount: u._count.memberships, _count: undefined })),
+    users: users.map((u) => {
+      const m = u.memberships[0];
+      return {
+        ...u,
+        workspaceCount: u._count.memberships,
+        lastLoginAt: u.lastLoginAt?.toISOString() ?? null,
+        primaryWorkspace: m ? {
+          id: m.workspace.id,
+          name: m.workspace.name,
+          plan: m.workspace.plan,
+          role: m.role,
+          subscriptionStatus: m.workspace.subscriptionStatus,
+        } : null,
+        memberships: undefined,
+        _count: undefined,
+      };
+    }),
     pagination: { page, limit, total, pages: Math.ceil(total / limit) },
   });
 }));

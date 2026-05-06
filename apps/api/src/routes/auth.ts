@@ -220,7 +220,7 @@ authRouter.post("/login", asyncHandler(async (req, res) => {
 
   await prisma.user.update({
     where: { id: user.id },
-    data: { failedLoginAttempts: 0, lockedUntil: null },
+    data: { failedLoginAttempts: 0, lockedUntil: null, lastLoginAt: new Date() },
   });
 
   const membership = user.memberships[0];

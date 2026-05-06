@@ -43,10 +43,6 @@ function toYMD(d: Date) {
   return d.toISOString().slice(0, 10);
 }
 
-function startOfMonth(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), 1);
-}
-
 function sumWastageValue(movements: StockMovement[]) {
   return movements.reduce((acc, m) => acc + m.quantity * (m.unitCost ?? 0), 0);
 }
@@ -85,6 +81,12 @@ const EMPTY_ALERTS: AlertsResponse = {
   expired: [],
 };
 
+function formatNumber(value: number) {
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(value);
+}
+
+type InsightTab = "usage" | "forecast" | "slow";
+
 export function DashboardPage() {
   const { user } = useAuth();
   const { activeLocationId, locationReady } = useLocation();
@@ -92,6 +94,7 @@ export function DashboardPage() {
   const canAccessManagement = user?.role === "OWNER" || user?.role === "MANAGER";
   const currency = settings.currency;
   const workspaceName = settings.name.trim() || "ShelfSense";
+
   const [summary, setSummary] = useState<StockSummaryItem[]>([]);
   const [alerts, setAlerts] = useState<AlertsResponse>(EMPTY_ALERTS);
   const [wastageToday, setWastageToday] = useState(0);
@@ -99,7 +102,7 @@ export function DashboardPage() {
   const [wastageLastWeek, setWastageLastWeek] = useState(0);
   const [topItems, setTopItems] = useState<WastedItem[]>([]);
   const [usageMovements, setUsageMovements] = useState<StockMovement[]>([]);
-  const [trendDays, setTrendDays] = useState<7 | 14 | 30>(30);
+  const [trendDays, setTrendDays] = useState<7 | 14 | 30>(7);
   const [trendData, setTrendData] = useState<StockTrendDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -108,14 +111,36 @@ export function DashboardPage() {
     wastage: string | null;
     usage: string | null;
   }>({ alerts: null, wastage: null, usage: null });
+  const [insightTab, setInsightTab] = useState<InsightTab>("usage");
+  const [checklistDismissed, setChecklistDismissed] = useState(() => {
+    try { return localStorage.getItem("ss_onboarding_dismissed") === "1"; } catch { return false; }
+  });
+  const [checklistManualDone, setChecklistManualDone] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem("ss_onboarding_done");
+      return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+    } catch { return new Set(); }
+  });
+
+  function toggleChecklistStep(id: string) {
+    setChecklistManualDone((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) { next.delete(id); } else { next.add(id); }
+      try { localStorage.setItem("ss_onboarding_done", JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  }
+
+  function dismissChecklist() {
+    setChecklistDismissed(true);
+    try { localStorage.setItem("ss_onboarding_dismissed", "1"); } catch {}
+  }
 
   useEffect(() => {
     async function load() {
       if (!locationReady) return;
-
       setLoading(true);
       setError(null);
-
       try {
         if (!canAccessManagement) {
           const summaryRes = await getStockSummary();
@@ -131,15 +156,12 @@ export function DashboardPage() {
 
         const today = new Date();
         const todayStr = toYMD(today);
-
         const thisWeekStart = new Date(today);
         thisWeekStart.setDate(today.getDate() - ((today.getDay() + 6) % 7));
         const thisWeekStartStr = toYMD(thisWeekStart);
-
         const lastWeekStart = new Date(thisWeekStart);
         lastWeekStart.setDate(lastWeekStart.getDate() - 7);
         const lastWeekStartStr = toYMD(lastWeekStart);
-
         const lastWeekEnd = new Date(thisWeekStart);
         lastWeekEnd.setDate(lastWeekEnd.getDate() - 1);
         const lastWeekEndStr = toYMD(lastWeekEnd);
@@ -253,7 +275,7 @@ export function DashboardPage() {
   const expiringSoonCount = alerts.expiringSoon.length;
   const expiredCount = alerts.expired.length;
   const totalAlertCount = lowStockCount + expiringSoonCount + expiredCount;
-  const trend = computeTrend(wastageWeek, wastageLastWeek);
+  const wastageTrend = computeTrend(wastageWeek, wastageLastWeek);
   const summaryByItemId = new Map(summary.map((item) => [item.itemId, item]));
   const lowStockIds = new Set(alerts.lowStock.map((item) => item.itemId));
   const reorderSuggestions = summary
@@ -275,446 +297,585 @@ export function DashboardPage() {
     .sort((a, b) => b.totalValue - a.totalValue)
     .slice(0, 8);
 
+  const today = new Date();
+  const dateStr = today.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+
   return (
-    <div className="dashboard">
-      <div className="page-header">
-        <h1 className="page-title">Today&apos;s operations</h1>
-        <p className="page-subtitle">{workspaceName} inventory health, reorder work, and usage signals.</p>
-      </div>
+    <div className="dashboard db-v2">
 
-      <DashboardGroup
-        title="Overview"
-        helper="Current inventory health at a glance"
-      >
-      {widgetErrors.wastage && (
-        <div className="widget-error">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="8" x2="12" y2="12" />
-            <line x1="12" y1="16" x2="12.01" y2="16" />
-          </svg>
-          Could not load wastage data. {widgetErrors.wastage}
+      {/* ── Header ── */}
+      <div className="db-header">
+        <div className="db-header-left">
+          <p className="db-header-workspace">{workspaceName}</p>
+          <h1 className="db-header-title">Dashboard</h1>
         </div>
-      )}
-      <div className="stat-grid">
-        <div className="stat-card">
-          <div className="stat-icon stat-icon--blue">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="12" y1="1" x2="12" y2="23" />
-              <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-            </svg>
-          </div>
-          <div className="stat-body">
-            <span className="stat-label">Total Inventory Value</span>
-            <span className="stat-value">{formatCurrency(totalValue, currency)}</span>
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-icon stat-icon--green">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-            </svg>
-          </div>
-          <div className="stat-body">
-            <span className="stat-label">Total Items</span>
-            <span className="stat-value">{totalItems}</span>
-          </div>
-        </div>
-
-        <div className={`stat-card ${lowStockCount > 0 ? "stat-card--warn" : ""}`}>
-          <div className={`stat-icon ${lowStockCount > 0 ? "stat-icon--orange" : "stat-icon--gray"}`}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-            </svg>
-          </div>
-          <div className="stat-body">
-            <span className="stat-label">Low Stock Items</span>
-            <span className="stat-value">{lowStockCount}</span>
-          </div>
-        </div>
-
-        <div className={`stat-card ${expiringSoonCount > 0 ? "stat-card--danger" : ""}`}>
-          <div className={`stat-icon ${expiringSoonCount > 0 ? "stat-icon--red" : "stat-icon--gray"}`}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10" />
-              <polyline points="12 6 12 12 16 14" />
-            </svg>
-          </div>
-          <div className="stat-body">
-            <span className="stat-label">Expiring Soon</span>
-            <span className="stat-value">{expiringSoonCount}</span>
-          </div>
-        </div>
-
-        <div className={`stat-card ${wastageWeek > 0 ? "stat-card--danger" : ""}`}>
-          <div className={`stat-icon ${wastageWeek > 0 ? "stat-icon--red" : "stat-icon--gray"}`}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="3 6 5 6 21 6" />
-              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-              <path d="M10 11v6" />
-              <path d="M14 11v6" />
-              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-            </svg>
-          </div>
-          <div className="stat-body">
-            <span className="stat-label">Wastage Value</span>
-            <span className="stat-value">{formatCurrency(wastageWeek, currency)}</span>
-            <span className="stat-sublabel">
-              Today {formatCurrency(wastageToday, currency)} · This week {formatCurrency(wastageWeek, currency)}
-            </span>
-            <WastageTrend trend={trend} thisWeek={wastageWeek} lastWeek={wastageLastWeek} />
-          </div>
-        </div>
-      </div>
-
-      {canAccessManagement && topItems.length > 0 && (
-        <div className="wastage-top-section">
-          <h2 className="wastage-top-title">
-            <svg className="wastage-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="3 6 5 6 21 6" />
-              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-              <path d="M10 11v6" /><path d="M14 11v6" />
-              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-            </svg>
-            Top Wasted Items — This Week
-          </h2>
-          <div className="wastage-top-list">
-            {topItems.map((item, i) => (
-              <div key={item.itemId} className="wastage-top-row">
-                <span className="wastage-top-rank">#{i + 1}</span>
-                <span className="wastage-top-name">{item.name}</span>
-                <span className="wastage-top-qty">{formatNumber(item.qty)} units wasted</span>
-                <span className="wastage-top-value">{formatCurrency(item.value, currency)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      </DashboardGroup>
-
-      <DashboardGroup
-        title="Movement Trends"
-        helper="Daily stock in vs stock out quantities"
-      >
-        <StockTrendChart
-          data={trendData}
-          days={trendDays}
-          onDaysChange={setTrendDays}
-        />
-      </DashboardGroup>
-
-      <DashboardGroup
-        title="Action Required"
-        helper="Items that need attention"
-      >
-      {widgetErrors.alerts && (
-        <div className="widget-error">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="8" x2="12" y2="12" />
-            <line x1="12" y1="16" x2="12.01" y2="16" />
-          </svg>
-          Could not load alert data. {widgetErrors.alerts}
-        </div>
-      )}
-      {canAccessManagement && (
-        <div className={`alert-summary ${totalAlertCount > 0 ? "alert-summary--active" : ""}`}>
-          <div>
-            <h2 className="alert-summary-title">Alert Summary</h2>
-            <p className="alert-summary-copy">
-              {totalAlertCount === 0
-                ? "Everything looks clear right now."
-                : `${totalAlertCount} items or batches need attention.`}
-            </p>
-          </div>
-          <div className="alert-summary-counts">
-            <span className="badge badge--yellow">{lowStockCount} low</span>
-            <span className="badge badge--orange">{expiringSoonCount} soon</span>
-            <span className="badge badge--red">{expiredCount} expired</span>
-          </div>
-        </div>
-      )}
-
-      <div className="section reorder-section">
-        <div className="section-header">
-          <h2 className="section-title">Reorder Suggestions</h2>
+        <div className="db-header-right">
+          <span className="db-header-date">{dateStr}</span>
           {canAccessManagement && reorderSuggestions.length > 0 && (
-            <Link className="btn btn--secondary btn--sm" to="/reorder-suggestions">
-              Create Purchase Draft
+            <Link className="btn btn--primary btn--sm" to="/reorder-suggestions">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>
+              </svg>
+              Create Purchase Order
             </Link>
           )}
         </div>
-
-        {reorderSuggestions.length === 0 ? (
-          <div className="empty-state empty-state--compact">
-            No reorder suggestions right now.
-          </div>
-        ) : (
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Item</th>
-                  <th className="text-right">Current Stock</th>
-                  <th className="text-right">Minimum Level</th>
-                  <th className="text-right">Suggested Order</th>
-                  <th>Unit</th>
-                </tr>
-              </thead>
-              <tbody>
-                {reorderSuggestions.map((item) => (
-                  <tr key={item.itemId} className="row--warn">
-                    <td className="td-name">{item.itemName}</td>
-                    <td className="text-right td-num">{formatNumber(item.totalQuantity)}</td>
-                    <td className="text-right td-num">{formatNumber(item.minStockLevel)}</td>
-                    <td className="text-right td-num">
-                      <strong>{formatNumber(item.suggestedQuantity)}</strong>
-                    </td>
-                    <td className="td-unit">{item.unit}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </div>
 
-      {canAccessManagement && expiringSoonCount > 0 && (
-        <div className="section">
-          <div className="section-header">
-            <h2 className="section-title">
-              <span className="badge badge--red">Expiring within {settings.expiryAlertDays} days</span>
-            </h2>
+      {/* ── KPI Strip ── */}
+      <div className="db-kpi-strip">
+        <div className="db-kpi-item">
+          <div className="db-kpi-icon db-kpi-icon--blue">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
           </div>
-          <div className="expiry-list">
-            {alerts.expiringSoon.map((batch) => {
-              const days = daysUntil(batch.expiryDate);
-              return (
-                <div key={batch.id} className="expiry-item">
-                  <div className="expiry-item-name">{batch.item.name}</div>
-                  <div className="expiry-item-meta">
-                    <span className="expiry-qty">{batch.remainingQuantity} remaining</span>
-                    {batch.batchNo && <span className="expiry-batch">Batch: {batch.batchNo}</span>}
-                  </div>
-                  <div className={`expiry-days ${days <= 2 ? "expiry-days--critical" : ""}`}>
-                    {days === 0
-                      ? "Expires today"
-                      : days === 1
-                        ? "1 day left"
-                        : `${days} days left`}
-                  </div>
+          <div className="db-kpi-body">
+            <span className="db-kpi-label">Inventory Value</span>
+            <span className="db-kpi-value">{formatCurrency(totalValue, currency)}</span>
+          </div>
+        </div>
+
+        <div className="db-kpi-divider" />
+
+        <div className="db-kpi-item">
+          <div className="db-kpi-icon db-kpi-icon--green">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+          </div>
+          <div className="db-kpi-body">
+            <span className="db-kpi-label">Total Items</span>
+            <span className="db-kpi-value">{totalItems}</span>
+          </div>
+        </div>
+
+        <div className="db-kpi-divider" />
+
+        <div className={`db-kpi-item${lowStockCount > 0 ? " db-kpi-item--warn" : ""}`}>
+          <div className={`db-kpi-icon${lowStockCount > 0 ? " db-kpi-icon--orange" : " db-kpi-icon--gray"}`}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          </div>
+          <div className="db-kpi-body">
+            <span className="db-kpi-label">Low Stock</span>
+            <span className="db-kpi-value">{lowStockCount}</span>
+            {lowStockCount > 0 && <span className="db-kpi-sub">needs reorder</span>}
+          </div>
+        </div>
+
+        <div className="db-kpi-divider" />
+
+        <div className={`db-kpi-item${expiringSoonCount > 0 ? " db-kpi-item--danger" : ""}`}>
+          <div className={`db-kpi-icon${expiringSoonCount > 0 ? " db-kpi-icon--red" : " db-kpi-icon--gray"}`}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </div>
+          <div className="db-kpi-body">
+            <span className="db-kpi-label">Expiring Soon</span>
+            <span className="db-kpi-value">{expiringSoonCount}</span>
+            {expiringSoonCount > 0 && <span className="db-kpi-sub">within {settings.expiryAlertDays}d</span>}
+          </div>
+        </div>
+
+        <div className="db-kpi-divider" />
+
+        <div className={`db-kpi-item${wastageWeek > 0 ? " db-kpi-item--danger" : ""}`}>
+          <div className={`db-kpi-icon${wastageWeek > 0 ? " db-kpi-icon--red" : " db-kpi-icon--gray"}`}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+          </div>
+          <div className="db-kpi-body">
+            <span className="db-kpi-label">Wastage (week)</span>
+            <span className="db-kpi-value">{formatCurrency(wastageWeek, currency)}</span>
+            {wastageTrend !== "flat" && (
+              <span className={`db-kpi-sub${wastageTrend === "up" ? " db-kpi-sub--bad" : " db-kpi-sub--good"}`}>
+                {wastageTrend === "up" ? "↑" : "↓"} vs last week
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Onboarding Checklist ── */}
+      {canAccessManagement && !checklistDismissed && (
+        <div className="db-body">
+          <OnboardingChecklist
+            summary={summary}
+            manualDone={checklistManualDone}
+            onToggle={toggleChecklistStep}
+            onDismiss={dismissChecklist}
+          />
+        </div>
+      )}
+
+      {canAccessManagement && (
+        <div className="db-body">
+
+          {/* ── Bento row: Alerts | Reorder | Wastage ── */}
+          <div className="db-bento">
+
+            {/* Alerts card */}
+            <div className={`db-card db-card--alerts${totalAlertCount > 0 ? " db-card--alerts-active" : ""}`}>
+              <div className="db-card-head">
+                <div className="db-card-head-left">
+                  <svg className="db-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                  </svg>
+                  <h2 className="db-card-title">Requires Attention</h2>
                 </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+                {totalAlertCount > 0 && (
+                  <span className="db-badge db-badge--alert">{totalAlertCount}</span>
+                )}
+              </div>
 
-      </DashboardGroup>
+              {widgetErrors.alerts && (
+                <p className="db-widget-error">{widgetErrors.alerts}</p>
+              )}
 
-      {canAccessManagement && (
-      <DashboardGroup
-        title="Insights"
-        helper="Trends and cost patterns from your recent activity"
-      >
+              {totalAlertCount === 0 ? (
+                <div className="db-empty-good">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>
+                  Everything looks clear right now
+                </div>
+              ) : (
+                <>
+                  <div className="db-alert-counts">
+                    <span className="badge badge--yellow">{lowStockCount} low</span>
+                    <span className="badge badge--orange">{expiringSoonCount} expiring</span>
+                    <span className="badge badge--red">{expiredCount} expired</span>
+                  </div>
 
-      {widgetErrors.usage && (
-        <div className="widget-error">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="8" x2="12" y2="12" />
-            <line x1="12" y1="16" x2="12.01" y2="16" />
-          </svg>
-          Could not load usage data. {widgetErrors.usage}
-        </div>
-      )}
-
-      {canAccessManagement && (
-      <div className="section usage-section">
-        <div className="section-header">
-          <h2 className="section-title">Usage Insights</h2>
-        </div>
-
-        {topUsageInsights.length === 0 ? (
-          <div className="empty-state empty-state--compact">
-            No usage insights for the last 7 days.
-          </div>
-        ) : (
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Item</th>
-                  <th className="text-right">Total Used</th>
-                  <th>Unit</th>
-                  <th className="text-right">Estimated Value</th>
-                  <th className="text-right">Avg/day</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topUsageInsights.map((item) => {
-                  const unit = summaryByItemId.get(item.itemId)?.unit ?? "units";
-                  return (
-                    <tr key={item.itemId}>
-                      <td className="td-name">{item.itemName}</td>
-                      <td className="text-right td-num">{formatNumber(item.totalQuantity)}</td>
-                      <td className="td-unit">{unit}</td>
-                      <td className="text-right td-num">{formatCurrency(item.estimatedValue, currency)}</td>
-                      <td className="text-right td-num">
-                        {formatNumber(item.averageDailyUsage)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-      )}
-
-      {canAccessManagement && (
-      <div className="section forecast-section">
-        <div className="section-header">
-          <h2 className="section-title">Stock Forecast</h2>
-        </div>
-
-        {stockForecast.length === 0 ? (
-          <div className="empty-state empty-state--compact">
-            No stock forecast available yet.
-          </div>
-        ) : (
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Item</th>
-                  <th className="text-right">Current Stock</th>
-                  <th className="text-right">Avg/day Usage</th>
-                  <th className="text-right">Est. Days Remaining</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stockForecast.map((item) => (
-                  <tr
-                    key={item.itemId}
-                    className={`forecast-row forecast-row--${getForecastTone(item.estimatedDaysRemaining)}`}
-                  >
-                    <td className="td-name">{item.itemName}</td>
-                    <td className="text-right td-num">{formatNumber(item.currentQuantity)}</td>
-                    <td className="text-right td-num">{formatNumber(item.averageDailyUsage)}</td>
-                    <td className="text-right td-num">
-                      <span className={`forecast-pill forecast-pill--${getForecastTone(item.estimatedDaysRemaining)}`}>
-                        {formatNumber(item.estimatedDaysRemaining)}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-      )}
-
-      {canAccessManagement && (
-        <div className="section slow-movers-section">
-          <div className="section-header">
-            <h2 className="section-title">Slow-Moving Stock</h2>
-            <span className="section-helper">Items with stock on hand but no usage in the last 7 days</span>
-          </div>
-
-          {slowMovers.length === 0 ? (
-            <div className="empty-state empty-state--compact empty-state--good">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-              All items with stock had movement in the last 7 days.
+                  {expiringSoonCount > 0 && (
+                    <div className="db-expiry-list">
+                      <p className="db-list-label">Expiring within {settings.expiryAlertDays} days</p>
+                      {alerts.expiringSoon.slice(0, 3).map((batch) => {
+                        const days = daysUntil(batch.expiryDate);
+                        return (
+                          <div key={batch.id} className="db-expiry-row">
+                            <div className="db-expiry-info">
+                              <span className="db-expiry-name">{batch.item.name}</span>
+                              <span className="db-expiry-meta">
+                                {batch.remainingQuantity} remaining
+                                {batch.batchNo && ` · ${batch.batchNo}`}
+                              </span>
+                            </div>
+                            <span className={`db-expiry-pill${days <= 1 ? " db-expiry-pill--critical" : days <= 3 ? " db-expiry-pill--warn" : ""}`}>
+                              {days === 0 ? "Today" : days === 1 ? "1 day" : `${days} days`}
+                            </span>
+                          </div>
+                        );
+                      })}
+                      {expiringSoonCount > 3 && (
+                        <p className="db-see-more">+{expiringSoonCount - 3} more expiring items</p>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
+
+            {/* Reorder card */}
+            <div className={`db-card db-card--reorder${reorderSuggestions.length > 0 ? " db-card--reorder-active" : ""}`}>
+              <div className="db-card-head">
+                <div className="db-card-head-left">
+                  <svg className="db-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>
+                  </svg>
+                  <h2 className="db-card-title">Reorder Needed</h2>
+                </div>
+                {reorderSuggestions.length > 0 && (
+                  <span className="db-badge db-badge--warn">{reorderSuggestions.length}</span>
+                )}
+              </div>
+
+              {reorderSuggestions.length === 0 ? (
+                <div className="db-empty-good">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>
+                  Stock levels are all above minimums
+                </div>
+              ) : (
+                <>
+                  <div className="db-reorder-table">
+                    <div className="db-reorder-header">
+                      <span>Item</span>
+                      <span className="text-right">On Hand</span>
+                      <span className="text-right">Min</span>
+                      <span className="text-right">Suggest</span>
+                    </div>
+                    {reorderSuggestions.slice(0, 4).map((item) => (
+                      <div key={item.itemId} className="db-reorder-row">
+                        <span className="db-reorder-name">{item.itemName}</span>
+                        <span className="db-reorder-num db-reorder-num--low">{formatNumber(item.totalQuantity)}</span>
+                        <span className="db-reorder-num">{formatNumber(item.minStockLevel)}</span>
+                        <span className="db-reorder-num db-reorder-num--suggest">{formatNumber(item.suggestedQuantity)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {reorderSuggestions.length > 4 && (
+                    <p className="db-see-more">+{reorderSuggestions.length - 4} more items need reorder</p>
+                  )}
+                  <Link className="btn btn--warning btn--sm db-reorder-cta" to="/reorder-suggestions">
+                    Create Purchase Order Draft
+                  </Link>
+                </>
+              )}
+            </div>
+
+            {/* Wastage card */}
+            <div className="db-card">
+              <div className="db-card-head">
+                <div className="db-card-head-left">
+                  <svg className="db-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                  </svg>
+                  <h2 className="db-card-title">Wastage</h2>
+                </div>
+                {wastageTrend !== "flat" && (
+                  <span className={`db-trend-badge${wastageTrend === "up" ? " db-trend-badge--bad" : " db-trend-badge--good"}`}>
+                    {wastageTrend === "up" ? "↑" : "↓"} vs last wk
+                  </span>
+                )}
+              </div>
+
+              {widgetErrors.wastage && (
+                <p className="db-widget-error">{widgetErrors.wastage}</p>
+              )}
+
+              <div className="db-wastage-stats">
+                <div className="db-wastage-stat">
+                  <span className="db-wastage-stat-label">Today</span>
+                  <span className="db-wastage-stat-value">{formatCurrency(wastageToday, currency)}</span>
+                </div>
+                <div className="db-wastage-stat db-wastage-stat--week">
+                  <span className="db-wastage-stat-label">This week</span>
+                  <span className={`db-wastage-stat-value${wastageWeek > 0 ? " db-wastage-stat-value--red" : ""}`}>{formatCurrency(wastageWeek, currency)}</span>
+                </div>
+                <div className="db-wastage-stat">
+                  <span className="db-wastage-stat-label">Last week</span>
+                  <span className="db-wastage-stat-value db-wastage-stat-value--muted">{formatCurrency(wastageLastWeek, currency)}</span>
+                </div>
+              </div>
+
+              {topItems.length > 0 && (
+                <div className="db-top-wasted">
+                  <p className="db-list-label">Top wasted this week</p>
+                  {topItems.map((item, i) => (
+                    <div key={item.itemId} className="db-top-wasted-row">
+                      <span className="db-top-rank">#{i + 1}</span>
+                      <span className="db-top-name">{item.name}</span>
+                      <span className="db-top-qty">{formatNumber(item.qty)} units</span>
+                      <span className="db-top-value">{formatCurrency(item.value, currency)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {wastageWeek === 0 && topItems.length === 0 && !widgetErrors.wastage && (
+                <div className="db-empty-good">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>
+                  No wastage recorded this week
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ── Movement Trends chart ── */}
+          <div className="db-card db-card--full">
+            <div className="db-card-head">
+              <div className="db-card-head-left">
+                <svg className="db-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                </svg>
+                <h2 className="db-card-title">Movement Trends</h2>
+                <span className="db-card-helper">Daily stock in vs stock out</span>
+              </div>
+              <div className="trend-chart-range-btns">
+                {([7, 14, 30] as const).map((d) => (
+                  <button
+                    key={d}
+                    className={`trend-range-btn${trendDays === d ? " trend-range-btn--active" : ""}`}
+                    onClick={() => setTrendDays(d)}
+                  >
+                    {d}d
+                  </button>
+                ))}
+              </div>
+            </div>
+            <StockTrendChart data={trendData} days={trendDays} />
+          </div>
+
+          {/* ── Tabbed Insights ── */}
+          <div className="db-card db-card--full">
+            <div className="db-insights-tabs">
+              <button
+                className={`db-tab-btn${insightTab === "usage" ? " db-tab-btn--active" : ""}`}
+                onClick={() => setInsightTab("usage")}
+              >
+                Usage Insights
+              </button>
+              <button
+                className={`db-tab-btn${insightTab === "forecast" ? " db-tab-btn--active" : ""}`}
+                onClick={() => setInsightTab("forecast")}
+              >
+                Stock Forecast
+              </button>
+              <button
+                className={`db-tab-btn${insightTab === "slow" ? " db-tab-btn--active" : ""}`}
+                onClick={() => setInsightTab("slow")}
+              >
+                Slow Movers
+              </button>
+            </div>
+
+            {widgetErrors.usage && insightTab !== "slow" && (
+              <p className="db-widget-error" style={{ margin: "0 0 12px" }}>{widgetErrors.usage}</p>
+            )}
+
+            {insightTab === "usage" && (
+              <div className="db-tab-content">
+                {topUsageInsights.length === 0 ? (
+                  <div className="empty-state empty-state--compact">No usage data for the last 7 days.</div>
+                ) : (
+                  <div className="table-wrap">
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>Item</th>
+                          <th className="text-right">Total Used</th>
+                          <th>Unit</th>
+                          <th className="text-right">Est. Value</th>
+                          <th className="text-right">Avg / Day</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {topUsageInsights.map((item) => {
+                          const unit = summaryByItemId.get(item.itemId)?.unit ?? "units";
+                          return (
+                            <tr key={item.itemId}>
+                              <td className="td-name">{item.itemName}</td>
+                              <td className="text-right td-num">{formatNumber(item.totalQuantity)}</td>
+                              <td className="td-unit">{unit}</td>
+                              <td className="text-right td-num">{formatCurrency(item.estimatedValue, currency)}</td>
+                              <td className="text-right td-num">{formatNumber(item.averageDailyUsage)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {insightTab === "forecast" && (
+              <div className="db-tab-content">
+                {stockForecast.length === 0 ? (
+                  <div className="empty-state empty-state--compact">No forecast available yet.</div>
+                ) : (
+                  <div className="table-wrap">
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>Item</th>
+                          <th className="text-right">Current Stock</th>
+                          <th className="text-right">Avg / Day</th>
+                          <th className="text-right">Est. Days Remaining</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {stockForecast.map((item) => (
+                          <tr key={item.itemId} className={`forecast-row forecast-row--${getForecastTone(item.estimatedDaysRemaining)}`}>
+                            <td className="td-name">{item.itemName}</td>
+                            <td className="text-right td-num">{formatNumber(item.currentQuantity)}</td>
+                            <td className="text-right td-num">{formatNumber(item.averageDailyUsage)}</td>
+                            <td className="text-right td-num">
+                              <span className={`forecast-pill forecast-pill--${getForecastTone(item.estimatedDaysRemaining)}`}>
+                                {formatNumber(item.estimatedDaysRemaining)}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {insightTab === "slow" && (
+              <div className="db-tab-content">
+                {slowMovers.length === 0 ? (
+                  <div className="empty-state empty-state--compact empty-state--good">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>
+                    All items with stock had movement in the last 7 days.
+                  </div>
+                ) : (
+                  <div className="table-wrap">
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>Item</th>
+                          <th className="text-right">In Stock</th>
+                          <th>Unit</th>
+                          <th className="text-right">Value Tied Up</th>
+                          <th>Activity</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {slowMovers.map((item) => (
+                          <tr key={item.itemId} className="slow-mover-row">
+                            <td className="td-name">{item.itemName}</td>
+                            <td className="text-right td-num">{formatNumber(item.totalQuantity)}</td>
+                            <td className="td-unit">{item.unit}</td>
+                            <td className="text-right td-num">
+                              {item.totalValue > 0 ? formatCurrency(item.totalValue, currency) : "—"}
+                            </td>
+                            <td><span className="badge badge--gray">No movement · 7 days</span></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+        </div>
+      )}
+
+      {/* ── Inventory Snapshot (all roles) ── */}
+      <div className="db-body">
+        <InventorySnapshot summary={summary} totalItems={totalItems} currency={currency} formatDate={formatDate} />
+      </div>
+
+    </div>
+  );
+}
+
+const INV_PAGE_SIZE = 8;
+
+type InvFilter = "all" | "low" | "ok";
+
+function InventorySnapshot({
+  summary,
+  totalItems,
+  currency,
+  formatDate,
+}: {
+  summary: StockSummaryItem[];
+  totalItems: number;
+  currency: string;
+  formatDate: (d: string | null) => string;
+}) {
+  const [filter, setFilter] = useState<InvFilter>("all");
+  const [search, setSearch] = useState("");
+  const [showAll, setShowAll] = useState(false);
+
+  const lowCount = summary.filter((i) => i.isLowStock).length;
+
+  const filtered = summary
+    .filter((item) => {
+      if (filter === "low") return item.isLowStock;
+      if (filter === "ok") return !item.isLowStock;
+      return true;
+    })
+    .filter((item) =>
+      search.trim() === "" || item.itemName.toLowerCase().includes(search.trim().toLowerCase())
+    )
+    .sort((a, b) => {
+      if (a.isLowStock !== b.isLowStock) return a.isLowStock ? -1 : 1;
+      return a.itemName.localeCompare(b.itemName);
+    });
+
+  const visible = showAll ? filtered : filtered.slice(0, INV_PAGE_SIZE);
+  const hasMore = filtered.length > INV_PAGE_SIZE && !showAll;
+
+  return (
+    <div className="db-card db-card--full">
+      <div className="db-card-head">
+        <div className="db-card-head-left">
+          <svg className="db-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+          </svg>
+          <h2 className="db-card-title">Inventory</h2>
+          <span className="db-card-helper">{totalItems} items</span>
+        </div>
+        <Link to="/items" className="btn btn--secondary btn--sm">View All</Link>
+      </div>
+
+      {summary.length === 0 ? (
+        <div className="empty-state">No items found in this workspace.</div>
+      ) : (
+        <>
+          <div className="inv-snap-toolbar">
+            <div className="inv-snap-filters">
+              {(["all", "low", "ok"] as InvFilter[]).map((f) => (
+                <button
+                  key={f}
+                  className={`inv-snap-filter-btn${filter === f ? " inv-snap-filter-btn--active" : ""}`}
+                  onClick={() => { setFilter(f); setShowAll(false); }}
+                >
+                  {f === "all" ? `All (${totalItems})` : f === "low" ? `Low stock (${lowCount})` : `OK (${totalItems - lowCount})`}
+                </button>
+              ))}
+            </div>
+            <input
+              className="inv-snap-search"
+              type="search"
+              placeholder="Search items…"
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setShowAll(false); }}
+            />
+          </div>
+
+          {visible.length === 0 ? (
+            <div className="empty-state empty-state--compact">No items match this filter.</div>
           ) : (
             <div className="table-wrap">
-              <table className="table">
+              <table className="table table--compact">
                 <thead>
                   <tr>
                     <th>Item</th>
-                    <th className="text-right">In Stock</th>
+                    <th className="text-right">Qty</th>
                     <th>Unit</th>
-                    <th className="text-right">Value Tied Up</th>
-                    <th>Activity</th>
+                    <th>Status</th>
+                    <th className="text-right">Value</th>
+                    <th>Nearest Expiry</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {slowMovers.map((item) => (
-                    <tr key={item.itemId} className="slow-mover-row">
+                  {visible.map((item) => (
+                    <tr key={item.itemId} className={item.isLowStock ? "row--warn" : ""}>
                       <td className="td-name">{item.itemName}</td>
                       <td className="text-right td-num">{formatNumber(item.totalQuantity)}</td>
                       <td className="td-unit">{item.unit}</td>
-                      <td className="text-right td-num">
-                        {item.totalValue > 0 ? formatCurrency(item.totalValue, currency) : "—"}
-                      </td>
                       <td>
-                        <span className="badge badge--gray">No movement · 7 days</span>
+                        {item.isLowStock ? (
+                          <span className="badge badge--orange">Low stock</span>
+                        ) : (
+                          <span className="badge badge--green">OK</span>
+                        )}
                       </td>
+                      <td className="text-right td-num">{formatCurrency(item.totalValue, currency)}</td>
+                      <td className="td-expiry">{formatDate(item.nearestExpiryDate)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           )}
-        </div>
+
+          {(hasMore || showAll) && (
+            <div className="inv-snap-footer">
+              {hasMore && (
+                <button className="btn btn--ghost btn--sm" onClick={() => setShowAll(true)}>
+                  Show all {filtered.length} items
+                </button>
+              )}
+              {showAll && filtered.length > INV_PAGE_SIZE && (
+                <button className="btn btn--ghost btn--sm" onClick={() => setShowAll(false)}>
+                  Show less
+                </button>
+              )}
+            </div>
+          )}
+        </>
       )}
-
-      </DashboardGroup>
-      )}
-
-      <div className="section">
-        <div className="section-header">
-          <h2 className="section-title">Inventory Summary</h2>
-        </div>
-
-        {summary.length === 0 ? (
-          <div className="empty-state">
-            <p>No items found in this workspace.</p>
-          </div>
-        ) : (
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Item</th>
-                  <th className="text-right">Qty</th>
-                  <th>Unit</th>
-                  <th className="text-right">Min Level</th>
-                  <th>Status</th>
-                  <th className="text-right">Value</th>
-                  <th>Nearest Expiry</th>
-                </tr>
-              </thead>
-              <tbody>
-                {summary.map((item) => (
-                  <tr key={item.itemId} className={item.isLowStock ? "row--warn" : ""}>
-                    <td className="td-name">{item.itemName}</td>
-                    <td className="text-right td-num">{item.totalQuantity}</td>
-                    <td className="td-unit">{item.unit}</td>
-                    <td className="text-right td-num">{item.minStockLevel}</td>
-                    <td>
-                      {item.isLowStock ? (
-                        <span className="badge badge--orange">Low stock</span>
-                      ) : (
-                        <span className="badge badge--green">OK</span>
-                      )}
-                    </td>
-                    <td className="text-right td-num">{formatCurrency(item.totalValue, currency)}</td>
-                    <td className="td-expiry">{formatDate(item.nearestExpiryDate)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
     </div>
   );
 }
@@ -722,13 +883,12 @@ export function DashboardPage() {
 function StockTrendChart({
   data,
   days,
-  onDaysChange,
 }: {
   data: StockTrendDataPoint[];
   days: 7 | 14 | 30;
-  onDaysChange: (d: 7 | 14 | 30) => void;
 }) {
   const hasData = data.some((d) => d.stockIn > 0 || d.stockOut > 0);
+  const tickInterval = days === 7 ? 0 : days === 14 ? 1 : 4;
 
   const formatted = data.map((d) => ({
     ...d,
@@ -738,117 +898,160 @@ function StockTrendChart({
     }),
   }));
 
-  const tickInterval = days === 7 ? 0 : days === 14 ? 1 : 4;
+  if (!hasData) {
+    return (
+      <div className="empty-state empty-state--compact">
+        No stock movements in the last {days} days.
+      </div>
+    );
+  }
 
   return (
-    <div className="trend-chart-section">
-      <div className="trend-chart-header">
-        <div className="trend-chart-range-btns">
-          {([7, 14, 30] as const).map((d) => (
-            <button
-              key={d}
-              className={`trend-range-btn${days === d ? " trend-range-btn--active" : ""}`}
-              onClick={() => onDaysChange(d)}
-            >
-              {d}d
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {!hasData ? (
-        <div className="empty-state empty-state--compact">
-          No stock movements in the last {days} days.
-        </div>
-      ) : (
-        <div className="trend-chart-wrap">
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={formatted} margin={{ top: 4, right: 8, left: 0, bottom: 0 }} barCategoryGap="30%">
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
-              <XAxis
-                dataKey="label"
-                tick={{ fontSize: 11, fill: "var(--color-text-muted)" }}
-                axisLine={false}
-                tickLine={false}
-                interval={tickInterval}
-              />
-              <YAxis
-                tick={{ fontSize: 11, fill: "var(--color-text-muted)" }}
-                axisLine={false}
-                tickLine={false}
-                width={36}
-              />
-              <Tooltip
-                contentStyle={{
-                  background: "var(--color-surface)",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: "8px",
-                  fontSize: "12px",
-                }}
-                cursor={{ fill: "var(--color-border-light)" }}
-              />
-              <Legend
-                wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }}
-                formatter={(value) => (value === "stockIn" ? "Stock In" : "Stock Out")}
-              />
-              <Bar dataKey="stockIn" name="stockIn" fill="var(--color-green)" radius={[3, 3, 0, 0]} maxBarSize={28} />
-              <Bar dataKey="stockOut" name="stockOut" fill="var(--color-primary)" radius={[3, 3, 0, 0]} maxBarSize={28} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+    <div className="trend-chart-wrap">
+      <ResponsiveContainer width="100%" height={220}>
+        <BarChart data={formatted} margin={{ top: 4, right: 8, left: 0, bottom: 0 }} barCategoryGap="30%">
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+          <XAxis
+            dataKey="label"
+            tick={{ fontSize: 11, fill: "var(--color-text-muted)" }}
+            axisLine={false}
+            tickLine={false}
+            interval={tickInterval}
+          />
+          <YAxis
+            tick={{ fontSize: 11, fill: "var(--color-text-muted)" }}
+            axisLine={false}
+            tickLine={false}
+            width={36}
+          />
+          <Tooltip
+            contentStyle={{
+              background: "var(--color-surface)",
+              border: "1px solid var(--color-border)",
+              borderRadius: "8px",
+              fontSize: "12px",
+            }}
+            cursor={{ fill: "var(--color-border-light)" }}
+          />
+          <Legend
+            wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }}
+            formatter={(value) => (value === "stockIn" ? "Stock In" : "Stock Out")}
+          />
+          <Bar dataKey="stockIn" name="stockIn" fill="var(--color-green)" radius={[3, 3, 0, 0]} maxBarSize={28} />
+          <Bar dataKey="stockOut" name="stockOut" fill="var(--color-primary)" radius={[3, 3, 0, 0]} maxBarSize={28} />
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
 }
 
-function WastageTrend({
-  trend,
-  thisWeek,
-  lastWeek,
+function OnboardingChecklist({
+  summary,
+  manualDone,
+  onToggle,
+  onDismiss,
 }: {
-  trend: Trend;
-  thisWeek: number;
-  lastWeek: number;
+  summary: StockSummaryItem[];
+  manualDone: Set<string>;
+  onToggle: (id: string) => void;
+  onDismiss: () => void;
 }) {
-  if (trend === "flat" && thisWeek === 0 && lastWeek === 0) return null;
+  const hasItems = summary.length > 0;
+  const hasStock = summary.some((s) => s.totalQuantity > 0);
+  const hasReorderLevels = summary.some((s) => s.minStockLevel > 0) || manualDone.has("reorder_levels");
+  const hasCount = manualDone.has("first_count");
 
-  const icon = trend === "up" ? "↑" : trend === "down" ? "↓" : "→";
-  const label =
-    trend === "up"
-      ? "Up vs last week"
-      : trend === "down"
-        ? "Down vs last week"
-        : "Same as last week";
+  const steps = [
+    {
+      id: "add_items",
+      label: "Add your inventory items",
+      hint: "Create the products or ingredients you track.",
+      done: hasItems,
+      auto: true,
+      href: "/items",
+      linkLabel: "Go to Items",
+    },
+    {
+      id: "opening_stock",
+      label: "Record opening stock balances",
+      hint: "Set starting quantities for each item via Opening stock in the item menu.",
+      done: hasStock || manualDone.has("opening_stock"),
+      auto: hasStock,
+      href: "/items",
+      linkLabel: "Open an item → Opening stock",
+    },
+    {
+      id: "reorder_levels",
+      label: "Set reorder levels",
+      hint: "Define minimum stock levels so you get low-stock alerts.",
+      done: hasReorderLevels,
+      auto: summary.some((s) => s.minStockLevel > 0),
+      href: "/items",
+      linkLabel: "Edit an item to set Min Stock",
+    },
+    {
+      id: "first_count",
+      label: "Run your first physical inventory count",
+      hint: "Verify on-hand quantities match your records.",
+      done: hasCount,
+      auto: false,
+      href: "/stock-count",
+      linkLabel: "Go to Physical Count",
+    },
+  ];
+
+  const completedCount = steps.filter((s) => s.done).length;
+  if (completedCount === steps.length) return null;
+  const pct = Math.round((completedCount / steps.length) * 100);
 
   return (
-    <span className={`wastage-trend wastage-trend--${trend}`}>
-      {icon} {label}
-    </span>
-  );
-}
-
-function DashboardGroup({
-  title,
-  helper,
-  children,
-}: {
-  title: string;
-  helper: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="dashboard-group">
-      <div className="dashboard-group-header">
-        <h2 className="dashboard-group-title">{title}</h2>
-        <p className="dashboard-group-helper">{helper}</p>
+    <div className="onboarding-checklist">
+      <div className="oc-header">
+        <div className="oc-header-text">
+          <h2 className="oc-title">Getting started</h2>
+          <span className="oc-progress-text">{completedCount} of {steps.length} steps complete</span>
+        </div>
+        <button type="button" className="oc-dismiss" onClick={onDismiss} aria-label="Dismiss checklist">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M18 6 6 18" /><path d="m6 6 12 12" />
+          </svg>
+        </button>
       </div>
-      <div className="dashboard-group-body">
-        {children}
+      <div className="oc-progress-bar-track">
+        <div className="oc-progress-bar-fill" style={{ width: `${pct}%` }} />
       </div>
-    </section>
+      <div className="oc-steps">
+        {steps.map((step) => (
+          <div key={step.id} className={`oc-step${step.done ? " oc-step--done" : ""}`}>
+            <button
+              type="button"
+              className="oc-checkbox"
+              onClick={() => { if (!step.auto) onToggle(step.id); }}
+              aria-label={step.done ? `${step.label} — done` : `Mark ${step.label} as done`}
+              title={step.auto ? "Automatically detected" : "Click to mark complete"}
+              style={step.auto ? { cursor: "default" } : undefined}
+            >
+              {step.done ? (
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              ) : null}
+            </button>
+            <div className="oc-step-body">
+              <span className="oc-step-label">{step.label}</span>
+              {!step.done && <span className="oc-step-hint">{step.hint}</span>}
+            </div>
+            {!step.done && (
+              <Link to={step.href} className="oc-step-link">
+                {step.linkLabel}
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="m9 18 6-6-6-6" />
+                </svg>
+              </Link>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
   );
-}
-
-function formatNumber(value: number) {
-  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(value);
 }

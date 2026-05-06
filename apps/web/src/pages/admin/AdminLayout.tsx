@@ -1,16 +1,19 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { getAdminNotificationsSummary } from "../../api/admin";
+import type { AdminNotificationSummary, TicketPriority, TicketStatus } from "../../types";
 
 type NavItemProps = {
   to: string;
   end?: boolean;
   icon: React.ReactNode;
   label: string;
+  badge?: number;
   onClick?: () => void;
 };
 
-function NavItem({ to, end, icon, label, onClick }: NavItemProps) {
+function NavItem({ to, end, icon, label, badge, onClick }: NavItemProps) {
   return (
     <NavLink
       to={to}
@@ -20,8 +23,28 @@ function NavItem({ to, end, icon, label, onClick }: NavItemProps) {
     >
       <span className="admin-nav-icon">{icon}</span>
       {label}
+      {badge != null && badge > 0 && (
+        <span className="admin-nav-badge">{badge > 99 ? "99+" : badge}</span>
+      )}
     </NavLink>
   );
+}
+
+const PRIORITY_CLASS: Record<TicketPriority, string> = {
+  LOW: "ticket-priority--low", NORMAL: "ticket-priority--normal",
+  HIGH: "ticket-priority--high", URGENT: "ticket-priority--urgent",
+};
+const STATUS_CLASS: Record<TicketStatus, string> = {
+  OPEN: "ticket-status--open", PENDING: "ticket-status--pending",
+  RESOLVED: "ticket-status--resolved", CLOSED: "ticket-status--closed",
+};
+
+function fmtTime(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime();
+  if (diff < 60000) return "just now";
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+  return `${Math.floor(diff / 86400000)}d ago`;
 }
 
 const icons = {
@@ -114,11 +137,6 @@ const icons = {
       <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
     </svg>
   ),
-  back: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M19 12H5M12 5l-7 7 7 7" />
-    </svg>
-  ),
   menu: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <line x1="3" y1="6" x2="21" y2="6" />
@@ -132,6 +150,12 @@ const icons = {
       <line x1="6" y1="6" x2="18" y2="18" />
     </svg>
   ),
+  bell: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+    </svg>
+  ),
 };
 
 export function AdminLayout() {
@@ -139,9 +163,15 @@ export function AdminLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [summary, setSummary] = useState<AdminNotificationSummary | null>(null);
+  const notifPanelRef = useRef<HTMLDivElement>(null);
+  const notifBtnRef = useRef<HTMLButtonElement>(null);
+  const notifRef = notifPanelRef; // kept for backwards compat in JSX below
 
   useEffect(() => {
     setSidebarOpen(false);
+    setNotifOpen(false);
   }, [location.pathname]);
 
   useEffect(() => {
@@ -149,14 +179,37 @@ export function AdminLayout() {
     return () => { document.body.style.overflow = ""; };
   }, [sidebarOpen]);
 
+  useEffect(() => {
+    function fetchSummary() {
+      getAdminNotificationsSummary()
+        .then(setSummary)
+        .catch(() => {});
+    }
+    fetchSummary();
+    const interval = setInterval(fetchSummary, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      const target = e.target as Node;
+      const outsidePanel = !notifPanelRef.current?.contains(target);
+      const outsideBtn = !notifBtnRef.current?.contains(target);
+      if (outsidePanel && outsideBtn) setNotifOpen(false);
+    }
+    if (notifOpen) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [notifOpen]);
+
   function handleLogout() {
     logout();
     navigate("/login");
   }
 
   const close = () => setSidebarOpen(false);
-
   const navProps = { onClick: close };
+  const openCount = summary?.totalActive ?? 0;
+  const urgentCount = summary?.urgentCount ?? 0;
 
   return (
     <div className="admin-shell">
@@ -168,6 +221,26 @@ export function AdminLayout() {
         <div className="admin-mobile-brand">
           <span className="admin-brand-mark" style={{ width: 26, height: 26, fontSize: 13, borderRadius: 6 }}>S</span>
           <span className="admin-mobile-brand-name">ShelfSense Admin</span>
+        </div>
+        {/* Mobile notification bell */}
+        <div className="admin-notif-wrap" style={{ position: "relative" }}>
+          <button
+            className={`admin-notif-btn ${notifOpen ? "admin-notif-btn--open" : ""}`}
+            onClick={() => setNotifOpen((v) => !v)}
+            aria-label="Notifications"
+          >
+            {icons.bell}
+            {openCount > 0 && (
+              <span className={`admin-notif-dot ${urgentCount > 0 ? "admin-notif-dot--urgent" : ""}`}>
+                {openCount > 9 ? "9+" : openCount}
+              </span>
+            )}
+          </button>
+          {notifOpen && (
+            <div ref={notifPanelRef} style={{ position: "fixed", top: 56, right: 8, left: 8, zIndex: 999 }}>
+              <NotifPanel summary={summary} onNavigate={(id) => { navigate(id ? `/admin/inbox/${id}` : "/admin/inbox"); setNotifOpen(false); }} />
+            </div>
+          )}
         </div>
       </div>
 
@@ -202,7 +275,7 @@ export function AdminLayout() {
           <NavItem to="/admin/payments" icon={icons.payments} label="Payments" {...navProps} />
 
           <p className="admin-nav-section">Communications</p>
-          <NavItem to="/admin/inbox" icon={icons.inbox} label="Support Inbox" {...navProps} />
+          <NavItem to="/admin/inbox" icon={icons.inbox} label="Support Inbox" badge={openCount} {...navProps} />
           <NavItem to="/admin/email-templates" icon={icons.emailTemplates} label="Email Templates" {...navProps} />
           <NavItem to="/admin/email-logs" icon={icons.emailLogs} label="Email Logs" {...navProps} />
           <NavItem to="/admin/announcements" icon={icons.announcements} label="Announcements" {...navProps} />
@@ -211,16 +284,6 @@ export function AdminLayout() {
           <NavItem to="/admin/team" icon={icons.team} label="Admin Team" {...navProps} />
           <NavItem to="/admin/activity" icon={icons.activity} label="Audit Logs" {...navProps} />
           <NavItem to="/admin/system" icon={icons.system} label="System Health" {...navProps} />
-
-          {user?.workspaceId && (
-            <>
-              <p className="admin-nav-section">Account</p>
-              <NavLink to="/dashboard" onClick={close} className="admin-nav-item admin-nav-item--switch-ws">
-                <span className="admin-nav-icon">{icons.back}</span>
-                Switch to Workspace
-              </NavLink>
-            </>
-          )}
         </nav>
 
         <div className="admin-sidebar-footer">
@@ -238,6 +301,23 @@ export function AdminLayout() {
             </div>
           </div>
           <div className="admin-footer-actions">
+            {/* Desktop notification bell */}
+            <div className="admin-notif-wrap" style={{ position: "relative" }}>
+              <button
+                ref={notifBtnRef}
+                className={`admin-footer-link admin-notif-btn ${notifOpen ? "admin-notif-btn--open" : ""}`}
+                onClick={() => setNotifOpen((v) => !v)}
+                aria-label="Notifications"
+                title="Support notifications"
+              >
+                {icons.bell}
+                {openCount > 0 && (
+                  <span className={`admin-notif-dot ${urgentCount > 0 ? "admin-notif-dot--urgent" : ""}`}>
+                    {openCount > 9 ? "9+" : openCount}
+                  </span>
+                )}
+              </button>
+            </div>
             <button className="admin-footer-link" onClick={handleLogout} title="Sign out">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
@@ -249,9 +329,102 @@ export function AdminLayout() {
         </div>
       </aside>
 
+      {/* Notification panel — desktop, anchored to bottom of sidebar */}
+      {notifOpen && (
+        <div className="admin-notif-panel-desktop" ref={notifPanelRef}>
+          <NotifPanel summary={summary} onNavigate={(id) => { navigate(id ? `/admin/inbox/${id}` : "/admin/inbox"); setNotifOpen(false); }} />
+        </div>
+      )}
+
       <main className="admin-main">
         <Outlet />
       </main>
+    </div>
+  );
+}
+
+function NotifPanel({
+  summary,
+  onNavigate,
+}: {
+  summary: AdminNotificationSummary | null;
+  onNavigate: (id: string) => void;
+}) {
+  if (!summary) {
+    return (
+      <div className="admin-notif-dropdown">
+        <div className="admin-notif-loading"><div className="spinner spinner--sm" /></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="admin-notif-dropdown">
+      <div className="admin-notif-header">
+        <span className="admin-notif-title">Support Overview</span>
+        <div className="admin-notif-counts">
+          <span className="admin-notif-count-chip admin-notif-count-chip--open">
+            {summary.openCount} open
+          </span>
+          {summary.pendingCount > 0 && (
+            <span className="admin-notif-count-chip admin-notif-count-chip--pending">
+              {summary.pendingCount} pending
+            </span>
+          )}
+          {summary.urgentCount > 0 && (
+            <span className="admin-notif-count-chip admin-notif-count-chip--urgent">
+              {summary.urgentCount} urgent
+            </span>
+          )}
+        </div>
+      </div>
+
+      {summary.recentOpen.length === 0 ? (
+        <div className="admin-notif-empty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ width: 32, height: 32, color: "#94a3b8" }}>
+            <path d="M22 12h-6l-2 3h-4l-2-3H2" />
+            <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+          </svg>
+          <p>All caught up!</p>
+        </div>
+      ) : (
+        <div className="admin-notif-list">
+          {summary.recentOpen.map((t) => (
+            <button
+              key={t.id}
+              className="admin-notif-item"
+              onClick={() => onNavigate(t.id)}
+              type="button"
+            >
+              <div className="admin-notif-item-top">
+                <span className="admin-notif-item-num">#{t.ticketNumber}</span>
+                <span className={`ticket-priority ${PRIORITY_CLASS[t.priority]}`} style={{ fontSize: 10, padding: "1px 7px" }}>
+                  {t.priority}
+                </span>
+                <span className={`ticket-status ${STATUS_CLASS[t.status]}`} style={{ fontSize: 10, padding: "1px 7px" }}>
+                  {t.status}
+                </span>
+              </div>
+              <p className="admin-notif-item-subject">{t.subject}</p>
+              <div className="admin-notif-item-meta">
+                <span>{t.requesterEmail}</span>
+                {t.workspace && <span className="admin-notif-item-ws">{t.workspace.name}</span>}
+                <span className="admin-notif-item-time">{fmtTime(t.lastMessageAt)}</span>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="admin-notif-footer">
+        <button
+          className="admin-notif-view-all"
+          onClick={() => onNavigate("")}
+          type="button"
+        >
+          View all tickets →
+        </button>
+      </div>
     </div>
   );
 }

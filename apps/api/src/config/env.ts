@@ -4,9 +4,12 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // ─── Load environment files ───────────────────────────────────────────────────
-// Priority (highest → lowest): .env.{NODE_ENV}.local → .env.{NODE_ENV} → .env.local → .env
-// dotenv.config() skips vars already set, so load highest priority first.
-// In production (Render), real env vars are already set and win over any file.
+// Priority order (highest to lowest — dotenv skips already-set vars):
+//   .env.{NODE_ENV}.local  →  .env.{NODE_ENV}  →  .env.local  →  .env
+//
+// In Replit, the DATABASE_URL is injected as a real process.env secret before
+// this file runs, so it always takes priority over any .env file on disk.
+// On Render (staging/production), env vars are set in the dashboard — same applies.
 
 const _dir = dirname(fileURLToPath(import.meta.url));
 const APP_ROOT = resolve(_dir, "../.."); // apps/api/src/config/../.. = apps/api/
@@ -24,7 +27,7 @@ for (const file of [
   }
 }
 
-// ─── Safety helpers ───────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function parseCsv(value: string | undefined) {
   return value
@@ -33,7 +36,10 @@ function parseCsv(value: string | undefined) {
     .filter(Boolean);
 }
 
-/** Returns DB host + database name without any password or credentials. */
+/**
+ * Returns DB host + database name for logging — never includes password or credentials.
+ * Safe to print to stdout.
+ */
 export function getDbDisplayInfo(dbUrl: string): string {
   try {
     const u = new URL(dbUrl);
@@ -67,16 +73,20 @@ function getEmailFrom() {
   );
 }
 
-/** Throws if the environment + database combination is unsafe. */
+/**
+ * Safety gate: refuses to start if the environment + database combination is dangerous.
+ * - production + localhost DB → hard crash (prevents real env vars pointing to dev DB)
+ * - production + no DATABASE_URL → hard crash (prevents silent localhost fallback)
+ */
 function assertDbSafety(nodeEnv: string, dbUrl: string) {
   const isLocalhost = /localhost|127\.0\.0\.1/.test(dbUrl);
-  const urlProvided = Boolean(process.env.DATABASE_URL);
+  const urlExplicitlySet = Boolean(process.env.DATABASE_URL);
 
   if (nodeEnv === "production") {
-    if (!urlProvided) {
+    if (!urlExplicitlySet) {
       throw new Error(
         "[STARTUP SAFETY] NODE_ENV=production but DATABASE_URL is not set. " +
-        "Production must use an explicit hosted database URL. " +
+        "Production must use an explicit hosted database. " +
         "Set DATABASE_URL in your Render environment variables.",
       );
     }
@@ -88,19 +98,7 @@ function assertDbSafety(nodeEnv: string, dbUrl: string) {
       );
     }
   }
-
-  if ((nodeEnv === "development" || nodeEnv === "staging") && urlProvided && !isLocalhost) {
-    // Warn (not throw) if a non-local DB is used in dev/staging — it might be intentional
-    const dbInfo = getDbDisplayInfo(dbUrl);
-    if (nodeEnv === "development") {
-      console.warn(
-        `[env] ⚠️  Development environment is connecting to a hosted database: ${dbInfo}`,
-      );
-      console.warn(
-        `[env]     If this is your production database, stop immediately and update DATABASE_URL.`,
-      );
-    }
-  }
+  // Development/staging connecting to a hosted Neon DB is normal and expected.
 }
 
 // ─── Build and validate env ───────────────────────────────────────────────────
@@ -110,15 +108,13 @@ const _rawDbUrl =
   process.env.DATABASE_URL ??
   "postgresql://postgres:postgres@localhost:5432/shelfsense?schema=public";
 
-const _nodeEnv = process.env.NODE_ENV ?? "development";
-
-assertDbSafety(_nodeEnv, _rawDbUrl);
+assertDbSafety(_nodeEnvEarly, _rawDbUrl);
 
 export const env = {
   databaseUrl: _rawDbUrl,
   jwtSecret: getJwtSecret(),
   port: Number(process.env.PORT ?? 3000),
-  nodeEnv: _nodeEnv,
+  nodeEnv: process.env.NODE_ENV ?? "development",
   corsAllowedOrigins: parseCsv(process.env.CORS_ALLOWED_ORIGINS) ?? [
     "http://localhost:5173",
     "http://localhost:5000",
@@ -133,4 +129,5 @@ export const env = {
   appUrl: process.env.WEB_BASE_URL ?? process.env.APP_URL ?? "http://localhost:5000",
   supportFrom: process.env.SUPPORT_FROM ?? null,
   supportInboundSecret: process.env.SUPPORT_INBOUND_SECRET ?? null,
+  paymentProvider: (process.env.PAYMENT_PROVIDER ?? "mock").toLowerCase() as "mock" | "payfast" | "safepay",
 };

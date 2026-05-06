@@ -217,3 +217,70 @@ adminSubscriptionsRouter.patch("/workspaces/:workspaceId", asyncHandler(async (r
 
   return res.json({ subscription: updated });
 }));
+
+// POST /admin/subscriptions/:id/activate — manually activate a MANUAL_REVIEW subscription
+adminSubscriptionsRouter.post("/:id/activate", asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const adminId = req.user!.id;
+  const body = req.body as { billingCycle?: string; expiryDate?: string };
+
+  const sub = await prisma.subscription.findUnique({
+    where: { id },
+    select: { id: true, status: true, workspaceId: true, billingCycle: true, amount: true, currency: true },
+  });
+  if (!sub) return res.status(404).json({ error: "Subscription not found" });
+  if (sub.status === "ACTIVE") return res.status(409).json({ error: "Subscription is already active" });
+
+  const now = new Date();
+  const billingCycle = (body.billingCycle ?? sub.billingCycle) as "MONTHLY" | "ANNUAL" | "MANUAL";
+  let currentPeriodEnd: Date | null = null;
+
+  if (body.expiryDate) {
+    currentPeriodEnd = new Date(body.expiryDate);
+  } else if (billingCycle === "ANNUAL") {
+    currentPeriodEnd = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+  } else if (billingCycle === "MONTHLY") {
+    currentPeriodEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.subscription.update({
+      where: { id },
+      data: {
+        status: "ACTIVE",
+        billingCycle,
+        currentPeriodStart: now,
+        currentPeriodEnd,
+        nextRenewalAt: currentPeriodEnd,
+        manualNotes: null,
+      },
+    });
+
+    // Auto-create a PAID payment record so it appears in the Payments tab
+    if (sub.amount > 0) {
+      await tx.payment.create({
+        data: {
+          workspaceId: sub.workspaceId,
+          subscriptionId: id,
+          amount: sub.amount,
+          currency: sub.currency,
+          paymentMethod: "OTHER",
+          status: "PAID",
+          paidAt: now,
+          recordedByUserId: adminId,
+          notes: `Manually activated by admin (${billingCycle.toLowerCase()} · expires ${currentPeriodEnd ? currentPeriodEnd.toISOString().slice(0, 10) : "no expiry"})`,
+        },
+      });
+    }
+  });
+
+  await logAdminAction(adminId, "subscription_activated", "subscription", id, {
+    workspaceId: sub.workspaceId,
+    billingCycle,
+    expiryDate: body.expiryDate ?? null,
+    paymentRecorded: sub.amount > 0,
+  });
+
+  const result = await prisma.subscription.findUnique({ where: { id }, select: SUB_SELECT });
+  return res.json({ subscription: result, ok: true });
+}));

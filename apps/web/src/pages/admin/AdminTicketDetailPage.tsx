@@ -5,11 +5,13 @@ import {
   replySupportTicket,
   updateTicketStatus,
   updateTicketPriority,
+  updateTicketCategory,
   addTicketNote,
   assignTicket,
   getAdminUsers,
 } from "../../api/admin";
 import type { SupportTicketDetail, SupportMessage, SupportInternalNote, TicketStatus, TicketPriority } from "../../types";
+import { TICKET_CATEGORIES } from "../../types";
 
 const STATUS_LABELS: Record<TicketStatus, string> = {
   OPEN: "Open", PENDING: "Pending", RESOLVED: "Resolved", CLOSED: "Closed",
@@ -320,6 +322,33 @@ export function AdminTicketDetailPage() {
               <option value="NORMAL">Normal</option>
               <option value="HIGH">High</option>
               <option value="URGENT">Urgent</option>
+            </select>
+          </div>
+
+          <div className="ticket-sidebar-section">
+            <h3 className="ticket-sidebar-title">Category</h3>
+            <select
+              className="field-input"
+              value={ticket.category ?? ""}
+              disabled={actionLoading}
+              onChange={async (e) => {
+                if (!id) return;
+                setActionLoading(true);
+                try {
+                  const r = await updateTicketCategory(id, e.target.value || null);
+                  setTicket((prev) => prev ? { ...prev, ...r.ticket } : prev);
+                  showToast("success", "Category updated.");
+                } catch {
+                  showToast("error", "Failed to update category.");
+                } finally {
+                  setActionLoading(false);
+                }
+              }}
+            >
+              <option value="">— No category —</option>
+              {TICKET_CATEGORIES.map((c) => (
+                <option key={c.value} value={c.value}>{c.label}</option>
+              ))}
             </select>
           </div>
 

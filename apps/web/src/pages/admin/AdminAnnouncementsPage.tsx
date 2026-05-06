@@ -4,6 +4,7 @@ import {
   createAdminAnnouncement,
   updateAdminAnnouncement,
   updateAdminAnnouncementStatus,
+  deleteAdminAnnouncement,
   getAdminPlans,
   getAdminWorkspaces,
 } from "../../api/admin";
@@ -49,14 +50,17 @@ type Toast = { type: "success" | "error"; text: string };
 // ─── Announcement Card ────────────────────────────────────────────────────────
 
 function AnnouncementCard({
-  a, plans, onEdit, onToggle, toggling,
+  a, plans, onEdit, onToggle, toggling, onDelete, deleting,
 }: {
   a: AdminAnnouncement;
   plans: AdminPlan[];
   onEdit: () => void;
   onToggle: () => void;
   toggling: boolean;
+  onDelete: () => void;
+  deleting: boolean;
 }) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const sev = SEVERITY_CONFIG[a.severity as Severity] ?? SEVERITY_CONFIG.INFO;
   const hasSchedule = a.startsAt || a.endsAt;
   const now = Date.now();
@@ -84,19 +88,53 @@ function AnnouncementCard({
           )}
         </div>
         <div className="ann-card-actions">
-          <button className="ann-icon-btn" onClick={onEdit} title="Edit">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-              <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-            </svg>
-          </button>
-          <button
-            className={`ann-toggle-btn ${a.isActive ? "ann-toggle-btn--disable" : "ann-toggle-btn--enable"}`}
-            onClick={onToggle}
-            disabled={toggling}
-          >
-            {toggling ? "…" : a.isActive ? "Disable" : "Enable"}
-          </button>
+          {confirmDelete ? (
+            <div className="ann-delete-confirm">
+              <span className="ann-delete-confirm-text">Delete this announcement?</span>
+              <button
+                className="ann-delete-confirm-btn ann-delete-confirm-btn--yes"
+                onClick={() => { setConfirmDelete(false); onDelete(); }}
+                disabled={deleting}
+              >
+                {deleting ? "Deleting…" : "Yes, delete"}
+              </button>
+              <button
+                className="ann-delete-confirm-btn ann-delete-confirm-btn--no"
+                onClick={() => setConfirmDelete(false)}
+                disabled={deleting}
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <>
+              <button className="ann-icon-btn" onClick={onEdit} title="Edit">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                  <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+              </button>
+              <button
+                className="ann-icon-btn ann-icon-btn--danger"
+                onClick={() => setConfirmDelete(true)}
+                title="Delete"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
+                  <path d="M10 11v6M14 11v6" />
+                  <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" />
+                </svg>
+              </button>
+              <button
+                className={`ann-toggle-btn ${a.isActive ? "ann-toggle-btn--disable" : "ann-toggle-btn--enable"}`}
+                onClick={onToggle}
+                disabled={toggling}
+              >
+                {toggling ? "…" : a.isActive ? "Disable" : "Enable"}
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -620,6 +658,19 @@ export function AdminAnnouncementsPage() {
     }
   }
 
+  async function handleDelete(a: AdminAnnouncement) {
+    setActionLoading(`del-${a.id}`);
+    try {
+      await deleteAdminAnnouncement(a.id);
+      setAnnouncements((prev) => prev.filter((x) => x.id !== a.id));
+      showToast("success", `"${a.title}" has been deleted.`);
+    } catch (e) {
+      showToast("error", e instanceof Error ? e.message : "Failed to delete");
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
   const filtered = announcements.filter((a) => {
     if (filter === "active") return a.isActive;
     if (filter === "inactive") return !a.isActive;
@@ -710,6 +761,8 @@ export function AdminAnnouncementsPage() {
               onEdit={() => { setEditing(a); setShowModal(true); }}
               onToggle={() => handleToggle(a)}
               toggling={actionLoading === a.id}
+              onDelete={() => handleDelete(a)}
+              deleting={actionLoading === `del-${a.id}`}
             />
           ))}
         </div>

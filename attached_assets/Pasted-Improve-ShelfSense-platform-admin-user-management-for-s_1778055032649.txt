@@ -1,0 +1,108 @@
+Improve ShelfSense platform admin user management for scale.
+
+Current issue:
+The Users page is a flat list of all users. This works for 2 users, but when we have 100 workspaces and 150+ users, it will not be practical. Workspace management is more important than flat user management.
+
+Required changes:
+
+1. Separate platform admins from customer users:
+- Users page should show customer/tenant users only by default.
+- Platform admins and super admins should be managed under Admin Team.
+- Add filter/toggle only for super admin to include platform admins if needed.
+
+2. Improve Workspaces page as the main customer management area:
+Each workspace row/card should show:
+- Workspace name
+- Owner name
+- Owner email
+- Plan
+- Subscription status
+- Users count
+- Items count
+- Locations count
+- Created date
+- Last activity
+- Actions: View, Manage Subscription, View Users, Disable Workspace, Add Note
+
+3. Add Workspace Detail page with tabs:
+- Overview
+- Users / Members
+- Subscription
+- Payments
+- Usage
+- Activity Logs
+- Support Tickets
+- Admin Notes
+
+4. Workspace Users/Members tab:
+Show all users linked to that workspace with:
+- Name
+- Email
+- Workspace role
+- Email verified status
+- User status
+- Last login
+- Joined date
+- Actions: Change role, Remove user, Disable user, Resend verification
+
+5. Improve global Users page:
+Make it a searchable user directory, not the main customer management page.
+
+Columns:
+- Name
+- Email
+- Workspace
+- Workspace role
+- Workspace plan
+- Subscription status
+- Email verified
+- User status
+- Last login
+- Created date
+- Actions
+
+If a user belongs to multiple workspaces, show “Multiple workspaces” and allow expanding/viewing linked workspaces.
+
+6. Add filters on Users page:
+- Search name/email
+- Workspace
+- Role
+- Plan
+- Subscription status
+- Verified/unverified
+- Active/disabled
+- Created date
+- Last login activity
+
+7. Add user detail drawer/page:
+When clicking View, show:
+- User profile
+- Linked workspaces
+- Role in each workspace
+- Plan/subscription of each workspace
+- Recent activity
+- Support tickets
+- Admin notes
+- Actions: resend verification, disable/enable user, force password reset, remove from workspace, change role
+
+8. Add summary cards on Users page:
+- Total customer users
+- Verified users
+- Unverified users
+- Active users
+- Disabled users
+- New users this month
+
+9. Add summary cards on Workspaces page:
+- Total workspaces
+- Active workspaces
+- Pending payment/activation
+- Trial/free workspaces
+- Paid workspaces
+- Suspended workspaces
+
+10. UX:
+Make all tables mobile responsive.
+On desktop use tables.
+On mobile use cards.
+Keep UI professional, clean, and SaaS-style.

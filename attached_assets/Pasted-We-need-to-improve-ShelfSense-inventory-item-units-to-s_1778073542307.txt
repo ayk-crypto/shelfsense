@@ -1,0 +1,76 @@
+We need to improve ShelfSense inventory item units to support practical restaurant inventory where procurement unit and stock-out/usage unit can be different.
+
+Problem:
+Some items are purchased in larger units but consumed/issued in smaller units.
+Example:
+- Milk is purchased by carton
+- 1 carton contains 12 packs
+- Kitchen uses milk by pack
+Current single-unit setup is not enough.
+
+Required feature:
+Add Unit of Measure conversion support for inventory items.
+
+Core concept:
+Each item must have a Base Stock Unit. All inventory balances should be stored internally in the base unit.
+
+Item configuration fields:
+- Base Unit: required
+- Purchase Unit: optional
+- Purchase Conversion Factor: optional
+- Issue/Usage Unit: optional
+- Display Preference: base unit only or both purchase/base units
+
+Example:
+Item: Milk
+Base Unit: Pack
+Purchase Unit: Carton
+Conversion: 1 carton = 12 packs
+Issue Unit: Pack
+
+Stock In behavior:
+When receiving stock, user can enter quantity in purchase unit or base unit.
+Example:
+Receive 2 cartons of milk.
+System converts this to 24 packs and stores stock as 24 packs.
+Show helper text: “2 cartons = 24 packs”.
+
+Stock Out behavior:
+When using stock, user can issue in base unit or allowed issue unit.
+Example:
+Use 5 packs.
+System deducts 5 packs from stock.
+
+Batch behavior:
+Stock batches should store remaining quantity in base unit.
+Example:
+Milk batch received as 2 cartons with expiry date.
+System stores batch quantity as 24 packs.
+FIFO/FEFO deductions should deduct from base-unit batch quantity.
+
+Display behavior:
+Inventory summary should show:
+- Base quantity: 19 packs
+- Optional converted display: 1 carton + 7 packs
+If conversion is configured.
+
+Validation:
+- Conversion factor must be greater than 0
+- Prevent changing base unit if stock already exists, unless admin confirms migration or stock is zero
+- Do not allow duplicate/conflicting unit conversions for same item
+- All stock movement records should save:
+  - entered quantity
+  - entered unit
+  - converted base quantity
+  - conversion factor used at time of movement
+
+Reports:
+Show both entered unit and base unit where useful.
+Example:
+Stock In: 2 cartons = 24 packs
+Stock Out: 5 packs
+
+Important:
+Do not require creating separate items like Milk Carton and Milk Pack.
+There should be one item “Milk” with unit conversion.
+This is essential for restaurants, retail, pharmacies, and warehouses.

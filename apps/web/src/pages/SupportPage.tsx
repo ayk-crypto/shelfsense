@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { getMyTickets, createSupportTicket } from "../api/support";
-import type { SupportTicket, TicketStatus } from "../types";
+import type { SupportTicket, TicketStatus, TicketCategory } from "../types";
+import { TICKET_CATEGORIES } from "../types";
 
 const STATUS_LABEL: Record<TicketStatus, string> = {
   OPEN: "Open",
@@ -14,6 +15,13 @@ const STATUS_CLASS: Record<TicketStatus, string> = {
   PENDING: "sp-status--pending",
   RESOLVED: "sp-status--resolved",
   CLOSED: "sp-status--closed",
+};
+const CATEGORY_CLASS: Record<TicketCategory, string> = {
+  billing:   "sp-cat--billing",
+  technical: "sp-cat--technical",
+  account:   "sp-cat--account",
+  feature:   "sp-cat--feature",
+  general:   "sp-cat--general",
 };
 
 function fmtTime(iso: string) {
@@ -35,16 +43,23 @@ export function SupportPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
 
   const [showNew, setShowNew] = useState(false);
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
+  const [category, setCategory] = useState<string>("general");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
-    getMyTickets({ page, limit: 10, status: statusFilter || undefined })
+    getMyTickets({
+      page,
+      limit: 10,
+      status: statusFilter || undefined,
+      category: categoryFilter || undefined,
+    })
       .then((r) => {
         setTickets(r.tickets);
         setTotal(r.total);
@@ -53,10 +68,10 @@ export function SupportPage() {
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load tickets"))
       .finally(() => setLoading(false));
-  }, [page, statusFilter]);
+  }, [page, statusFilter, categoryFilter]);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { setPage(1); }, [statusFilter]);
+  useEffect(() => { setPage(1); }, [statusFilter, categoryFilter]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -64,10 +79,15 @@ export function SupportPage() {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const r = await createSupportTicket({ subject: subject.trim(), message: message.trim() });
+      const r = await createSupportTicket({
+        subject: subject.trim(),
+        message: message.trim(),
+        category,
+      });
       setShowNew(false);
       setSubject("");
       setMessage("");
+      setCategory("general");
       navigate(`/support/${r.ticket.id}`);
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Failed to submit ticket");
@@ -81,8 +101,11 @@ export function SupportPage() {
     setShowNew(false);
     setSubject("");
     setMessage("");
+    setCategory("general");
     setSubmitError(null);
   }
+
+  const hasFilters = statusFilter || categoryFilter;
 
   return (
     <div className="sp-page">
@@ -100,7 +123,7 @@ export function SupportPage() {
         </button>
       </div>
 
-      {total > 0 && (
+      {(total > 0 || hasFilters) && (
         <div className="sp-filters">
           <select
             className="field-input sp-filter-select"
@@ -113,6 +136,24 @@ export function SupportPage() {
             <option value="RESOLVED">Resolved</option>
             <option value="CLOSED">Closed</option>
           </select>
+          <select
+            className="field-input sp-filter-select"
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+          >
+            <option value="">All categories</option>
+            {TICKET_CATEGORIES.map((c) => (
+              <option key={c.value} value={c.value}>{c.label}</option>
+            ))}
+          </select>
+          {hasFilters && (
+            <button
+              className="btn btn--ghost btn--sm"
+              onClick={() => { setStatusFilter(""); setCategoryFilter(""); }}
+            >
+              Clear
+            </button>
+          )}
         </div>
       )}
 
@@ -127,11 +168,21 @@ export function SupportPage() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
             </svg>
           </div>
-          <p className="sp-empty-title">No tickets yet</p>
-          <p className="sp-empty-body">Have a question or issue? Open a ticket and we'll help you out.</p>
-          <button className="btn btn--primary" onClick={() => setShowNew(true)}>
-            Open a ticket
-          </button>
+          <p className="sp-empty-title">{hasFilters ? "No tickets match your filters" : "No tickets yet"}</p>
+          <p className="sp-empty-body">
+            {hasFilters
+              ? "Try adjusting or clearing your filters."
+              : "Have a question or issue? Open a ticket and we'll help you out."}
+          </p>
+          {hasFilters ? (
+            <button className="btn btn--secondary" onClick={() => { setStatusFilter(""); setCategoryFilter(""); }}>
+              Clear filters
+            </button>
+          ) : (
+            <button className="btn btn--primary" onClick={() => setShowNew(true)}>
+              Open a ticket
+            </button>
+          )}
         </div>
       ) : (
         <>
@@ -151,6 +202,11 @@ export function SupportPage() {
                     <span className={`sp-status ${STATUS_CLASS[t.status]}`}>
                       {STATUS_LABEL[t.status]}
                     </span>
+                    {t.category && (
+                      <span className={`sp-cat-badge ${CATEGORY_CLASS[t.category]}`}>
+                        {TICKET_CATEGORIES.find((c) => c.value === t.category)?.label ?? t.category}
+                      </span>
+                    )}
                   </div>
                   <p className="sp-ticket-subject">{t.subject}</p>
                 </div>
@@ -199,6 +255,22 @@ export function SupportPage() {
               </button>
             </div>
             <form className="sp-modal-form" onSubmit={handleSubmit}>
+              <div className="sp-field">
+                <label className="sp-label" htmlFor="sp-category">Category</label>
+                <div className="sp-category-grid">
+                  {TICKET_CATEGORIES.map((c) => (
+                    <button
+                      key={c.value}
+                      type="button"
+                      className={`sp-category-chip sp-category-chip--${c.value} ${category === c.value ? "sp-category-chip--selected" : ""}`}
+                      onClick={() => setCategory(c.value)}
+                      disabled={submitting}
+                    >
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="sp-field">
                 <label className="sp-label" htmlFor="sp-subject">Subject</label>
                 <input

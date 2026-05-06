@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { Prisma } from "../generated/prisma/client.js";
+import { PaymentStatus, SubscriptionStatus } from "../generated/prisma/enums.js";
 import { prisma } from "../db/prisma.js";
 import { asyncHandler } from "../utils/async-handler.js";
 
@@ -36,16 +37,35 @@ const PAYMENT_SELECT = {
   subscription: { select: { id: true, plan: { select: { name: true, code: true } } } },
 } as const;
 
+adminPaymentsRouter.get("/summary", asyncHandler(async (_req, res) => {
+  const [totalPaid, totalPending, totalFailed, totalRefunded, paidAggregate] = await Promise.all([
+    prisma.payment.count({ where: { status: PaymentStatus.PAID } }),
+    prisma.payment.count({ where: { status: PaymentStatus.PENDING } }),
+    prisma.payment.count({ where: { status: PaymentStatus.FAILED } }),
+    prisma.payment.count({ where: { status: PaymentStatus.REFUNDED } }),
+    prisma.payment.aggregate({ where: { status: PaymentStatus.PAID }, _sum: { amount: true } }),
+  ]);
+  return res.json({
+    totalPaid,
+    totalPending,
+    totalFailed,
+    totalRefunded,
+    totalCollected: paidAggregate._sum.amount ?? 0,
+  });
+}));
+
 adminPaymentsRouter.get("/", asyncHandler(async (req, res) => {
   const page = Math.max(1, parseInt(String(req.query.page ?? "1"), 10));
   const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? "20"), 10)));
   const skip = (page - 1) * limit;
   const status = typeof req.query.status === "string" ? req.query.status : undefined;
   const workspaceId = typeof req.query.workspaceId === "string" ? req.query.workspaceId : undefined;
+  const search = typeof req.query.search === "string" ? req.query.search.trim() : undefined;
 
-  const where: Record<string, unknown> = {};
-  if (status) where.status = status;
+  const where: Prisma.PaymentWhereInput = {};
+  if (status) where.status = status as PaymentStatus;
   if (workspaceId) where.workspaceId = workspaceId;
+  if (search) where.workspace = { name: { contains: search, mode: "insensitive" } };
 
   const [total, payments] = await Promise.all([
     prisma.payment.count({ where }),
@@ -147,4 +167,72 @@ adminPaymentsRouter.patch("/:id", asyncHandler(async (req, res) => {
   });
 
   return res.json({ payment: updated });
+}));
+
+// POST /admin/payments/:id/mark-paid — mark a payment as paid and activate subscription
+adminPaymentsRouter.post("/:id/mark-paid", asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const adminId = req.user!.id;
+
+  const payment = await prisma.payment.findUnique({
+    where: { id },
+    select: { id: true, workspaceId: true, subscriptionId: true, status: true, amount: true, currency: true },
+  });
+  if (!payment) return res.status(404).json({ error: "Payment not found" });
+  if (payment.status === PaymentStatus.PAID) return res.status(409).json({ error: "Payment is already marked as paid" });
+
+  const now = new Date();
+
+  await prisma.$transaction(async (tx) => {
+    await tx.payment.update({
+      where: { id },
+      data: { status: PaymentStatus.PAID, paidAt: now },
+    });
+
+    if (payment.subscriptionId) {
+      const sub = await tx.subscription.findUnique({
+        where: { id: payment.subscriptionId },
+        select: { id: true, status: true, billingCycle: true },
+      });
+      if (sub && sub.status === SubscriptionStatus.MANUAL_REVIEW) {
+        const periodEnd = sub.billingCycle === "ANNUAL"
+          ? new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000)
+          : sub.billingCycle === "MONTHLY"
+          ? new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
+          : null;
+
+        await tx.subscription.update({
+          where: { id: payment.subscriptionId },
+          data: {
+            status: SubscriptionStatus.ACTIVE,
+            currentPeriodStart: now,
+            currentPeriodEnd: periodEnd,
+            nextRenewalAt: periodEnd,
+            manualNotes: null,
+          },
+        });
+      }
+    }
+
+    await tx.billingEvent.create({
+      data: {
+        workspaceId: payment.workspaceId,
+        eventType: "admin_mark_paid",
+        gatewayProvider: "admin",
+        gatewayEventId: `admin_paid_${id}_${Date.now()}`,
+        subscriptionId: payment.subscriptionId ?? undefined,
+        paymentId: id,
+        payload: { adminId, amount: payment.amount, currency: payment.currency },
+      },
+    });
+  });
+
+  await logAdminAction(adminId, "payment_marked_paid", "payment", id, {
+    workspaceId: payment.workspaceId,
+    subscriptionId: payment.subscriptionId,
+    amount: payment.amount,
+  });
+
+  const updated = await prisma.payment.findUnique({ where: { id }, select: PAYMENT_SELECT });
+  return res.json({ payment: updated, ok: true });
 }));

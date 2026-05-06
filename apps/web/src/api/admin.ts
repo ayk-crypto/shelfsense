@@ -4,6 +4,8 @@ import type {
   AdminWorkspacesResponse,
   AdminWorkspaceDetail,
   AdminUsersResponse,
+  AdminUsersStats,
+  AdminWorkspacesStats,
   AdminUserDetail,
   AdminAuditLogsResponse,
   AdminPlan,
@@ -34,6 +36,10 @@ export function getAdminOverview(): Promise<AdminOverview> {
 }
 
 // ── Workspaces ───────────────────────────────────────────────────────────────
+
+export function getAdminWorkspacesStats(): Promise<{ stats: AdminWorkspacesStats }> {
+  return apiClient.get<{ stats: AdminWorkspacesStats }>("/admin/workspaces/stats");
+}
 
 export function getAdminWorkspaces(params: {
   page?: number; limit?: number; search?: string; plan?: string; status?: string;
@@ -71,8 +77,20 @@ export function removeWorkspaceCoupon(workspaceId: string): Promise<{ ok: boolea
 
 // ── Users ────────────────────────────────────────────────────────────────────
 
+export function getAdminUsersStats(): Promise<{ stats: AdminUsersStats }> {
+  return apiClient.get<{ stats: AdminUsersStats }>("/admin/users/stats");
+}
+
 export function getAdminUsers(params: {
-  page?: number; limit?: number; search?: string; verified?: string; disabled?: string;
+  page?: number;
+  limit?: number;
+  search?: string;
+  verified?: string;
+  disabled?: string;
+  role?: string;
+  plan?: string;
+  subscriptionStatus?: string;
+  includePlatformAdmins?: string;
 } = {}): Promise<AdminUsersResponse> {
   return apiClient.get<AdminUsersResponse>(`/admin/users${qs(params)}`);
 }
@@ -152,7 +170,7 @@ export function updateAdminCouponStatus(id: string, isActive: boolean): Promise<
 
 // ── Subscriptions ─────────────────────────────────────────────────────────────
 
-export function getAdminSubscriptions(params: { page?: number; limit?: number; status?: string } = {}): Promise<AdminSubscriptionsResponse> {
+export function getAdminSubscriptions(params: { page?: number; limit?: number; status?: string; search?: string } = {}): Promise<AdminSubscriptionsResponse> {
   return apiClient.get(`/admin/subscriptions${qs(params)}`);
 }
 
@@ -164,9 +182,17 @@ export function updateAdminSubscription(id: string, data: Record<string, unknown
   return apiClient.patch(`/admin/subscriptions/${id}`, data);
 }
 
+export function activateAdminSubscription(id: string, data: { billingCycle: string; expiryDate?: string }): Promise<{ subscription: AdminSubscription; ok: boolean }> {
+  return apiClient.post(`/admin/subscriptions/${id}/activate`, data);
+}
+
 // ── Payments ──────────────────────────────────────────────────────────────────
 
-export function getAdminPayments(params: { page?: number; limit?: number; status?: string; workspaceId?: string } = {}): Promise<AdminPaymentsResponse> {
+export function getAdminPaymentsSummary(): Promise<import("../types").AdminPaymentsSummary> {
+  return apiClient.get("/admin/payments/summary");
+}
+
+export function getAdminPayments(params: { page?: number; limit?: number; status?: string; workspaceId?: string; search?: string } = {}): Promise<AdminPaymentsResponse> {
   return apiClient.get(`/admin/payments${qs(params)}`);
 }
 
@@ -176,6 +202,10 @@ export function createAdminPayment(data: Record<string, unknown>): Promise<{ pay
 
 export function updateAdminPayment(id: string, data: Record<string, unknown>): Promise<{ payment: AdminPayment }> {
   return apiClient.patch(`/admin/payments/${id}`, data);
+}
+
+export function markAdminPaymentPaid(id: string): Promise<{ payment: AdminPayment; ok: boolean }> {
+  return apiClient.post(`/admin/payments/${id}/mark-paid`, {});
 }
 
 // ── Email Templates ───────────────────────────────────────────────────────────
@@ -224,6 +254,10 @@ export function updateAdminAnnouncementStatus(id: string, isActive: boolean): Pr
   return apiClient.patch(`/admin/announcements/${id}/status`, { isActive });
 }
 
+export function deleteAdminAnnouncement(id: string): Promise<{ ok: boolean }> {
+  return apiClient.delete(`/admin/announcements/${id}`);
+}
+
 // ── System Health ─────────────────────────────────────────────────────────────
 
 export function getAdminSystemHealth(): Promise<{ health: AdminSystemHealth }> {
@@ -242,7 +276,7 @@ import type {
 
 export function getSupportTickets(params: {
   page?: number; limit?: number; status?: string; priority?: string;
-  source?: string; search?: string; workspaceId?: string; assignedToUserId?: string;
+  source?: string; category?: string; search?: string; workspaceId?: string; assignedToUserId?: string;
 } = {}): Promise<SupportTicketsResponse> {
   return apiClient.get(`/admin/support/tickets${qs(params)}`);
 }
@@ -263,10 +297,18 @@ export function updateTicketPriority(id: string, priority: string): Promise<{ ti
   return apiClient.patch(`/admin/support/tickets/${id}/priority`, { priority });
 }
 
+export function updateTicketCategory(id: string, category: string | null): Promise<{ ticket: SupportTicket }> {
+  return apiClient.patch(`/admin/support/tickets/${id}/category`, { category });
+}
+
 export function addTicketNote(id: string, note: string): Promise<{ note: SupportInternalNote }> {
   return apiClient.post(`/admin/support/tickets/${id}/notes`, { note });
 }
 
 export function assignTicket(id: string, assignedToUserId: string | null): Promise<{ ticket: SupportTicket }> {
   return apiClient.patch(`/admin/support/tickets/${id}/assign`, { assignedToUserId });
+}
+
+export function getAdminNotificationsSummary(): Promise<import("../types").AdminNotificationSummary> {
+  return apiClient.get("/admin/support/summary");
 }

@@ -22,6 +22,11 @@ interface BatchRow {
   lastPrice: number | null;
   metaLoading: boolean;
   suggested: boolean;
+  enteredUnit: "base" | "purchase";
+}
+
+function fmtQty(n: number) {
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 4 }).format(n);
 }
 
 interface RowResult {
@@ -119,6 +124,7 @@ export function StockInPage() {
             lastPrice: null,
             metaLoading: true,
             suggested: false,
+            enteredUnit: preselected.purchaseUnit ? "purchase" : "base",
           }]);
           setSearch("");
           setShowDropdown(false);
@@ -183,6 +189,7 @@ export function StockInPage() {
       lastPrice: null,
       metaLoading: true,
       suggested: false,
+      enteredUnit: item.purchaseUnit ? "purchase" : "base",
     };
     setRows((prev) => [...prev, newRow]);
     setSearch("");
@@ -234,6 +241,7 @@ export function StockInPage() {
         lastPrice: source.lastPrice,
         metaLoading: false,
         suggested: false,
+        enteredUnit: source.enteredUnit,
       };
       const updated = [...prev];
       updated.splice(idx + 1, 0, newRow);
@@ -357,16 +365,21 @@ export function StockInPage() {
         continue;
       }
       const selectedSupplier = suppliers.find((s) => s.id === row.supplierId);
+      const enteredQty = parseFloat(row.qty);
+      const isPurchaseUnit = row.enteredUnit === "purchase" && !!row.item.purchaseUnit && !!row.item.purchaseConversionFactor;
+      const baseQty = isPurchaseUnit ? enteredQty * row.item.purchaseConversionFactor! : enteredQty;
       try {
         await stockIn({
           itemId: row.item.id,
-          quantity: parseFloat(row.qty),
+          quantity: baseQty,
           unitCost: row.unitCost ? parseFloat(row.unitCost) : undefined,
           expiryDate: row.expiryDate || undefined,
           batchNo: row.batchNo || undefined,
           supplierId: row.supplierId || undefined,
           supplierName: selectedSupplier?.name,
           note: [row.note.trim(), globalNote.trim()].filter(Boolean).join(" · ") || undefined,
+          enteredQuantity: isPurchaseUnit ? enteredQty : undefined,
+          enteredUnit: isPurchaseUnit ? row.item.purchaseUnit! : undefined,
         });
         out.push({ rowId: row.rowId, itemName: row.item.name, batchNo: row.batchNo, status: "success" });
       } catch (err) {
@@ -398,9 +411,9 @@ export function StockInPage() {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 5v14M5 12l7 7 7-7" />
             </svg>
-            Stock In
+            Receive Stock
           </div>
-          <h1 className="page-title">Stock In</h1>
+          <h1 className="page-title">Receive Stock</h1>
           <p className="page-subtitle">
             {mode === "direct"
               ? <>Add items directly to stock with batch numbers, costs, expiry dates, and supplier info. Use <strong>+ Add batch</strong> on any row to record multiple batches.</>
@@ -428,7 +441,7 @@ export function StockInPage() {
           className={`stock-entry-mode-btn${mode === "direct" ? " stock-entry-mode-btn--active" : ""}`}
           onClick={() => void switchMode("direct")}
         >
-          Direct Stock In
+          Direct Receive
         </button>
         <button
           type="button"
@@ -641,6 +654,24 @@ export function StockInPage() {
                         />
                       </td>
                       <td className="stock-entry-td-qty">
+                        {row.item.purchaseUnit && (
+                          <div className="uom-toggle">
+                            <button
+                              type="button"
+                              className={`uom-toggle-btn${row.enteredUnit === "base" ? " uom-toggle-btn--active" : ""}`}
+                              onClick={() => setRows((prev) => prev.map((r) => r.rowId === row.rowId ? { ...r, enteredUnit: "base", qty: "" } : r))}
+                            >
+                              {row.item.unit}
+                            </button>
+                            <button
+                              type="button"
+                              className={`uom-toggle-btn${row.enteredUnit === "purchase" ? " uom-toggle-btn--active" : ""}`}
+                              onClick={() => setRows((prev) => prev.map((r) => r.rowId === row.rowId ? { ...r, enteredUnit: "purchase", qty: "" } : r))}
+                            >
+                              {row.item.purchaseUnit}
+                            </button>
+                          </div>
+                        )}
                         <input
                           className={`stock-entry-input ${qtyInvalid ? "stock-entry-input--error" : ""}`}
                           type="number"
@@ -650,6 +681,11 @@ export function StockInPage() {
                           value={row.qty}
                           onChange={(e) => updateRow(row.rowId, "qty", e.target.value)}
                         />
+                        {row.enteredUnit === "purchase" && row.item.purchaseUnit && row.item.purchaseConversionFactor && row.qty && parseFloat(row.qty) > 0 && (
+                          <div className="uom-hint">
+                            = {fmtQty(parseFloat(row.qty) * row.item.purchaseConversionFactor)} {row.item.unit}
+                          </div>
+                        )}
                       </td>
                       <td className="stock-entry-td-cost">
                         <input
@@ -773,7 +809,7 @@ export function StockInPage() {
                     <path d="M12 5v14M5 12l7 7 7-7" />
                   </svg>
                 )}
-                {submitting ? "Recording…" : `Record Stock In (${validRowCount} batch${validRowCount !== 1 ? "es" : ""})`}
+                {submitting ? "Recording…" : `Record Receipt (${validRowCount} batch${validRowCount !== 1 ? "es" : ""})`}
               </button>
             </div>
           </div>
@@ -787,7 +823,7 @@ export function StockInPage() {
               </svg>
             </div>
             <h3>No items added yet</h3>
-            <p>Use the search above to find items and add them to this stock-in entry.</p>
+            <p>Use the search above to find items and add them to this receiving entry.</p>
           </div>
         )
       )}
