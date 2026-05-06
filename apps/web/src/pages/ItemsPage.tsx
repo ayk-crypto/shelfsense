@@ -8,6 +8,7 @@ import { useLocation } from "../context/LocationContext";
 import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
 import type { CreateItemInput, Item, Location, StockMovement, StockSummaryItem } from "../types";
 import { formatCurrency } from "../utils/currency";
+import { DEFAULT_CATEGORY_OPTIONS, DEFAULT_UNIT_OPTIONS } from "../utils/inventoryDefaults";
 import { getSuggestedReorderQuantity } from "../utils/reorder";
 import {
   getEstimatedDaysRemaining,
@@ -28,13 +29,8 @@ interface Toast {
 
 let toastSeq = 0;
 
-const FALLBACK_UNIT_OPTIONS = [
-  "kg", "g", "liter", "ml", "pcs", "pack", "box", "dozen", "bottle", "can", "bag",
-];
-
-const FALLBACK_CATEGORY_OPTIONS = [
-  "Raw Material", "Beverage", "Packaging", "Cleaning", "Finished Goods", "Other",
-];
+const FALLBACK_UNIT_OPTIONS = DEFAULT_UNIT_OPTIONS;
+const FALLBACK_CATEGORY_OPTIONS = DEFAULT_CATEGORY_OPTIONS;
 
 interface StatusInfo { label: string; variant: "green" | "orange" | "red" | "gray" }
 

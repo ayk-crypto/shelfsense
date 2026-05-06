@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { updateWorkspaceSettings } from "../api/workspace";
 import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
+import { DEFAULT_CATEGORY_OPTIONS, DEFAULT_UNIT_OPTIONS } from "../utils/inventoryDefaults";
 import type { WorkspaceSettings } from "../types";
 
 interface Toast {
@@ -50,8 +51,11 @@ export function SettingsPage() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const saveBarRef = useRef<HTMLDivElement>(null);
 
-  const [ucUnits, setUcUnits] = useState<string[]>(settings.customUnits);
-  const [ucCategories, setUcCategories] = useState<string[]>(settings.customCategories);
+  const effectiveUnits = (u: string[]) => (u.length > 0 ? u : DEFAULT_UNIT_OPTIONS);
+  const effectiveCategories = (c: string[]) => (c.length > 0 ? c : DEFAULT_CATEGORY_OPTIONS);
+
+  const [ucUnits, setUcUnits] = useState<string[]>(() => effectiveUnits(settings.customUnits));
+  const [ucCategories, setUcCategories] = useState<string[]>(() => effectiveCategories(settings.customCategories));
   const [newUnit, setNewUnit] = useState("");
   const [newCategory, setNewCategory] = useState("");
   const [ucSaving, setUcSaving] = useState(false);
@@ -60,8 +64,8 @@ export function SettingsPage() {
     const f = toForm(settings);
     setForm(f);
     setSavedForm(f);
-    setUcUnits(settings.customUnits);
-    setUcCategories(settings.customCategories);
+    setUcUnits(effectiveUnits(settings.customUnits));
+    setUcCategories(effectiveCategories(settings.customCategories));
   }, [settings]);
 
   const isDirty = useMemo(
@@ -495,9 +499,21 @@ export function SettingsPage() {
         </div>
         <div className="stg-card-body">
           <div className="uc-section">
-            <div className="uc-section-label">Units of Measurement</div>
+            <div className="uc-section-header">
+              <div className="uc-section-label">Units of Measurement</div>
+              <button
+                type="button"
+                className="uc-reset-link"
+                onClick={() => setUcUnits(DEFAULT_UNIT_OPTIONS)}
+                disabled={JSON.stringify(ucUnits) === JSON.stringify(DEFAULT_UNIT_OPTIONS)}
+              >
+                Reset to defaults
+              </button>
+            </div>
             <div className="uc-chips">
-              {ucUnits.length === 0 && <span className="uc-empty">No custom units — defaults will be used.</span>}
+              {ucUnits.length === 0 && (
+                <span className="uc-empty">All units removed — saving will restore defaults on next load.</span>
+              )}
               {ucUnits.map((u) => (
                 <span key={u} className="uc-chip">
                   {u}
@@ -533,9 +549,21 @@ export function SettingsPage() {
           </div>
 
           <div className="uc-section">
-            <div className="uc-section-label">Item Categories</div>
+            <div className="uc-section-header">
+              <div className="uc-section-label">Item Categories</div>
+              <button
+                type="button"
+                className="uc-reset-link"
+                onClick={() => setUcCategories(DEFAULT_CATEGORY_OPTIONS)}
+                disabled={JSON.stringify(ucCategories) === JSON.stringify(DEFAULT_CATEGORY_OPTIONS)}
+              >
+                Reset to defaults
+              </button>
+            </div>
             <div className="uc-chips">
-              {ucCategories.length === 0 && <span className="uc-empty">No custom categories — defaults will be used.</span>}
+              {ucCategories.length === 0 && (
+                <span className="uc-empty">All categories removed — saving will restore defaults on next load.</span>
+              )}
               {ucCategories.map((c) => (
                 <span key={c} className="uc-chip">
                   {c}
