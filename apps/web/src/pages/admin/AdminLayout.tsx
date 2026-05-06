@@ -137,11 +137,6 @@ const icons = {
       <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
     </svg>
   ),
-  back: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M19 12H5M12 5l-7 7 7 7" />
-    </svg>
-  ),
   menu: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <line x1="3" y1="6" x2="21" y2="6" />
@@ -289,16 +284,6 @@ export function AdminLayout() {
           <NavItem to="/admin/team" icon={icons.team} label="Admin Team" {...navProps} />
           <NavItem to="/admin/activity" icon={icons.activity} label="Audit Logs" {...navProps} />
           <NavItem to="/admin/system" icon={icons.system} label="System Health" {...navProps} />
-
-          {user?.workspaceId && (
-            <>
-              <p className="admin-nav-section">Account</p>
-              <NavLink to="/dashboard" onClick={close} className="admin-nav-item admin-nav-item--switch-ws">
-                <span className="admin-nav-icon">{icons.back}</span>
-                Switch to Workspace
-              </NavLink>
-            </>
-          )}
         </nav>
 
         <div className="admin-sidebar-footer">
