@@ -1357,16 +1357,6 @@ function AddItemModal({
               1 {form.purchaseUnit} = {form.purchaseConversionFactor} {form.unit}
             </p>
           )}
-          <div className="form-group">
-            <label className="form-label">Issue / Usage Unit Label</label>
-            <input
-              className="form-input"
-              value={form.issueUnit ?? ""}
-              onChange={(e) => setForm({ ...form, issueUnit: e.target.value || null })}
-              placeholder="e.g. Portion (optional, display only)"
-            />
-            <p className="form-helper">Display label for stock-out. Stock is always tracked in the Stock Unit.</p>
-          </div>
           <div className="form-group form-group--inline">
             <input
               id="displayBothUnits"
@@ -1578,16 +1568,6 @@ function EditItemModal({
               1 {form.purchaseUnit} = {form.purchaseConversionFactor} {form.unit}
             </p>
           )}
-          <div className="form-group">
-            <label className="form-label">Issue / Usage Unit Label</label>
-            <input
-              className="form-input"
-              value={form.issueUnit ?? ""}
-              onChange={(e) => setForm({ ...form, issueUnit: e.target.value || null })}
-              placeholder="e.g. Portion (optional, display only)"
-            />
-            <p className="form-helper">Display label for stock-out. Stock is always tracked in the Stock Unit.</p>
-          </div>
           <div className="form-group form-group--inline">
             <input
               id="editDisplayBothUnits"
