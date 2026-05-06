@@ -4,6 +4,8 @@ import type {
   AdminWorkspacesResponse,
   AdminWorkspaceDetail,
   AdminUsersResponse,
+  AdminUsersStats,
+  AdminWorkspacesStats,
   AdminUserDetail,
   AdminAuditLogsResponse,
   AdminPlan,
@@ -34,6 +36,10 @@ export function getAdminOverview(): Promise<AdminOverview> {
 }
 
 // ── Workspaces ───────────────────────────────────────────────────────────────
+
+export function getAdminWorkspacesStats(): Promise<{ stats: AdminWorkspacesStats }> {
+  return apiClient.get<{ stats: AdminWorkspacesStats }>("/admin/workspaces/stats");
+}
 
 export function getAdminWorkspaces(params: {
   page?: number; limit?: number; search?: string; plan?: string; status?: string;
@@ -71,8 +77,20 @@ export function removeWorkspaceCoupon(workspaceId: string): Promise<{ ok: boolea
 
 // ── Users ────────────────────────────────────────────────────────────────────
 
+export function getAdminUsersStats(): Promise<{ stats: AdminUsersStats }> {
+  return apiClient.get<{ stats: AdminUsersStats }>("/admin/users/stats");
+}
+
 export function getAdminUsers(params: {
-  page?: number; limit?: number; search?: string; verified?: string; disabled?: string;
+  page?: number;
+  limit?: number;
+  search?: string;
+  verified?: string;
+  disabled?: string;
+  role?: string;
+  plan?: string;
+  subscriptionStatus?: string;
+  includePlatformAdmins?: string;
 } = {}): Promise<AdminUsersResponse> {
   return apiClient.get<AdminUsersResponse>(`/admin/users${qs(params)}`);
 }

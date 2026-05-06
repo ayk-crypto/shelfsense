@@ -392,6 +392,27 @@ function computeHealth(opts: {
   return "Healthy";
 }
 
+adminRouter.get("/workspaces/stats", asyncHandler(async (_req, res) => {
+  const [total, suspended, free, paid, pendingPayment] = await Promise.all([
+    prisma.workspace.count(),
+    prisma.workspace.count({ where: { suspended: true } }),
+    prisma.workspace.count({ where: { plan: "FREE" } }),
+    prisma.workspace.count({ where: { plan: { in: ["BASIC", "PRO"] } } }),
+    prisma.workspace.count({ where: { subscriptionStatus: "MANUAL_REVIEW" } }),
+  ]);
+
+  return res.json({
+    stats: {
+      total,
+      active: total - suspended,
+      suspended,
+      free,
+      paid,
+      pendingPayment,
+    },
+  });
+}));
+
 adminRouter.get("/workspaces/:id", asyncHandler(async (req, res) => {
   const { id } = req.params;
 
@@ -588,6 +609,31 @@ adminRouter.patch("/workspaces/:id/plan", asyncHandler(async (req, res) => {
 
 // ── Users ──────────────────────────────────────────────────────────────
 
+adminRouter.get("/users/stats", asyncHandler(async (_req, res) => {
+  const now = new Date();
+  const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const [total, verified, disabled, newThisMonth, platformAdminCount] = await Promise.all([
+    prisma.user.count({ where: { platformRole: PlatformRole.USER } }),
+    prisma.user.count({ where: { platformRole: PlatformRole.USER, emailVerified: true } }),
+    prisma.user.count({ where: { platformRole: PlatformRole.USER, isDisabled: true } }),
+    prisma.user.count({ where: { platformRole: PlatformRole.USER, createdAt: { gte: firstOfMonth } } }),
+    prisma.user.count({ where: { platformRole: { not: PlatformRole.USER } } }),
+  ]);
+
+  return res.json({
+    stats: {
+      total,
+      verified,
+      unverified: total - verified,
+      active: total - disabled,
+      disabled,
+      newThisMonth,
+      platformAdminCount,
+    },
+  });
+}));
+
 adminRouter.get("/users", asyncHandler(async (req, res) => {
   const page = Math.max(1, parseInt(String(req.query.page ?? "1"), 10));
   const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? "20"), 10)));
@@ -595,8 +641,18 @@ adminRouter.get("/users", asyncHandler(async (req, res) => {
   const search = typeof req.query.search === "string" ? req.query.search.trim() : undefined;
   const verified = typeof req.query.verified === "string" ? req.query.verified : undefined;
   const disabled = typeof req.query.disabled === "string" ? req.query.disabled : undefined;
+  const role = typeof req.query.role === "string" ? req.query.role.trim() : undefined;
+  const plan = typeof req.query.plan === "string" ? req.query.plan.trim() : undefined;
+  const subscriptionStatus = typeof req.query.subscriptionStatus === "string" ? req.query.subscriptionStatus.trim() : undefined;
+  const includePlatformAdmins = req.query.includePlatformAdmins === "true";
 
-  const where: Record<string, unknown> = {};
+  const where: Prisma.UserWhereInput = {};
+
+  // Default: customer users only. Super admin can opt-in to see platform admins too.
+  if (!includePlatformAdmins) {
+    where.platformRole = PlatformRole.USER;
+  }
+
   if (search) {
     where.OR = [
       { name: { contains: search, mode: "insensitive" } },
@@ -608,6 +664,22 @@ adminRouter.get("/users", asyncHandler(async (req, res) => {
   if (disabled === "true") where.isDisabled = true;
   if (disabled === "false") where.isDisabled = false;
 
+  // Workspace-level filters via membership relation
+  if (role || plan || subscriptionStatus) {
+    where.memberships = {
+      some: {
+        isActive: true,
+        ...(role ? { role: role as never } : {}),
+        ...(plan || subscriptionStatus ? {
+          workspace: {
+            ...(plan ? { plan: plan as never } : {}),
+            ...(subscriptionStatus ? { subscriptionStatus } : {}),
+          },
+        } : {}),
+      },
+    };
+  }
+
   const [total, users] = await Promise.all([
     prisma.user.count({ where }),
     prisma.user.findMany({
@@ -617,14 +689,39 @@ adminRouter.get("/users", asyncHandler(async (req, res) => {
       orderBy: { createdAt: "desc" },
       select: {
         id: true, name: true, email: true, emailVerified: true,
-        isDisabled: true, platformRole: true, createdAt: true,
-        _count: { select: { memberships: true } },
+        isDisabled: true, platformRole: true, createdAt: true, lastLoginAt: true,
+        _count: { select: { memberships: { where: { isActive: true } } } },
+        memberships: {
+          where: { isActive: true },
+          orderBy: { createdAt: "asc" },
+          take: 1,
+          select: {
+            role: true,
+            workspace: { select: { id: true, name: true, plan: true, subscriptionStatus: true } },
+          },
+        },
       },
     }),
   ]);
 
   return res.json({
-    users: users.map((u) => ({ ...u, workspaceCount: u._count.memberships, _count: undefined })),
+    users: users.map((u) => {
+      const m = u.memberships[0];
+      return {
+        ...u,
+        workspaceCount: u._count.memberships,
+        lastLoginAt: u.lastLoginAt?.toISOString() ?? null,
+        primaryWorkspace: m ? {
+          id: m.workspace.id,
+          name: m.workspace.name,
+          plan: m.workspace.plan,
+          role: m.role,
+          subscriptionStatus: m.workspace.subscriptionStatus,
+        } : null,
+        memberships: undefined,
+        _count: undefined,
+      };
+    }),
     pagination: { page, limit, total, pages: Math.ceil(total / limit) },
   });
 }));

@@ -1072,7 +1072,34 @@ export interface AdminUser {
   isDisabled: boolean;
   platformRole: PlatformRole;
   createdAt: string;
+  lastLoginAt: string | null;
   workspaceCount: number;
+  primaryWorkspace: {
+    id: string;
+    name: string;
+    plan: string;
+    role: string;
+    subscriptionStatus: string | null;
+  } | null;
+}
+
+export interface AdminUsersStats {
+  total: number;
+  verified: number;
+  unverified: number;
+  active: number;
+  disabled: number;
+  newThisMonth: number;
+  platformAdminCount: number;
+}
+
+export interface AdminWorkspacesStats {
+  total: number;
+  active: number;
+  suspended: number;
+  free: number;
+  paid: number;
+  pendingPayment: number;
 }
 
 export interface AdminUsersResponse {

@@ -164,6 +164,7 @@ model User {
   passwordResetRequired Boolean         @default(false)
   failedLoginAttempts   Int             @default(0)
   lockedUntil           DateTime?
+  lastLoginAt           DateTime?
   createdAt             DateTime        @default(now())
   ownedSpaces           Workspace[]     @relation("WorkspaceOwner")
   memberships           Membership[]
