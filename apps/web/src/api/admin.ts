@@ -178,6 +178,10 @@ export function updateAdminPayment(id: string, data: Record<string, unknown>): P
   return apiClient.patch(`/admin/payments/${id}`, data);
 }
 
+export function markAdminPaymentPaid(id: string): Promise<{ payment: AdminPayment; ok: boolean }> {
+  return apiClient.post(`/admin/payments/${id}/mark-paid`, {});
+}
+
 // ── Email Templates ───────────────────────────────────────────────────────────
 
 export function getAdminEmailTemplates(): Promise<{ templates: AdminEmailTemplate[] }> {

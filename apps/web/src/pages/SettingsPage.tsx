@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { updateWorkspaceSettings } from "../api/workspace";
 import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
 import type { WorkspaceSettings } from "../types";
@@ -150,6 +151,16 @@ export function SettingsPage() {
           <p className="page-subtitle">Configure your workspace, inventory rules, and notification preferences.</p>
         </div>
       </div>
+
+      <Link to="/settings/billing" className="settings-billing-link-card">
+        <div>
+          <div className="settings-billing-link-title">Billing & Subscription</div>
+          <div className="settings-billing-link-desc">View your plan, subscription status, and payment history</div>
+        </div>
+        <svg viewBox="0 0 20 20" fill="currentColor" style={{ width: 18, height: 18, color: "#6366f1", flexShrink: 0 }} aria-hidden="true">
+          <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+        </svg>
+      </Link>
 
       <form onSubmit={(e) => { void handleSubmit(e); }}>
 

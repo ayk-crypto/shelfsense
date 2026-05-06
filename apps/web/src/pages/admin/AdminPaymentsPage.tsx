@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { getAdminPayments, updateAdminPayment } from "../../api/admin";
+import { getAdminPayments, markAdminPaymentPaid } from "../../api/admin";
 import type { AdminPayment, AdminPagination } from "../../types";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -46,11 +46,11 @@ export function AdminPaymentsPage() {
   }
 
   async function handleMarkPaid(p: AdminPayment) {
-    if (!window.confirm(`Mark payment PKR ${p.amount.toLocaleString()} as PAID?`)) return;
+    if (!window.confirm(`Mark payment ${p.currency} ${p.amount.toLocaleString()} as PAID? This will also activate the associated subscription if it is pending.`)) return;
     setActionLoading(p.id);
     try {
-      await updateAdminPayment(p.id, { status: "PAID", paidAt: new Date().toISOString() });
-      showToast("success", "Payment marked as paid.");
+      await markAdminPaymentPaid(p.id);
+      showToast("success", "Payment marked as paid. Subscription activated.");
       load();
     } catch (e) {
       showToast("error", e instanceof Error ? e.message : "Failed");

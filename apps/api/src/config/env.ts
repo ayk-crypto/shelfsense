@@ -129,4 +129,5 @@ export const env = {
   appUrl: process.env.WEB_BASE_URL ?? process.env.APP_URL ?? "http://localhost:5000",
   supportFrom: process.env.SUPPORT_FROM ?? null,
   supportInboundSecret: process.env.SUPPORT_INBOUND_SECRET ?? null,
+  paymentProvider: (process.env.PAYMENT_PROVIDER ?? "mock").toLowerCase() as "mock" | "payfast" | "safepay",
 };

@@ -30,6 +30,7 @@ import { teamRouter } from "./routes/team.js";
 import { workspaceRouter } from "./routes/workspace.js";
 import { supportRouter } from "./routes/support.js";
 import { webhooksRouter } from "./routes/webhooks.js";
+import { billingRouter } from "./routes/billing.js";
 
 export const app = express();
 
@@ -187,6 +188,7 @@ app.use("/webhooks", webhooksRouter);
 app.use("/reports", reportsRouter);
 app.use("/plan", planRouter);
 app.use("/subscriptions", subscriptionsRouter);
+app.use("/billing", billingRouter);
 app.use("/team", teamRouter);
 app.use("/support", supportRouter);
 app.use((req, res) => {

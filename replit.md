@@ -52,6 +52,7 @@ This is an npm workspaces monorepo with three packages:
 - Reports page with CSV export
 - **Subscription plan system**: 3 tiers — FREE (50 items, 1 location, 3 users), BASIC (500 items, 5 locations, 10 users), PRO (unlimited). `PlanTier` enum on `Workspace.plan` (default FREE). Limits enforced server-side on `POST /items`, `POST /locations`, `POST /team/users` with HTTP 403 + `code: "PLAN_LIMIT_REACHED"`. `GET /plan/status` returns plan + limits + live usage counts; `PATCH /plan` (OWNER only) switches tiers. Frontend: `/plan` page (OWNER-only) with plan cards + usage progress bars; "Plan" nav link in sidebar.
 - **Subscriptions API** (`/subscriptions` router): `GET /plans` (public — returns active public plans), `GET /current` (auth — returns workspace subscription), `POST /preview` (auth — coupon validation + price preview), `POST /select-plan` (OWNER — creates subscription, sets workspace plan tier and `onboardingCompleted=true`). SubscriptionStatus: ACTIVE for free/fully-discounted, MANUAL_REVIEW for pending payment. AppShell shows a yellow billing-pending banner when `subscription.status === "MANUAL_REVIEW"`.
+- **Payment gateway architecture** (`/billing` router): provider abstraction at `apps/api/src/lib/payment-provider/` (mock + PayFast/Safepay stubs); `PAYMENT_PROVIDER` env var selects provider (default `mock`). `POST /billing/checkout` computes amount server-side, creates Subscription+Payment+BillingEvent, returns `checkoutUrl`. `POST /billing/webhooks/mock` simulates pay/cancel with idempotency via `BillingEvent.gatewayEventId` unique constraint. `GET /billing/subscription` returns current sub + recent payments. `POST /admin/payments/:id/mark-paid` activates MANUAL_REVIEW subscriptions (admin only). New `Invoice` and `BillingEvent` DB models. Frontend: `/billing/checkout` (plan picker), `/billing/mock-checkout` (dev simulate), `/billing/success`, `/billing/failed`, `/billing/pending`, `/settings/billing` (sub + payment history).
 - Team management (invite / role change / remove)
 - Activity log with filters
 - Settings page (workspace name, notifications toggles, daily digest email preference)
@@ -106,6 +107,7 @@ This is an npm workspaces monorepo with three packages:
 - `WEB_BASE_URL` — public frontend URL used in auth email links (aliases `APP_URL`)
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` — email sending (optional; console fallback in dev)
 - `SMTP_FROM` — sender address for auth emails (aliases `EMAIL_FROM`)
+- `PAYMENT_PROVIDER` — `mock` (default) | `payfast` | `safepay`
 
 ### Web (`apps/web/.env`)
 - `VITE_API_BASE_URL` — API base URL; defaults to `/api` (proxied in dev); set to full Render URL in production

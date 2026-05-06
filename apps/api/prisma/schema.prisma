@@ -88,6 +88,16 @@ enum PaymentMethod {
   EASYPAISA
   JAZZCASH
   OTHER
+  MOCK
+  PAYFAST
+  SAFEPAY
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PAID
+  VOID
 }
 
 enum PaymentStatus {
@@ -245,6 +255,8 @@ model Workspace {
   stockCounts                    StockCount[]
   subscriptions                  Subscription[]
   payments                       Payment[]
+  invoices                       Invoice[]
+  billingEvents                  BillingEvent[]
   supportTickets                 SupportTicket[]
 }
 
@@ -580,25 +592,29 @@ model Plan {
 }
 
 model Subscription {
-  id                 String             @id @default(uuid()) @db.Uuid
-  workspaceId        String             @db.Uuid
-  planId             String             @db.Uuid
-  status             SubscriptionStatus @default(TRIAL)
-  billingCycle       BillingCycle       @default(MANUAL)
-  currency           String             @default("PKR")
-  amount             Float              @default(0)
-  trialEndsAt        DateTime?
-  currentPeriodStart DateTime?
-  currentPeriodEnd   DateTime?
-  nextRenewalAt      DateTime?
-  couponId           String?            @db.Uuid
-  manualNotes        String?
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-  workspace          Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  plan               Plan               @relation(fields: [planId], references: [id])
-  coupon             Coupon?            @relation(fields: [couponId], references: [id], onDelete: SetNull)
-  payments           Payment[]
+  id                      String             @id @default(uuid()) @db.Uuid
+  workspaceId             String             @db.Uuid
+  planId                  String             @db.Uuid
+  status                  SubscriptionStatus @default(TRIAL)
+  billingCycle            BillingCycle       @default(MANUAL)
+  currency                String             @default("PKR")
+  amount                  Float              @default(0)
+  trialEndsAt             DateTime?
+  currentPeriodStart      DateTime?
+  currentPeriodEnd        DateTime?
+  nextRenewalAt           DateTime?
+  couponId                String?            @db.Uuid
+  manualNotes             String?
+  gatewayProvider         String?
+  gatewayCustomerId       String?
+  gatewaySubscriptionId   String?
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
+  workspace               Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  plan                    Plan               @relation(fields: [planId], references: [id])
+  coupon                  Coupon?            @relation(fields: [couponId], references: [id], onDelete: SetNull)
+  payments                Payment[]
+  invoices                Invoice[]
 
   @@index([workspaceId])
   @@index([status])
@@ -647,6 +663,9 @@ model Payment {
   currency         String        @default("PKR")
   paymentMethod    PaymentMethod @default(OTHER)
   referenceNumber  String?
+  gatewayProvider  String?
+  gatewayReference String?
+  metadata         Json?
   status           PaymentStatus @default(PENDING)
   paidAt           DateTime?
   notes            String?
@@ -656,10 +675,56 @@ model Payment {
   workspace        Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   subscription     Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
   recordedBy       User          @relation(fields: [recordedByUserId], references: [id])
+  invoices         Invoice[]
 
   @@index([workspaceId])
   @@index([status])
   @@index([subscriptionId])
+  @@index([createdAt])
+}
+
+model Invoice {
+  id             String        @id @default(uuid()) @db.Uuid
+  workspaceId    String        @db.Uuid
+  subscriptionId String?       @db.Uuid
+  paymentId      String?       @db.Uuid
+  invoiceNumber  String        @unique
+  amount         Float
+  currency       String        @default("USD")
+  status         InvoiceStatus @default(DRAFT)
+  issuedAt       DateTime      @default(now())
+  dueAt          DateTime?
+  paidAt         DateTime?
+  notes          String?
+  lineItems      Json          @default("[]")
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  workspace      Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  subscription   Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  payment        Payment?      @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@index([status])
+  @@index([subscriptionId])
+  @@index([createdAt])
+}
+
+model BillingEvent {
+  id              String     @id @default(uuid()) @db.Uuid
+  workspaceId     String?    @db.Uuid
+  eventType       String
+  gatewayProvider String?
+  gatewayEventId  String?
+  subscriptionId  String?    @db.Uuid
+  paymentId       String?    @db.Uuid
+  payload         Json?
+  processedAt     DateTime   @default(now())
+  createdAt       DateTime   @default(now())
+  workspace       Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+
+  @@unique([gatewayProvider, gatewayEventId])
+  @@index([workspaceId])
+  @@index([eventType])
   @@index([createdAt])
 }
 
