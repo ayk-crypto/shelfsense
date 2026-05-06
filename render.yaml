@@ -46,6 +46,25 @@ services:
         sync: false
       - key: SUPPORT_INBOUND_SECRET
         sync: false
+      # ── Paddle payment gateway ──────────────────────────────────────────
+      - key: PAYMENT_PROVIDER       # set to "paddle" to enable Paddle billing
+        sync: false
+      - key: PADDLE_ENV             # "sandbox" or "production"
+        sync: false
+      - key: PADDLE_API_KEY         # server-side API key from Paddle dashboard
+        sync: false
+      - key: PADDLE_WEBHOOK_SECRET  # webhook signing secret from Paddle → Notifications
+        sync: false
+      - key: PADDLE_BASIC_MONTHLY_PRICE_ID
+        sync: false
+      - key: PADDLE_BASIC_ANNUAL_PRICE_ID
+        sync: false
+      - key: PADDLE_PRO_MONTHLY_PRICE_ID
+        sync: false
+      - key: PADDLE_PRO_ANNUAL_PRICE_ID
+        sync: false
+      - key: APP_FRONTEND_URL       # same as WEB_BASE_URL; used in Paddle success redirect
+        sync: false
 
   - type: static
     name: shelfsense-web
@@ -67,6 +86,11 @@ services:
         sync: false
       - key: VITE_APP_ENV
         value: production
+      # ── Paddle (build-time — baked into JS bundle) ──────────────────────
+      - key: VITE_PADDLE_CLIENT_TOKEN  # client token from Paddle → Developer Tools
+        sync: false
+      - key: VITE_PADDLE_ENV           # "sandbox" or "production"
+        sync: false
 
   # ══════════════════════════════════════════════════════════════════════════
   #  STAGING — deploys automatically when staging branch is pushed
