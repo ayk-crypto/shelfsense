@@ -65,10 +65,12 @@ const TICKET_SELECT = {
 // ── GET /admin/support/summary ─────────────────────────────────────────────
 
 adminSupportRouter.get("/summary", asyncHandler(async (_req, res) => {
-  const [openCount, pendingCount, urgentCount, recentOpen] = await Promise.all([
+  const [openCount, pendingCount, urgentCount, resolvedCount, closedCount, recentOpen] = await Promise.all([
     prisma.supportTicket.count({ where: { status: "OPEN" } }),
     prisma.supportTicket.count({ where: { status: "PENDING" } }),
     prisma.supportTicket.count({ where: { status: "OPEN", priority: { in: ["URGENT", "HIGH"] } } }),
+    prisma.supportTicket.count({ where: { status: "RESOLVED" } }),
+    prisma.supportTicket.count({ where: { status: "CLOSED" } }),
     prisma.supportTicket.findMany({
       where: { status: { in: ["OPEN", "PENDING"] } },
       orderBy: { lastMessageAt: "desc" },
@@ -92,6 +94,8 @@ adminSupportRouter.get("/summary", asyncHandler(async (_req, res) => {
     openCount,
     pendingCount,
     urgentCount,
+    resolvedCount,
+    closedCount,
     totalActive: openCount + pendingCount,
     recentOpen,
   });

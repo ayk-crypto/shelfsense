@@ -1362,6 +1362,8 @@ export interface AdminNotificationSummary {
   openCount: number;
   pendingCount: number;
   urgentCount: number;
+  resolvedCount: number;
+  closedCount: number;
   totalActive: number;
   recentOpen: Array<{
     id: string;
