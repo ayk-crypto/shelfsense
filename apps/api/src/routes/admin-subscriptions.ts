@@ -226,7 +226,7 @@ adminSubscriptionsRouter.post("/:id/activate", asyncHandler(async (req, res) => 
 
   const sub = await prisma.subscription.findUnique({
     where: { id },
-    select: { id: true, status: true, workspaceId: true, billingCycle: true },
+    select: { id: true, status: true, workspaceId: true, billingCycle: true, amount: true, currency: true },
   });
   if (!sub) return res.status(404).json({ error: "Subscription not found" });
   if (sub.status === "ACTIVE") return res.status(409).json({ error: "Subscription is already active" });
@@ -243,24 +243,44 @@ adminSubscriptionsRouter.post("/:id/activate", asyncHandler(async (req, res) => 
     currentPeriodEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
   }
 
-  const updated = await prisma.subscription.update({
-    where: { id },
-    data: {
-      status: "ACTIVE",
-      billingCycle,
-      currentPeriodStart: now,
-      currentPeriodEnd,
-      nextRenewalAt: currentPeriodEnd,
-      manualNotes: null,
-    },
-    select: SUB_SELECT,
+  await prisma.$transaction(async (tx) => {
+    await tx.subscription.update({
+      where: { id },
+      data: {
+        status: "ACTIVE",
+        billingCycle,
+        currentPeriodStart: now,
+        currentPeriodEnd,
+        nextRenewalAt: currentPeriodEnd,
+        manualNotes: null,
+      },
+    });
+
+    // Auto-create a PAID payment record so it appears in the Payments tab
+    if (sub.amount > 0) {
+      await tx.payment.create({
+        data: {
+          workspaceId: sub.workspaceId,
+          subscriptionId: id,
+          amount: sub.amount,
+          currency: sub.currency,
+          paymentMethod: "OTHER",
+          status: "PAID",
+          paidAt: now,
+          recordedByUserId: adminId,
+          notes: `Manually activated by admin (${billingCycle.toLowerCase()} · expires ${currentPeriodEnd ? currentPeriodEnd.toISOString().slice(0, 10) : "no expiry"})`,
+        },
+      });
+    }
   });
 
   await logAdminAction(adminId, "subscription_activated", "subscription", id, {
     workspaceId: sub.workspaceId,
     billingCycle,
     expiryDate: body.expiryDate ?? null,
+    paymentRecorded: sub.amount > 0,
   });
 
-  return res.json({ subscription: updated, ok: true });
+  const result = await prisma.subscription.findUnique({ where: { id }, select: SUB_SELECT });
+  return res.json({ subscription: result, ok: true });
 }));
