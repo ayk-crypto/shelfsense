@@ -159,6 +159,7 @@ app.get("/api/ready", async (_req, res) => {
       database: "ok",
       schema: "not_migrated",
       missingTables: result.missingTables,
+      missingColumns: result.missingColumns,
     });
   }
 
@@ -166,6 +167,7 @@ app.get("/api/ready", async (_req, res) => {
     status: "ready",
     database: "ok",
     schema: "ok",
+    missingColumns: [],
   });
 });
 
