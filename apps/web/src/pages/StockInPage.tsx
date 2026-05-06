@@ -22,6 +22,11 @@ interface BatchRow {
   lastPrice: number | null;
   metaLoading: boolean;
   suggested: boolean;
+  enteredUnit: "base" | "purchase";
+}
+
+function fmtQty(n: number) {
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 4 }).format(n);
 }
 
 interface RowResult {
@@ -119,6 +124,7 @@ export function StockInPage() {
             lastPrice: null,
             metaLoading: true,
             suggested: false,
+            enteredUnit: preselected.purchaseUnit ? "purchase" : "base",
           }]);
           setSearch("");
           setShowDropdown(false);
@@ -183,6 +189,7 @@ export function StockInPage() {
       lastPrice: null,
       metaLoading: true,
       suggested: false,
+      enteredUnit: item.purchaseUnit ? "purchase" : "base",
     };
     setRows((prev) => [...prev, newRow]);
     setSearch("");
@@ -234,6 +241,7 @@ export function StockInPage() {
         lastPrice: source.lastPrice,
         metaLoading: false,
         suggested: false,
+        enteredUnit: source.enteredUnit,
       };
       const updated = [...prev];
       updated.splice(idx + 1, 0, newRow);
@@ -357,16 +365,21 @@ export function StockInPage() {
         continue;
       }
       const selectedSupplier = suppliers.find((s) => s.id === row.supplierId);
+      const enteredQty = parseFloat(row.qty);
+      const isPurchaseUnit = row.enteredUnit === "purchase" && !!row.item.purchaseUnit && !!row.item.purchaseConversionFactor;
+      const baseQty = isPurchaseUnit ? enteredQty * row.item.purchaseConversionFactor! : enteredQty;
       try {
         await stockIn({
           itemId: row.item.id,
-          quantity: parseFloat(row.qty),
+          quantity: baseQty,
           unitCost: row.unitCost ? parseFloat(row.unitCost) : undefined,
           expiryDate: row.expiryDate || undefined,
           batchNo: row.batchNo || undefined,
           supplierId: row.supplierId || undefined,
           supplierName: selectedSupplier?.name,
           note: [row.note.trim(), globalNote.trim()].filter(Boolean).join(" · ") || undefined,
+          enteredQuantity: isPurchaseUnit ? enteredQty : undefined,
+          enteredUnit: isPurchaseUnit ? row.item.purchaseUnit! : undefined,
         });
         out.push({ rowId: row.rowId, itemName: row.item.name, batchNo: row.batchNo, status: "success" });
       } catch (err) {
@@ -641,6 +654,24 @@ export function StockInPage() {
                         />
                       </td>
                       <td className="stock-entry-td-qty">
+                        {row.item.purchaseUnit && (
+                          <div className="uom-toggle">
+                            <button
+                              type="button"
+                              className={`uom-toggle-btn${row.enteredUnit === "base" ? " uom-toggle-btn--active" : ""}`}
+                              onClick={() => setRows((prev) => prev.map((r) => r.rowId === row.rowId ? { ...r, enteredUnit: "base", qty: "" } : r))}
+                            >
+                              {row.item.unit}
+                            </button>
+                            <button
+                              type="button"
+                              className={`uom-toggle-btn${row.enteredUnit === "purchase" ? " uom-toggle-btn--active" : ""}`}
+                              onClick={() => setRows((prev) => prev.map((r) => r.rowId === row.rowId ? { ...r, enteredUnit: "purchase", qty: "" } : r))}
+                            >
+                              {row.item.purchaseUnit}
+                            </button>
+                          </div>
+                        )}
                         <input
                           className={`stock-entry-input ${qtyInvalid ? "stock-entry-input--error" : ""}`}
                           type="number"
@@ -650,6 +681,11 @@ export function StockInPage() {
                           value={row.qty}
                           onChange={(e) => updateRow(row.rowId, "qty", e.target.value)}
                         />
+                        {row.enteredUnit === "purchase" && row.item.purchaseUnit && row.item.purchaseConversionFactor && row.qty && parseFloat(row.qty) > 0 && (
+                          <div className="uom-hint">
+                            = {fmtQty(parseFloat(row.qty) * row.item.purchaseConversionFactor)} {row.item.unit}
+                          </div>
+                        )}
                       </td>
                       <td className="stock-entry-td-cost">
                         <input

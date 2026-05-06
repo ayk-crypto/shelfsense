@@ -41,12 +41,14 @@ stockRouter.post("/in", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(as
 
   const item = await prisma.item.findFirst({
     where: { id: itemId, workspaceId, isActive: true },
-    select: { id: true, name: true, unit: true },
+    select: { id: true, name: true, unit: true, purchaseUnit: true, purchaseConversionFactor: true },
   });
 
   if (!item) {
     return res.status(404).json({ error: "Item not found" });
   }
+
+  const uomConversion = resolveUomConversion(input.enteredUnit, input.enteredQuantity, item.purchaseUnit, item.purchaseConversionFactor, quantity);
 
   try {
     const result = await runSerializableWrite(async (tx) => {
@@ -73,13 +75,15 @@ stockRouter.post("/in", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(as
           itemId,
           workspaceId,
           locationId,
-          quantity,
-          remainingQuantity: quantity,
+          quantity: uomConversion.baseQuantity,
+          remainingQuantity: uomConversion.baseQuantity,
           unitCost: effectiveUnitCost,
           expiryDate,
           batchNo: input.batchNo,
           supplierId: input.supplierId ?? null,
           supplierName: input.supplierName,
+          receivedQuantity: uomConversion.enteredQuantity ?? null,
+          receivedUnit: uomConversion.enteredUnit ?? null,
         },
       });
 
@@ -90,9 +94,12 @@ stockRouter.post("/in", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(as
           itemId,
           batchId: batch.id,
           type: StockMovementType.STOCK_IN,
-          quantity,
+          quantity: uomConversion.baseQuantity,
           unitCost: effectiveUnitCost,
           note: input.note,
+          enteredQuantity: uomConversion.enteredQuantity ?? null,
+          enteredUnit: uomConversion.enteredUnit ?? null,
+          conversionFactor: uomConversion.conversionFactor ?? null,
         },
       });
 
@@ -152,13 +159,17 @@ stockRouter.post("/opening", requireRole([Role.OWNER, Role.MANAGER]), asyncHandl
 
   const item = await prisma.item.findFirst({
     where: { id: itemId, workspaceId, isActive: true },
-    select: { id: true, name: true, unit: true, trackExpiry: true },
+    select: { id: true, name: true, unit: true, trackExpiry: true, purchaseUnit: true, purchaseConversionFactor: true },
   });
   if (!item) return res.status(404).json({ error: "Item not found" });
 
   if (item.trackExpiry && !expiryDate) {
     return res.status(400).json({ error: "Expiry date is required for expiry-tracked items" });
   }
+
+  const enteredUnit = typeof body.enteredUnit === "string" && body.enteredUnit.trim() ? body.enteredUnit.trim() : undefined;
+  const enteredQuantityRaw = typeof body.enteredQuantity === "number" && Number.isFinite(body.enteredQuantity) ? body.enteredQuantity : undefined;
+  const openingUomConversion = resolveUomConversion(enteredUnit, enteredQuantityRaw, item.purchaseUnit, item.purchaseConversionFactor, quantity);
 
   try {
     const result = await runSerializableWrite(async (tx) => {
@@ -175,13 +186,15 @@ stockRouter.post("/opening", requireRole([Role.OWNER, Role.MANAGER]), asyncHandl
           itemId,
           workspaceId,
           locationId,
-          quantity,
-          remainingQuantity: quantity,
+          quantity: openingUomConversion.baseQuantity,
+          remainingQuantity: openingUomConversion.baseQuantity,
           unitCost: unitCost ?? null,
           expiryDate: expiryDate || null,
           batchNo: batchNo ?? null,
           supplierId: supplierId ?? null,
           supplierName: supplierName ?? null,
+          receivedQuantity: openingUomConversion.enteredQuantity ?? null,
+          receivedUnit: openingUomConversion.enteredUnit ?? null,
         },
       });
 
@@ -192,10 +205,13 @@ stockRouter.post("/opening", requireRole([Role.OWNER, Role.MANAGER]), asyncHandl
           itemId,
           batchId: batch.id,
           type: StockMovementType.STOCK_IN,
-          quantity,
+          quantity: openingUomConversion.baseQuantity,
           unitCost: unitCost ?? null,
           reason: "opening_balance",
           note: noteText,
+          enteredQuantity: openingUomConversion.enteredQuantity ?? null,
+          enteredUnit: openingUomConversion.enteredUnit ?? null,
+          conversionFactor: openingUomConversion.conversionFactor ?? null,
         },
       });
 
@@ -241,12 +257,14 @@ stockRouter.post("/out", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]),
 
   const item = await prisma.item.findFirst({
     where: { id: itemId, workspaceId, isActive: true },
-    select: { id: true, name: true, unit: true },
+    select: { id: true, name: true, unit: true, purchaseUnit: true, purchaseConversionFactor: true },
   });
 
   if (!item) {
     return res.status(404).json({ error: "Item not found" });
   }
+
+  const outUomConversion = resolveUomConversion(input.enteredUnit, input.enteredQuantity, item.purchaseUnit, item.purchaseConversionFactor, quantity);
 
   try {
     const result = await runSerializableWrite(async (tx) => {
@@ -274,13 +292,14 @@ stockRouter.post("/out", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]),
         0,
       );
 
-      if (availableQuantity < quantity) {
-        throw new InsufficientStockError(item.name, quantity, availableQuantity);
+      if (availableQuantity < outUomConversion.baseQuantity) {
+        throw new InsufficientStockError(item.name, outUomConversion.baseQuantity, availableQuantity);
       }
 
       const sortedBatches = batches.sort(compareFifoBatches);
-      let quantityToDeduct = quantity;
+      let quantityToDeduct = outUomConversion.baseQuantity;
       const movements = [];
+      let firstBatch = true;
 
       for (const batch of sortedBatches) {
         if (quantityToDeduct <= 0) {
@@ -322,9 +341,13 @@ stockRouter.post("/out", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]),
             unitCost: batch.unitCost,
             reason: input.reason,
             note: input.note,
+            enteredQuantity: firstBatch ? (outUomConversion.enteredQuantity ?? null) : null,
+            enteredUnit: firstBatch ? (outUomConversion.enteredUnit ?? null) : null,
+            conversionFactor: firstBatch ? (outUomConversion.conversionFactor ?? null) : null,
           },
         });
 
+        firstBatch = false;
         movements.push(movement);
       }
 
@@ -871,6 +894,36 @@ function getWorkspaceId(req: Express.Request) {
   return req.user?.workspaceId ?? null;
 }
 
+function resolveUomConversion(
+  enteredUnit: string | undefined,
+  enteredQuantity: number | undefined,
+  purchaseUnit: string | null,
+  purchaseConversionFactor: number | null,
+  fallbackBaseQuantity: number,
+) {
+  if (
+    enteredUnit &&
+    enteredQuantity !== undefined &&
+    purchaseUnit &&
+    purchaseConversionFactor &&
+    enteredUnit === purchaseUnit
+  ) {
+    const baseQuantity = enteredQuantity * purchaseConversionFactor;
+    return {
+      baseQuantity,
+      enteredQuantity,
+      enteredUnit,
+      conversionFactor: purchaseConversionFactor,
+    };
+  }
+  return {
+    baseQuantity: fallbackBaseQuantity,
+    enteredQuantity: enteredUnit && enteredQuantity !== undefined ? enteredQuantity : undefined,
+    enteredUnit: enteredUnit ?? undefined,
+    conversionFactor: undefined,
+  };
+}
+
 function getExpiryAlertDays(value: number | null | undefined) {
   return typeof value === "number" && value >= 0 ? value : 7;
 }
@@ -885,6 +938,8 @@ function parseStockInInput(body: unknown) {
     supplierId?: unknown;
     supplierName?: unknown;
     note?: unknown;
+    enteredQuantity?: unknown;
+    enteredUnit?: unknown;
   };
 
   return {
@@ -896,6 +951,8 @@ function parseStockInInput(body: unknown) {
     supplierId: parseNullableString(input.supplierId),
     supplierName: parseNullableString(input.supplierName),
     note: parseNullableString(input.note),
+    enteredQuantity: parseOptionalNumber(input.enteredQuantity),
+    enteredUnit: parseOptionalString(input.enteredUnit),
   };
 }
 
@@ -905,6 +962,8 @@ function parseStockOutInput(body: unknown) {
     quantity?: unknown;
     reason?: unknown;
     note?: unknown;
+    enteredQuantity?: unknown;
+    enteredUnit?: unknown;
   };
 
   return {
@@ -912,6 +971,8 @@ function parseStockOutInput(body: unknown) {
     quantity: parseOptionalNumber(input.quantity),
     reason: parseNullableString(input.reason),
     note: parseNullableString(input.note),
+    enteredQuantity: parseOptionalNumber(input.enteredQuantity),
+    enteredUnit: parseOptionalString(input.enteredUnit),
   };
 }
 

@@ -302,6 +302,10 @@ export interface Item {
   isActive: boolean;
   archivedAt: string | null;
   createdAt: string;
+  purchaseUnit: string | null;
+  purchaseConversionFactor: number | null;
+  issueUnit: string | null;
+  displayBothUnits: boolean;
 }
 
 export interface ItemsResponse {
@@ -383,6 +387,10 @@ export interface CreateItemInput {
   barcode?: string;
   minStockLevel: number;
   trackExpiry: boolean;
+  purchaseUnit?: string | null;
+  purchaseConversionFactor?: number | null;
+  issueUnit?: string | null;
+  displayBothUnits?: boolean;
 }
 
 export interface StockInInput {
@@ -395,6 +403,8 @@ export interface StockInInput {
   supplierId?: string;
   supplierName?: string;
   note?: string;
+  enteredQuantity?: number;
+  enteredUnit?: string;
 }
 
 export interface SupplierSuggestion {
@@ -425,6 +435,8 @@ export interface StockOutInput {
   quantity: number;
   reason?: string;
   note?: string;
+  enteredQuantity?: number;
+  enteredUnit?: string;
 }
 
 export interface StockTransferInput {

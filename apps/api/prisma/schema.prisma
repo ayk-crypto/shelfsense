@@ -362,24 +362,28 @@ model Membership {
 }
 
 model Item {
-  id              String          @id @default(uuid()) @db.Uuid
-  name            String
-  sku             String?
-  barcode         String?
-  unit            String
-  category        String?
-  minStockLevel   Float           @default(0)
-  trackExpiry     Boolean         @default(false)
-  isActive        Boolean         @default(true)
-  archivedAt      DateTime?
-  workspaceId     String          @db.Uuid
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  workspace       Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  stockBatches    StockBatch[]
-  stockMovements  StockMovement[]
-  purchaseItems   PurchaseItem[]
-  stockCountItems StockCountItem[]
+  id                       String          @id @default(uuid()) @db.Uuid
+  name                     String
+  sku                      String?
+  barcode                  String?
+  unit                     String
+  category                 String?
+  minStockLevel            Float           @default(0)
+  trackExpiry              Boolean         @default(false)
+  isActive                 Boolean         @default(true)
+  archivedAt               DateTime?
+  workspaceId              String          @db.Uuid
+  createdAt                DateTime        @default(now())
+  updatedAt                DateTime        @updatedAt
+  purchaseUnit             String?
+  purchaseConversionFactor Float?
+  issueUnit                String?
+  displayBothUnits         Boolean         @default(false)
+  workspace                Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  stockBatches             StockBatch[]
+  stockMovements           StockMovement[]
+  purchaseItems            PurchaseItem[]
+  stockCountItems          StockCountItem[]
 
   @@index([workspaceId])
   @@index([workspaceId, isActive])
@@ -398,6 +402,8 @@ model StockBatch {
   expiryDate        DateTime?
   batchNo           String?
   supplierName      String?
+  receivedQuantity  Float?
+  receivedUnit      String?
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
   item              Item            @relation(fields: [itemId], references: [id], onDelete: Cascade)
@@ -414,17 +420,20 @@ model StockBatch {
 }
 
 model StockMovement {
-  id          String            @id @default(uuid()) @db.Uuid
-  workspaceId String            @db.Uuid
-  locationId  String            @db.Uuid
-  itemId      String            @db.Uuid
-  batchId     String?           @db.Uuid
-  type        StockMovementType
-  quantity    Float
-  unitCost    Float?
-  reason      String?
-  note        String?
-  createdAt   DateTime          @default(now())
+  id               String            @id @default(uuid()) @db.Uuid
+  workspaceId      String            @db.Uuid
+  locationId       String            @db.Uuid
+  itemId           String            @db.Uuid
+  batchId          String?           @db.Uuid
+  type             StockMovementType
+  quantity         Float
+  unitCost         Float?
+  reason           String?
+  note             String?
+  enteredQuantity  Float?
+  enteredUnit      String?
+  conversionFactor Float?
+  createdAt        DateTime          @default(now())
   workspace   Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   location    Location          @relation(fields: [locationId], references: [id], onDelete: Cascade)
   item        Item              @relation(fields: [itemId], references: [id], onDelete: Cascade)
