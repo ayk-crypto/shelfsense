@@ -99,7 +99,7 @@ export function SuppliersPage() {
     }
   }
 
-  if (loading) {
+  if (planFeatures.isLoading || loading) {
     return (
       <div className="page-loading">
         <div className="spinner" />
@@ -108,16 +108,16 @@ export function SuppliersPage() {
     );
   }
 
+  if (!planFeatures.enableSuppliers) {
+    return <PlanFeatureGate feature="enableSuppliers">{null}</PlanFeatureGate>;
+  }
+
   if (fetchError) {
     return (
       <div className="page-error">
         <div className="alert alert--error">{fetchError}</div>
       </div>
     );
-  }
-
-  if (!planFeatures.enableSuppliers && !planFeatures.isLoading) {
-    return <PlanFeatureGate feature="enableSuppliers">{null}</PlanFeatureGate>;
   }
 
   return (

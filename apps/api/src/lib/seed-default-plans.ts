@@ -15,7 +15,7 @@ const DEFAULT_PLANS = [
     maxItems: 50,
     maxSuppliers: null,
     enableExpiryTracking: true,
-    enableBarcodeScanning: true,
+    enableBarcodeScanning: false,
     enableReports: true,
     enableAdvancedReports: false,
     enablePurchases: false,
