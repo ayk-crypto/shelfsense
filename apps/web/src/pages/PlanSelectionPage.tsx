@@ -342,142 +342,146 @@ export function PlanSelectionPage() {
         </div>
       </div>
 
-      <div className="plan-sel-body">
-        <div className="plan-cards-col">
-          <div className="plan-cards-grid">
-            {plans.map((plan) => (
-              <PlanCard
-                key={plan.id}
-                plan={plan}
-                selected={plan.id === selectedPlanId}
-                billingCycle={billingCycle}
-                onSelect={() => handleSelectPlan(plan.id)}
-              />
-            ))}
-          </div>
-        </div>
-
-        <div className="plan-confirm-sidebar">
-          {selectedPlan && (
-          <div className="plan-confirm-inner">
-            <div className="plan-confirm-selected">
-              <div className="plan-confirm-selected-label">Your selection</div>
-              <div className="plan-confirm-selected-name">
-                {selectedPlan.name}
-                {!isFree && (
-                  <span className="plan-confirm-cycle">
-                    {billingCycle === "ANNUAL" ? " · Billed annually" : " · Billed monthly"}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {!isFree && (
-              <div className="plan-coupon-section">
-                <div className="plan-coupon-label">Promo code</div>
-                {couponCode ? (
-                  <div className="plan-coupon-applied">
-                    <span className="plan-coupon-applied-code">{couponCode}</span>
-                    <button type="button" className="plan-coupon-remove" onClick={handleRemoveCoupon}>Remove</button>
-                  </div>
-                ) : (
-                  <div className="plan-coupon-input-row">
-                    <input
-                      className="plan-coupon-input"
-                      type="text"
-                      placeholder="e.g. LAUNCH100"
-                      value={couponInput}
-                      onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
-                      onKeyDown={(e) => e.key === "Enter" && !couponLoading && void handleApplyCoupon()}
-                    />
-                    <button
-                      type="button"
-                      className="plan-coupon-apply-btn"
-                      onClick={() => void handleApplyCoupon()}
-                      disabled={couponLoading || !couponInput.trim()}
-                    >
-                      {couponLoading ? "…" : "Apply"}
-                    </button>
-                  </div>
-                )}
-                {couponSuccess && <div className="plan-coupon-success">✓ {couponSuccess}</div>}
-                {couponError && <div className="plan-coupon-error">{couponError}</div>}
-              </div>
-            )}
-
-            {!isFree && (
-              <div className="plan-price-summary">
-                <div className="plan-price-row">
-                  <span>{billingCycle === "ANNUAL" ? "Annual total" : "Monthly total"}</span>
-                  <span>{selectedPlan.currency} {baseAmount.toLocaleString()}</span>
-                </div>
-                {discountAmount > 0 && (
-                  <div className="plan-price-row plan-price-row--discount">
-                    <span>Promo discount</span>
-                    <span>− {selectedPlan.currency} {discountAmount.toLocaleString()}</span>
-                  </div>
-                )}
-                <div className="plan-price-row plan-price-row--total">
-                  <span>Amount due</span>
-                  <span>
-                    {payableAmount === 0
-                      ? "Free"
-                      : `${selectedPlan.currency} ${payableAmount.toLocaleString()}`}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {showPendingPaymentNote() && (
-              <div className="plan-pending-note">
-                <svg viewBox="0 0 20 20" fill="currentColor" style={{ width: 16, height: 16, flexShrink: 0, marginTop: 1 }}>
-                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                </svg>
-                <div>
-                  <strong>Payment gateway not connected.</strong> Your plan will be activated in manual review mode — you'll have full dashboard access while our team processes your account. A payment link will be sent separately.
-                </div>
-              </div>
-            )}
-
-            {confirmError && <div className="alert alert--error">{confirmError}</div>}
-
-            <button
-              type="button"
-              className={`plan-confirm-btn ${isFree ? "plan-confirm-btn--free" : payableAmount === 0 ? "plan-confirm-btn--activate" : "plan-confirm-btn--pending"}`}
-              onClick={() => void handleConfirm()}
-              disabled={confirming}
-            >
-              {confirming ? (
-                <><div className="spinner spinner--sm spinner--white" /> Activating…</>
-              ) : (
-                getCtaText()
-              )}
-            </button>
-
-            <div className="plan-confirm-trust">
-              <span className="plan-confirm-trust-item">
-                <svg viewBox="0 0 20 20" fill="currentColor" style={{ width: 13, height: 13 }}>
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                Cancel anytime
-              </span>
-              <span className="plan-confirm-trust-item">
-                <svg viewBox="0 0 20 20" fill="currentColor" style={{ width: 13, height: 13 }}>
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                {isFree ? "No credit card required" : "Upgrade or downgrade anytime"}
-              </span>
-              <span className="plan-confirm-trust-item">
-                <svg viewBox="0 0 20 20" fill="currentColor" style={{ width: 13, height: 13 }}>
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                Change plan from dashboard
-              </span>
-            </div>
-          </div>
-          )}
+      {/* ── Plan cards ── */}
+      <div className="plan-sel-cards-section">
+        <div className="plan-cards-grid">
+          {plans.map((plan) => (
+            <PlanCard
+              key={plan.id}
+              plan={plan}
+              selected={plan.id === selectedPlanId}
+              billingCycle={billingCycle}
+              onSelect={() => handleSelectPlan(plan.id)}
+            />
+          ))}
         </div>
       </div>
+
+      {/* ── Summary / CTA panel ── */}
+      {selectedPlan && (
+        <div className="plan-sel-cta-section">
+          <div className="plan-confirm-inner">
+            <div className="plan-confirm-top-row">
+              <div className="plan-confirm-selected">
+                <div className="plan-confirm-selected-label">Your selection</div>
+                <div className="plan-confirm-selected-name">
+                  {selectedPlan.name}
+                  {!isFree && (
+                    <span className="plan-confirm-cycle">
+                      {billingCycle === "ANNUAL" ? " · Billed annually" : " · Billed monthly"}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {!isFree && (
+                <div className="plan-coupon-section">
+                  <div className="plan-coupon-label">Promo code</div>
+                  {couponCode ? (
+                    <div className="plan-coupon-applied">
+                      <span className="plan-coupon-applied-code">{couponCode}</span>
+                      <button type="button" className="plan-coupon-remove" onClick={handleRemoveCoupon}>Remove</button>
+                    </div>
+                  ) : (
+                    <div className="plan-coupon-input-row">
+                      <input
+                        className="plan-coupon-input"
+                        type="text"
+                        placeholder="e.g. LAUNCH100"
+                        value={couponInput}
+                        onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                        onKeyDown={(e) => e.key === "Enter" && !couponLoading && void handleApplyCoupon()}
+                      />
+                      <button
+                        type="button"
+                        className="plan-coupon-apply-btn"
+                        onClick={() => void handleApplyCoupon()}
+                        disabled={couponLoading || !couponInput.trim()}
+                      >
+                        {couponLoading ? "…" : "Apply"}
+                      </button>
+                    </div>
+                  )}
+                  {couponSuccess && <div className="plan-coupon-success">✓ {couponSuccess}</div>}
+                  {couponError && <div className="plan-coupon-error">{couponError}</div>}
+                </div>
+              )}
+
+              {!isFree && (
+                <div className="plan-price-summary">
+                  <div className="plan-price-row">
+                    <span>{billingCycle === "ANNUAL" ? "Annual total" : "Monthly total"}</span>
+                    <span>{selectedPlan.currency} {baseAmount.toLocaleString()}</span>
+                  </div>
+                  {discountAmount > 0 && (
+                    <div className="plan-price-row plan-price-row--discount">
+                      <span>Promo discount</span>
+                      <span>− {selectedPlan.currency} {discountAmount.toLocaleString()}</span>
+                    </div>
+                  )}
+                  <div className="plan-price-row plan-price-row--total">
+                    <span>Amount due</span>
+                    <span>
+                      {payableAmount === 0
+                        ? "Free"
+                        : `${selectedPlan.currency} ${payableAmount.toLocaleString()}`}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="plan-confirm-actions-col">
+              {showPendingPaymentNote() && (
+                <div className="plan-pending-note">
+                  <svg viewBox="0 0 20 20" fill="currentColor" style={{ width: 16, height: 16, flexShrink: 0, marginTop: 1 }}>
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  <div>
+                    <strong>Payment gateway not connected.</strong> Your plan will be activated in manual review mode — you'll have full dashboard access while our team processes your account. A payment link will be sent separately.
+                  </div>
+                </div>
+              )}
+
+              {confirmError && <div className="alert alert--error">{confirmError}</div>}
+
+              <button
+                type="button"
+                className={`plan-confirm-btn ${isFree ? "plan-confirm-btn--free" : payableAmount === 0 ? "plan-confirm-btn--activate" : "plan-confirm-btn--pending"}`}
+                onClick={() => void handleConfirm()}
+                disabled={confirming}
+              >
+                {confirming ? (
+                  <><div className="spinner spinner--sm spinner--white" /> Activating…</>
+                ) : (
+                  getCtaText()
+                )}
+              </button>
+
+              <div className="plan-confirm-trust">
+                <span className="plan-confirm-trust-item">
+                  <svg viewBox="0 0 20 20" fill="currentColor" style={{ width: 13, height: 13 }}>
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  Cancel anytime
+                </span>
+                <span className="plan-confirm-trust-item">
+                  <svg viewBox="0 0 20 20" fill="currentColor" style={{ width: 13, height: 13 }}>
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  {isFree ? "No credit card required" : "Upgrade or downgrade anytime"}
+                </span>
+                <span className="plan-confirm-trust-item">
+                  <svg viewBox="0 0 20 20" fill="currentColor" style={{ width: 13, height: 13 }}>
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  Change plan from dashboard
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

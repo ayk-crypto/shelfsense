@@ -19266,41 +19266,86 @@ body {
   letter-spacing: 0.02em;
 }
 
-/* ── Body: cards + sidebar ───────────────────────── */
-.plan-sel-body {
-  display: flex;
-  gap: 24px;
-  max-width: 1160px;
+/* ── Plan cards section (full-width, all 4 in one row) ── */
+.plan-sel-cards-section {
+  max-width: 1280px;
   margin: 0 auto;
-  padding: 0 24px;
-  align-items: flex-start;
+  padding: 0 24px 32px;
 }
 
-.plan-cards-col {
-  flex: 1;
-  min-width: 0;
-}
-
-.plan-confirm-sidebar {
-  width: 308px;
-  flex-shrink: 0;
-  position: sticky;
-  top: 76px;
-}
-
-/* ── Plan cards grid ─────────────────────────────── */
 .plan-cards-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
   align-items: stretch;
 }
+
+@media (max-width: 1023px) {
+  .plan-cards-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 599px) {
+  .plan-cards-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── CTA / summary section (centered strip below cards) ── */
+.plan-sel-cta-section {
+  max-width: 1280px;
+  margin: 0 auto 56px;
+  padding: 0 24px;
+}
+
+/* ── Confirm inner: horizontal layout on wide screens ── */
+.plan-confirm-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.plan-confirm-top-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 24px;
+  align-items: start;
+  background: #fff;
+  border-radius: 16px 16px 0 0;
+  border: 1px solid #e2e8f0;
+  border-bottom: none;
+  padding: 24px 28px;
+}
+
+.plan-confirm-actions-col {
+  background: #f8fafc;
+  border-radius: 0 0 16px 16px;
+  border: 1px solid #e2e8f0;
+  border-top: 1px solid #e8edf5;
+  padding: 20px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+@media (max-width: 767px) {
+  .plan-confirm-top-row {
+    grid-template-columns: 1fr;
+    border-radius: 16px 16px 0 0;
+  }
+}
+
+/* Legacy sidebar refs — hidden in new layout */
+.plan-sel-body { display: none; }
+.plan-cards-col { display: contents; }
+.plan-confirm-sidebar { display: none; }
 
 .plan-card {
   background: #fff;
   border-radius: 16px;
   border: 1.5px solid #e2e8f0;
-  padding: 28px 26px 24px;
+  padding: 22px 20px 20px;
   cursor: pointer;
   transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
   position: relative;
@@ -19382,7 +19427,7 @@ body {
 }
 
 .plan-price-amount {
-  font-size: 44px;
+  font-size: 38px;
   font-weight: 800;
   color: #0f172a;
   line-height: 1;
@@ -19487,17 +19532,6 @@ body {
 
 /* ── Confirm panel ───────────────────────────────── */
 .plan-sel-confirm-panel { }
-
-.plan-confirm-inner {
-  background: #fff;
-  border-radius: 16px;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 4px 20px rgba(15,23,42,0.07);
-  padding: 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
 
 .plan-confirm-selected-label {
   font-size: 10px;
@@ -19628,8 +19662,6 @@ body {
 
 /* Price summary */
 .plan-price-summary {
-  border-top: 1px solid #f1f5f9;
-  padding-top: 16px;
   display: flex;
   flex-direction: column;
   gap: 8px;
