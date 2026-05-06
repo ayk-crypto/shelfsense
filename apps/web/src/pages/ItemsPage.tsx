@@ -571,6 +571,8 @@ export function ItemsPage() {
           allVisibleSelected={allVisibleSelected}
           bulkCategory={bulkCategory}
           bulkUnit={bulkUnit}
+          categoryOptions={categoryOptions}
+          unitOptions={unitOptions}
           progress={bulkProgress}
           saving={bulkSaving}
           onToggleAllVisible={toggleSelectAllVisible}
@@ -1137,6 +1139,8 @@ function BulkItemsBar({
   allVisibleSelected,
   bulkCategory,
   bulkUnit,
+  categoryOptions,
+  unitOptions,
   progress,
   saving,
   onToggleAllVisible,
@@ -1152,6 +1156,8 @@ function BulkItemsBar({
   allVisibleSelected: boolean;
   bulkCategory: string;
   bulkUnit: string;
+  categoryOptions: string[];
+  unitOptions: string[];
   progress: BulkProgress | null;
   saving: boolean;
   onToggleAllVisible: () => void;
