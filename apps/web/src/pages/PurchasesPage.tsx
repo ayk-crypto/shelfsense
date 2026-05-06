@@ -209,7 +209,7 @@ export function PurchasesPage() {
     }
   }
 
-  if (loading && purchases.length === 0) {
+  if (planFeatures.isLoading || (loading && purchases.length === 0)) {
     return (
       <div className="page-loading">
         <div className="spinner" />
@@ -218,7 +218,7 @@ export function PurchasesPage() {
     );
   }
 
-  if (!planFeatures.enablePurchases && !planFeatures.isLoading) {
+  if (!planFeatures.enablePurchases) {
     return <PlanFeatureGate feature="enablePurchases">{null}</PlanFeatureGate>;
   }
 

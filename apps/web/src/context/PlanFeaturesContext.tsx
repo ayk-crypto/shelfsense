@@ -27,7 +27,7 @@ const FREE_FEATURES: PlanFeatures = {
   enableDailyOps: false,
   enableReports: true,
   enableExpiryTracking: true,
-  enableBarcodeScanning: true,
+  enableBarcodeScanning: false,
   planCode: "FREE",
   planName: "Free",
   isLoading: false,

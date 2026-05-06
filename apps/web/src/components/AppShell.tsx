@@ -455,7 +455,9 @@ export function AppShell() {
               onChange={setActiveLocationId}
             />
             <div className="topbar-actions">
-              <button type="button" className="btn btn--secondary btn--sm" onClick={() => goToItems({ action: "scan" })}>Scan</button>
+              {planFeatures.enableBarcodeScanning && (
+                <button type="button" className="btn btn--secondary btn--sm" onClick={() => goToItems({ action: "scan" })}>Scan</button>
+              )}
               {canRecordStockOut && (
                 <button type="button" className="btn btn--topbar-stock-out btn--sm" onClick={() => navigate("/stock-out")}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{width:13,height:13}}>

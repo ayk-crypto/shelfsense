@@ -25200,63 +25200,133 @@ body {
 }
 
 .plan-gate--inline {
-  min-height: 0;
-  padding: 32px 16px;
+  min-height: 320px;
+  padding: 28px 16px;
 }
 
 .plan-gate__card {
   background: #fff;
   border: 1px solid #e2e8f0;
-  border-radius: 16px;
-  padding: 40px 36px;
-  max-width: 440px;
+  border-radius: 20px;
+  padding: 36px 40px;
+  max-width: 460px;
   width: 100%;
   text-align: center;
-  box-shadow: 0 4px 24px rgba(0,0,0,.06);
+  box-shadow: 0 4px 32px rgba(0,0,0,.06), 0 1px 4px rgba(0,0,0,.03);
 }
 
-.plan-gate__icon {
+.plan-gate__icon-wrap {
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 56px;
-  height: 56px;
-  border-radius: 14px;
-  background: #f1f5f9;
   margin: 0 auto 20px;
-  color: #64748b;
 }
 
-.plan-gate__icon svg {
+.plan-gate__icon-wrap svg {
   width: 28px;
   height: 28px;
 }
 
+.plan-gate__badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 3px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+}
+
 .plan-gate__title {
-  font-size: 18px;
+  font-size: 22px;
   font-weight: 700;
   color: #0f172a;
   margin: 0 0 10px;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
 }
 
-.plan-gate__body {
+.plan-gate__desc {
   font-size: 14px;
   color: #64748b;
-  line-height: 1.6;
-  margin: 0 0 24px;
+  line-height: 1.65;
+  margin: 0 auto 24px;
+  max-width: 360px;
+}
+
+.plan-gate__bullets {
+  list-style: none;
+  padding: 16px 20px;
+  margin: 0 0 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.plan-gate__bullet {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13.5px;
+  color: #334155;
+  font-weight: 500;
+}
+
+.plan-gate__bullet svg {
+  color: #22c55e;
+  flex-shrink: 0;
 }
 
 .plan-gate__actions {
   display: flex;
-  gap: 10px;
-  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+  margin-bottom: 16px;
 }
 
-/* locked button in header actions */
-.plan-locked-btn {
-  opacity: 0.85;
+.plan-gate__cta {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  font-size: 14.5px !important;
+}
+
+.plan-gate__all-plans {
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 13px;
   cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  transition: color 0.15s, background 0.15s;
+  font-weight: 500;
+}
+
+.plan-gate__all-plans:hover {
+  color: #0f172a;
+  background: #f1f5f9;
+}
+
+.plan-gate__current {
+  font-size: 12px;
+  color: #94a3b8;
+  margin: 0;
+}
+
+.plan-gate__current strong {
+  color: #64748b;
+  font-weight: 600;
 }
 
 /* locked report nav item */

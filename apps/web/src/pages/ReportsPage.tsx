@@ -11,6 +11,7 @@ import {
   getWastageCost,
 } from "../api/reports";
 import { useNavigate } from "react-router-dom";
+import { PlanFeatureGate } from "../components/PlanFeatureGate";
 import { useLocation } from "../context/LocationContext";
 import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
 import { usePlanFeatures, REQUIRED_PLAN } from "../context/PlanFeaturesContext";
@@ -343,24 +344,7 @@ export function ReportsPage() {
           </div>
 
           {activeDef.isAdvanced && !planFeatures.enableAdvancedReports && !planFeatures.isLoading && (
-            <div className="plan-gate plan-gate--inline">
-              <div className="plan-gate__card">
-                <div className="plan-gate__icon">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                  </svg>
-                </div>
-                <h2 className="plan-gate__title">{REQUIRED_PLAN.enableAdvancedReports} plan required</h2>
-                <p className="plan-gate__body">
-                  This report isn't available on your current <strong>{planFeatures.planName}</strong> plan.
-                  Upgrade to <strong>{REQUIRED_PLAN.enableAdvancedReports}</strong> or higher to access all advanced analytics.
-                </p>
-                <div className="plan-gate__actions">
-                  <button className="btn btn--primary" onClick={() => navigate("/plan")}>View plans</button>
-                </div>
-              </div>
-            </div>
+            <PlanFeatureGate feature="enableAdvancedReports" inline>{null}</PlanFeatureGate>
           )}
 
           {csvError && (
