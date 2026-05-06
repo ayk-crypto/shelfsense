@@ -75,6 +75,7 @@ _Populate as you build_
 ## Gotchas
 
 - **Database Migrations**: Never run `prisma migrate dev`, `db push`, or `migrate reset` against production environments. Use `npm run migrate:prod` for production.
+- **Never use `prisma db push`**: It bypasses the migration system. Any schema change must go through `prisma migrate dev` locally to generate a migration file, which is then committed and deployed via `prisma migrate deploy`. Using `db push` causes schema drift where `migrate deploy` reports "no pending migrations" yet columns are missing from production.
 - **Auth Tokens**: JWTs are stored in `localStorage` under `shelfsense_token`.
 - **API Client Errors**: The frontend API client attaches `X-Request-Id` from backend responses to thrown `Error` objects for easier debugging.
 
