@@ -29,7 +29,7 @@ const DEFAULT_PLANS = [
     sortOrder: 1,
   },
   {
-    name: "Starter",
+    name: "Basic",
     code: "STARTER",
     description: "For growing teams who need real inventory control across multiple locations.",
     monthlyPrice: 19,
@@ -80,24 +80,48 @@ const DEFAULT_PLANS = [
     isActive: true,
     sortOrder: 3,
   },
+  {
+    name: "Business",
+    code: "BUSINESS",
+    description: "Enterprise-grade inventory management with dedicated support and custom onboarding.",
+    monthlyPrice: 99,
+    annualPrice: 990,
+    currency: "$",
+    trialDays: 0,
+    maxUsers: null,
+    maxLocations: null,
+    maxItems: null,
+    maxSuppliers: null,
+    enableExpiryTracking: true,
+    enableBarcodeScanning: true,
+    enableReports: true,
+    enableAdvancedReports: true,
+    enablePurchases: true,
+    enableSuppliers: true,
+    enableTeamManagement: true,
+    enableCustomRoles: true,
+    enableEmailAlerts: true,
+    enableDailyOps: true,
+    isPublic: true,
+    isActive: true,
+    sortOrder: 4,
+  },
 ];
 
 export async function seedDefaultPlansIfEmpty(): Promise<void> {
   try {
-    const count = await prisma.plan.count();
-    if (count > 0) return;
-
-    logger.info("[SEED] No plans found — seeding default plans");
+    logger.info("[SEED] Syncing default plans");
 
     for (const plan of DEFAULT_PLANS) {
+      const { code, ...rest } = plan;
       await prisma.plan.upsert({
-        where: { code: plan.code },
-        update: {},
+        where: { code },
+        update: rest,
         create: plan,
       });
     }
 
-    logger.info("[SEED] Default plans seeded: FREE, STARTER, PRO");
+    logger.info("[SEED] Default plans synced: FREE, STARTER(Basic), PRO, BUSINESS");
   } catch (err) {
     logger.error("[SEED] Failed to seed default plans", { error: String(err) });
   }

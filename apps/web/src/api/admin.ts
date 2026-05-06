@@ -164,6 +164,10 @@ export function updateAdminSubscription(id: string, data: Record<string, unknown
   return apiClient.patch(`/admin/subscriptions/${id}`, data);
 }
 
+export function activateAdminSubscription(id: string, data: { billingCycle: string; expiryDate?: string }): Promise<{ subscription: AdminSubscription; ok: boolean }> {
+  return apiClient.post(`/admin/subscriptions/${id}/activate`, data);
+}
+
 // ── Payments ──────────────────────────────────────────────────────────────────
 
 export function getAdminPayments(params: { page?: number; limit?: number; status?: string; workspaceId?: string } = {}): Promise<AdminPaymentsResponse> {

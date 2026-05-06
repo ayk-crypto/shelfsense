@@ -491,19 +491,11 @@ export function AppShell() {
           {subscription?.status === "MANUAL_REVIEW" && (
             <div className="billing-pending-banner">
               <svg viewBox="0 0 20 20" fill="currentColor" style={{ width: 16, height: 16, flexShrink: 0 }}>
-                <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
               </svg>
               <span>
-                <strong>Payment pending</strong> — Your <strong>{subscription.plan.name}</strong> plan is active
-                but awaiting payment.{" "}
-                <button
-                  type="button"
-                  onClick={() => navigate("/support")}
-                  style={{ background: "none", border: "none", padding: 0, color: "inherit", fontWeight: 600, cursor: "pointer", textDecoration: "underline", font: "inherit" }}
-                >
-                  Contact support
-                </button>{" "}
-                to complete billing.
+                <strong>{subscription.plan.name} plan selected.</strong>{" "}
+                Your plan has been saved. Our team will contact you shortly to activate billing.
               </span>
               <button className="billing-pending-banner-btn" onClick={() => navigate("/plan")}>
                 View Plan

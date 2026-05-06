@@ -7,34 +7,36 @@ import type { PlanStatus, PlanTier } from "../types";
 
 const PLAN_META: Record<
   PlanTier,
-  { label: string; color: string; bg: string; description: string; price: string }
+  { label: string; color: string; bg: string; description: string; price: string; annualPrice: string }
 > = {
   FREE:  {
     label: "Free",
     color: "#64748b",
     bg: "#f8fafc",
     description: "Get started with the essentials",
-    price: "Free forever",
+    price: "Free",
+    annualPrice: "Free",
   },
   BASIC: {
     label: "Basic",
     color: "#3b82f6",
     bg: "#eff6ff",
     description: "Grow your inventory operations",
-    price: "Coming soon",
+    price: "$19 / mo",
+    annualPrice: "$190 / yr",
   },
   PRO: {
     label: "Pro",
     color: "#6366f1",
     bg: "#eef2ff",
     description: "Unlimited scale for serious businesses",
-    price: "Coming soon",
+    price: "$49 / mo",
+    annualPrice: "$490 / yr",
   },
 };
 
 const PLAN_TIERS: PlanTier[] = ["FREE", "BASIC", "PRO"];
 
-// Differentiated feature lists per plan
 const PLAN_FEATURES: Record<PlanTier, string[]> = {
   FREE: [
     "50 inventory items",
@@ -50,8 +52,9 @@ const PLAN_FEATURES: Record<PlanTier, string[]> = {
     "10 team members",
     "Everything in Free",
     "Purchase orders",
+    "Supplier management",
     "Full reports + CSV export",
-    "Custom roles & permissions",
+    "Email alerts",
     "Priority email support",
   ],
   PRO: [
@@ -60,11 +63,22 @@ const PLAN_FEATURES: Record<PlanTier, string[]> = {
     "Unlimited team members",
     "Everything in Basic",
     "Advanced analytics",
+    "Custom roles & permissions",
     "API access",
     "Dedicated account manager",
-    "SLA support",
   ],
 };
+
+const BUSINESS_FEATURES = [
+  "Everything in Pro",
+  "Custom onboarding",
+  "Priority phone support",
+  "SLA guarantee",
+  "Bulk data import",
+  "Custom integrations",
+  "Quarterly business reviews",
+  "Negotiated pricing",
+];
 
 const PLAN_LIMITS_NEW: Record<PlanTier, { items: string; locations: string; users: string }> = {
   FREE:  { items: "50 items",        locations: "1 location",          users: "3 users"           },
@@ -119,10 +133,7 @@ function ConfirmModal({ from, to, onConfirm, onCancel, loading }: ConfirmModalPr
     <div className="plan-confirm-overlay" ref={overlayRef} onClick={handleOverlayClick}>
       <div className="plan-confirm-modal" role="dialog" aria-modal="true" aria-label={`${verb} plan confirmation`}>
         <div className="plan-confirm-header">
-          <span
-            className="plan-confirm-tier-badge"
-            style={{ background: toMeta.color }}
-          >
+          <span className="plan-confirm-tier-badge" style={{ background: toMeta.color }}>
             {toMeta.label}
           </span>
           <h2 className="plan-confirm-title">{verb} to {toMeta.label}?</h2>
@@ -151,17 +162,8 @@ function ConfirmModal({ from, to, onConfirm, onCancel, loading }: ConfirmModalPr
           </div>
         </div>
 
-        <p className="plan-confirm-preview-note">
-          You are in preview mode. Plan upgrades are free for now. Billing will be enabled soon.
-        </p>
-
         <div className="plan-confirm-actions">
-          <button
-            type="button"
-            className="btn btn--ghost"
-            onClick={onCancel}
-            disabled={loading}
-          >
+          <button type="button" className="btn btn--ghost" onClick={onCancel} disabled={loading}>
             Cancel
           </button>
           <button
@@ -226,10 +228,7 @@ function UsageBar({ label, used, max, icon, currentPlan, onUpgradeClick }: Usage
           {isUnlimited && <span className="plan-usage-max"> / ∞</span>}
         </span>
         <div className="plan-usage-track">
-          <div
-            className="plan-usage-fill"
-            style={{ width: isUnlimited ? "8px" : `${pct}%`, background: color }}
-          />
+          <div className="plan-usage-fill" style={{ width: isUnlimited ? "8px" : `${pct}%`, background: color }} />
         </div>
         {!isUnlimited && (
           <span className="plan-usage-pct" style={{ color }}>{pct}%</span>
@@ -240,11 +239,7 @@ function UsageBar({ label, used, max, icon, currentPlan, onUpgradeClick }: Usage
       </div>
 
       {showUpgradeCta && (
-        <button
-          type="button"
-          className="plan-usage-upgrade-cta"
-          onClick={onUpgradeClick}
-        >
+        <button type="button" className="plan-usage-upgrade-cta" onClick={onUpgradeClick}>
           Upgrade for more
           <svg viewBox="0 0 20 20" fill="currentColor" style={{ width: 12, height: 12 }}>
             <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -259,12 +254,7 @@ function UsageBar({ label, used, max, icon, currentPlan, onUpgradeClick }: Usage
 
 function CheckIcon({ color }: { color?: string }) {
   return (
-    <svg
-      className="plan-feature-check"
-      viewBox="0 0 20 20"
-      fill="currentColor"
-      style={color ? { color } : undefined}
-    >
+    <svg className="plan-feature-check" viewBox="0 0 20 20" fill="currentColor" style={color ? { color } : undefined}>
       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
     </svg>
   );
@@ -274,12 +264,12 @@ function CheckIcon({ color }: { color?: string }) {
 
 export function PlanPage() {
   const navigate = useNavigate();
-  const [status, setStatus]           = useState<PlanStatus | null>(null);
-  const [loading, setLoading]         = useState(true);
-  const [error, setError]             = useState<string | null>(null);
+  const [status, setStatus]               = useState<PlanStatus | null>(null);
+  const [loading, setLoading]             = useState(true);
+  const [error, setError]                 = useState<string | null>(null);
   const [confirmTarget, setConfirmTarget] = useState<PlanTier | null>(null);
-  const [switching, setSwitching]     = useState(false);
-  const [switchError, setSwitchError] = useState<string | null>(null);
+  const [switching, setSwitching]         = useState(false);
+  const [switchError, setSwitchError]     = useState<string | null>(null);
   const [switchSuccess, setSwitchSuccess] = useState<string | null>(null);
   const plansRef = useRef<HTMLDivElement>(null);
 
@@ -360,14 +350,9 @@ export function PlanPage() {
         </div>
       </div>
 
-      {switchSuccess && (
-        <div className="alert alert--success plan-switch-alert">{switchSuccess}</div>
-      )}
-      {switchError && (
-        <div className="alert alert--error plan-switch-alert">{switchError}</div>
-      )}
+      {switchSuccess && <div className="alert alert--success plan-switch-alert">{switchSuccess}</div>}
+      {switchError  && <div className="alert alert--error  plan-switch-alert">{switchError}</div>}
 
-      {/* At-limit upgrade banner */}
       {anyAtLimit && plan !== "PRO" && (
         <div className="plan-limit-banner">
           <div className="plan-limit-banner-inner">
@@ -423,13 +408,9 @@ export function PlanPage() {
               <p className="plan-card-desc">{meta.description}</p>
 
               <div className="plan-price">
-                {tier === "FREE" ? (
-                  <span className="plan-price-value">Free</span>
-                ) : (
-                  <>
-                    <span className="plan-price-coming">Coming soon</span>
-                    <span className="plan-price-hint">Billing will be enabled shortly</span>
-                  </>
+                <span className="plan-price-value">{meta.price}</span>
+                {tier !== "FREE" && (
+                  <span className="plan-price-hint">{meta.annualPrice} billed annually</span>
                 )}
               </div>
 
@@ -488,6 +469,40 @@ export function PlanPage() {
             </div>
           );
         })}
+
+        {/* Business / Enterprise card */}
+        <div className="plan-card plan-card--business">
+          <div className="plan-card-header">
+            <span className="plan-tier-badge" style={{ background: "#0ea5e9" }}>Business</span>
+          </div>
+          <p className="plan-card-desc">Enterprise-grade inventory management with dedicated support and custom onboarding.</p>
+          <div className="plan-price">
+            <span className="plan-price-value" style={{ color: "#0ea5e9" }}>Custom pricing</span>
+            <span className="plan-price-hint">Tailored to your business</span>
+          </div>
+          <ul className="plan-feature-list">
+            {BUSINESS_FEATURES.map((feat) => (
+              <li className="plan-feature-item" key={feat}>
+                <CheckIcon color="#0ea5e9" />
+                {feat}
+              </li>
+            ))}
+          </ul>
+          <div className="plan-card-limits-summary">
+            <span>Unlimited items</span>
+            <span className="plan-card-dot">·</span>
+            <span>Unlimited locations</span>
+            <span className="plan-card-dot">·</span>
+            <span>Unlimited users</span>
+          </div>
+          <button
+            type="button"
+            className="btn plan-card-action plan-card-action--business"
+            onClick={() => navigate("/support")}
+          >
+            Contact Sales
+          </button>
+        </div>
       </div>
 
       {/* Usage section */}
@@ -542,16 +557,6 @@ export function PlanPage() {
             }
           />
         </div>
-      </div>
-
-      <div className="plan-note">
-        <svg viewBox="0 0 20 20" fill="currentColor" style={{ width: 16, height: 16, flexShrink: 0, marginTop: 1 }}>
-          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-        </svg>
-        <span>
-          You are currently in <strong>preview mode</strong>. Plan upgrades are free for now.
-          Billing will be enabled soon.
-        </span>
       </div>
 
       <div className="plan-support-card">

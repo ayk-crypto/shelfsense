@@ -321,10 +321,10 @@ const STATIC_PRICING: PricingCard[] = [
     bg: "#f8fafc",
     highlight: false,
     currency: "$",
-    limits: ["1 user", "1 location", "50 items"],
+    limits: ["3 users", "1 location", "50 items"],
     features: [
       { label: "Expiry tracking",      included: true  },
-      { label: "Barcode scanning",     included: false },
+      { label: "Barcode scanning",     included: true  },
       { label: "Inventory reports",    included: true  },
       { label: "Advanced analytics",   included: false },
       { label: "Purchase orders",      included: false },
@@ -336,15 +336,15 @@ const STATIC_PRICING: PricingCard[] = [
     ],
   },
   {
-    tier: "Starter",
-    price: "12",
+    tier: "Basic",
+    price: "19",
     period: "/ mo",
     desc: "For growing teams who need real inventory control across multiple locations.",
     color: "#6366f1",
     bg: "#eef2ff",
     highlight: true,
     currency: "$",
-    limits: ["5 users", "3 locations", "500 items"],
+    limits: ["10 users", "5 locations", "500 items"],
     features: [
       { label: "Expiry tracking",      included: true  },
       { label: "Barcode scanning",     included: true  },
@@ -360,7 +360,7 @@ const STATIC_PRICING: PricingCard[] = [
   },
   {
     tier: "Pro",
-    price: "24",
+    price: "49",
     period: "/ mo",
     desc: "Unlimited everything. Advanced analytics, custom roles, and full team control.",
     color: "#7c3aed",
@@ -379,6 +379,27 @@ const STATIC_PRICING: PricingCard[] = [
       { label: "Custom roles",         included: true },
       { label: "Email alerts",         included: true },
       { label: "Daily ops digest",     included: true },
+    ],
+  },
+  {
+    tier: "Business",
+    price: "99",
+    period: "/ mo",
+    desc: "Enterprise-grade inventory management with dedicated support and custom onboarding.",
+    color: "#0ea5e9",
+    bg: "#f0f9ff",
+    highlight: false,
+    currency: "$",
+    limits: ["Unlimited users", "Unlimited locations", "Unlimited items"],
+    features: [
+      { label: "Everything in Pro",    included: true },
+      { label: "Custom onboarding",    included: true },
+      { label: "Priority phone support", included: true },
+      { label: "SLA guarantee",        included: true },
+      { label: "Bulk data import",     included: true },
+      { label: "Custom integrations",  included: true },
+      { label: "Quarterly reviews",    included: true },
+      { label: "Negotiated pricing",   included: true },
     ],
   },
 ];
@@ -581,8 +602,8 @@ export function LandingPage() {
           </div>
 
           <div className="lp-pricing-note">
-            <span className="lp-pricing-note-icon">🎉</span>
-            All plans are free during the preview period — billing only activates when payments go live.
+            <span className="lp-pricing-note-icon">💬</span>
+            Online payment not live yet? No problem — select your plan and our team will reach out to activate your account manually.
           </div>
 
           <div className="lp-pricing-grid">
@@ -628,11 +649,17 @@ export function LandingPage() {
                   style={plan.highlight ? { background: plan.color } : { borderColor: plan.color, color: plan.color }}
                   onClick={handlePrimaryCta}
                 >
-                  {isAuthenticated ? "Open dashboard" : "Get started free"}
+                  {isAuthenticated
+                    ? "Open dashboard"
+                    : plan.tier === "Free"
+                    ? "Start Free"
+                    : plan.tier === "Business"
+                    ? "Contact Sales"
+                    : `Choose ${plan.tier}`}
                 </button>
                 {!isAuthenticated && (
                   <p style={{ textAlign: "center", fontSize: "0.75rem", color: "#94a3b8", marginTop: "0.5rem" }}>
-                    No credit card required
+                    {plan.tier === "Free" ? "No credit card required" : "Manual activation available"}
                   </p>
                 )}
               </div>

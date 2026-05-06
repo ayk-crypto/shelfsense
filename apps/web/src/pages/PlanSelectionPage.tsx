@@ -19,6 +19,13 @@ const FEATURE_ICONS: Record<string, string> = {
   enableDailyOps: "Daily operations checklist",
 };
 
+const PLAN_BUTTON_TEXT: Record<string, string> = {
+  FREE: "Start Free",
+  STARTER: "Choose Basic",
+  PRO: "Choose Pro",
+  BUSINESS: "Choose Business",
+};
+
 function formatLimit(val: number | null, label: string): string {
   if (val === null || val === -1) return `Unlimited ${label}`;
   return `Up to ${val.toLocaleString()} ${label}`;
@@ -51,6 +58,8 @@ function PlanCard({
   const enabledFeatures = Object.entries(FEATURE_ICONS)
     .filter(([key]) => plan[key as keyof PublicPlan] === true)
     .map(([, label]) => label);
+
+  const btnText = PLAN_BUTTON_TEXT[plan.code] ?? `Choose ${plan.name}`;
 
   return (
     <div
@@ -110,8 +119,67 @@ function PlanCard({
             <CheckIcon className="plan-card-btn-check" />
             Selected
           </span>
-        ) : `Choose ${plan.name}`}
+        ) : btnText}
       </button>
+    </div>
+  );
+}
+
+function PlanSelectedSuccess({ plan }: { plan: PublicPlan }) {
+  const navigate = useNavigate();
+  return (
+    <div className="plan-sel-page">
+      <header className="plan-sel-header">
+        <div className="plan-sel-logo">
+          <span className="plan-sel-logo-mark">S</span>
+          <span className="plan-sel-logo-text">ShelfSense</span>
+        </div>
+        <div className="plan-sel-progress">
+          <div className="plan-sel-progress-step plan-sel-progress-step--done">
+            <span className="plan-sel-progress-icon">✓</span>
+            Workspace Setup
+          </div>
+          <div className="plan-sel-progress-connector plan-sel-progress-connector--done" />
+          <div className="plan-sel-progress-step plan-sel-progress-step--done">
+            <span className="plan-sel-progress-icon">✓</span>
+            Choose Plan
+          </div>
+          <div className="plan-sel-progress-connector plan-sel-progress-connector--done" />
+          <div className="plan-sel-progress-step plan-sel-progress-step--active">
+            <span className="plan-sel-progress-icon plan-sel-progress-icon--active">3</span>
+            Dashboard
+          </div>
+        </div>
+      </header>
+
+      <div className="plan-sel-success">
+        <div className="plan-sel-success-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+            <polyline points="22 4 12 14.01 9 11.01" />
+          </svg>
+        </div>
+        <h1 className="plan-sel-success-title">Plan Selected!</h1>
+        <p className="plan-sel-success-plan-name">{plan.name} Plan</p>
+        <p className="plan-sel-success-msg">
+          Thank you for choosing the <strong>{plan.name}</strong> plan. Your selection has been saved.
+          Since online payment isn't enabled yet, our team will reach out to you shortly to activate billing.
+          You can access your dashboard right away — your account is ready to use.
+        </p>
+        <div className="plan-sel-success-note">
+          <svg viewBox="0 0 20 20" fill="currentColor" style={{ width: 15, height: 15, flexShrink: 0, marginTop: 1 }}>
+            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+          </svg>
+          <span>Paid features will be unlocked once our team activates your subscription.</span>
+        </div>
+        <button
+          type="button"
+          className="plan-sel-success-btn"
+          onClick={() => navigate("/dashboard", { replace: true })}
+        >
+          Continue to Dashboard →
+        </button>
+      </div>
     </div>
   );
 }
@@ -131,6 +199,8 @@ export function PlanSelectionPage() {
   const [couponSuccess, setCouponSuccess] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
+  const [planConfirmed, setPlanConfirmed] = useState(false);
+  const [confirmedPlan, setConfirmedPlan] = useState<PublicPlan | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -242,10 +312,11 @@ export function PlanSelectionPage() {
   }
 
   function getCtaText(): string {
-    if (isFree) return "Start for Free";
+    if (!selectedPlan) return "Continue";
+    if (isFree) return "Start Free";
     const payable = getPayableAmount();
     if (payable === 0) return "Activate Plan — No Payment Required";
-    return "Continue to Billing";
+    return `Save Plan & Continue`;
   }
 
   function showPendingPaymentNote(): boolean {
@@ -254,7 +325,7 @@ export function PlanSelectionPage() {
   }
 
   async function handleConfirm() {
-    if (!selectedPlanId) return;
+    if (!selectedPlanId || !selectedPlan) return;
     setConfirming(true);
     setConfirmError(null);
     try {
@@ -263,11 +334,20 @@ export function PlanSelectionPage() {
         billingCycle: isFree ? "MONTHLY" : billingCycle,
         couponCode: couponCode || undefined,
       });
-      navigate("/dashboard", { replace: true });
+      if (isFree) {
+        navigate("/dashboard", { replace: true });
+      } else {
+        setConfirmedPlan(selectedPlan);
+        setPlanConfirmed(true);
+      }
     } catch (e) {
       setConfirmError(e instanceof Error ? e.message : "Failed to activate plan. Please try again.");
       setConfirming(false);
     }
+  }
+
+  if (planConfirmed && confirmedPlan) {
+    return <PlanSelectedSuccess plan={confirmedPlan} />;
   }
 
   if (loading) {
@@ -342,7 +422,6 @@ export function PlanSelectionPage() {
         </div>
       </div>
 
-      {/* ── Plan cards ── */}
       <div className="plan-sel-cards-section">
         <div className="plan-cards-grid">
           {plans.map((plan) => (
@@ -351,13 +430,12 @@ export function PlanSelectionPage() {
               plan={plan}
               selected={plan.id === selectedPlanId}
               billingCycle={billingCycle}
-              onSelect={() => handleSelectPlan(plan.id)}
+              onSelect={() => void handleSelectPlan(plan.id)}
             />
           ))}
         </div>
       </div>
 
-      {/* ── Summary / CTA panel ── */}
       {selectedPlan && (
         <div className="plan-sel-cta-section">
           <div className="plan-confirm-inner">
@@ -435,10 +513,10 @@ export function PlanSelectionPage() {
               {showPendingPaymentNote() && (
                 <div className="plan-pending-note">
                   <svg viewBox="0 0 20 20" fill="currentColor" style={{ width: 16, height: 16, flexShrink: 0, marginTop: 1 }}>
-                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                   </svg>
                   <div>
-                    <strong>Payment gateway not connected.</strong> Your plan will be activated in manual review mode — you'll have full dashboard access while our team processes your account. A payment link will be sent separately.
+                    <strong>Your plan will be saved.</strong> Our team will contact you to activate billing. You'll have full dashboard access in the meantime.
                   </div>
                 </div>
               )}
@@ -452,7 +530,7 @@ export function PlanSelectionPage() {
                 disabled={confirming}
               >
                 {confirming ? (
-                  <><div className="spinner spinner--sm spinner--white" /> Activating…</>
+                  <><div className="spinner spinner--sm spinner--white" /> Saving…</>
                 ) : (
                   getCtaText()
                 )}
