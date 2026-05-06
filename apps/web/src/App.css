@@ -1276,6 +1276,9 @@ body {
   flex-direction: column;
   gap: 6px;
 }
+.ob-item-expiry .form-label {
+  white-space: nowrap;
+}
 
 .ob-expiry-toggle-row {
   display: flex;
