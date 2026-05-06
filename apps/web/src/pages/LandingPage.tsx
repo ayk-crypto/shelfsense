@@ -622,22 +622,45 @@ export function LandingPage() {
       {/* ── Trust section ─────────────────────────────── */}
       <section className="lp-trust-section">
         <div className="lp-container">
-          <div className="lp-trust-inner">
-            <div className="lp-trust-heading">Built for real inventory teams</div>
-            <div className="lp-trust-grid">
-              {[
-                { icon: "✓", text: "No credit card required" },
-                { icon: "✓", text: "Setup in under 5 minutes" },
-                { icon: "✓", text: "Export your data anytime" },
-                { icon: "✓", text: "Workspace-based access control" },
-                { icon: "✓", text: "Works for restaurants, retail, warehouses & suppliers" },
-              ].map((item) => (
-                <div key={item.text} className="lp-trust-item">
-                  <span className="lp-trust-icon">{item.icon}</span>
-                  <span>{item.text}</span>
-                </div>
-              ))}
-            </div>
+          <div className="lp-trust-strip">
+            {([
+              {
+                icon: (
+                  <svg viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/></svg>
+                ),
+                label: "No credit card required",
+              },
+              {
+                icon: (
+                  <svg viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd"/></svg>
+                ),
+                label: "Set up in under 5 minutes",
+              },
+              {
+                icon: (
+                  <svg viewBox="0 0 20 20" fill="currentColor"><path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v1h8v-1zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-1a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v1h-3zM4.75 14.094A5.973 5.973 0 004 17v1H1v-1a3 3 0 013.75-2.906z"/></svg>
+                ),
+                label: "Role-based team access",
+              },
+              {
+                icon: (
+                  <svg viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd"/></svg>
+                ),
+                label: "Export your data anytime",
+              },
+              {
+                icon: (
+                  <svg viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/><path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd"/></svg>
+                ),
+                label: "Restaurants, retail & warehouses",
+              },
+            ] as { icon: React.ReactNode; label: string }[]).map((item, i, arr) => (
+              <div key={item.label} className="lp-trust-row-item">
+                <span className="lp-trust-pill-icon">{item.icon}</span>
+                <span className="lp-trust-pill-label">{item.label}</span>
+                {i < arr.length - 1 && <span className="lp-trust-sep" aria-hidden />}
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -653,14 +676,21 @@ export function LandingPage() {
             </p>
           </div>
 
-          <div className="lp-pricing-usd-note">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-            Subscription plans are billed in <strong>USD</strong>. Your workspace currency is configured separately for inventory costs and reports.
-          </div>
-
-          <div className="lp-pricing-note">
-            <span className="lp-pricing-note-icon">💬</span>
-            Online payment not live yet? No problem — select your plan and our team will reach out to activate your account manually.
+          <div className="lp-pricing-meta-row">
+            <span className="lp-pricing-meta-badge">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              All plans billed in <strong>USD</strong>
+            </span>
+            <span className="lp-pricing-meta-dot" />
+            <span className="lp-pricing-meta-badge">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.8 19.79 19.79 0 01.22 1.18 2 2 0 012.18 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.91 7.09a16 16 0 006 6l.56-.56a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/></svg>
+              Manual activation available
+            </span>
+            <span className="lp-pricing-meta-dot" />
+            <span className="lp-pricing-meta-badge">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              No contracts or setup fees
+            </span>
           </div>
 
           <div className="lp-pricing-grid">
