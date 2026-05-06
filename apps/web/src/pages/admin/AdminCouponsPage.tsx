@@ -144,7 +144,7 @@ function CouponModal({ coupon, onClose, onSaved }: { coupon: AdminCoupon | null;
     description: coupon?.description ?? "",
     discountType: coupon?.discountType ?? "PERCENTAGE",
     discountValue: coupon?.discountValue ?? 10,
-    currency: coupon?.currency ?? "PKR",
+    currency: coupon?.currency ?? "USD",
     validFrom: coupon?.validFrom ? coupon.validFrom.slice(0, 10) : "",
     validUntil: coupon?.validUntil ? coupon.validUntil.slice(0, 10) : "",
     maxRedemptions: coupon?.maxRedemptions != null ? String(coupon.maxRedemptions) : "",

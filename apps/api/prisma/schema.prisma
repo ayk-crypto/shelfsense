@@ -77,6 +77,11 @@ enum BillingCycleRestriction {
   ANNUAL
 }
 
+enum PlanPriceDisplayMode {
+  FIXED
+  CUSTOM
+}
+
 enum CouponDurationType {
   ONCE
   REPEATING
@@ -585,7 +590,7 @@ model Plan {
   description               String?
   monthlyPrice              Float     @default(0)
   annualPrice               Float     @default(0)
-  currency                  String    @default("PKR")
+  currency                  String    @default("USD")
   trialDays                 Int       @default(0)
   maxUsers                  Int?
   maxLocations              Int?
@@ -603,6 +608,8 @@ model Plan {
   enableCustomRoles         Boolean   @default(false)
   enableEmailAlerts         Boolean   @default(true)
   enableDailyOps            Boolean   @default(true)
+  ctaText                   String?
+  priceDisplayMode          PlanPriceDisplayMode @default(FIXED)
   isPublic                  Boolean   @default(true)
   isActive                  Boolean   @default(true)
   sortOrder                 Int       @default(0)
@@ -621,7 +628,7 @@ model Subscription {
   planId                  String             @db.Uuid
   status                  SubscriptionStatus @default(TRIAL)
   billingCycle            BillingCycle       @default(MANUAL)
-  currency                String             @default("PKR")
+  currency                String             @default("USD")
   amount                  Float              @default(0)
   trialEndsAt             DateTime?
   currentPeriodStart      DateTime?
@@ -684,7 +691,7 @@ model Payment {
   workspaceId      String        @db.Uuid
   subscriptionId   String?       @db.Uuid
   amount           Float
-  currency         String        @default("PKR")
+  currency         String        @default("USD")
   paymentMethod    PaymentMethod @default(OTHER)
   referenceNumber  String?
   gatewayProvider  String?

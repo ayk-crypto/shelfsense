@@ -124,7 +124,7 @@ export function adminForcePasswordReset(id: string): Promise<{ ok: boolean }> {
 
 // ── Audit Logs ───────────────────────────────────────────────────────────────
 
-export function getAdminAuditLogs(params: { page?: number; limit?: number; action?: string } = {}): Promise<AdminAuditLogsResponse> {
+export function getAdminAuditLogs(params: { page?: number; limit?: number; action?: string; search?: string; fromDate?: string; toDate?: string } = {}): Promise<AdminAuditLogsResponse> {
   return apiClient.get<AdminAuditLogsResponse>(`/admin/audit-logs${qs(params)}`);
 }
 

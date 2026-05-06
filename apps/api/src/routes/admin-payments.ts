@@ -108,7 +108,7 @@ adminPaymentsRouter.post("/", asyncHandler(async (req, res) => {
       workspaceId: body.workspaceId,
       subscriptionId: body.subscriptionId ?? null,
       amount: body.amount,
-      currency: body.currency ?? "PKR",
+      currency: "USD",
       paymentMethod: (body.paymentMethod as never) ?? "OTHER",
       referenceNumber: body.referenceNumber ?? null,
       status: (body.status as never) ?? "PENDING",
@@ -123,7 +123,7 @@ adminPaymentsRouter.post("/", asyncHandler(async (req, res) => {
     workspaceId: body.workspaceId,
     workspaceName: ws.name,
     amount: body.amount,
-    currency: body.currency ?? "PKR",
+    currency: "USD",
   });
 
   return res.status(201).json({ payment });

@@ -2,6 +2,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { register } from "../api/auth";
 import { useAuth } from "../context/AuthContext";
+import { LegalFooterLinks } from "./LegalPage";
 
 export function SignupPage() {
   const [form, setForm] = useState({
@@ -133,6 +134,12 @@ export function SignupPage() {
         <p className="auth-switch">
           Already have an account? <Link to="/login">Sign in</Link>
         </p>
+        <p className="auth-legal-consent">
+          By creating an account you agree to our{" "}
+          <Link to="/terms">Terms of Service</Link> and{" "}
+          <Link to="/privacy">Privacy Policy</Link>.
+        </p>
+        <LegalFooterLinks />
       </div>
     </div>
   );

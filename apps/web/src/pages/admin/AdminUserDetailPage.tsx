@@ -3,6 +3,47 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { getAdminUser, updateUserStatus, adminResendVerification, adminForcePasswordReset } from "../../api/admin";
 import type { AdminUserDetail } from "../../types";
 
+// ─── Inline confirm dialog ────────────────────────────────────────────────────
+
+interface ConfirmOptions {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  variant: "danger" | "primary";
+  fn: () => Promise<unknown>;
+  successMsg: string;
+}
+
+function ConfirmDialog({
+  opts,
+  onClose,
+  onConfirmed,
+}: {
+  opts: ConfirmOptions;
+  onClose: () => void;
+  onConfirmed: (fn: () => Promise<unknown>, successMsg: string) => void;
+}) {
+  return (
+    <div className="ud-confirm-overlay" onClick={onClose}>
+      <div className="ud-confirm-box" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+        <h3 className="ud-confirm-title">{opts.title}</h3>
+        <p className="ud-confirm-message">{opts.message}</p>
+        <div className="ud-confirm-actions">
+          <button className="btn btn--ghost btn--sm" onClick={onClose}>Cancel</button>
+          <button
+            className={`btn btn--sm ${opts.variant === "danger" ? "btn--danger" : "btn--primary"}`}
+            onClick={() => { onConfirmed(opts.fn, opts.successMsg); onClose(); }}
+          >
+            {opts.confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export function AdminUserDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -11,6 +52,7 @@ export function AdminUserDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [actionMsg, setActionMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [confirm, setConfirm] = useState<ConfirmOptions | null>(null);
 
   function load() {
     if (!id) return;
@@ -46,6 +88,14 @@ export function AdminUserDetailPage() {
 
   return (
     <div className="admin-page">
+      {confirm && (
+        <ConfirmDialog
+          opts={confirm}
+          onClose={() => setConfirm(null)}
+          onConfirmed={doAction}
+        />
+      )}
+
       <div className="admin-page-header">
         <button className="admin-back-btn" onClick={() => navigate("/admin/users")}>← Users</button>
         <h1 className="admin-page-title">{user.name}</h1>
@@ -69,30 +119,50 @@ export function AdminUserDetailPage() {
       <div className="admin-detail-actions">
         {!user.emailVerified && (
           <button className="btn btn--ghost btn--sm" disabled={actionLoading}
-            onClick={() => doAction(() => adminResendVerification(id!), "Verification email sent.")}>
+            onClick={() => setConfirm({
+              title: "Resend Verification Email",
+              message: `Send a new verification email to ${user.email}?`,
+              confirmLabel: "Send",
+              variant: "primary",
+              fn: () => adminResendVerification(id!),
+              successMsg: "Verification email sent.",
+            })}>
             Resend Verification
           </button>
         )}
         <button className="btn btn--ghost btn--sm" disabled={actionLoading}
-          onClick={() => {
-            if (window.confirm("Send a password reset email to this user?")) {
-              doAction(() => adminForcePasswordReset(id!), "Password reset email sent.");
-            }
-          }}>
+          onClick={() => setConfirm({
+            title: "Force Password Reset",
+            message: `Send a password reset email to ${user.name} (${user.email})? They will be required to set a new password on next login.`,
+            confirmLabel: "Send Reset Email",
+            variant: "primary",
+            fn: () => adminForcePasswordReset(id!),
+            successMsg: "Password reset email sent.",
+          })}>
           Force Password Reset
         </button>
         {!isSuperAdmin && (
           <button
             className={`btn btn--sm ${user.isDisabled ? "btn--success" : "btn--danger"}`}
             disabled={actionLoading}
-            onClick={() => {
-              const msg = user.isDisabled
-                ? "Enable this user? They will be able to log in again."
-                : "Disable this user? They will be blocked from logging in.";
-              if (window.confirm(msg)) {
-                doAction(() => updateUserStatus(id!, !user.isDisabled), user.isDisabled ? "User enabled." : "User disabled.");
+            onClick={() => setConfirm(user.isDisabled
+              ? {
+                title: "Enable Account",
+                message: `Enable ${user.name}'s account? They will be able to log in again.`,
+                confirmLabel: "Enable",
+                variant: "primary",
+                fn: () => updateUserStatus(id!, false),
+                successMsg: "User enabled.",
               }
-            }}
+              : {
+                title: "Disable Account",
+                message: `Disable ${user.name}'s account? They will be immediately blocked from logging in.`,
+                confirmLabel: "Disable",
+                variant: "danger",
+                fn: () => updateUserStatus(id!, true),
+                successMsg: "User disabled.",
+              }
+            )}
           >
             {user.isDisabled ? "Enable Account" : "Disable Account"}
           </button>

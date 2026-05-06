@@ -33,16 +33,20 @@ export function AdminTeamPage() {
     setTimeout(() => setToast(null), 3500);
   }
 
-  async function handleRoleChange(
-    member: AdminUser,
-    newRole: "SUPER_ADMIN" | "SUPPORT_ADMIN" | "USER",
-  ) {
+  const [pendingRole, setPendingRole] = useState<{ member: AdminUser; newRole: "SUPER_ADMIN" | "SUPPORT_ADMIN" | "USER"; label: string } | null>(null);
+
+  function handleRoleChange(member: AdminUser, newRole: "SUPER_ADMIN" | "SUPPORT_ADMIN" | "USER") {
     if (!isSuperAdmin) return;
-    const actionLabel =
-      newRole === "USER"
-        ? `remove admin access from ${member.name}`
-        : `change ${member.name}'s role to ${ROLE_LABELS[newRole]}`;
-    if (!window.confirm(`Are you sure you want to ${actionLabel}?`)) return;
+    const label = newRole === "USER"
+      ? `Remove admin access from ${member.name}`
+      : `Change ${member.name}'s role to ${ROLE_LABELS[newRole]}`;
+    setPendingRole({ member, newRole, label });
+  }
+
+  async function execRoleChange() {
+    if (!pendingRole) return;
+    const { member, newRole } = pendingRole;
+    setPendingRole(null);
     setActionLoading(member.id);
     try {
       await updateUserPlatformRole(member.id, newRole);
@@ -57,6 +61,24 @@ export function AdminTeamPage() {
 
   return (
     <div className="admin-page">
+      {pendingRole && (
+        <div className="ud-confirm-overlay" onClick={() => setPendingRole(null)}>
+          <div className="ud-confirm-box" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+            <h3 className="ud-confirm-title">Confirm Role Change</h3>
+            <p className="ud-confirm-message">{pendingRole.label}?</p>
+            <div className="ud-confirm-actions">
+              <button className="btn btn--ghost btn--sm" onClick={() => setPendingRole(null)}>Cancel</button>
+              <button
+                className={`btn btn--sm ${pendingRole.newRole === "USER" ? "btn--danger" : "btn--primary"}`}
+                onClick={() => void execRoleChange()}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="admin-page-header">
         <div>
           <h1 className="admin-page-title">Admin Team</h1>
