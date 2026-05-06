@@ -153,9 +153,13 @@ export function SettingsPage() {
   }
 
   function addUnit() {
-    const v = newUnit.trim();
-    if (!v || ucUnits.includes(v)) return;
-    setUcUnits((prev) => [...prev, v]);
+    const entries = newUnit.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
+    if (entries.length === 0) return;
+    setUcUnits((prev) => {
+      const next = [...prev];
+      for (const e of entries) { if (!next.includes(e)) next.push(e); }
+      return next;
+    });
     setNewUnit("");
   }
 
@@ -164,9 +168,13 @@ export function SettingsPage() {
   }
 
   function addCategory() {
-    const v = newCategory.trim();
-    if (!v || ucCategories.includes(v)) return;
-    setUcCategories((prev) => [...prev, v]);
+    const entries = newCategory.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
+    if (entries.length === 0) return;
+    setUcCategories((prev) => {
+      const next = [...prev];
+      for (const e of entries) { if (!next.includes(e)) next.push(e); }
+      return next;
+    });
     setNewCategory("");
   }
 
@@ -534,14 +542,14 @@ export function SettingsPage() {
                 value={newUnit}
                 onChange={(e) => setNewUnit(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addUnit(); } }}
-                placeholder="e.g. carton, tray…"
-                maxLength={32}
+                placeholder="e.g. carton, tray, bundle"
+                maxLength={120}
               />
               <button
                 type="button"
                 className="btn btn--sm btn--ghost"
                 onClick={addUnit}
-                disabled={!newUnit.trim() || ucUnits.includes(newUnit.trim())}
+                disabled={!newUnit.trim()}
               >
                 Add
               </button>
@@ -584,14 +592,14 @@ export function SettingsPage() {
                 value={newCategory}
                 onChange={(e) => setNewCategory(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCategory(); } }}
-                placeholder="e.g. Dairy, Produce…"
-                maxLength={48}
+                placeholder="e.g. Dairy, Produce, Frozen"
+                maxLength={200}
               />
               <button
                 type="button"
                 className="btn btn--sm btn--ghost"
                 onClick={addCategory}
-                disabled={!newCategory.trim() || ucCategories.includes(newCategory.trim())}
+                disabled={!newCategory.trim()}
               >
                 Add
               </button>
