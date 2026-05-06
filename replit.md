@@ -22,8 +22,8 @@ A SaaS application for smart inventory and expiry tracking targeted at small bus
 - `npm run make:super-admin -- email@example.com`: Promote a user to SUPER_ADMIN role
 
 **Environment Variables:**
-- `apps/api/.env`: `DATABASE_URL`, `PORT`, `NODE_ENV`, `JWT_SECRET`, `CORS_ALLOWED_ORIGINS`, `WEB_BASE_URL`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`, `PAYMENT_PROVIDER`
-- `apps/web/.env`: `VITE_API_BASE_URL`, `VITE_APP_ENV`
+- `apps/api/.env`: `DATABASE_URL`, `PORT`, `NODE_ENV`, `JWT_SECRET`, `CORS_ALLOWED_ORIGINS`, `WEB_BASE_URL`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`, `PAYMENT_PROVIDER`, `PADDLE_ENV`, `PADDLE_API_KEY`, `PADDLE_WEBHOOK_SECRET`, `PADDLE_BASIC_MONTHLY_PRICE_ID`, `PADDLE_BASIC_ANNUAL_PRICE_ID`, `PADDLE_PRO_MONTHLY_PRICE_ID`, `PADDLE_PRO_ANNUAL_PRICE_ID`, `APP_FRONTEND_URL`
+- `apps/web/.env`: `VITE_API_BASE_URL`, `VITE_APP_ENV`, `VITE_PADDLE_CLIENT_TOKEN`, `VITE_PADDLE_ENV`
 
 ## Stack
 
@@ -44,6 +44,8 @@ A SaaS application for smart inventory and expiry tracking targeted at small bus
 - `apps/api/prisma/schema.prisma`: Database schema
 - `apps/web/src/App.css`: Custom CSS for frontend styling
 - `apps/api/src/lib/payment-provider/`: Payment gateway abstraction
+- `apps/api/src/lib/paddle-config.ts`: Paddle price ID resolution + helpers
+- `apps/web/src/lib/paddle.ts`: Paddle.js initialization helper (frontend)
 - `docs/deployment.md`: Full deployment guide and environment variable reference
 
 ## Architecture decisions
@@ -51,7 +53,8 @@ A SaaS application for smart inventory and expiry tracking targeted at small bus
 - **Monorepo Structure**: Uses npm workspaces to manage `web`, `api`, and `shared` packages.
 - **Multi-tenancy**: Implemented via Workspaces, with distinct access control for platform administration (`platformRole`) and workspace operations (`role`).
 - **Onboarding Workflow**: A mandatory 6-step wizard plus plan selection, enforced by `OnboardingGuard` to ensure completion before full app access.
-- **Payment Gateway Abstraction**: A modular `payment-provider` interface allows easy switching or adding payment providers (mock, PayFast, Safepay stubs).
+- **Payment Gateway Abstraction**: A modular `payment-provider` interface allows easy switching or adding payment providers (mock, PayFast, Safepay stubs, Paddle).
+- **Paddle Integration**: Overlay checkout — backend returns `priceId` + `customData`, frontend opens Paddle overlay via `@paddle/paddle-js`. Subscription activation happens only after HMAC-verified webhook (`transaction.completed`). Raw body captured via express.json `verify` hook for `/webhooks/paddle`.
 - **Scheduled Tasks with Anti-Spam**: Critical alerts (low-stock, expiry) and daily digests are scheduled, with per-workspace timestamps to prevent spamming.
 
 ## Product
@@ -67,6 +70,7 @@ A SaaS application for smart inventory and expiry tracking targeted at small bus
 - **Platform Administration**: Dedicated `/admin` panel for SUPER_ADMINs with isolated UI and comprehensive management features for workspaces and users.
 - **Notifications**: In-app notifications and scheduled email alerts for low stock, expiring items, and daily digests.
 - **Onboarding**: Guided setup wizard + post-onboarding checklist widget on Dashboard (4 steps, auto-detects completion, dismissable).
+- **Paddle Payments**: Overlay checkout for BASIC/PRO plans. Webhook handler at `POST /webhooks/paddle` processes 7 event types with idempotency via `WebhookEvent` table. `BillingCheckoutPage` opens Paddle overlay; `BillingSuccessPage` polls for subscription activation.
 
 ## User preferences
 
@@ -78,6 +82,8 @@ _Populate as you build_
 - **Never use `prisma db push`**: It bypasses the migration system. Any schema change must go through `prisma migrate dev` locally to generate a migration file, which is then committed and deployed via `prisma migrate deploy`. Using `db push` causes schema drift where `migrate deploy` reports "no pending migrations" yet columns are missing from production.
 - **Auth Tokens**: JWTs are stored in `localStorage` under `shelfsense_token`.
 - **API Client Errors**: The frontend API client attaches `X-Request-Id` from backend responses to thrown `Error` objects for easier debugging.
+- **Paddle Raw Body**: `express.json` verify hook captures raw body only for `/webhooks/paddle` — do not move this route behind a different body parser.
+- **Paddle Checkout Flow**: Backend (`POST /billing/paddle/checkout`) returns `priceId` + `customData` — it does NOT activate the subscription. Activation happens only via verified `transaction.completed` webhook.
 
 ## Pointers
 

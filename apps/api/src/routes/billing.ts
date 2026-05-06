@@ -8,6 +8,7 @@ import { asyncHandler } from "../utils/async-handler.js";
 import { getPaymentProvider } from "../lib/payment-provider/index.js";
 import { env } from "../config/env.js";
 import { logger } from "../lib/logger.js";
+import { getPaddlePriceId } from "../lib/paddle-config.js";
 
 export const billingRouter = Router();
 
@@ -102,8 +103,11 @@ billingRouter.get(
         currentPeriodStart: true,
         currentPeriodEnd: true,
         nextRenewalAt: true,
+        nextBillingAt: true,
+        cancelAtPeriodEnd: true,
         manualNotes: true,
         gatewayProvider: true,
+        gatewayStatus: true,
         createdAt: true,
         plan: {
           select: {
@@ -391,6 +395,126 @@ billingRouter.post(
       logger.info("[BILLING][MOCK] payment cancelled", { workspaceId: sub.workspaceId, subscriptionId, paymentId });
       return res.json({ ok: true, status: "CANCELLED" });
     }
+  }),
+);
+
+// ── POST /billing/paddle/checkout ───────────────────────────────────────────
+// Returns priceId + customData for the frontend to open Paddle overlay.
+// Does NOT activate the subscription — that happens after the verified webhook.
+
+billingRouter.post(
+  "/paddle/checkout",
+  requireAuth,
+  requireRole([Role.OWNER]),
+  asyncHandler(async (req, res) => {
+    const userId = req.user?.userId ?? null;
+    const workspaceId = req.user?.workspaceId ?? null;
+    if (!workspaceId || !userId) return res.status(403).json({ error: "Workspace access required" });
+
+    const { planCode, billingCycle } = req.body as { planCode?: string; billingCycle?: string };
+
+    if (!planCode || typeof planCode !== "string") {
+      return res.status(400).json({ error: "planCode is required" });
+    }
+
+    const upperCode = planCode.toUpperCase();
+
+    if (upperCode === "BUSINESS") {
+      return res.status(400).json({
+        error: "Business plan requires contacting sales.",
+        contactSales: true,
+        contactEmail: "sales@shelfsenseapp.com",
+      });
+    }
+
+    if (upperCode === "FREE") {
+      return res.status(400).json({ error: "Free plan does not go through Paddle checkout. Use /billing/checkout instead." });
+    }
+
+    if (!["BASIC", "PRO", "STARTER"].includes(upperCode)) {
+      return res.status(400).json({ error: "planCode must be BASIC, PRO, or BUSINESS" });
+    }
+
+    const cycle = billingCycle === "ANNUAL" ? "ANNUAL" : ("MONTHLY" as const);
+
+    const priceId = getPaddlePriceId(upperCode, cycle);
+    if (!priceId) {
+      logger.error("[PADDLE] Price ID not configured", { planCode: upperCode, billingCycle: cycle });
+      return res.status(500).json({ error: `Paddle price ID not configured for ${upperCode} ${cycle}. Contact support.` });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true, name: true },
+    });
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    logger.info("[PADDLE] Checkout requested", {
+      workspaceId,
+      planCode: upperCode,
+      billingCycle: cycle,
+      priceId: priceId.slice(0, 10) + "...",
+    });
+
+    return res.json({
+      success: true,
+      priceId,
+      customerEmail: user.email,
+      customData: {
+        workspaceId,
+        userId,
+        planCode: upperCode,
+        billingCycle: cycle,
+      },
+    });
+  }),
+);
+
+// ── GET /billing/subscription/:workspaceId ───────────────────────────────────
+// Same as GET /billing/subscription but accepts workspaceId as URL param.
+// Validates the requesting user belongs to that workspace.
+
+billingRouter.get(
+  "/subscription/:workspaceId",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const { workspaceId } = req.params;
+    const userWorkspaceId = req.user?.workspaceId ?? null;
+
+    if (!userWorkspaceId || workspaceId !== userWorkspaceId) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const sub = await prisma.subscription.findFirst({
+      where: { workspaceId, status: { not: SubscriptionStatus.CANCELLED } },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true, status: true, billingCycle: true, amount: true, currency: true,
+        currentPeriodStart: true, currentPeriodEnd: true, nextRenewalAt: true, nextBillingAt: true,
+        cancelAtPeriodEnd: true, manualNotes: true, gatewayProvider: true, gatewayStatus: true,
+        createdAt: true,
+        plan: {
+          select: {
+            id: true, name: true, code: true,
+            monthlyPrice: true, annualPrice: true, currency: true,
+            maxUsers: true, maxLocations: true, maxItems: true,
+            enableAdvancedReports: true, enableCustomRoles: true,
+            enablePurchases: true, enableSuppliers: true, enableTeamManagement: true,
+          },
+        },
+        coupon: { select: { id: true, code: true, name: true, discountType: true, discountValue: true } },
+        payments: {
+          orderBy: { createdAt: "desc" },
+          take: 10,
+          select: {
+            id: true, amount: true, currency: true, paymentMethod: true,
+            status: true, paidAt: true, referenceNumber: true, createdAt: true,
+          },
+        },
+      },
+    });
+
+    return res.json({ subscription: sub ?? null, provider: env.paymentProvider });
   }),
 );
 

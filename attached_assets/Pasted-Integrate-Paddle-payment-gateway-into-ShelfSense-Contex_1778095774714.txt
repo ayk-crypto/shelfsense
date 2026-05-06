@@ -1,0 +1,196 @@
+Integrate Paddle payment gateway into ShelfSense.
+
+Context:
+- ShelfSense is a multi-tenant SaaS inventory platform.
+- Pricing:
+  - Free: $0/month, handled internally without Paddle
+  - Basic Monthly: $19/month via Paddle
+  - Basic Annual: $190/year via Paddle
+  - Pro Monthly: $49/month via Paddle
+  - Pro Annual: $490/year via Paddle
+  - Business: Contact Sales / manual admin activation
+- Billing currency is USD.
+- Workspace inventory/reporting currency is separate and must not be affected.
+- Existing manual admin subscription/payment logic must not be removed.
+
+Environment variables:
+
+Backend/API:
+PADDLE_ENV=sandbox|production
+PADDLE_API_KEY
+PADDLE_WEBHOOK_SECRET
+PADDLE_BASIC_MONTHLY_PRICE_ID
+PADDLE_BASIC_ANNUAL_PRICE_ID
+PADDLE_PRO_MONTHLY_PRICE_ID
+PADDLE_PRO_ANNUAL_PRICE_ID
+APP_FRONTEND_URL
+
+Frontend/Web:
+VITE_PADDLE_ENV=sandbox|production
+VITE_PADDLE_CLIENT_TOKEN
+
+Backend requirements:
+
+1. Create/extend Paddle billing config.
+- Validate required env vars on startup or when checkout is requested.
+- Never expose PADDLE_API_KEY to frontend.
+
+2. Add/extend subscription database fields if missing:
+- gatewayProvider: MANUAL | PADDLE
+- gatewayCustomerId
+- gatewaySubscriptionId
+- gatewayTransactionId
+- gatewayPriceId
+- gatewayStatus
+- planCode: FREE | BASIC | PRO | BUSINESS
+- billingCycle: MONTHLY | ANNUAL
+- currency: USD
+- amount
+- status: ACTIVE | TRIALING | PAST_DUE | CANCELED | EXPIRED | INCOMPLETE
+- currentPeriodStart
+- currentPeriodEnd
+- cancelAtPeriodEnd
+- lastPaymentAt
+- nextBillingAt
+
+3. Add webhook event table if missing:
+WebhookEvent:
+- id
+- provider
+- eventId unique
+- eventType
+- processingStatus: RECEIVED | PROCESSED | FAILED
+- rawPayload JSON
+- processedAt nullable
+- errorMessage nullable
+- createdAt
+- updatedAt
+
+4. Add endpoint:
+POST /api/billing/paddle/checkout
+
+Authenticated endpoint.
+
+Request:
+{
+  "workspaceId": "...",
+  "planCode": "BASIC" | "PRO",
+  "billingCycle": "MONTHLY" | "ANNUAL"
+}
+
+Rules:
+- User must be owner/admin of workspace.
+- FREE must not go through Paddle.
+- BUSINESS must return Contact Sales response.
+- Resolve Paddle price ID from env based on planCode + billingCycle.
+- Return checkout data to frontend:
+{
+  "success": true,
+  "priceId": "...",
+  "customerEmail": "...",
+  "customData": {
+    "workspaceId": "...",
+    "userId": "...",
+    "planCode": "...",
+    "billingCycle": "..."
+  }
+}
+
+Important:
+- Do not activate paid subscription from this endpoint.
+- Paid subscription must activate only after verified Paddle webhook.
+
+5. Add webhook endpoint:
+POST /api/webhooks/paddle
+
+Requirements:
+- Use raw body parsing for this route.
+- Verify Paddle webhook signature using PADDLE_WEBHOOK_SECRET.
+- Reject invalid signatures.
+- Store every event in WebhookEvent.
+- Use eventId idempotency. If event already processed, return 200 and do not duplicate payment/subscription updates.
+
+Handle these events:
+- transaction.completed
+- subscription.created
+- subscription.updated
+- subscription.canceled
+- subscription.past_due
+- transaction.payment_failed
+- transaction.refunded
+
+Provisioning logic:
+- Read custom_data.workspaceId, custom_data.userId, custom_data.planCode, custom_data.billingCycle.
+- On transaction.completed or active subscription event:
+  - create/update workspace subscription
+  - set gatewayProvider=PADDLE
+  - save gatewayCustomerId
+  - save gatewaySubscriptionId
+  - save gatewayPriceId
+  - set planCode
+  - set billingCycle
+  - set currency=USD
+  - set amount
+  - set status ACTIVE or TRIALING as applicable
+  - set currentPeriodStart/currentPeriodEnd/nextBillingAt if available
+  - save payment record if payment table exists
+- On subscription.updated:
+  - sync status, price, plan, billing cycle, dates, cancelAtPeriodEnd
+- On subscription.canceled:
+  - mark CANCELED
+  - keep access until currentPeriodEnd if available
+- On subscription.past_due or transaction.payment_failed:
+  - mark PAST_DUE
+- On transaction.refunded:
+  - save refund event/payment status and optionally flag subscription for admin review.
+
+6. Add endpoint:
+GET /api/billing/subscription/:workspaceId
+
+Return:
+- current plan
+- billing cycle
+- status
+- gateway provider
+- renewal date
+- cancelAtPeriodEnd
+- feature access status
+- workspace limits
+
+7. Add frontend Paddle checkout:
+- Load Paddle.js.
+- Initialize with VITE_PADDLE_CLIENT_TOKEN.
+- Use sandbox when VITE_PADDLE_ENV=sandbox.
+- On Basic/Pro plan selection, call POST /api/billing/paddle/checkout.
+- Open Paddle checkout overlay using returned priceId and customData.
+- Do not mark subscription active from frontend success page.
+
+8. Add /billing/success page:
+- Show payment verification message.
+- Poll GET /api/billing/subscription/:workspaceId for 30–60 seconds.
+- If subscription becomes ACTIVE/TRIALING, redirect to dashboard.
+- If still pending, show message that activation is waiting for payment confirmation.
+
+9. Update pricing page:
+- Free: $0/month, activate internally
+- Basic: $19/month or $190/year, Paddle checkout
+- Pro: $49/month or $490/year, Paddle checkout
+- Business: Contact Sales
+- Add monthly/annual toggle.
+- Ensure mobile responsive design.
+
+10. Logging:
+- checkout request received
+- price ID resolved
+- checkout opened/failed on frontend
+- webhook received
+- signature verification failed
+- duplicate webhook ignored
+- subscription created/updated/canceled
+- payment/refund recorded
+
+11. Safety:
+- Do not remove existing manual admin subscription functionality.
+- Do not expose backend Paddle API key to frontend.
+- Do not activate paid plan without verified webhook.
+- Update .env.example files.

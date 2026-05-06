@@ -98,6 +98,7 @@ enum PaymentMethod {
   MOCK
   PAYFAST
   SAFEPAY
+  PADDLE
 }
 
 enum InvoiceStatus {
@@ -639,6 +640,12 @@ model Subscription {
   gatewayProvider         String?
   gatewayCustomerId       String?
   gatewaySubscriptionId   String?
+  gatewayTransactionId    String?
+  gatewayPriceId          String?
+  gatewayStatus           String?
+  cancelAtPeriodEnd       Boolean            @default(false)
+  lastPaymentAt           DateTime?
+  nextBillingAt           DateTime?
   createdAt               DateTime           @default(now())
   updatedAt               DateTime           @updatedAt
   workspace               Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -756,6 +763,23 @@ model BillingEvent {
   @@unique([gatewayProvider, gatewayEventId])
   @@index([workspaceId])
   @@index([eventType])
+  @@index([createdAt])
+}
+
+model WebhookEvent {
+  id               String    @id @default(uuid()) @db.Uuid
+  provider         String
+  eventId          String    @unique
+  eventType        String
+  processingStatus String    @default("RECEIVED")
+  rawPayload       Json
+  processedAt      DateTime?
+  errorMessage     String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([provider])
+  @@index([processingStatus])
   @@index([createdAt])
 }
 

@@ -25145,3 +25145,47 @@ body {
   .legal-header-nav { display: none; }
   .legal-footer-inner { flex-direction: column; align-items: flex-start; gap: 10px; }
 }
+
+/* ── Billing success polling states ─────────────────────────────────────── */
+.billing-status-poll-bar {
+  width: 100%;
+  max-width: 280px;
+  height: 4px;
+  background: #e2e8f0;
+  border-radius: 2px;
+  margin: 20px auto 8px;
+  overflow: hidden;
+}
+.billing-status-poll-bar-fill {
+  height: 100%;
+  width: 40%;
+  background: #6366f1;
+  border-radius: 2px;
+  animation: poll-slide 1.8s ease-in-out infinite;
+}
+@keyframes poll-slide {
+  0%   { transform: translateX(-100%); }
+  50%  { transform: translateX(150%); }
+  100% { transform: translateX(400%); }
+}
+.billing-status-poll-note {
+  font-size: 12px;
+  color: #94a3b8;
+  text-align: center;
+  margin: 0;
+}
+
+/* ── Billing contact sales note ─────────────────────────────────────────── */
+.billing-contact-sales-note {
+  padding: 14px 0;
+  border-top: 1px solid #f1f5f9;
+  border-bottom: 1px solid #f1f5f9;
+  margin-bottom: 4px;
+}
+.billing-contact-sales-note p {
+  font-size: 13.5px;
+  color: #475569;
+  line-height: 1.6;
+  margin: 0 0 8px;
+}
+.billing-contact-sales-note p:last-child { margin: 0; }

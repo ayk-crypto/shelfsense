@@ -4,6 +4,7 @@ import { getOnboardingStatus } from "../api/onboarding";
 import { getPublicPlans, previewSubscription, selectPlan } from "../api/subscriptions";
 import type { PublicPlan, SubscriptionPreview } from "../types";
 import { LegalFooterLinks } from "./LegalPage";
+import { isPaddleConfigured } from "../lib/paddle";
 
 const RECOMMENDED_CODE = "STARTER";
 
@@ -317,11 +318,13 @@ export function PlanSelectionPage() {
     if (isFree) return "Start Free";
     const payable = getPayableAmount();
     if (payable === 0) return "Activate Plan — No Payment Required";
-    return `Save Plan & Continue`;
+    if (isPaddleConfigured()) return "Continue to Checkout";
+    return "Save Plan & Continue";
   }
 
   function showPendingPaymentNote(): boolean {
     if (isFree) return false;
+    if (isPaddleConfigured()) return false;
     return getPayableAmount() > 0;
   }
 
@@ -329,13 +332,23 @@ export function PlanSelectionPage() {
     if (!selectedPlanId || !selectedPlan) return;
     setConfirming(true);
     setConfirmError(null);
+
+    const payable = getPayableAmount();
+    const isPayable = !isFree && payable > 0;
+
+    // Paid plan + Paddle configured → redirect to full checkout page
+    if (isPayable && isPaddleConfigured()) {
+      navigate(`/billing/checkout?plan=${selectedPlan.code}&cycle=${billingCycle}`);
+      return;
+    }
+
     try {
       await selectPlan({
         planId: selectedPlanId,
         billingCycle: isFree ? "MONTHLY" : billingCycle,
         couponCode: couponCode || undefined,
       });
-      if (isFree) {
+      if (isFree || payable === 0) {
         navigate("/dashboard", { replace: true });
       } else {
         setConfirmedPlan(selectedPlan);

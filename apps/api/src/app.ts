@@ -135,7 +135,17 @@ app.use("/auth/forgot-password", forgotPasswordRateLimit);
 app.use("/auth/reset-password", forgotPasswordRateLimit);
 app.use("/auth/resend-verification", forgotPasswordRateLimit);
 
-app.use(express.json({ limit: "1mb" }));
+app.use(
+  express.json({
+    limit: "1mb",
+    verify: (req: import("express").Request & { rawBody?: Buffer }, _res, buf) => {
+      // Capture raw body for Paddle webhook signature verification
+      if (req.originalUrl?.startsWith("/webhooks/paddle")) {
+        req.rawBody = buf;
+      }
+    },
+  }),
+);
 
 app.get("/api/health", (_req, res) => {
   const response: HealthResponse = { status: "ok" };

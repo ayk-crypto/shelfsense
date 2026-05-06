@@ -9,8 +9,11 @@ export interface BillingSubscription {
   currentPeriodStart: string | null;
   currentPeriodEnd: string | null;
   nextRenewalAt: string | null;
+  nextBillingAt: string | null;
+  cancelAtPeriodEnd: boolean;
   manualNotes: string | null;
   gatewayProvider: string | null;
+  gatewayStatus: string | null;
   createdAt: string;
   plan: {
     id: string;
@@ -51,6 +54,10 @@ export function getBillingSubscription(): Promise<{ subscription: BillingSubscri
   return apiClient.get("/billing/subscription");
 }
 
+export function getBillingSubscriptionByWorkspace(workspaceId: string): Promise<{ subscription: BillingSubscription | null; provider: string }> {
+  return apiClient.get(`/billing/subscription/${workspaceId}`);
+}
+
 export function initiateCheckout(params: {
   planId: string;
   billingCycle: "MONTHLY" | "ANNUAL";
@@ -66,6 +73,23 @@ export function initiateCheckout(params: {
   status?: string;
 }> {
   return apiClient.post("/billing/checkout", params);
+}
+
+export function initiatePaddleCheckout(params: {
+  planCode: string;
+  billingCycle: "MONTHLY" | "ANNUAL";
+}): Promise<{
+  success: boolean;
+  priceId: string;
+  customerEmail: string;
+  customData: {
+    workspaceId: string;
+    userId: string;
+    planCode: string;
+    billingCycle: string;
+  };
+}> {
+  return apiClient.post("/billing/paddle/checkout", params);
 }
 
 export function simulateMockPayment(params: {

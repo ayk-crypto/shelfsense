@@ -129,5 +129,14 @@ export const env = {
   appUrl: process.env.WEB_BASE_URL ?? process.env.APP_URL ?? "http://localhost:5000",
   supportFrom: process.env.SUPPORT_FROM ?? null,
   supportInboundSecret: process.env.SUPPORT_INBOUND_SECRET ?? null,
-  paymentProvider: (process.env.PAYMENT_PROVIDER ?? "mock").toLowerCase() as "mock" | "payfast" | "safepay",
+  paymentProvider: (process.env.PAYMENT_PROVIDER ?? "mock").toLowerCase() as "mock" | "payfast" | "safepay" | "paddle",
+  // Paddle
+  paddleEnv: (process.env.PADDLE_ENV ?? "sandbox") as "sandbox" | "production",
+  paddleApiKey: process.env.PADDLE_API_KEY,
+  paddleWebhookSecret: process.env.PADDLE_WEBHOOK_SECRET,
+  paddleBasicMonthlyPriceId: process.env.PADDLE_BASIC_MONTHLY_PRICE_ID,
+  paddleBasicAnnualPriceId: process.env.PADDLE_BASIC_ANNUAL_PRICE_ID,
+  paddleProMonthlyPriceId: process.env.PADDLE_PRO_MONTHLY_PRICE_ID,
+  paddleProAnnualPriceId: process.env.PADDLE_PRO_ANNUAL_PRICE_ID,
+  appFrontendUrl: process.env.APP_FRONTEND_URL ?? process.env.WEB_BASE_URL ?? process.env.APP_URL ?? "http://localhost:5000",
 };

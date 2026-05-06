@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { getPublicPlans, previewSubscription } from "../api/subscriptions";
-import { initiateCheckout } from "../api/billing";
+import { initiateCheckout, initiatePaddleCheckout } from "../api/billing";
+import { isPaddleConfigured, getPaddle } from "../lib/paddle";
 import type { PublicPlan, SubscriptionPreview } from "../types";
 import { LegalFooterLinks } from "./LegalPage";
 
@@ -32,8 +33,9 @@ function PlanCard({ plan, selected, billingCycle, onSelect }: {
   plan: PublicPlan; selected: boolean; billingCycle: "MONTHLY" | "ANNUAL"; onSelect: () => void;
 }) {
   const isFree = plan.code === "FREE" || (plan.monthlyPrice === 0 && plan.annualPrice === 0);
-  const price = isFree ? 0 : billingCycle === "ANNUAL" ? plan.annualPrice : plan.monthlyPrice;
-  const monthlyEquiv = billingCycle === "ANNUAL" && !isFree ? Math.round(plan.annualPrice / 12) : price;
+  const isContactSales = plan.code === "BUSINESS" || plan.priceDisplayMode === "CUSTOM";
+  const price = isFree || isContactSales ? 0 : billingCycle === "ANNUAL" ? plan.annualPrice : plan.monthlyPrice;
+  const monthlyEquiv = billingCycle === "ANNUAL" && !isFree && !isContactSales ? Math.round(plan.annualPrice / 12) : price;
   const isRecommended = plan.code === RECOMMENDED_CODE;
 
   const enabledFeatures = Object.entries(FEATURE_ICONS)
@@ -55,18 +57,20 @@ function PlanCard({ plan, selected, billingCycle, onSelect }: {
         {plan.description && <p className="plan-card-desc">{plan.description}</p>}
       </div>
       <div className="plan-card-price">
-        {isFree ? (
+        {isContactSales ? (
+          <span className="plan-price-amount" style={{ fontSize: 22 }}>Contact Sales</span>
+        ) : isFree ? (
           <span className="plan-price-amount">Free</span>
         ) : (
           <>
-            <span className="plan-price-currency">{plan.currency}</span>
+            <span className="plan-price-currency">$</span>
             <span className="plan-price-amount">{monthlyEquiv.toLocaleString()}</span>
             <span className="plan-price-period">/mo</span>
           </>
         )}
       </div>
-      {billingCycle === "ANNUAL" && !isFree && (
-        <div className="plan-price-annual-note">Billed {plan.currency}{plan.annualPrice}/yr</div>
+      {billingCycle === "ANNUAL" && !isFree && !isContactSales && (
+        <div className="plan-price-annual-note">Billed ${plan.annualPrice}/yr</div>
       )}
       <ul className="plan-feature-list">
         {enabledFeatures.map((f) => (
@@ -76,7 +80,7 @@ function PlanCard({ plan, selected, billingCycle, onSelect }: {
           </li>
         ))}
       </ul>
-      <div className="plan-card-select-indicator">{selected ? "Selected" : "Select plan"}</div>
+      <div className="plan-card-select-indicator">{selected ? "Selected" : isContactSales ? "Contact us" : "Select plan"}</div>
     </div>
   );
 }
@@ -85,16 +89,28 @@ export function BillingCheckoutPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const preselectedCode = searchParams.get("plan") ?? "";
+  const preselectedCycle = (searchParams.get("cycle") ?? "") as "MONTHLY" | "ANNUAL" | "";
 
   const [plans, setPlans] = useState<PublicPlan[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState<string>("");
-  const [billingCycle, setBillingCycle] = useState<"MONTHLY" | "ANNUAL">("MONTHLY");
+  const [billingCycle, setBillingCycle] = useState<"MONTHLY" | "ANNUAL">(
+    preselectedCycle === "ANNUAL" ? "ANNUAL" : "MONTHLY",
+  );
   const [couponCode, setCouponCode] = useState("");
   const [preview, setPreview] = useState<SubscriptionPreview | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const paddleInitialized = useRef(false);
+
+  // Pre-initialize Paddle as early as possible
+  useEffect(() => {
+    if (!paddleInitialized.current && isPaddleConfigured()) {
+      paddleInitialized.current = true;
+      void getPaddle().catch(() => {});
+    }
+  }, []);
 
   useEffect(() => {
     getPublicPlans()
@@ -122,11 +138,70 @@ export function BillingCheckoutPage() {
   }, [selectedPlanId, billingCycle, couponCode]);
 
   const selectedPlan = plans.find((p) => p.id === selectedPlanId);
+  const isContactSales = selectedPlan?.code === "BUSINESS" || selectedPlan?.priceDisplayMode === "CUSTOM";
 
   async function handleCheckout() {
-    if (!selectedPlanId) return;
+    if (!selectedPlanId || !selectedPlan) return;
+    if (isContactSales) {
+      window.location.href = "mailto:sales@shelfsenseapp.com?subject=ShelfSense Business Plan Inquiry";
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
+
+    const isFreeOrZero = selectedPlan.code === "FREE" ||
+      (preview ? preview.payableAmount === 0 : (selectedPlan.monthlyPrice === 0 && selectedPlan.annualPrice === 0));
+
+    if (isFreeOrZero) {
+      try {
+        const result = await initiateCheckout({
+          planId: selectedPlanId,
+          billingCycle,
+          couponCode: couponCode.trim() || undefined,
+        });
+        if (result.isFree) {
+          navigate("/billing/success?reason=free");
+        } else {
+          navigate("/billing/pending");
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Checkout failed. Please try again.");
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
+    // Paid plan — use Paddle overlay if configured
+    if (isPaddleConfigured()) {
+      try {
+        const data = await initiatePaddleCheckout({
+          planCode: selectedPlan.code,
+          billingCycle,
+        });
+
+        const paddle = await getPaddle();
+        if (!paddle) throw new Error("Paddle failed to initialize. Please refresh and try again.");
+
+        const successUrl = `${window.location.origin}/billing/success?paddle=1`;
+
+        paddle.Checkout.open({
+          items: [{ priceId: data.priceId, quantity: 1 }],
+          customer: { email: data.customerEmail },
+          customData: data.customData as Record<string, unknown>,
+          settings: { successUrl },
+        });
+        // The overlay handles everything — no further action needed here
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Checkout failed. Please try again.");
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
+    // Fallback: existing provider checkout flow
     try {
       const result = await initiateCheckout({
         planId: selectedPlanId,
@@ -195,47 +270,58 @@ export function BillingCheckoutPage() {
 
         {selectedPlan && (
           <div className="billing-summary-card">
-            <div className="billing-summary-row">
-              <span>Plan</span>
-              <span>{selectedPlan.name} ({billingCycle === "ANNUAL" ? "Annual" : "Monthly"})</span>
-            </div>
-            {preview && (
+            {!isContactSales && (
               <>
-                {preview.discountAmount > 0 && (
-                  <div className="billing-summary-row billing-summary-row--discount">
-                    <span>Coupon discount</span>
-                    <span>-{preview.plan.currency}{preview.discountAmount.toFixed(2)}</span>
+                <div className="billing-summary-row">
+                  <span>Plan</span>
+                  <span>{selectedPlan.name} ({billingCycle === "ANNUAL" ? "Annual" : "Monthly"})</span>
+                </div>
+                {preview && (
+                  <>
+                    {preview.discountAmount > 0 && (
+                      <div className="billing-summary-row billing-summary-row--discount">
+                        <span>Coupon discount</span>
+                        <span>-${preview.discountAmount.toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div className="billing-summary-row billing-summary-row--total">
+                      <span>Total</span>
+                      <span>
+                        {preview.payableAmount === 0
+                          ? "Free"
+                          : `$${preview.payableAmount.toFixed(2)} / ${billingCycle === "ANNUAL" ? "year" : "month"}`}
+                      </span>
+                    </div>
+                  </>
+                )}
+
+                <div className="billing-coupon-row">
+                  <input
+                    className="input"
+                    placeholder="Coupon code (optional)"
+                    value={couponCode}
+                    onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                    style={{ flex: 1, fontSize: 14 }}
+                  />
+                  {previewLoading && <div className="spinner spinner--sm" />}
+                </div>
+                {preview?.couponApplied && (
+                  <div className="alert alert--success" style={{ padding: "8px 12px", fontSize: 13 }}>
+                    {preview.couponMessage}
                   </div>
                 )}
-                <div className="billing-summary-row billing-summary-row--total">
-                  <span>Total</span>
-                  <span>
-                    {preview.payableAmount === 0
-                      ? "Free"
-                      : `${preview.plan.currency}${preview.payableAmount.toFixed(2)} / ${billingCycle === "ANNUAL" ? "year" : "month"}`}
-                  </span>
-                </div>
+                {preview?.couponMessage && !preview.couponApplied && couponCode.trim() && (
+                  <div className="alert alert--error" style={{ padding: "8px 12px", fontSize: 13 }}>
+                    {preview.couponMessage}
+                  </div>
+                )}
               </>
             )}
 
-            <div className="billing-coupon-row">
-              <input
-                className="input"
-                placeholder="Coupon code (optional)"
-                value={couponCode}
-                onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                style={{ flex: 1, fontSize: 14 }}
-              />
-              {previewLoading && <div className="spinner spinner--sm" />}
-            </div>
-            {preview?.couponApplied && (
-              <div className="alert alert--success" style={{ padding: "8px 12px", fontSize: 13 }}>
-                {preview.couponMessage}
-              </div>
-            )}
-            {preview?.couponMessage && !preview.couponApplied && couponCode.trim() && (
-              <div className="alert alert--error" style={{ padding: "8px 12px", fontSize: 13 }}>
-                {preview.couponMessage}
+            {isContactSales && (
+              <div className="billing-contact-sales-note">
+                <p>The Business plan is designed for larger teams and comes with custom pricing, dedicated support, and tailored feature access.</p>
+                <p>Reach out to our team and we'll set up your account personally.</p>
               </div>
             )}
 
@@ -250,14 +336,21 @@ export function BillingCheckoutPage() {
             >
               {submitting
                 ? "Processing…"
+                : isContactSales
+                ? "Contact Sales"
                 : preview?.payableAmount === 0
                 ? "Activate — Free"
+                : isPaddleConfigured()
+                ? "Pay with Paddle"
                 : "Continue to Payment"}
             </button>
-            <p className="billing-secure-note">
-              <svg viewBox="0 0 20 20" fill="currentColor" style={{ width: 14, height: 14 }} aria-hidden="true"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" /></svg>
-              Secure payment. No card details stored by ShelfSense.
-            </p>
+
+            {!isContactSales && (
+              <p className="billing-secure-note">
+                <svg viewBox="0 0 20 20" fill="currentColor" style={{ width: 14, height: 14 }} aria-hidden="true"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" /></svg>
+                Secure payment. No card details stored by ShelfSense.
+              </p>
+            )}
             <LegalFooterLinks />
           </div>
         )}
