@@ -1,5 +1,7 @@
 import JsBarcode from "jsbarcode";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { ConfirmModal } from "../components/ConfirmModal";
+import type { ConfirmOptions } from "../components/ConfirmModal";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { archiveItem, createItem, getItems, reactivateItem, updateItem } from "../api/items";
 import { addOpeningStock, getStockMovements, getStockSummary, stockIn, stockOut, stockTransfer } from "../api/stock";
@@ -130,6 +132,7 @@ export function ItemsPage() {
   const [bulkProgress, setBulkProgress] = useState<BulkProgress | null>(null);
   const [bulkSaving, setBulkSaving] = useState(false);
   const [busy, setBusy] = useState<Set<string>>(new Set());
+  const [confirmOpts, setConfirmOpts] = useState<ConfirmOptions | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -313,56 +316,73 @@ export function ItemsPage() {
     setBulkProgress(null);
   }
 
-  async function applyBulkUpdate(label: string, patch: Partial<CreateItemInput>) {
+  function applyBulkUpdate(label: string, patch: Partial<CreateItemInput>) {
     const selectedIds = visibleItemIds.filter((id) => selectedItemIds.has(id));
     if (selectedIds.length === 0) return;
 
-    const confirmed = window.confirm(`Apply "${label}" to ${selectedIds.length} selected item${selectedIds.length === 1 ? "" : "s"}?`);
-    if (!confirmed) return;
+    setConfirmOpts({
+      title: `Apply "${label}"?`,
+      message: `This will update ${selectedIds.length} selected item${selectedIds.length === 1 ? "" : "s"}.`,
+      confirmLabel: "Apply",
+      variant: "primary",
+      onConfirm: async () => {
+        setConfirmOpts(null);
+        setBulkSaving(true);
+        setBulkProgress({ updated: 0, total: selectedIds.length, failed: 0 });
 
-    setBulkSaving(true);
-    setBulkProgress({ updated: 0, total: selectedIds.length, failed: 0 });
+        let updated = 0;
+        let failed = 0;
 
-    let updated = 0;
-    let failed = 0;
+        for (const id of selectedIds) {
+          try {
+            await updateItem(id, patch);
+            updated += 1;
+          } catch {
+            failed += 1;
+          }
+          setBulkProgress({ updated, total: selectedIds.length, failed });
+        }
 
-    for (const id of selectedIds) {
-      try {
-        await updateItem(id, patch);
-        updated += 1;
-      } catch {
-        failed += 1;
-      }
+        setBulkSaving(false);
+        await loadAll();
 
-      setBulkProgress({ updated, total: selectedIds.length, failed });
-    }
-
-    setBulkSaving(false);
-    await loadAll();
-
-    if (failed === 0) {
-      setSelectedItemIds(new Set());
-      showToast(`Updated ${updated} item${updated === 1 ? "" : "s"}`, "success");
-    } else {
-      showToast(`Updated ${updated} of ${selectedIds.length}; ${failed} failed`, "error");
-    }
+        if (failed === 0) {
+          setSelectedItemIds(new Set());
+          showToast(`Updated ${updated} item${updated === 1 ? "" : "s"}`, "success");
+        } else {
+          showToast(`Updated ${updated} of ${selectedIds.length}; ${failed} failed`, "error");
+        }
+      },
+      onCancel: () => setConfirmOpts(null),
+    });
   }
 
-  async function handleArchiveItem(item: Item) {
+  function handleArchiveItem(item: Item) {
     const quantity = summaryMap.get(item.id)?.totalQuantity ?? 0;
-    const stockNote = quantity > 0 ? ` It currently has ${formatNumber(quantity)} ${item.unit} in stock; history will be preserved.` : "";
-    if (!window.confirm(`Archive "${item.name}"?${stockNote}`)) return;
+    const message = quantity > 0
+      ? `It currently has ${formatNumber(quantity)} ${item.unit} in stock. Stock history will be preserved.`
+      : "This item will be hidden from active inventory. You can restore it later.";
 
-    setBusy((prev) => new Set(prev).add(item.id));
-    try {
-      await archiveItem(item.id);
-      showToast(`Archived "${item.name}"`, "success");
-      await loadAll();
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : "Failed to archive item", "error");
-    } finally {
-      setBusy((prev) => { const next = new Set(prev); next.delete(item.id); return next; });
-    }
+    setConfirmOpts({
+      title: `Archive "${item.name}"?`,
+      message,
+      confirmLabel: "Archive",
+      variant: "danger",
+      onConfirm: async () => {
+        setConfirmOpts(null);
+        setBusy((prev) => new Set(prev).add(item.id));
+        try {
+          await archiveItem(item.id);
+          showToast(`Archived "${item.name}"`, "success");
+          await loadAll();
+        } catch (err) {
+          showToast(err instanceof Error ? err.message : "Failed to archive item", "error");
+        } finally {
+          setBusy((prev) => { const next = new Set(prev); next.delete(item.id); return next; });
+        }
+      },
+      onCancel: () => setConfirmOpts(null),
+    });
   }
 
   async function handleReactivateItem(item: Item) {
@@ -1111,6 +1131,8 @@ export function ItemsPage() {
           onError={(msg) => showToast(msg, "error")}
         />
       )}
+
+      {confirmOpts && <ConfirmModal {...confirmOpts} />}
 
       <div className="toast-stack">
         {toasts.map((t) => (

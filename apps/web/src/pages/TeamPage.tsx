@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ConfirmModal } from "../components/ConfirmModal";
+import type { ConfirmOptions } from "../components/ConfirmModal";
 import {
   createCustomRole,
   createTeamUser,
@@ -37,6 +39,7 @@ export function TeamPage() {
   const [editingRole, setEditingRole] = useState<CustomRole | null>(null);
   const [creatingRole, setCreatingRole] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
+  const [confirmOpts, setConfirmOpts] = useState<ConfirmOptions | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   const activeCount = useMemo(() => members.filter((m) => m.isActive).length, [members]);
@@ -66,15 +69,24 @@ export function TeamPage() {
     }
   }
 
-  async function handleDeactivate(member: TeamMember) {
-    if (!window.confirm(`Deactivate access for ${member.name}?`)) return;
-    try {
-      await deactivateTeamUser(member.userId);
-      showToast(`Deactivated ${member.name}`, "success");
-      await loadAll();
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : "Failed to deactivate user", "error");
-    }
+  function handleDeactivate(member: TeamMember) {
+    setConfirmOpts({
+      title: `Deactivate ${member.name}?`,
+      message: "They will immediately lose access to this workspace. You can reactivate them at any time.",
+      confirmLabel: "Deactivate",
+      variant: "warning",
+      onConfirm: async () => {
+        setConfirmOpts(null);
+        try {
+          await deactivateTeamUser(member.userId);
+          showToast(`Deactivated ${member.name}`, "success");
+          await loadAll();
+        } catch (err) {
+          showToast(err instanceof Error ? err.message : "Failed to deactivate user", "error");
+        }
+      },
+      onCancel: () => setConfirmOpts(null),
+    });
   }
 
   async function handleReactivate(member: TeamMember) {
@@ -87,19 +99,28 @@ export function TeamPage() {
     }
   }
 
-  async function handleDeleteRole(role: CustomRole) {
-    const msg = role.memberCount > 0
-      ? `Delete role "${role.name}"? ${role.memberCount} member(s) will revert to their base access level.`
-      : `Delete role "${role.name}"?`;
-    if (!window.confirm(msg)) return;
-    try {
-      await deleteCustomRole(role.id);
-      setCustomRoles((prev) => prev.filter((r) => r.id !== role.id));
-      showToast(`Deleted role "${role.name}"`, "success");
-      await loadAll();
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : "Failed to delete role", "error");
-    }
+  function handleDeleteRole(role: CustomRole) {
+    const message = role.memberCount > 0
+      ? `${role.memberCount} member${role.memberCount === 1 ? "" : "s"} will revert to their base access level.`
+      : "This action cannot be undone.";
+    setConfirmOpts({
+      title: `Delete role "${role.name}"?`,
+      message,
+      confirmLabel: "Delete",
+      variant: "danger",
+      onConfirm: async () => {
+        setConfirmOpts(null);
+        try {
+          await deleteCustomRole(role.id);
+          setCustomRoles((prev) => prev.filter((r) => r.id !== role.id));
+          showToast(`Deleted role "${role.name}"`, "success");
+          await loadAll();
+        } catch (err) {
+          showToast(err instanceof Error ? err.message : "Failed to delete role", "error");
+        }
+      },
+      onCancel: () => setConfirmOpts(null),
+    });
   }
 
   useEffect(() => { void loadAll(showInactive); }, [showInactive]);
@@ -291,6 +312,8 @@ export function TeamPage() {
           onError={(msg) => showToast(msg, "error")}
         />
       )}
+
+      {confirmOpts && <ConfirmModal {...confirmOpts} />}
 
       <div className="toast-stack">
         {toasts.map((t) => (

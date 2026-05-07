@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ConfirmModal } from "../components/ConfirmModal";
+import type { ConfirmOptions } from "../components/ConfirmModal";
 import {
   archiveLocation,
   createLocation,
@@ -24,6 +26,7 @@ export function LocationsPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
   const [localLoading, setLocalLoading] = useState(false);
+  const [confirmOpts, setConfirmOpts] = useState<ConfirmOptions | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   const visibleLocations = showArchived ? allLocations : locations;
@@ -74,16 +77,24 @@ export function LocationsPage() {
     }
   }
 
-  async function handleArchive(location: Location) {
-    if (!window.confirm(`Archive ${location.name}? Locations with remaining stock cannot be archived.`)) return;
-
-    try {
-      await archiveLocation(location.id);
-      showToast(`Archived ${location.name}`, "success");
-      await refreshAllLocations(showArchived);
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : "Failed to archive location", "error");
-    }
+  function handleArchive(location: Location) {
+    setConfirmOpts({
+      title: `Archive ${location.name}?`,
+      message: "Locations with remaining stock cannot be archived. You can restore this location later.",
+      confirmLabel: "Archive",
+      variant: "danger",
+      onConfirm: async () => {
+        setConfirmOpts(null);
+        try {
+          await archiveLocation(location.id);
+          showToast(`Archived ${location.name}`, "success");
+          await refreshAllLocations(showArchived);
+        } catch (err) {
+          showToast(err instanceof Error ? err.message : "Failed to archive location", "error");
+        }
+      },
+      onCancel: () => setConfirmOpts(null),
+    });
   }
 
   async function handleReactivate(location: Location) {
@@ -199,6 +210,8 @@ export function LocationsPage() {
           onError={(msg) => showToast(msg, "error")}
         />
       )}
+
+      {confirmOpts && <ConfirmModal {...confirmOpts} />}
 
       <div className="toast-stack">
         {toasts.map((toast) => (
