@@ -15,6 +15,7 @@ export function BillingSuccessPage() {
   const [sub, setSub] = useState<BillingSubscription | null>(null);
   const [polling, setPolling] = useState(isPaddleReturn);
   const [pollExpired, setPollExpired] = useState(false);
+  const [pollKey, setPollKey] = useState(0);
   const attemptsRef = useRef(0);
 
   useEffect(() => {
@@ -24,7 +25,9 @@ export function BillingSuccessPage() {
   }, []);
 
   useEffect(() => {
-    if (!isPaddleReturn) return;
+    if (!isPaddleReturn || !polling) return;
+
+    attemptsRef.current = 0;
 
     const interval = setInterval(async () => {
       attemptsRef.current += 1;
@@ -50,7 +53,13 @@ export function BillingSuccessPage() {
     }, POLL_INTERVAL_MS);
 
     return () => clearInterval(interval);
-  }, [isPaddleReturn, navigate]);
+  }, [isPaddleReturn, navigate, polling, pollKey]);
+
+  function handleRetry() {
+    setPollExpired(false);
+    setPolling(true);
+    setPollKey((k) => k + 1);
+  }
 
   const isConfirmed = sub && ["ACTIVE", "TRIALING", "TRIAL"].includes(sub.status);
 
@@ -92,10 +101,13 @@ export function BillingSuccessPage() {
           <h1 className="billing-status-title">Payment pending confirmation</h1>
           <p className="billing-status-desc">
             Your payment was received, but your subscription is still being activated.
-            This can take a few minutes. You can check your billing settings for the latest status.
+            This can take a few minutes. You can retry the check or go to your billing settings.
           </p>
           <div className="billing-status-actions">
-            <Link to="/dashboard" className="btn btn--primary">Go to Dashboard</Link>
+            <button className="btn btn--primary" onClick={handleRetry}>
+              Check again
+            </button>
+            <Link to="/dashboard" className="btn btn--secondary">Go to Dashboard</Link>
             <Link to="/settings/billing" className="btn btn--ghost">View billing settings</Link>
           </div>
         </div>

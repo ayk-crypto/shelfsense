@@ -39,7 +39,7 @@ export function requirePlanFeature(feature: PlanFeatureKey) {
       const sub = await prisma.subscription.findFirst({
         where: {
           workspaceId,
-          status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIAL] },
+          status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIAL, SubscriptionStatus.MANUAL_REVIEW] },
         },
         orderBy: { createdAt: "desc" },
         select: {
