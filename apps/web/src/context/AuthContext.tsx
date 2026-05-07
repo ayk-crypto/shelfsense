@@ -76,6 +76,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Re-sync user when the tab becomes visible again (handles role/permission
+  // changes made by an owner in another tab or session).
+  useEffect(() => {
+    function handleVisibility() {
+      if (!document.hidden && state.isAuthenticated) {
+        void refreshUser();
+      }
+    }
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [state.isAuthenticated, refreshUser]);
+
   return (
     <AuthContext.Provider value={{ ...state, saveAuth, logout, refreshUser }}>
       {children}

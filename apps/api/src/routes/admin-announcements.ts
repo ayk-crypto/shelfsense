@@ -2,8 +2,11 @@ import { Router } from "express";
 import { Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../db/prisma.js";
 import { asyncHandler } from "../utils/async-handler.js";
+import { requireAuth, requirePlatformAdmin } from "../middleware/auth.js";
 
 export const adminAnnouncementsRouter = Router();
+
+adminAnnouncementsRouter.use(requireAuth, requirePlatformAdmin);
 
 async function logAdminAction(
   adminId: string,

@@ -95,6 +95,7 @@ reportsRouter.get(
         ...(f.locationId ? { locationId: f.locationId } : {}),
         ...(f.itemId ? { itemId: f.itemId } : {}),
         ...(dr ? { createdAt: dr } : {}),
+        ...(f.category ? { item: { category: f.category } } : {}),
       },
       select: {
         itemId: true,
@@ -102,12 +103,10 @@ reportsRouter.get(
         unitCost: true,
         item: { select: { name: true, category: true, unit: true, sku: true } },
       },
-      take: MAX_ROWS * 10,
+      take: MAX_ROWS * 2,
     });
 
-    const filtered = f.category
-      ? batches.filter((b) => (b.item.category ?? "Uncategorized") === f.category)
-      : batches;
+    const filtered = batches;
 
     type Entry = { name: string; cat: string; unit: string; sku: string | null; qty: number; wtCost: number; batches: number };
     const map = new Map<string, Entry>();
@@ -170,6 +169,7 @@ reportsRouter.get(
         ...(f.locationId ? { locationId: f.locationId } : {}),
         ...(f.itemId ? { itemId: f.itemId } : {}),
         ...(dr ? { createdAt: dr } : {}),
+        ...(f.category ? { item: { category: f.category } } : {}),
       },
       select: {
         itemId: true,
@@ -177,12 +177,10 @@ reportsRouter.get(
         unitCost: true,
         item: { select: { name: true, category: true, unit: true } },
       },
-      take: MAX_ROWS * 5,
+      take: MAX_ROWS * 2,
     });
 
-    const filtered = f.category
-      ? movements.filter((m) => (m.item.category ?? "Uncategorized") === f.category)
-      : movements;
+    const filtered = movements;
 
     type Entry = { name: string; cat: string; unit: string; qty: number; value: number; count: number };
     const map = new Map<string, Entry>();
@@ -242,6 +240,7 @@ reportsRouter.get(
         ...(f.locationId ? { locationId: f.locationId } : {}),
         ...(f.itemId ? { itemId: f.itemId } : {}),
         ...(dr ? { createdAt: dr } : {}),
+        ...(f.category ? { item: { category: f.category } } : {}),
       },
       select: {
         itemId: true,
@@ -251,12 +250,10 @@ reportsRouter.get(
         location: { select: { name: true } },
       },
       orderBy: { createdAt: "desc" },
-      take: MAX_ROWS * 5,
+      take: MAX_ROWS * 2,
     });
 
-    const filtered = f.category
-      ? movements.filter((m) => (m.item.category ?? "Uncategorized") === f.category)
-      : movements;
+    const filtered = movements;
 
     type Entry = { name: string; cat: string; unit: string; qty: number; count: number; lastUsed: Date };
     const map = new Map<string, Entry>();
@@ -325,7 +322,7 @@ reportsRouter.get(
         supplier: { select: { name: true } },
       },
       orderBy: { date: "desc" },
-      take: MAX_ROWS * 5,
+      take: MAX_ROWS * 2,
     });
 
     type Entry = { name: string; orders: number; spend: number; lastDate: Date | null };
@@ -538,18 +535,17 @@ reportsRouter.get(
         ...(f.locationId ? { locationId: f.locationId } : {}),
         ...(f.itemId ? { itemId: f.itemId } : {}),
         ...(dr ? { createdAt: dr } : {}),
+        ...(f.category ? { item: { category: f.category } } : {}),
       },
       select: {
         itemId: true,
         quantity: true,
         item: { select: { name: true, category: true, unit: true } },
       },
-      take: MAX_ROWS * 5,
+      take: MAX_ROWS * 2,
     });
 
-    const filtered = f.category
-      ? movements.filter((m) => (m.item.category ?? "Uncategorized") === f.category)
-      : movements;
+    const filtered = movements;
 
     type Entry = { name: string; cat: string; unit: string; pos: number; neg: number; count: number };
     const map = new Map<string, Entry>();

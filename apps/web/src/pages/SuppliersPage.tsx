@@ -421,6 +421,9 @@ function SupplierModal({
                 value={form.phone ?? ""}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
                 placeholder="+92 300 0000000"
+                pattern="^[+\d][\d\s()\-]{3,19}$"
+                title="Enter a valid phone number (5–20 characters, digits and +() - allowed)"
+                maxLength={20}
               />
             </div>
             <div className="form-group">

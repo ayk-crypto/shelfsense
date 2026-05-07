@@ -63,7 +63,8 @@ import { PrivacyPage } from "./pages/PrivacyPage";
 import { RefundPage } from "./pages/RefundPage";
 import { useEffect, useState } from "react";
 import type { OnboardingStatus, WorkspaceSettings } from "./types";
-import type { Role } from "./types";
+import type { Role, Permission } from "./types";
+import { hasPermission } from "./utils/permissions";
 import "./App.css";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -121,6 +122,17 @@ function RoleRoute({
   return user?.role && allowedRoles.includes(user.role)
     ? <>{children}</>
     : <AccessDenied />;
+}
+
+function PermissionRoute({
+  permission,
+  children,
+}: {
+  permission: Permission;
+  children: React.ReactNode;
+}) {
+  const { user } = useAuth();
+  return hasPermission(user, permission) ? <>{children}</> : <AccessDenied />;
 }
 
 function PlatformAdminRoute({ children }: { children: React.ReactNode }) {
@@ -368,43 +380,43 @@ export function App() {
             <Route path="/movements" element={<MovementsPage />} />
             <Route
               path="/stock-count"
-              element={<RoleRoute allowedRoles={["OWNER", "MANAGER", "OPERATOR"]}><StockCountPage /></RoleRoute>}
+              element={<PermissionRoute permission="inventory_view"><StockCountPage /></PermissionRoute>}
             />
             <Route
               path="/stock-count/:id"
-              element={<RoleRoute allowedRoles={["OWNER", "MANAGER", "OPERATOR"]}><StockCountPage /></RoleRoute>}
+              element={<PermissionRoute permission="inventory_view"><StockCountPage /></PermissionRoute>}
             />
             <Route
               path="/transfers"
-              element={<RoleRoute allowedRoles={["OWNER", "MANAGER"]}><Navigate to="/items?action=transfer" replace /></RoleRoute>}
+              element={<PermissionRoute permission="inventory_manage"><Navigate to="/items?action=transfer" replace /></PermissionRoute>}
             />
             <Route
               path="/stock-in"
-              element={<RoleRoute allowedRoles={["OWNER", "MANAGER"]}><StockInPage /></RoleRoute>}
+              element={<PermissionRoute permission="stock_in"><StockInPage /></PermissionRoute>}
             />
             <Route
               path="/stock-out"
-              element={<RoleRoute allowedRoles={["OWNER", "MANAGER", "OPERATOR"]}><StockOutPage /></RoleRoute>}
+              element={<PermissionRoute permission="stock_out"><StockOutPage /></PermissionRoute>}
             />
             <Route
               path="/suppliers"
-              element={<RoleRoute allowedRoles={["OWNER", "MANAGER"]}><SuppliersPage /></RoleRoute>}
+              element={<PermissionRoute permission="suppliers"><SuppliersPage /></PermissionRoute>}
             />
             <Route
               path="/purchases"
-              element={<RoleRoute allowedRoles={["OWNER", "MANAGER"]}><PurchasesPage /></RoleRoute>}
+              element={<PermissionRoute permission="purchases"><PurchasesPage /></PermissionRoute>}
             />
             <Route
               path="/reorder-suggestions"
-              element={<RoleRoute allowedRoles={["OWNER", "MANAGER", "OPERATOR"]}><ReorderSuggestionsPage /></RoleRoute>}
+              element={<PermissionRoute permission="purchases"><ReorderSuggestionsPage /></PermissionRoute>}
             />
             <Route
               path="/reports"
-              element={<RoleRoute allowedRoles={["OWNER", "MANAGER"]}><ReportsPage /></RoleRoute>}
+              element={<PermissionRoute permission="reports"><ReportsPage /></PermissionRoute>}
             />
             <Route
               path="/alerts"
-              element={<RoleRoute allowedRoles={["OWNER", "MANAGER", "OPERATOR"]}><AlertsPage /></RoleRoute>}
+              element={<PermissionRoute permission="alerts"><AlertsPage /></PermissionRoute>}
             />
             <Route
               path="/team"

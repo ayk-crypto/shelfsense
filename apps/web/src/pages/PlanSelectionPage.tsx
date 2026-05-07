@@ -346,7 +346,7 @@ export function PlanSelectionPage() {
     // Do not allow a direct paid-plan activation bypass when Paddle is the
     // expected payment provider but the client token is absent.
     if (isPayable) {
-      setConfirmError("Online payment is currently unavailable. Please contact support to activate your plan.");
+      setConfirmError("Online payment is currently unavailable. Select the Free plan to continue for now, or contact support to activate a paid plan.");
       setConfirming(false);
       return;
     }

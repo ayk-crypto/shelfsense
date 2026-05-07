@@ -3,10 +3,13 @@ import nodemailer from "nodemailer";
 import { Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../db/prisma.js";
 import { asyncHandler } from "../utils/async-handler.js";
+import { requireAuth, requirePlatformAdmin } from "../middleware/auth.js";
 import { logger } from "../lib/logger.js";
 import { env } from "../config/env.js";
 
 export const adminSupportRouter = Router();
+
+adminSupportRouter.use(requireAuth, requirePlatformAdmin);
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 

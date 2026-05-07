@@ -209,7 +209,7 @@ export function PurchasesPage() {
     }
   }
 
-  if (planFeatures.isLoading || (loading && purchases.length === 0)) {
+  if (planFeatures.isLoading || loading) {
     return (
       <div className="page-loading">
         <div className="spinner" />
@@ -638,7 +638,7 @@ function NewPurchaseModal({
               </div>
               <div className="purchase-header-fields">
               <label className="form-group">
-                <span className="form-label">Supplier</span>
+                <span className="form-label">Supplier *</span>
                 <select className="form-input form-select" value={supplierId} onChange={(event) => setSupplierId(event.target.value)}>
                   <option value="">Select supplier</option>
                   {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
@@ -650,7 +650,7 @@ function NewPurchaseModal({
                 </button>
               )}
               <label className="form-group">
-                <span className="form-label">Purchase date</span>
+                <span className="form-label">Purchase date *</span>
                 <input className="form-input" type="date" value={date} onChange={(event) => setDate(event.target.value)} />
               </label>
               <label className="form-group">
@@ -751,6 +751,14 @@ function ReceivePurchaseModal({
     event.preventDefault();
     const validLines = lines.filter((line) => (numberValue(line.receivedQuantity) ?? 0) > 0);
     if (validLines.length === 0) return onError("Enter at least one received quantity");
+
+    for (const line of validLines) {
+      const purchaseItem = purchase.purchaseItems.find((pi) => pi.id === line.purchaseItemId);
+      const received = numberValue(line.receivedQuantity) ?? 0;
+      if (purchaseItem && received > purchaseItem.remainingQuantity) {
+        return onError(`Quantity for "${purchaseItem.item.name}" exceeds remaining (${purchaseItem.remainingQuantity})`);
+      }
+    }
 
     setSaving(true);
     try {

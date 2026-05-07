@@ -212,7 +212,9 @@ export function OnboardingPage({
           setStockLocationId(active[0].id);
         }
       })
-      .catch(() => {});
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : "Unable to load locations. Please refresh and try again.");
+      });
   }, []);
 
   // ── Sync stock entries when items are created ──

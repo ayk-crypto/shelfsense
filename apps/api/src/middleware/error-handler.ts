@@ -21,6 +21,11 @@ const STATUS_CODES: Record<number, string> = {
 };
 
 function getStatus(error: unknown) {
+  // Prisma "Record not found" → 404 instead of 500
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+    return 404;
+  }
+
   if (typeof error !== "object" || error === null) {
     return 500;
   }
