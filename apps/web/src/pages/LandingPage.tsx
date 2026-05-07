@@ -624,7 +624,7 @@ export function LandingPage() {
       {/* ── Trust section ─────────────────────────────── */}
       <section className="lp-trust-section">
         <div className="lp-container">
-          <div className="lp-trust-strip">
+          <div className="lp-trust-grid">
             {([
               {
                 icon: (
@@ -656,11 +656,10 @@ export function LandingPage() {
                 ),
                 label: "Restaurants, retail & warehouses",
               },
-            ] as { icon: React.ReactNode; label: string }[]).map((item, i, arr) => (
-              <div key={item.label} className="lp-trust-row-item">
-                <span className="lp-trust-pill-icon">{item.icon}</span>
-                <span className="lp-trust-pill-label">{item.label}</span>
-                {i < arr.length - 1 && <span className="lp-trust-sep" aria-hidden />}
+            ] as { icon: React.ReactNode; label: string }[]).map((item) => (
+              <div key={item.label} className="lp-trust-chip">
+                <span className="lp-trust-chip-icon">{item.icon}</span>
+                <span className="lp-trust-chip-label">{item.label}</span>
               </div>
             ))}
           </div>
