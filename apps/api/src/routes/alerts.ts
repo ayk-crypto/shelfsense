@@ -41,7 +41,7 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), as
 
   const [items, expiringSoon, expired] = await Promise.all([
     prisma.item.findMany({
-      where: { workspaceId },
+      where: { workspaceId, isActive: true },
       orderBy: { name: "asc" },
       select: {
         id: true,
@@ -65,10 +65,8 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), as
         workspaceId,
         locationId,
         remainingQuantity: { gt: 0 },
-        expiryDate: {
-          gte: now,
-          lte: expiryAlertUntil,
-        },
+        expiryDate: { gte: now, lte: expiryAlertUntil },
+        item: { isActive: true },
       },
       orderBy: { expiryDate: "asc" },
       select: {
@@ -90,9 +88,8 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), as
         workspaceId,
         locationId,
         remainingQuantity: { gt: 0 },
-        expiryDate: {
-          lt: now,
-        },
+        expiryDate: { lt: now },
+        item: { isActive: true },
       },
       orderBy: { expiryDate: "asc" },
       select: {

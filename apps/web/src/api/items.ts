@@ -33,3 +33,7 @@ export async function archiveItem(id: string): Promise<void> {
 export async function reactivateItem(id: string): Promise<{ item: Item }> {
   return apiClient.patch<{ item: Item }>(`/items/${id}/reactivate`, {}, true);
 }
+
+export async function deleteItemPermanently(id: string): Promise<void> {
+  await apiClient.delete(`/items/${id}/permanent`);
+}

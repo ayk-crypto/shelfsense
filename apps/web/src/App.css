@@ -3341,6 +3341,62 @@ body {
   max-width: 160px;
 }
 
+/* ── Permanent-delete confirmation modal ─────────────────────────── */
+.delete-confirm-banner {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.delete-confirm-banner-icon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  background: #ffedd5;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ea580c;
+}
+
+.delete-confirm-banner-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.delete-confirm-banner-body {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: #7c2d12;
+}
+
+.delete-confirm-banner-body strong {
+  display: block;
+  font-weight: 700;
+  margin-bottom: 4px;
+  color: #9a3412;
+}
+
+.delete-confirm-banner-body p {
+  margin: 0;
+  color: #92400e;
+}
+
+.delete-confirm-name-hint {
+  font-weight: 700;
+  color: var(--color-text);
+  font-family: ui-monospace, monospace;
+  font-size: 12.5px;
+  background: #f3f4f6;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
 .btn--warning {
   background: #d97706 !important;
   color: #fff !important;

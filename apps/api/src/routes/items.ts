@@ -403,6 +403,49 @@ itemsRouter.delete("/:id", requireRole([Role.OWNER]), asyncHandler(async (req, r
   return res.status(204).send();
 }));
 
+itemsRouter.delete("/:id/permanent", requireRole([Role.OWNER]), asyncHandler(async (req, res) => {
+  const workspaceId = getWorkspaceId(req);
+
+  if (!workspaceId) {
+    return res.status(403).json({ error: "Workspace access required" });
+  }
+
+  const item = await prisma.item.findFirst({
+    where: { id: req.params.id, workspaceId },
+    select: { id: true, name: true, isActive: true },
+  });
+
+  if (!item) {
+    return res.status(404).json({ error: "Item not found" });
+  }
+
+  if (item.isActive) {
+    return res.status(400).json({ error: "Archive the item before permanently deleting it." });
+  }
+
+  const itemId = item.id;
+  const itemName = item.name;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.stockCountItem.deleteMany({ where: { itemId } });
+    await tx.purchaseItem.deleteMany({ where: { itemId } });
+    await tx.notification.deleteMany({ where: { workspaceId, entity: "Item", entityId: itemId } });
+    await tx.item.delete({ where: { id: itemId } });
+    await tx.auditLog.create({
+      data: {
+        userId: req.user!.userId,
+        workspaceId,
+        action: "DELETE_ITEM_PERMANENT",
+        entity: "Item",
+        entityId: itemId,
+        meta: { itemName } as Prisma.InputJsonValue,
+      },
+    });
+  });
+
+  return res.status(204).send();
+}));
+
 itemsRouter.patch("/:id/reactivate", requireRole([Role.OWNER]), asyncHandler(async (req, res) => {
   const workspaceId = getWorkspaceId(req);
 

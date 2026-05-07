@@ -3,7 +3,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { ConfirmModal } from "../components/ConfirmModal";
 import type { ConfirmOptions } from "../components/ConfirmModal";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { archiveItem, createItem, getItems, reactivateItem, updateItem } from "../api/items";
+import { archiveItem, createItem, deleteItemPermanently, getItems, reactivateItem, updateItem } from "../api/items";
 import { addOpeningStock, getStockMovements, getStockSummary, stockIn, stockOut, stockTransfer } from "../api/stock";
 import { useAuth } from "../context/AuthContext";
 import { useLocation } from "../context/LocationContext";
@@ -106,6 +106,7 @@ export function ItemsPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const canManageStock = user?.role === "OWNER" || user?.role === "MANAGER";
+  const isOwner = user?.role === "OWNER";
   const currency = settings.currency;
   const unitOptions = settings.customUnits.length > 0 ? settings.customUnits : FALLBACK_UNIT_OPTIONS;
   const categoryOptions = settings.customCategories.length > 0 ? settings.customCategories : FALLBACK_CATEGORY_OPTIONS;
@@ -133,6 +134,8 @@ export function ItemsPage() {
   const [bulkSaving, setBulkSaving] = useState(false);
   const [busy, setBusy] = useState<Set<string>>(new Set());
   const [confirmOpts, setConfirmOpts] = useState<ConfirmOptions | null>(null);
+  const [deleteItem, setDeleteItem] = useState<Item | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [showArchived, setShowArchived] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -395,6 +398,28 @@ export function ItemsPage() {
       showToast(err instanceof Error ? err.message : "Failed to reactivate item", "error");
     } finally {
       setBusy((prev) => { const next = new Set(prev); next.delete(item.id); return next; });
+    }
+  }
+
+  function openPermanentDeleteModal(item: Item) {
+    setDeleteItem(item);
+    setDeleteConfirmText("");
+  }
+
+  async function handleConfirmPermanentDelete() {
+    if (!deleteItem || deleteConfirmText !== deleteItem.name) return;
+    setBusy((prev) => new Set(prev).add(deleteItem.id));
+    try {
+      await deleteItemPermanently(deleteItem.id);
+      setItems((prev) => prev.filter((i) => i.id !== deleteItem.id));
+      showToast(`"${deleteItem.name}" permanently deleted`, "success");
+      setDeleteItem(null);
+      setDeleteConfirmText("");
+      await loadAll();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Failed to delete item", "error");
+    } finally {
+      setBusy((prev) => { const next = new Set(prev); next.delete(deleteItem!.id); return next; });
     }
   }
 
@@ -804,6 +829,11 @@ export function ItemsPage() {
                                       Reactivate
                                     </button>
                                   )}
+                                  {!item.isActive && isOwner && (
+                                    <button className="row-action-menu-item row-action-menu-item--danger" role="menuitem" disabled={busy.has(item.id)} onClick={() => { setOpenActionMenuItemId(null); openPermanentDeleteModal(item); }}>
+                                      Delete permanently
+                                    </button>
+                                  )}
                                 </>
                               )}
                             </div>
@@ -975,6 +1005,11 @@ export function ItemsPage() {
                                   Reactivate
                                 </button>
                               )}
+                              {!item.isActive && isOwner && (
+                                <button className="row-action-menu-item row-action-menu-item--danger" role="menuitem" disabled={busy.has(item.id)} onClick={() => { setOpenActionMenuItemId(null); openPermanentDeleteModal(item); }}>
+                                  Delete permanently
+                                </button>
+                              )}
                             </>
                           )}
                         </div>
@@ -1133,6 +1168,61 @@ export function ItemsPage() {
       )}
 
       {confirmOpts && <ConfirmModal {...confirmOpts} />}
+
+      {deleteItem && (
+        <div className="modal-overlay" onClick={() => { setDeleteItem(null); setDeleteConfirmText(""); }}>
+          <div className="modal" role="dialog" aria-modal="true" style={{ maxWidth: 440 }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">Permanently delete item</h2>
+              <button type="button" className="modal-close" onClick={() => { setDeleteItem(null); setDeleteConfirmText(""); }}>
+                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"/></svg>
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="delete-confirm-banner">
+                <div className="delete-confirm-banner-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                  </svg>
+                </div>
+                <div className="delete-confirm-banner-body">
+                  <strong>This cannot be undone.</strong>
+                  <p>All stock history, batches, and purchase order lines for <strong>{deleteItem.name}</strong> will be permanently erased.</p>
+                </div>
+              </div>
+              <div className="form-group" style={{ marginTop: 20 }}>
+                <label className="form-label">
+                  Type <span className="delete-confirm-name-hint">{deleteItem.name}</span> to confirm:
+                </label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  placeholder={deleteItem.name}
+                  autoFocus
+                  onKeyDown={(e) => { if (e.key === "Enter" && deleteConfirmText === deleteItem.name) { void handleConfirmPermanentDelete(); } if (e.key === "Escape") { setDeleteItem(null); setDeleteConfirmText(""); } }}
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="btn btn--ghost" onClick={() => { setDeleteItem(null); setDeleteConfirmText(""); }}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn--danger"
+                disabled={deleteConfirmText !== deleteItem.name || busy.has(deleteItem.id)}
+                onClick={() => { void handleConfirmPermanentDelete(); }}
+              >
+                {busy.has(deleteItem.id)
+                  ? <><div className="spinner spinner--sm spinner--white" /> Deleting…</>
+                  : "Delete permanently"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="toast-stack">
         {toasts.map((t) => (

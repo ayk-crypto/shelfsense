@@ -47,7 +47,7 @@ async function runLowStockJob(): Promise<void> {
     for (const workspace of workspaces) {
       try {
         const items = await prisma.item.findMany({
-          where: { workspaceId: workspace.id },
+          where: { workspaceId: workspace.id, isActive: true },
           select: {
             name: true,
             unit: true,
@@ -144,6 +144,7 @@ async function runExpirySoonJob(): Promise<void> {
                   workspaceId: workspace.id,
                   remainingQuantity: { gt: 0 },
                   expiryDate: { gte: now, lte: expiryAlertUntil },
+                  item: { isActive: true },
                 },
                 orderBy: { expiryDate: "asc" },
                 select: {
@@ -159,6 +160,7 @@ async function runExpirySoonJob(): Promise<void> {
                   workspaceId: workspace.id,
                   remainingQuantity: { gt: 0 },
                   expiryDate: { lt: now },
+                  item: { isActive: true },
                 },
                 orderBy: { expiryDate: "asc" },
                 select: {
@@ -248,7 +250,7 @@ async function runDailyDigestJob(): Promise<void> {
 
         const [itemsRaw, expiringSoonRaw, expiredRaw] = await Promise.all([
           prisma.item.findMany({
-            where: { workspaceId: workspace.id },
+            where: { workspaceId: workspace.id, isActive: true },
             select: {
               name: true,
               unit: true,
@@ -264,6 +266,7 @@ async function runDailyDigestJob(): Promise<void> {
               workspaceId: workspace.id,
               remainingQuantity: { gt: 0 },
               expiryDate: { gte: now, lte: expiryAlertUntil },
+              item: { isActive: true },
             },
             orderBy: { expiryDate: "asc" },
             select: {
@@ -277,6 +280,7 @@ async function runDailyDigestJob(): Promise<void> {
               workspaceId: workspace.id,
               remainingQuantity: { gt: 0 },
               expiryDate: { lt: now },
+              item: { isActive: true },
             },
             orderBy: { expiryDate: "asc" },
             select: {
