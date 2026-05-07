@@ -1804,11 +1804,11 @@ function ImportItemsModal({
   }
 
   function downloadSampleTemplate() {
-    const headers = ["name", "unit", "category", "sku", "barcode", "minStockLevel", "trackExpiry", "purchaseUnit", "purchaseConversionFactor", "issueUnit"];
+    const headers = ["name", "unit", "category", "sku", "barcode", "minStockLevel", "trackExpiry", "purchaseUnit", "purchaseConversionFactor"];
     const sampleRows = [
-      ["Chicken Breast", "kg", "Raw Material", "CHK-BRST", "SS100000001", "10", "yes", "", "", ""],
-      ["Paper Cups", "pack", "Packaging", "CUP-250", "", "5", "no", "Carton", "24", ""],
-      ["Cooking Oil", "liter", "Ingredients", "OIL-COOK", "", "20", "no", "Jerry Can", "5", "Portion"],
+      ["Chicken Breast", "kg", "Raw Material", "CHK-BRST", "SS100000001", "10", "yes", "", ""],
+      ["Paper Cups", "pack", "Packaging", "CUP-250", "", "5", "no", "Carton", "24"],
+      ["Cooking Oil", "liter", "Ingredients", "OIL-COOK", "", "20", "no", "Jerry Can", "5"],
     ];
     const csv = [headers, ...sampleRows].map((row) => row.map(escapeCsvCell).join(",")).join("\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
