@@ -165,6 +165,7 @@ export function BillingCheckoutPage() {
     if (isFreeOrZero) {
       try {
         const result = await initiateCheckout({ planId: selectedPlanId, billingCycle, couponCode: couponCode.trim() || undefined });
+        window.dispatchEvent(new CustomEvent("shelfsense:plan-changed"));
         navigate(result.isFree ? "/billing/success?reason=free" : "/billing/pending");
       } catch (e) {
         setError(e instanceof Error ? e.message : "Checkout failed. Please try again.");

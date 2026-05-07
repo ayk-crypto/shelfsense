@@ -34,6 +34,7 @@ export function BillingSuccessPage() {
           setSub(subscription);
           setPolling(false);
           clearInterval(interval);
+          window.dispatchEvent(new CustomEvent("shelfsense:plan-changed"));
           setTimeout(() => navigate("/dashboard", { replace: true }), 2500);
           return;
         }

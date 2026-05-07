@@ -157,7 +157,7 @@ export function TeamPage() {
                 </button>
               )}
               {!features.enableTeamManagement && !features.isLoading && (
-                <button className="btn btn--primary" onClick={() => window.location.href = "/billing/checkout?plan=STARTER"}>
+                <button className="btn btn--primary" onClick={() => window.location.href = "/billing/checkout?plan=BASIC"}>
                   Upgrade to Add Users
                 </button>
               )}

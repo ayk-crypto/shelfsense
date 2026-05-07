@@ -309,7 +309,7 @@ teamRouter.patch("/users/:userId/reactivate", requirePlanFeature("enableTeamMana
    CUSTOM ROLES
 ══════════════════════════════════════════════ */
 
-teamRouter.get("/custom-roles", asyncHandler(async (req, res) => {
+teamRouter.get("/custom-roles", requirePlanFeature("enableCustomRoles"), asyncHandler(async (req, res) => {
   const workspaceId = req.user?.workspaceId ?? null;
   if (!workspaceId) return res.status(403).json({ error: "Workspace access required" });
 

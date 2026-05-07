@@ -3,7 +3,7 @@ import { prisma } from "../db/prisma.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { PLAN_LIMITS, type PlanTier } from "../utils/plan-limits.js";
-import { Role } from "../generated/prisma/enums.js";
+import { BillingCycle, Role, SubscriptionStatus } from "../generated/prisma/enums.js";
 import { env } from "../config/env.js";
 import { logger } from "../lib/logger.js";
 
@@ -81,6 +81,37 @@ planRouter.patch(
       data: { plan: requestedPlan },
       select: { plan: true },
     });
+
+    // Sync the subscription table so that requirePlanFeature middleware and
+    // GET /subscriptions/current both reflect the new plan immediately.
+    const planRecord = await prisma.plan.findFirst({
+      where: { code: requestedPlan, isActive: true },
+      orderBy: { sortOrder: "asc" },
+      select: { id: true },
+    });
+
+    if (planRecord) {
+      await prisma.$transaction(async (tx) => {
+        await tx.subscription.updateMany({
+          where: {
+            workspaceId,
+            status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIAL, SubscriptionStatus.MANUAL_REVIEW] },
+          },
+          data: { status: SubscriptionStatus.CANCELLED },
+        });
+        await tx.subscription.create({
+          data: {
+            workspaceId,
+            planId: planRecord.id,
+            status: SubscriptionStatus.ACTIVE,
+            billingCycle: BillingCycle.MANUAL,
+            currency: "USD",
+            amount: 0,
+            currentPeriodStart: new Date(),
+          },
+        });
+      });
+    }
 
     return res.json(await buildPlanStatus(workspaceId, workspace.plan as PlanTier));
   }),

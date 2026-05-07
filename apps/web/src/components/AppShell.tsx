@@ -81,10 +81,31 @@ export function AppShell() {
   }, [canViewAlerts, activeLocationId]);
 
   useEffect(() => {
+    function refreshSubscription() {
+      getCurrentSubscription()
+        .then((res) => setSubscription(res.subscription))
+        .catch(() => {});
+    }
+
+    // Initial load
     getCurrentSubscription()
       .then((res) => setSubscription(res.subscription))
       .catch(() => {})
       .finally(() => setSubscriptionLoading(false));
+
+    // Re-fetch whenever a plan change event is dispatched from any page
+    window.addEventListener("shelfsense:plan-changed", refreshSubscription);
+
+    // Re-fetch when the user returns to the tab (covers Paddle payment in overlay)
+    function handleVisibility() {
+      if (!document.hidden) refreshSubscription();
+    }
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      window.removeEventListener("shelfsense:plan-changed", refreshSubscription);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, []);
 
   useEffect(() => {

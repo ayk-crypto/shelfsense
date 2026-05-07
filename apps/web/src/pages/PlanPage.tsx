@@ -305,6 +305,7 @@ export function PlanPage() {
     try {
       const updated = await changePlan(confirmTarget);
       setStatus(updated);
+      window.dispatchEvent(new CustomEvent("shelfsense:plan-changed"));
       setSwitchSuccess(`Switched to ${PLAN_META[confirmTarget].label} plan successfully.`);
       setTimeout(() => setSwitchSuccess(null), 5000);
     } catch (err) {
