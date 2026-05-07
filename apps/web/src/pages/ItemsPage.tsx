@@ -6,6 +6,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { archiveItem, createItem, deleteItemPermanently, getItems, reactivateItem, updateItem } from "../api/items";
 import { addOpeningStock, getStockMovements, getStockSummary, stockIn, stockOut, stockTransfer } from "../api/stock";
 import { useAuth } from "../context/AuthContext";
+import { hasPermission } from "../utils/permissions";
 import { useLocation } from "../context/LocationContext";
 import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
 import type { CreateItemInput, Item, Location, StockMovement, StockSummaryItem } from "../types";
@@ -105,7 +106,7 @@ export function ItemsPage() {
   const { settings } = useWorkspaceSettings();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const canManageStock = user?.role === "OWNER" || user?.role === "MANAGER";
+  const canManageStock = hasPermission(user, "inventory_manage");
   const isOwner = user?.role === "OWNER";
   const currency = settings.currency;
   const unitOptions = settings.customUnits.length > 0 ? settings.customUnits : FALLBACK_UNIT_OPTIONS;

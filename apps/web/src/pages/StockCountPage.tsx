@@ -11,6 +11,7 @@ import {
   updateStockCount,
 } from "../api/stockCounts";
 import { useAuth } from "../context/AuthContext";
+import { hasPermission } from "../utils/permissions";
 import { useLocation } from "../context/LocationContext";
 import type { StockCount, StockCountStockItem } from "../types";
 
@@ -29,7 +30,7 @@ function StockCountWorkspace() {
   const { user } = useAuth();
   const { locations, activeLocationId } = useLocation();
   const navigate = useNavigate();
-  const canFinalize = user?.role === "OWNER" || user?.role === "MANAGER";
+  const canFinalize = hasPermission(user, "inventory_manage");
   const [selectedLocationId, setSelectedLocationId] = useState(activeLocationId);
   const [stockItems, setStockItems] = useState<StockCountStockItem[]>([]);
   const [counts, setCounts] = useState<StockCountSummary[]>([]);
@@ -459,7 +460,7 @@ function StockCountWorkspace() {
 function StockCountDetail({ id }: { id: string }) {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const canFinalize = user?.role === "OWNER" || user?.role === "MANAGER";
+  const canFinalize = hasPermission(user, "inventory_manage");
   const [count, setCount] = useState<StockCount | null>(null);
   const [loading, setLoading] = useState(true);
   const [finalizing, setFinalizing] = useState(false);

@@ -13,6 +13,7 @@ import {
 import { getAlerts } from "../api/alerts";
 import { getStockMovements, getStockSummary, getStockTrend } from "../api/stock";
 import { useAuth } from "../context/AuthContext";
+import { hasPermission } from "../utils/permissions";
 import { useLocation } from "../context/LocationContext";
 import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
 import type { AlertsResponse, StockMovement, StockSummaryItem, StockTrendDataPoint } from "../types";
@@ -91,7 +92,11 @@ export function DashboardPage() {
   const { user } = useAuth();
   const { activeLocationId, locationReady } = useLocation();
   const { settings } = useWorkspaceSettings();
-  const canAccessManagement = user?.role === "OWNER" || user?.role === "MANAGER";
+  const canAccessManagement = hasPermission(user, "inventory_manage")
+    || hasPermission(user, "reports")
+    || hasPermission(user, "stock_in")
+    || hasPermission(user, "alerts")
+    || hasPermission(user, "purchases");
   const currency = settings.currency;
   const workspaceName = settings.name.trim() || "ShelfSense";
 

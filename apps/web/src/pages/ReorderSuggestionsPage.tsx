@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { createReorderPurchases, getReorderSuggestions } from "../api/reorderSuggestions";
 import { getSuppliers } from "../api/suppliers";
 import { useAuth } from "../context/AuthContext";
+import { hasPermission } from "../utils/permissions";
 import { useLocation } from "../context/LocationContext";
 import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
 import type { ReorderSuggestion, Supplier } from "../types";
@@ -20,7 +21,7 @@ export function ReorderSuggestionsPage() {
   const { user } = useAuth();
   const { activeLocationId } = useLocation();
   const { settings } = useWorkspaceSettings();
-  const canCreateDrafts = user?.role === "OWNER" || user?.role === "MANAGER";
+  const canCreateDrafts = hasPermission(user, "purchases");
   const [suggestions, setSuggestions] = useState<ReorderSuggestion[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [lines, setLines] = useState<Record<string, DraftLineState>>({});

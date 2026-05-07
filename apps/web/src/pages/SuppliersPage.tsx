@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createSupplier, deleteSupplier, getSuppliers, updateSupplier } from "../api/suppliers";
 import { useAuth } from "../context/AuthContext";
+import { hasPermission } from "../utils/permissions";
 import { PlanFeatureGate } from "../components/PlanFeatureGate";
 import { usePlanFeatures } from "../context/PlanFeaturesContext";
 import type { CreateSupplierInput, Supplier } from "../types";
@@ -47,7 +48,7 @@ function formatDate(dateStr: string) {
 export function SuppliersPage() {
   const planFeatures = usePlanFeatures();
   const { user } = useAuth();
-  const canManage = user?.role === "OWNER" || user?.role === "MANAGER";
+  const canManage = hasPermission(user, "suppliers");
 
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);

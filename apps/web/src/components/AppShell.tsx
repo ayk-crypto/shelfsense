@@ -10,6 +10,7 @@ import { useLocation } from "../context/LocationContext";
 import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
 import { PlanFeaturesContext, planFeaturesFromSubscription } from "../context/PlanFeaturesContext";
 import type { CurrentSubscription, Notification } from "../types";
+import { hasPermission } from "../utils/permissions";
 
 export function AppShell() {
   const { user, logout, refreshUser } = useAuth();
@@ -43,10 +44,15 @@ export function AppShell() {
       return new Set<string>();
     }
   });
-  const canAccessManagement = user?.role === "OWNER" || user?.role === "MANAGER";
-  const canRecordStockOut = user?.role === "OWNER" || user?.role === "MANAGER" || user?.role === "OPERATOR";
-  const canViewAlerts = user?.role === "OWNER" || user?.role === "MANAGER" || user?.role === "OPERATOR";
-  const canManageTeam = user?.role === "OWNER";
+  const canStockIn      = hasPermission(user, "stock_in");
+  const canStockOut     = hasPermission(user, "stock_out");
+  const canViewAlerts   = hasPermission(user, "alerts");
+  const canViewSuppliers = hasPermission(user, "suppliers");
+  const canViewPurchases = hasPermission(user, "purchases");
+  const canViewReports  = hasPermission(user, "reports");
+  const canManageTeam   = user?.role === "OWNER";
+  // Broad flag for topbar "Receive Stock" button — kept for backward compat
+  const canAccessManagement = canStockIn || canViewSuppliers || canViewPurchases || canViewReports;
   const workspaceName = settings.name.trim() || "ShelfSense";
   const planFeatures = planFeaturesFromSubscription(subscription?.plan ?? null, subscriptionLoading);
 
@@ -268,7 +274,7 @@ export function AppShell() {
             </svg>
             Daily Ops
           </NavLink>
-          {canAccessManagement && (
+          {canStockIn && (
             <NavLink to="/stock-in" className={({ isActive }) => `nav-item nav-item--stock-in ${isActive ? "nav-item--active" : ""}`}>
               <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 5v14M5 12l7 7 7-7" />
@@ -276,7 +282,7 @@ export function AppShell() {
               Receive Stock
             </NavLink>
           )}
-          {canRecordStockOut && (
+          {canStockOut && (
             <NavLink to="/stock-out" className={({ isActive }) => `nav-item nav-item--stock-out ${isActive ? "nav-item--active" : ""}`}>
               <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 19V5M19 12l-7-7-7 7" />
@@ -314,39 +320,45 @@ export function AppShell() {
           )}
 
           {/* PURCHASING */}
-          {canAccessManagement && (
+          {(canViewSuppliers || canViewPurchases) && (
             <>
               <p className="nav-section-label">Purchasing</p>
-              <NavLink to="/suppliers" className={({ isActive }) => `nav-item ${isActive ? "nav-item--active" : ""}`}>
-                <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                  <polyline points="9 22 9 12 15 12 15 22" />
-                </svg>
-                Suppliers
-              </NavLink>
-              <NavLink to="/purchases" className={({ isActive }) => `nav-item ${isActive ? "nav-item--active" : ""}`}>
-                <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
-                  <line x1="3" y1="6" x2="21" y2="6" />
-                  <path d="M16 10a4 4 0 0 1-8 0" />
-                </svg>
-                Purchases
-              </NavLink>
+              {canViewSuppliers && (
+                <NavLink to="/suppliers" className={({ isActive }) => `nav-item ${isActive ? "nav-item--active" : ""}`}>
+                  <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                    <polyline points="9 22 9 12 15 12 15 22" />
+                  </svg>
+                  Suppliers
+                </NavLink>
+              )}
+              {canViewPurchases && (
+                <NavLink to="/purchases" className={({ isActive }) => `nav-item ${isActive ? "nav-item--active" : ""}`}>
+                  <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+                    <line x1="3" y1="6" x2="21" y2="6" />
+                    <path d="M16 10a4 4 0 0 1-8 0" />
+                  </svg>
+                  Purchases
+                </NavLink>
+              )}
             </>
           )}
 
           {/* INSIGHTS */}
-          {canAccessManagement && (
+          {(canViewReports || canManageTeam) && (
             <>
               <p className="nav-section-label">Insights</p>
-              <NavLink to="/reports" className={({ isActive }) => `nav-item ${isActive ? "nav-item--active" : ""}`}>
-                <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="18" y1="20" x2="18" y2="10" />
-                  <line x1="12" y1="20" x2="12" y2="4" />
-                  <line x1="6" y1="20" x2="6" y2="14" />
-                </svg>
-                Reports
-              </NavLink>
+              {canViewReports && (
+                <NavLink to="/reports" className={({ isActive }) => `nav-item ${isActive ? "nav-item--active" : ""}`}>
+                  <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="20" x2="18" y2="10" />
+                    <line x1="12" y1="20" x2="12" y2="4" />
+                    <line x1="6" y1="20" x2="6" y2="14" />
+                  </svg>
+                  Reports
+                </NavLink>
+              )}
               {canManageTeam && (
                 <NavLink to="/activity" className={({ isActive }) => `nav-item ${isActive ? "nav-item--active" : ""}`}>
                   <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -479,7 +491,7 @@ export function AppShell() {
               {planFeatures.enableBarcodeScanning && (
                 <button type="button" className="btn btn--secondary btn--sm" onClick={() => goToItems({ action: "scan" })}>Scan</button>
               )}
-              {canRecordStockOut && (
+              {canStockOut && (
                 <button type="button" className="btn btn--topbar-stock-out btn--sm" onClick={() => navigate("/stock-out")}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{width:13,height:13}}>
                     <path d="M12 19V5M19 12l-7-7-7 7" />
@@ -487,7 +499,7 @@ export function AppShell() {
                   Stock Out
                 </button>
               )}
-              {canAccessManagement && (
+              {canStockIn && (
                 <button type="button" className="btn btn--topbar-stock-in btn--sm" onClick={() => navigate("/stock-in")}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{width:13,height:13}}>
                     <path d="M12 5v14M5 12l7 7 7-7" />
