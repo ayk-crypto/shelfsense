@@ -11,9 +11,6 @@ import { formatCurrency } from "../utils/currency";
 import {
   hasPurchaseUnit,
   getSuggestedPurchaseQty,
-  getSuggestedBaseEquivalent,
-  getPurchaseBreakdown,
-  formatPurchaseBreakdown,
   fmtQty,
 } from "../utils/purchaseUnits";
 
@@ -29,10 +26,13 @@ export function ReorderSuggestionsPage() {
   const { user } = useAuth();
   const { activeLocationId } = useLocation();
   const { settings } = useWorkspaceSettings();
+  const currency = settings.currency;
   const canCreateDrafts = hasPermission(user, "purchases");
+
   const [suggestions, setSuggestions] = useState<ReorderSuggestion[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [lines, setLines] = useState<Record<string, DraftLineState>>({});
+  const [openDetails, setOpenDetails] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +40,6 @@ export function ReorderSuggestionsPage() {
 
   useEffect(() => {
     let cancelled = false;
-
     async function load() {
       setLoading(true);
       try {
@@ -48,7 +47,6 @@ export function ReorderSuggestionsPage() {
           getReorderSuggestions(),
           canCreateDrafts ? getSuppliers() : Promise.resolve({ suppliers: [] }),
         ]);
-
         if (cancelled) return;
         setSuggestions(suggestionRes.suggestions);
         setSuppliers(supplierRes.suppliers);
@@ -60,41 +58,29 @@ export function ReorderSuggestionsPage() {
         if (!cancelled) setLoading(false);
       }
     }
-
     void load();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [activeLocationId, canCreateDrafts]);
 
   const selectedLines = useMemo(
-    () => suggestions.filter((suggestion) => lines[suggestion.itemId]?.selected),
+    () => suggestions.filter((s) => lines[s.itemId]?.selected),
     [lines, suggestions],
   );
   const selectedCount = selectedLines.length;
-  const selectedTotal = selectedLines.reduce((sum, suggestion) => {
-    const line = lines[suggestion.itemId];
-    const quantity = toNumber(line?.quantity);
-    const cost = toNumber(line?.unitCost);
-    return sum + quantity * cost;
+  const selectedTotal = selectedLines.reduce((sum, s) => {
+    const line = lines[s.itemId];
+    return sum + toNumber(line?.quantity) * toNumber(line?.unitCost);
   }, 0);
   const selectedSupplierCount = new Set(
-    selectedLines
-      .map((suggestion) => lines[suggestion.itemId]?.supplierId)
-      .filter(Boolean),
+    selectedLines.map((s) => lines[s.itemId]?.supplierId).filter(Boolean),
   ).size;
 
   function updateLine(itemId: string, patch: Partial<DraftLineState>) {
     setSuccess(null);
-    setLines((current) => ({
-      ...current,
+    setLines((cur) => ({
+      ...cur,
       [itemId]: {
-        ...(current[itemId] ?? {
-          selected: false,
-          supplierId: "",
-          quantity: "",
-          unitCost: "",
-        }),
+        ...(cur[itemId] ?? { selected: false, supplierId: "", quantity: "", unitCost: "" }),
         ...patch,
       },
     }));
@@ -102,14 +88,21 @@ export function ReorderSuggestionsPage() {
 
   function toggleAll(checked: boolean) {
     setSuccess(null);
-    setLines((current) => {
-      const next = { ...current };
-      for (const suggestion of suggestions) {
-        next[suggestion.itemId] = {
-          ...next[suggestion.itemId],
-          selected: checked && Boolean(next[suggestion.itemId]?.supplierId),
-        };
+    setLines((cur) => {
+      const next = { ...cur };
+      for (const s of suggestions) {
+        const hasSupplier = Boolean(next[s.itemId]?.supplierId);
+        const hasQty = toNumber(next[s.itemId]?.quantity) > 0;
+        next[s.itemId] = { ...next[s.itemId], selected: checked && hasSupplier && hasQty };
       }
+      return next;
+    });
+  }
+
+  function toggleDetails(itemId: string) {
+    setOpenDetails((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) next.delete(itemId); else next.add(itemId);
       return next;
     });
   }
@@ -119,46 +112,27 @@ export function ReorderSuggestionsPage() {
     setSuccess(null);
     setError(null);
 
-    const items = selectedLines.map((suggestion) => {
-      const line = lines[suggestion.itemId];
-      const factor = suggestion.purchaseConversionFactor;
-      const hasUnit = hasPurchaseUnit(suggestion.purchaseUnit, factor);
+    const items = selectedLines.map((s) => {
+      const line = lines[s.itemId];
+      const factor = s.purchaseConversionFactor;
+      const hasUnit = hasPurchaseUnit(s.purchaseUnit, factor);
       const purchaseQty = toNumber(line.quantity);
-      // Convert purchase units → base units before sending to API
       const baseQty = hasUnit && factor ? purchaseQty * factor : purchaseQty;
-      // Convert per-purchase-unit cost → per-base-unit cost
       const purchaseCost = toNumber(line.unitCost);
       const baseCost = hasUnit && factor && purchaseCost > 0 ? purchaseCost / factor : purchaseCost;
-      return {
-        itemId: suggestion.itemId,
-        supplierId: line.supplierId,
-        quantity: baseQty,
-        unitCost: baseCost,
-      };
+      return { itemId: s.itemId, supplierId: line.supplierId, quantity: baseQty, unitCost: baseCost };
     });
 
-    if (items.length === 0) {
-      setError("Select at least one reorder item.");
-      return;
-    }
-    if (items.some((item) => !item.supplierId)) {
-      setError("Choose a supplier for every selected item.");
-      return;
-    }
-    if (items.some((item) => item.quantity <= 0)) {
-      setError("Quantity must be greater than zero for every selected item.");
-      return;
-    }
-    if (items.some((item) => item.unitCost < 0)) {
-      setError("Unit cost cannot be negative.");
-      return;
-    }
+    if (items.length === 0) { setError("Select at least one reorder item."); return; }
+    if (items.some((i) => !i.supplierId)) { setError("Choose a supplier for every selected item."); return; }
+    if (items.some((i) => i.quantity <= 0)) { setError("Quantity must be greater than zero for every selected item."); return; }
+    if (items.some((i) => i.unitCost < 0)) { setError("Unit cost cannot be negative."); return; }
 
     setCreating(true);
     try {
       const res = await createReorderPurchases({ locationId: activeLocationId ?? undefined, items });
-      const purchaseLabel = res.purchases.length === 1 ? "purchase draft" : "purchase drafts";
-      setSuccess(`Created ${res.purchases.length} ${purchaseLabel}.`);
+      const label = res.purchases.length === 1 ? "purchase draft" : "purchase drafts";
+      setSuccess(`Created ${res.purchases.length} ${label}.`);
       if (res.purchases[0]) {
         navigate(`/purchases?purchaseId=${encodeURIComponent(res.purchases[0].id)}&fromReorder=${res.purchases.length}`);
       }
@@ -179,20 +153,24 @@ export function ReorderSuggestionsPage() {
   }
 
   if (error && suggestions.length === 0) {
-    return (
-      <div className="page-error">
-        <div className="alert alert--error">{error}</div>
-      </div>
-    );
+    return <div className="page-error"><div className="alert alert--error">{error}</div></div>;
   }
+
+  const readyCount = suggestions.filter((s) => {
+    const l = lines[s.itemId];
+    return l?.supplierId && toNumber(l.quantity) > 0;
+  }).length;
 
   return (
     <div className="reorder-page">
+      {/* Header */}
       <div className="page-header reorder-page-header">
         <div>
           <h1 className="page-title">Reorder Suggestions</h1>
           <p className="page-subtitle">
-            Convert low-stock items into purchase drafts for the active branch.
+            {suggestions.length > 0
+              ? `${suggestions.length} item${suggestions.length !== 1 ? "s" : ""} below minimum stock — select and create a purchase draft.`
+              : "Convert low-stock items into purchase drafts for the active branch."}
           </p>
         </div>
         {canCreateDrafts && suppliers.length === 0 && (
@@ -215,32 +193,45 @@ export function ReorderSuggestionsPage() {
         </div>
       ) : (
         <>
-          <div className="reorder-toolbar">
-            <label className="reorder-select-all">
+          {/* Sticky toolbar */}
+          <div className="ro-toolbar">
+            <label className="ro-select-all">
               <input
                 type="checkbox"
-                checked={selectedCount > 0 && selectedCount === suggestions.filter((s) => lines[s.itemId]?.supplierId).length}
-                onChange={(event) => toggleAll(event.target.checked)}
+                checked={readyCount > 0 && selectedCount === readyCount}
+                onChange={(e) => toggleAll(e.target.checked)}
                 disabled={!canCreateDrafts || suppliers.length === 0}
               />
               <span>Select ready items</span>
+              {readyCount > 0 && <em className="ro-ready-count">{readyCount} ready</em>}
             </label>
-            <div className="reorder-toolbar-summary">
-              <span>{selectedCount} selected</span>
-              <strong>{formatCurrency(selectedTotal, settings.currency)}</strong>
-              {selectedSupplierCount > 1 && <em>{selectedSupplierCount} suppliers, separate drafts</em>}
+
+            <div className="ro-toolbar-summary">
+              {selectedCount > 0 ? (
+                <>
+                  <span className="ro-selected-count">{selectedCount} item{selectedCount !== 1 ? "s" : ""}</span>
+                  <span className="ro-toolbar-divider">·</span>
+                  <strong className="ro-toolbar-total">{formatCurrency(selectedTotal, currency)}</strong>
+                  {selectedSupplierCount > 1 && (
+                    <span className="ro-multi-supplier">{selectedSupplierCount} suppliers — separate drafts</span>
+                  )}
+                </>
+              ) : (
+                <span className="ro-toolbar-hint">Select items to create a draft</span>
+              )}
             </div>
+
             {canCreateDrafts ? (
               <button
                 type="button"
-                className="btn btn--primary"
+                className="btn btn--primary ro-create-btn"
                 onClick={handleCreateDrafts}
                 disabled={creating || selectedCount === 0}
               >
-                {creating ? "Creating..." : "Create Purchase Draft"}
+                {creating ? "Creating…" : selectedSupplierCount > 1 ? `Create ${selectedSupplierCount} Drafts` : "Create Draft"}
               </button>
             ) : (
-              <span className="reorder-view-note">View only</span>
+              <span className="ro-view-note">View only</span>
             )}
           </div>
 
@@ -250,130 +241,230 @@ export function ReorderSuggestionsPage() {
             </div>
           )}
 
-          <div className="reorder-list" aria-label="Reorder suggestions">
-            {suggestions.map((suggestion) => {
-              const line = lines[suggestion.itemId] ?? {
-                selected: false,
-                supplierId: "",
-                quantity: String(suggestion.suggestedQuantity),
-                unitCost: String(suggestion.lastPurchaseCost ?? 0),
-              };
+          {/* List */}
+          <div className="ro-list">
+            {suggestions.map((s) => {
+              const line = lines[s.itemId] ?? { selected: false, supplierId: "", quantity: "", unitCost: "" };
+              const factor = s.purchaseConversionFactor;
+              const hasUop = hasPurchaseUnit(s.purchaseUnit, factor);
+              const purchaseUnit = s.purchaseUnit ?? s.unit;
+              const qtyLabel = hasUop ? purchaseUnit : s.unit;
+
+              // Suggested buy quantity
+              const buyQty = hasUop && factor
+                ? getSuggestedPurchaseQty(s.suggestedQuantity, factor)
+                : s.suggestedQuantity;
+
+              // Current stock display
+              const currentDisplay = hasUop && factor
+                ? (() => {
+                    const whole = Math.floor(s.currentStock / factor);
+                    const rem = +(s.currentStock - whole * factor).toFixed(6);
+                    if (whole === 0) return `${fmtQty(rem)} ${s.unit}`;
+                    if (rem === 0) return `${whole} ${purchaseUnit}`;
+                    return `${whole} ${purchaseUnit} + ${fmtQty(rem)} ${s.unit}`;
+                  })()
+                : `${fmtQty(s.currentStock)} ${s.unit}`;
+
+              const minDisplay = hasUop && factor
+                ? `${fmtQty(Math.ceil(s.minStockLevel / factor))} ${purchaseUnit}`
+                : `${fmtQty(s.minStockLevel)} ${s.unit}`;
+
               const itemTotal = toNumber(line.quantity) * toNumber(line.unitCost);
               const noSupplier = canCreateDrafts && suppliers.length > 0 && !line.supplierId;
+              const detailsOpen = openDetails.has(s.itemId);
+
+              // Last cost hint per purchase unit
+              const lastCostBase = s.lastPurchaseCost;
+              const lastCostDisplay = hasUop && factor && lastCostBase != null
+                ? lastCostBase * factor
+                : lastCostBase;
+
+              // Qty hint (base units equivalent of entered qty)
+              const enteredQty = toNumber(line.quantity);
+              const qtyHint = hasUop && factor && enteredQty > 0
+                ? `≈ ${fmtQty(enteredQty * factor)} ${s.unit}`
+                : hasUop && factor
+                ? `1 ${purchaseUnit} = ${factor} ${s.unit}`
+                : null;
 
               return (
                 <article
-                  key={suggestion.itemId}
-                  className={`reorder-card${line.selected ? " reorder-card--selected" : ""}${noSupplier ? " reorder-card--needs-supplier" : ""}`}
+                  key={s.itemId}
+                  className={`ro-row${line.selected ? " ro-row--selected" : ""}${noSupplier ? " ro-row--needs-supplier" : ""}`}
                 >
-                  <label className="reorder-card-check">
+                  {/* Checkbox */}
+                  <label className="ro-check">
                     <input
                       type="checkbox"
                       checked={line.selected}
                       disabled={!canCreateDrafts || !line.supplierId}
-                      onChange={(event) => updateLine(suggestion.itemId, { selected: event.target.checked })}
-                      aria-label={`Select ${suggestion.itemName}`}
+                      onChange={(e) => updateLine(s.itemId, { selected: e.target.checked })}
+                      aria-label={`Select ${s.itemName}`}
                     />
                   </label>
 
-                  <div className="reorder-card-main">
-                    <div className="reorder-item-head">
-                      <div>
-                        <h2>{suggestion.itemName}</h2>
-                        <p>
-                          {suggestion.sku ? `SKU ${suggestion.sku}` : "No SKU"}
-                          {suggestion.barcode ? ` - ${suggestion.barcode}` : ""}
-                        </p>
+                  <div className="ro-body">
+                    {/* Item name + Buy badge */}
+                    <div className="ro-head">
+                      <div className="ro-name-block">
+                        <span className="ro-item-name">{s.itemName}</span>
+                        <span className="ro-item-meta">
+                          {s.sku ? `SKU ${s.sku}` : ""}
+                          {s.sku && s.category ? " · " : ""}
+                          {s.category ?? ""}
+                        </span>
                       </div>
-                      <div className="reorder-item-tags">
-                        {suggestion.category && <span>{suggestion.category}</span>}
-                        {suggestion.trackExpiry && <span>Expiry tracked</span>}
+                      <div className={`ro-buy-badge${buyQty === 0 ? " ro-buy-badge--zero" : ""}`}>
+                        <span className="ro-buy-label">Buy</span>
+                        <span className="ro-buy-qty">{fmtQty(buyQty)} <span className="ro-buy-unit">{qtyLabel}</span></span>
                       </div>
                     </div>
 
-                    <div className="reorder-stock-grid">
-                      <Metric label="Current" value={`${formatNumber(suggestion.currentStock)} ${suggestion.unit}`} tone="danger" />
-                      {hasPurchaseUnit(suggestion.purchaseUnit, suggestion.purchaseConversionFactor) && suggestion.purchaseConversionFactor ? (
-                        <Metric
-                          label={`In ${suggestion.purchaseUnit}s`}
-                          value={formatPurchaseBreakdown(getPurchaseBreakdown(suggestion.currentStock, suggestion.purchaseConversionFactor, suggestion.purchaseUnit!, suggestion.unit))}
-                        />
-                      ) : null}
-                      <Metric label="Minimum" value={`${formatNumber(suggestion.minStockLevel)} ${suggestion.unit}`} />
-                      <Metric label="Shortage" value={`${formatNumber(suggestion.suggestedQuantity)} ${suggestion.unit}`} tone="accent" />
-                      {hasPurchaseUnit(suggestion.purchaseUnit, suggestion.purchaseConversionFactor) && suggestion.purchaseConversionFactor ? (
-                        <Metric
-                          label="Suggested purchase"
-                          value={`${getSuggestedPurchaseQty(suggestion.suggestedQuantity, suggestion.purchaseConversionFactor)} ${suggestion.purchaseUnit} (≈ ${getSuggestedBaseEquivalent(getSuggestedPurchaseQty(suggestion.suggestedQuantity, suggestion.purchaseConversionFactor), suggestion.purchaseConversionFactor)} ${suggestion.unit})`}
-                          tone="accent"
-                        />
-                      ) : null}
-                      <Metric label="Location" value={suggestion.location.name} />
+                    {/* Stock summary + details toggle */}
+                    <div className="ro-stock-row">
+                      <span className="ro-stock-item ro-stock-item--low">
+                        Current: <strong>{currentDisplay}</strong>
+                      </span>
+                      <span className="ro-stock-sep">·</span>
+                      <span className="ro-stock-item">
+                        Min: <strong>{minDisplay}</strong>
+                      </span>
+                      {s.location.name && (
+                        <>
+                          <span className="ro-stock-sep">·</span>
+                          <span className="ro-stock-item ro-stock-item--muted">{s.location.name}</span>
+                        </>
+                      )}
+                      <button
+                        type="button"
+                        className="ro-details-btn"
+                        onClick={() => toggleDetails(s.itemId)}
+                      >
+                        {detailsOpen ? "▴ Hide" : "▾ Details"}
+                      </button>
                     </div>
-                  </div>
 
-                  <div className="reorder-card-controls">
+                    {/* Expandable details */}
+                    {detailsOpen && (
+                      <div className="ro-details">
+                        <div className="ro-detail-row">
+                          <span>Current stock</span>
+                          <span>{fmtQty(s.currentStock)} {s.unit}</span>
+                        </div>
+                        {hasUop && factor && (
+                          <div className="ro-detail-row">
+                            <span>Current (in {purchaseUnit}s)</span>
+                            <span>{currentDisplay}</span>
+                          </div>
+                        )}
+                        <div className="ro-detail-row">
+                          <span>Minimum stock</span>
+                          <span>{fmtQty(s.minStockLevel)} {s.unit}</span>
+                        </div>
+                        <div className="ro-detail-row">
+                          <span>Shortage</span>
+                          <span>{fmtQty(s.suggestedQuantity)} {s.unit}</span>
+                        </div>
+                        {hasUop && factor && (
+                          <>
+                            <div className="ro-detail-row">
+                              <span>Suggested purchase</span>
+                              <span>{buyQty} {purchaseUnit}</span>
+                            </div>
+                            <div className="ro-detail-row">
+                              <span>1 {purchaseUnit} =</span>
+                              <span>{factor} {s.unit}</span>
+                            </div>
+                          </>
+                        )}
+                        {s.trackExpiry && (
+                          <div className="ro-detail-row">
+                            <span>Expiry tracking</span>
+                            <span>Enabled</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Purchase controls */}
                     {canCreateDrafts ? (
-                      <>
-                        <label className="form-label">
-                          Supplier
+                      <div className="ro-controls">
+                        {/* Supplier */}
+                        <div className="ro-ctrl ro-ctrl--supplier">
+                          <label className="ro-ctrl-label" htmlFor={`supplier-${s.itemId}`}>Supplier</label>
                           <select
-                            className="form-input"
+                            id={`supplier-${s.itemId}`}
+                            className="ro-select"
                             value={line.supplierId}
-                            onChange={(event) => updateLine(suggestion.itemId, {
-                              supplierId: event.target.value,
-                              selected: event.target.value ? line.selected : false,
+                            onChange={(e) => updateLine(s.itemId, {
+                              supplierId: e.target.value,
+                              selected: e.target.value ? line.selected : false,
                             })}
                             disabled={suppliers.length === 0}
                           >
                             <option value="">Select supplier</option>
-                            {suppliers.map((supplier) => (
-                              <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
+                            {suppliers.map((sup) => (
+                              <option key={sup.id} value={sup.id}>{sup.name}</option>
                             ))}
                           </select>
-                        </label>
-                        <label className="form-label">
-                          {hasPurchaseUnit(suggestion.purchaseUnit, suggestion.purchaseConversionFactor)
-                            ? `Qty (${suggestion.purchaseUnit})`
-                            : `Qty (${suggestion.unit})`}
+                        </div>
+
+                        {/* Quantity */}
+                        <div className="ro-ctrl ro-ctrl--qty">
+                          <label className="ro-ctrl-label" htmlFor={`qty-${s.itemId}`}>
+                            Qty
+                            <span className="ro-ctrl-unit">({qtyLabel})</span>
+                          </label>
                           <input
-                            className="form-input"
+                            id={`qty-${s.itemId}`}
+                            className="ro-input"
                             type="number"
                             min="0"
-                            step={hasPurchaseUnit(suggestion.purchaseUnit, suggestion.purchaseConversionFactor) ? "1" : "0.01"}
+                            step={hasUop ? "1" : "0.01"}
                             value={line.quantity}
-                            onChange={(event) => updateLine(suggestion.itemId, { quantity: event.target.value })}
+                            onChange={(e) => updateLine(s.itemId, { quantity: e.target.value })}
                           />
-                          {hasPurchaseUnit(suggestion.purchaseUnit, suggestion.purchaseConversionFactor) && suggestion.purchaseConversionFactor && (
-                            <span className="reorder-unit-hint">
-                              {toNumber(line.quantity) > 0
-                                ? `≈ ${fmtQty(toNumber(line.quantity) * suggestion.purchaseConversionFactor)} ${suggestion.unit}`
-                                : `1 ${suggestion.purchaseUnit} = ${suggestion.purchaseConversionFactor} ${suggestion.unit}`}
-                            </span>
+                          {qtyHint && (
+                            <span className="ro-ctrl-hint">{qtyHint}</span>
                           )}
-                        </label>
-                        <label className="form-label">
-                          {hasPurchaseUnit(suggestion.purchaseUnit, suggestion.purchaseConversionFactor)
-                            ? `Cost per ${suggestion.purchaseUnit}`
-                            : `Unit cost`}
+                        </div>
+
+                        {/* Cost */}
+                        <div className="ro-ctrl ro-ctrl--cost">
+                          <label className="ro-ctrl-label" htmlFor={`cost-${s.itemId}`}>
+                            Cost
+                            <span className="ro-ctrl-unit">/{qtyLabel}</span>
+                          </label>
                           <input
-                            className="form-input"
+                            id={`cost-${s.itemId}`}
+                            className="ro-input"
                             type="number"
                             min="0"
                             step="0.01"
+                            placeholder="Enter cost"
                             value={line.unitCost}
-                            onChange={(event) => updateLine(suggestion.itemId, { unitCost: event.target.value })}
+                            onChange={(e) => updateLine(s.itemId, { unitCost: e.target.value })}
                           />
-                        </label>
-                        <div className="reorder-line-total">
-                          <span>Line total</span>
-                          <strong>{formatCurrency(itemTotal, settings.currency)}</strong>
+                          {lastCostDisplay != null && lastCostDisplay > 0 && (
+                            <span className="ro-ctrl-hint">
+                              Last: {formatCurrency(lastCostDisplay, currency)}/{qtyLabel}
+                            </span>
+                          )}
                         </div>
-                      </>
+
+                        {/* Line total */}
+                        <div className="ro-ctrl ro-ctrl--total">
+                          <span className="ro-ctrl-label">Total</span>
+                          <span className={`ro-total-val${itemTotal > 0 ? " ro-total-val--active" : ""}`}>
+                            {formatCurrency(itemTotal, currency)}
+                          </span>
+                        </div>
+                      </div>
                     ) : (
-                      <div className="reorder-readonly-supplier">
-                        <span>Supplier</span>
-                        <strong>{suggestion.preferredSupplier?.name ?? "Not assigned"}</strong>
+                      <div className="ro-readonly">
+                        <span className="ro-readonly-label">Preferred supplier</span>
+                        <span className="ro-readonly-val">{s.preferredSupplier?.name ?? "—"}</span>
                       </div>
                     )}
                   </div>
@@ -389,51 +480,28 @@ export function ReorderSuggestionsPage() {
 
 function buildInitialLines(suggestions: ReorderSuggestion[]) {
   return Object.fromEntries(
-    suggestions.map((suggestion) => {
-      const factor = suggestion.purchaseConversionFactor;
-      const hasUnit = hasPurchaseUnit(suggestion.purchaseUnit, factor);
-      // When item has a purchase unit, express qty in purchase units (rounded up)
+    suggestions.map((s) => {
+      const factor = s.purchaseConversionFactor;
+      const hasUnit = hasPurchaseUnit(s.purchaseUnit, factor);
       const qty = hasUnit && factor
-        ? String(getSuggestedPurchaseQty(suggestion.suggestedQuantity, factor))
-        : String(suggestion.suggestedQuantity);
-      // lastPurchaseCost is stored per base unit in DB; convert to per purchase unit for display
-      const lastCost = suggestion.lastPurchaseCost;
+        ? String(getSuggestedPurchaseQty(s.suggestedQuantity, factor))
+        : String(s.suggestedQuantity);
+      const lastCost = s.lastPurchaseCost;
       const displayCost = hasUnit && factor && lastCost != null ? lastCost * factor : lastCost;
       return [
-        suggestion.itemId,
+        s.itemId,
         {
           selected: false,
-          supplierId: suggestion.preferredSupplier?.id ?? "",
+          supplierId: s.preferredSupplier?.id ?? "",
           quantity: qty,
-          unitCost: String(displayCost ?? 0),
+          unitCost: displayCost ? String(displayCost) : "",
         },
       ];
     }),
   );
 }
 
-function Metric({
-  label,
-  value,
-  tone = "default",
-}: {
-  label: string;
-  value: string;
-  tone?: "default" | "danger" | "accent";
-}) {
-  return (
-    <div className={`reorder-metric reorder-metric--${tone}`}>
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
 function toNumber(value: string | undefined) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function formatNumber(value: number) {
-  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(value);
 }
