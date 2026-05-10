@@ -284,6 +284,8 @@ export interface StockSummaryItem {
   itemId: string;
   itemName: string;
   unit: string;
+  purchaseUnit: string | null;
+  purchaseConversionFactor: number | null;
   totalQuantity: number;
   minStockLevel: number;
   isLowStock: boolean;

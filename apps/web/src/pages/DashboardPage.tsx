@@ -524,18 +524,35 @@ export function DashboardPage() {
                   <div className="db-reorder-table">
                     <div className="db-reorder-header">
                       <span>Item</span>
-                      <span className="text-right">On Hand</span>
-                      <span className="text-right">Min</span>
-                      <span className="text-right">Buy</span>
+                      <span>On Hand</span>
+                      <span>Min</span>
+                      <span>To Buy</span>
                     </div>
-                    {reorderSuggestions.slice(0, 3).map((item) => (
-                      <div key={item.itemId} className="db-reorder-row">
-                        <span className="db-reorder-name">{item.itemName}</span>
-                        <span className="db-reorder-num db-reorder-num--low">{formatNumber(item.totalQuantity)}</span>
-                        <span className="db-reorder-num">{formatNumber(item.minStockLevel)}</span>
-                        <span className="db-reorder-num db-reorder-num--suggest">{formatNumber(item.suggestedQuantity)} {item.unit}</span>
-                      </div>
-                    ))}
+                    {reorderSuggestions.slice(0, 3).map((item) => {
+                      const cf = item.purchaseConversionFactor ?? null;
+                      const pu = item.purchaseUnit ?? item.unit;
+                      const hasUop = !!cf && cf > 0 && !!item.purchaseUnit;
+                      const onHandUop = hasUop ? Math.floor(item.totalQuantity / cf!) : item.totalQuantity;
+                      const minUop = hasUop ? Math.ceil(item.minStockLevel / cf!) : item.minStockLevel;
+                      const buyUop = hasUop ? Math.ceil(item.suggestedQuantity / cf!) : item.suggestedQuantity;
+                      return (
+                        <div key={item.itemId} className="db-reorder-row">
+                          <span className="db-reorder-name" title={item.itemName}>{item.itemName}</span>
+                          <span className="db-reorder-num db-reorder-num--low">
+                            {formatNumber(onHandUop)}
+                            {hasUop && <span className="db-reorder-uop-label">{pu}</span>}
+                          </span>
+                          <span className="db-reorder-num db-reorder-num--min">
+                            {formatNumber(minUop)}
+                            {hasUop && <span className="db-reorder-uop-label">{pu}</span>}
+                          </span>
+                          <span className="db-reorder-num db-reorder-num--suggest">
+                            {formatNumber(buyUop)}
+                            <span className="db-reorder-buy-unit">{pu}</span>
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                   {reorderSuggestions.length > 3 && (
                     <p className="db-see-more">+{reorderSuggestions.length - 3} more items need reorder</p>

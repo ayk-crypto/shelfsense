@@ -595,6 +595,8 @@ stockRouter.get("/summary", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR
       id: true,
       name: true,
       unit: true,
+      purchaseUnit: true,
+      purchaseConversionFactor: true,
       minStockLevel: true,
       stockBatches: {
         where: {
@@ -629,6 +631,8 @@ stockRouter.get("/summary", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR
       itemId: item.id,
       itemName: item.name,
       unit: item.unit,
+      purchaseUnit: item.purchaseUnit ?? null,
+      purchaseConversionFactor: item.purchaseConversionFactor ?? null,
       totalQuantity,
       minStockLevel: item.minStockLevel,
       isLowStock: item.minStockLevel !== null && totalQuantity <= item.minStockLevel,

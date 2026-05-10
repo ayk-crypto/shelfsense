@@ -25095,30 +25095,33 @@ body {
   flex-direction: column;
   gap: 0;
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: 10px;
   overflow: hidden;
 }
 .db-reorder-header {
   display: grid;
-  grid-template-columns: 1fr auto auto auto;
-  gap: 8px;
-  padding: 6px 10px;
+  grid-template-columns: 1fr 5.5rem 4.5rem 6.5rem;
+  padding: 6px 12px;
   background: var(--color-bg);
-  font-size: 0.65rem;
-  font-weight: 600;
+  font-size: 0.63rem;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   color: var(--color-text-muted);
+  border-bottom: 1px solid var(--color-border);
 }
+.db-reorder-header span { display: flex; align-items: center; }
+.db-reorder-header span:not(:first-child) { justify-content: flex-end; }
 .db-reorder-row {
   display: grid;
-  grid-template-columns: 1fr auto auto auto;
-  gap: 8px;
-  padding: 8px 10px;
+  grid-template-columns: 1fr 5.5rem 4.5rem 6.5rem;
+  padding: 8px 12px;
   border-top: 1px solid var(--color-border);
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   align-items: center;
+  transition: background 0.12s;
 }
+.db-reorder-row:first-of-type { border-top: none; }
 .db-reorder-row:hover { background: var(--color-bg); }
 .db-reorder-name {
   font-weight: 500;
@@ -25129,13 +25132,29 @@ body {
   min-width: 0;
 }
 .db-reorder-num {
-  text-align: right;
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 3px;
   color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 .db-reorder-num--low { color: #d97706; font-weight: 600; }
-.db-reorder-num--suggest { color: var(--color-text); font-weight: 700; }
+.db-reorder-num--min { color: var(--color-text-muted); }
+.db-reorder-num--suggest { color: var(--color-primary, #4f46e5); font-weight: 700; }
+.db-reorder-uop-label {
+  font-size: 0.65rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  opacity: 0.8;
+}
+.db-reorder-buy-unit {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--color-primary, #4f46e5);
+  opacity: 0.85;
+}
 .db-reorder-cta {
   align-self: stretch;
   justify-content: center;

@@ -1,0 +1,78 @@
+Please improve the Reorder Suggestions screen UI/UX.
+
+Current issue:
+The screen is too card-heavy and shows too many calculation boxes per item. As a restaurant/admin user, I do not want to think deeply about current packets, cartons conversion, shortage, minimum stock, etc. The main purpose of this screen should be to help me quickly create a purchase draft.
+
+Required change:
+Redesign each reorder suggestion item into a more compact, purchase-focused row/card.
+
+Main principle:
+Show the user what they need to buy, not all backend calculations.
+
+For each item, display the following clearly:
+
+1. Item name
+2. SKU, if available
+3. Current stock in a simple format
+   Example: Current: 17 packet
+4. Minimum stock in a simple format
+   Example: Min: 45 packet
+5. Suggested purchase quantity as the main highlighted value
+   Example:
+   - Buy: 6 cartons
+   - Buy: 2 cartons + 5 packets
+   - Buy: 15 kg
+   - Buy: 3 bottles
+
+The suggested purchase quantity should be the most visually prominent part of the item.
+
+Remove or collapse these separate boxes from the main view:
+- In cartons
+- Shortage
+- Suggested purchase
+- Location
+- Multiple large calculation cards
+
+Instead, show optional details in a small expandable section called “View calculation” or “Details”. When clicked, it can show:
+- Current stock
+- Converted stock
+- Minimum stock
+- Shortage
+- Purchase unit conversion
+- Location
+
+New layout suggestion:
+Each item should look like a compact purchase row/card:
+
+[checkbox] 1000 MP                      Buy: 6 cartons
+          Current: 17 packet | Min: 45 packet
+          Supplier dropdown | Qty | Cost per carton | Line total
+
+For mixed unit purchase:
+[checkbox] Example Item                 Buy: 2 cartons + 5 packets
+          Current: 8 packets | Min: 30 packets
+          Supplier dropdown | Qty | Cost per carton | Line total
+
+Important UX improvements:
+1. Reduce vertical height of each item card significantly.
+2. Keep supplier, quantity, cost, and line total on the same row on desktop.
+3. On mobile, stack the same fields neatly.
+4. Auto-fill the purchase quantity based on the suggested purchase quantity.
+5. If item has a default supplier, auto-select it.
+6. If previous purchase cost exists, show it under the cost field:
+   Example: Last cost: Rs 1,250/carton
+7. Do not show cost field default as 0. Use placeholder “Enter cost” instead.
+8. Keep the “Create Purchase Draft” sticky at the top or bottom.
+9. The draft summary should show:
+   - number of selected items
+   - estimated total amount
+10. “Select ready items” should only select items where supplier and quantity are valid.
+
+Visual direction:
+Make the page feel like a purchasing worksheet, not a dashboard full of cards.
+Use fewer boxes, tighter spacing, and clearer hierarchy.
+
+The most important information should be:
+Item → Suggested Buy Quantity → Supplier → Qty → Cost → Create Draft
+
+Please update the Reorder Suggestions page accordingly without changing the backend calculation logic. Only improve the frontend layout, labels, hierarchy, and interaction.
