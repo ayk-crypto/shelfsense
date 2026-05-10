@@ -125,6 +125,12 @@ const icons = {
       <polyline points="12 14 14 16 18 12" />
     </svg>
   ),
+  lifecycle: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
+    </svg>
+  ),
   system: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <circle cx="12" cy="12" r="3" />
@@ -281,6 +287,7 @@ export function AdminLayout() {
           <NavItem to="/admin/announcements" icon={icons.announcements} label="Announcements" {...navProps} />
 
           <p className="admin-nav-section">System</p>
+          <NavItem to="/admin/lifecycle" icon={icons.lifecycle} label="Workspace Lifecycle" {...navProps} />
           <NavItem to="/admin/team" icon={icons.team} label="Admin Team" {...navProps} />
           <NavItem to="/admin/activity" icon={icons.activity} label="Audit Logs" {...navProps} />
           <NavItem to="/admin/system" icon={icons.system} label="System Health" {...navProps} />

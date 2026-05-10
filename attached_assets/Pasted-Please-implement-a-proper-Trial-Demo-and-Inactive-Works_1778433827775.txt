@@ -1,0 +1,277 @@
+Please implement a proper Trial, Demo, and Inactive Workspace Management system for ShelfSense.
+
+ShelfSense is now live and being used for real restaurant operations. We will also start giving demos and trial access to potential customers. We need admin-side controls to manage trial/free accounts, inactive users, demo workspaces, and database cleanup safely.
+
+This should be implemented as a production-safe lifecycle system, not just a delete button.
+
+Objective:
+Create a workspace/account lifecycle management system where the platform admin can:
+- See all trial, free, expired, inactive, suspended, and archived workspaces.
+- Track last login and last activity.
+- Identify unused demo/trial accounts.
+- Suspend or archive inactive workspaces.
+- Soft-delete accounts safely.
+- Restore accounts if needed.
+- Permanently delete only after strong confirmation.
+- Keep audit logs for every admin action.
+
+Required workspace statuses:
+Please support these statuses at workspace/subscription level where appropriate:
+- ACTIVE
+- TRIAL
+- TRIAL_EXPIRED
+- FREE
+- INACTIVE
+- SUSPENDED
+- ARCHIVED
+- SCHEDULED_FOR_DELETION
+- DELETED
+
+If existing status enums already exist, review them first and extend carefully without breaking current production data.
+
+Trial account behavior:
+When a new user signs up, the system should support trial-based onboarding.
+
+Required fields:
+- trialStartedAt
+- trialEndsAt
+- trialExtendedAt
+- trialExtendedBy
+- trialExtensionReason
+- lastLoginAt
+- lastActivityAt
+- status
+- planType or subscription plan
+- archivedAt
+- archivedBy
+- deletedAt
+- deletedBy
+- deletionScheduledAt
+- deletionReason
+- isDemoWorkspace
+
+If some of these fields already exist in User, Workspace, or Subscription models, reuse them. Otherwise, add them through a safe Prisma migration.
+
+Trial rules:
+- Default trial duration: 14 days or from system setting.
+- Trial workspace should show days remaining.
+- When trial expires, mark it as TRIAL_EXPIRED.
+- Expired trial users can log in but should be limited from core operations until they select/activate a plan.
+- Admin can extend trial manually.
+- Admin can convert trial to Free, Basic, Pro, or Business plan.
+
+Admin dashboard requirements:
+Add an admin page called Workspace Lifecycle or Accounts & Trials.
+
+This page should show:
+- Workspace name
+- Owner name
+- Owner email
+- Plan
+- Status
+- Trial start date
+- Trial end date
+- Days remaining
+- Last login
+- Last activity
+- Number of users
+- Number of items
+- Number of stock movements
+- Number of purchases
+- Created date
+- Risk/attention badge
+
+Add filters:
+- Trial
+- Trial expired
+- Free
+- Inactive
+- Suspended
+- Archived
+- Scheduled for deletion
+- No activity after signup
+- Email not verified
+- Last login older than 30 days
+- Last login older than 60 days
+- Last login older than 90 days
+
+Add search by:
+- Workspace name
+- Owner name
+- Owner email
+
+Admin actions:
+For each workspace, admin should be able to:
+- View workspace details
+- View activity summary
+- Extend trial
+- Convert to free plan
+- Convert to paid/manual plan
+- Suspend workspace
+- Unsuspend workspace
+- Archive workspace
+- Restore archived workspace
+- Schedule deletion
+- Cancel scheduled deletion
+- Permanently delete workspace
+- Send reminder email
+- Reset demo workspace data, if workspace is marked as demo
+
+Safety requirements:
+Do not allow direct hard deletion without safeguards.
+
+Before permanent deletion:
+- Require admin confirmation modal.
+- Require typing the workspace name or owner email.
+- Require reason for deletion.
+- Require super admin permission.
+- Prefer MFA/password confirmation if current auth supports it.
+- Log the full action in audit logs.
+
+Paid workspaces should not be permanently deleted unless:
+- Subscription is cancelled or inactive.
+- Admin confirms strongly.
+- Deletion reason is provided.
+
+Soft delete behavior:
+Soft-deleted or archived workspaces should:
+- Not appear in normal user login/workspace selection.
+- Not allow normal operations.
+- Remain visible to super admin.
+- Be restorable by super admin.
+- Keep their historical records until permanently deleted.
+
+Inactivity tracking:
+Track:
+- lastLoginAt when user logs in.
+- lastActivityAt when user performs meaningful actions, such as:
+  - item created/updated
+  - stock received
+  - stock issued
+  - purchase created
+  - supplier created
+  - report viewed/exported
+  - user invited
+  - location created
+
+Admin page should highlight:
+- No login after signup
+- No activity after signup
+- Inactive for 30 days
+- Inactive for 60 days
+- Inactive for 90 days
+
+Admin alerts:
+Add admin alerts or dashboard notifications for:
+- New trial account created
+- Trial ending in 3 days
+- Trial expired
+- Free workspace inactive for 60 days
+- Trial workspace inactive for 30 days
+- Workspace scheduled for deletion
+- User signed up but did not verify email
+- User signed up but created no inventory data
+
+Alerts should be visible in admin dashboard. Email notifications can be added later if not already available.
+
+Demo workspace support:
+Add support for marking a workspace as demo:
+- isDemoWorkspace: true/false
+
+For demo workspace, admin should be able to:
+- Reset demo data
+- Seed sample items, suppliers, purchases, stock movements, and reports
+- Keep the same demo login/workspace
+- Avoid creating multiple fake accounts for every demo
+
+This will help us show ShelfSense to potential customers without polluting production database with unnecessary demo accounts.
+
+User-facing trial messages:
+Trial users should see clean messages such as:
+- “Your trial ends in 5 days.”
+- “Your trial has expired. Please choose a plan to continue using ShelfSense.”
+- “Your workspace is inactive. Please contact support if you need help.”
+- “Your workspace has been suspended. Please contact support.”
+
+Do not show technical errors.
+
+Backend/API requirements:
+Please create secure admin-only endpoints for lifecycle actions.
+
+Possible endpoints:
+- GET /admin/workspaces/lifecycle
+- GET /admin/workspaces/:id/lifecycle
+- POST /admin/workspaces/:id/extend-trial
+- POST /admin/workspaces/:id/convert-plan
+- POST /admin/workspaces/:id/suspend
+- POST /admin/workspaces/:id/unsuspend
+- POST /admin/workspaces/:id/archive
+- POST /admin/workspaces/:id/restore
+- POST /admin/workspaces/:id/schedule-deletion
+- POST /admin/workspaces/:id/cancel-deletion
+- DELETE /admin/workspaces/:id/permanent-delete
+- POST /admin/workspaces/:id/reset-demo-data
+
+Please ensure all endpoints:
+- Require platform admin / super admin role.
+- Validate tenant boundaries.
+- Write audit logs.
+- Return safe error messages.
+- Do not expose one tenant’s data to another tenant.
+
+Audit log requirements:
+Every lifecycle action should create an audit log entry with:
+- Admin user ID
+- Workspace ID
+- Action type
+- Previous status
+- New status
+- Reason
+- Timestamp
+- IP/user agent if available
+
+Actions to log:
+- Trial extended
+- Plan converted
+- Workspace suspended
+- Workspace unsuspended
+- Workspace archived
+- Workspace restored
+- Deletion scheduled
+- Deletion cancelled
+- Workspace permanently deleted
+- Demo workspace reset
+
+Data retention policy settings:
+Add system-level configurable settings, even if initially hardcoded:
+- Trial duration days
+- Trial inactivity warning days
+- Free account inactivity warning days
+- Deletion grace period days
+- Permanent deletion allowed true/false
+
+Default suggestion:
+- Trial duration: 14 days
+- Trial inactivity alert: 30 days
+- Free account inactivity alert: 60 days
+- Deletion grace period: 15 days
+- Permanent deletion: manual only
+
+Acceptance criteria:
+1. New users can be assigned a trial period.
+2. Admin can see trial/free/inactive workspaces clearly.
+3. Admin can track last login and last activity.
+4. Admin can manually extend trial.
+5. Admin can suspend, archive, restore, and schedule deletion.
+6. Permanent deletion is protected with strong confirmation.
+7. All lifecycle actions are audit logged.
+8. Demo workspace can be marked and reset safely.
+9. Expired trial users see clean user-facing messages.
+10. Inactive accounts are visible to admin for cleanup.
+11. Existing paid/live Salted Grills workspace is not affected.
+12. Existing production data remains safe through migrations.
+
+Important implementation note:
+First build manual admin lifecycle control. Do not implement automatic permanent deletion yet. Automatic deletion should only be added later after retention policy, privacy policy, and customer terms are finalized.
+
+Before coding, inspect the existing User, Workspace, Subscription, Plan, AuditLog, Auth, and Admin modules. Reuse existing structures where possible and implement this in a safe, migration-friendly way.

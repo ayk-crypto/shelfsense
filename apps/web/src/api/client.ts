@@ -149,6 +149,8 @@ export const apiClient = {
     request<T>(path, { method: "POST", body, auth }),
   patch: <T>(path: string, body: unknown, auth = true) =>
     request<T>(path, { method: "PATCH", body, auth }),
-  delete: <T = void>(path: string, auth = true) =>
-    request<T>(path, { method: "DELETE", auth }),
+  delete: <T = void>(path: string, bodyOrAuth?: unknown, auth = true) =>
+    typeof bodyOrAuth === "boolean"
+      ? request<T>(path, { method: "DELETE", auth: bodyOrAuth })
+      : request<T>(path, { method: "DELETE", body: bodyOrAuth, auth }),
 };

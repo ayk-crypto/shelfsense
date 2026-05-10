@@ -312,3 +312,65 @@ export function assignTicket(id: string, assignedToUserId: string | null): Promi
 export function getAdminNotificationsSummary(): Promise<import("../types").AdminNotificationSummary> {
   return apiClient.get("/admin/support/summary");
 }
+
+// ── Workspace Lifecycle ────────────────────────────────────────────────────────
+
+import type {
+  LifecycleStats,
+  LifecycleWorkspacesResponse,
+  WorkspaceLifecycleLog,
+} from "../types";
+
+export function getLifecycleStats(): Promise<{ stats: LifecycleStats }> {
+  return apiClient.get("/admin/lifecycle/stats");
+}
+
+export function getLifecycleWorkspaces(params: {
+  page?: number; limit?: number; filter?: string; search?: string;
+} = {}): Promise<LifecycleWorkspacesResponse> {
+  return apiClient.get(`/admin/lifecycle/workspaces${qs(params)}`);
+}
+
+export function getWorkspaceLifecycleLogs(id: string, params: { page?: number } = {}): Promise<{ logs: WorkspaceLifecycleLog[]; pagination: import("../types").AdminPagination }> {
+  return apiClient.get(`/admin/lifecycle/workspaces/${id}/logs${qs(params)}`);
+}
+
+export function lifecycleStartTrial(id: string, data: { days: number; note?: string }): Promise<{ ok: boolean; trialEndsAt: string }> {
+  return apiClient.post(`/admin/lifecycle/workspaces/${id}/start-trial`, data);
+}
+
+export function lifecycleExtendTrial(id: string, data: { days: number; reason?: string; note?: string }): Promise<{ ok: boolean; trialEndsAt: string }> {
+  return apiClient.post(`/admin/lifecycle/workspaces/${id}/extend-trial`, data);
+}
+
+export function lifecycleExpireTrial(id: string, data: { note?: string }): Promise<{ ok: boolean }> {
+  return apiClient.post(`/admin/lifecycle/workspaces/${id}/expire-trial`, data);
+}
+
+export function lifecycleMarkDemo(id: string, data: { isDemoWorkspace: boolean; note?: string }): Promise<{ ok: boolean; isDemoWorkspace: boolean }> {
+  return apiClient.post(`/admin/lifecycle/workspaces/${id}/mark-demo`, data);
+}
+
+export function lifecycleResetDemo(id: string, data: { note?: string }): Promise<{ ok: boolean; deleted: Record<string, number> }> {
+  return apiClient.post(`/admin/lifecycle/workspaces/${id}/reset-demo`, data);
+}
+
+export function lifecycleArchive(id: string, data: { reason?: string; note?: string }): Promise<{ ok: boolean }> {
+  return apiClient.post(`/admin/lifecycle/workspaces/${id}/archive`, data);
+}
+
+export function lifecycleUnarchive(id: string, data: { note?: string }): Promise<{ ok: boolean }> {
+  return apiClient.post(`/admin/lifecycle/workspaces/${id}/unarchive`, data);
+}
+
+export function lifecycleSoftDelete(id: string, data: { reason?: string; note?: string; scheduleDays?: number }): Promise<{ ok: boolean; deletedAt: string; deletionScheduledAt: string | null }> {
+  return apiClient.post(`/admin/lifecycle/workspaces/${id}/soft-delete`, data);
+}
+
+export function lifecycleRestore(id: string, data: { note?: string }): Promise<{ ok: boolean }> {
+  return apiClient.post(`/admin/lifecycle/workspaces/${id}/restore`, data);
+}
+
+export function lifecyclePermanentDelete(id: string, data: { confirmPhrase: string; reason?: string }): Promise<{ ok: boolean; deleted: { workspaceId: string; workspaceName: string } }> {
+  return apiClient.delete(`/admin/lifecycle/workspaces/${id}/permanent-delete`, data);
+}

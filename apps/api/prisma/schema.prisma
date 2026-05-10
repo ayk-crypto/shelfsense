@@ -175,6 +175,10 @@ model User {
   lastLoginAt           DateTime?
   createdAt             DateTime        @default(now())
   ownedSpaces           Workspace[]     @relation("WorkspaceOwner")
+  extendedTrialSpaces   Workspace[]     @relation("WorkspaceTrialExtendedBy")
+  archivedSpaces        Workspace[]     @relation("WorkspaceArchivedBy")
+  deletedSpaces         Workspace[]     @relation("WorkspaceDeletedBy")
+  lifecycleLogs         WorkspaceLifecycleLog[]
   memberships           Membership[]
   auditLogs             AuditLog[]
   notifications         Notification[]
@@ -252,10 +256,25 @@ model Workspace {
   suspendedAt                    DateTime?
   suspendReason                  String?
   trialEndsAt                    DateTime?
+  trialStartedAt                 DateTime?
+  trialExtendedAt                DateTime?
+  trialExtendedByAdminId         String?     @db.Uuid
+  trialExtensionReason           String?
+  isDemoWorkspace                Boolean     @default(false)
+  demoResetAt                    DateTime?
+  archivedAt                     DateTime?
+  archivedByAdminId              String?     @db.Uuid
+  deletedAt                      DateTime?
+  deletedByAdminId               String?     @db.Uuid
+  deletionScheduledAt            DateTime?
+  deletionReason                 String?
   subscriptionStatus             String?
   ownerId                        String      @db.Uuid
   createdAt                      DateTime    @default(now())
   owner                          User        @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  trialExtendedBy                User?       @relation("WorkspaceTrialExtendedBy", fields: [trialExtendedByAdminId], references: [id], onDelete: SetNull)
+  archivedBy                     User?       @relation("WorkspaceArchivedBy", fields: [archivedByAdminId], references: [id], onDelete: SetNull)
+  deletedBy                      User?       @relation("WorkspaceDeletedBy", fields: [deletedByAdminId], references: [id], onDelete: SetNull)
   memberships                    Membership[]
   locations                      Location[]
   items                          Item[]
@@ -272,6 +291,12 @@ model Workspace {
   invoices                       Invoice[]
   billingEvents                  BillingEvent[]
   supportTickets                 SupportTicket[]
+  lifecycleLogs                  WorkspaceLifecycleLog[]
+
+  @@index([isDemoWorkspace])
+  @@index([archivedAt])
+  @@index([deletedAt])
+  @@index([trialEndsAt])
 }
 
 model Notification {
@@ -924,5 +949,21 @@ model SupportTicketEvent {
   actor       User?         @relation("SupportEventActor", fields: [actorUserId], references: [id], onDelete: SetNull)
 
   @@index([ticketId])
+  @@index([createdAt])
+}
+
+model WorkspaceLifecycleLog {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @db.Uuid
+  adminId     String    @db.Uuid
+  action      String
+  note        String?
+  meta        Json?
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  admin       User      @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([adminId])
   @@index([createdAt])
 }

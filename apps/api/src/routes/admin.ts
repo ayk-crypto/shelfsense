@@ -14,6 +14,7 @@ import { adminEmailTemplatesRouter } from "./admin-email-templates.js";
 import { adminAnnouncementsRouter } from "./admin-announcements.js";
 import { adminSystemRouter } from "./admin-system.js";
 import { adminSupportRouter } from "./admin-support.js";
+import { adminLifecycleRouter } from "./admin-lifecycle.js";
 
 export const adminRouter = Router();
 
@@ -40,6 +41,7 @@ adminRouter.use("/email-templates", adminEmailTemplatesRouter);
 adminRouter.use("/announcements", adminAnnouncementsRouter);
 adminRouter.use("/system", adminSystemRouter);
 adminRouter.use("/support", adminSupportRouter);
+adminRouter.use("/lifecycle", adminLifecycleRouter);
 
 // Workspace subscription helpers mounted under workspaces/:id
 adminRouter.post("/workspaces/:workspaceId/subscription", asyncHandler(async (req, res) => {

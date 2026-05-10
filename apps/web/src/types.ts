@@ -1508,3 +1508,72 @@ export interface SupportTicketsResponse {
   page: number;
   pages: number;
 }
+
+// ── Workspace Lifecycle ────────────────────────────────────────────────────────
+
+export type WorkspaceLifecycleStatus =
+  | "active"
+  | "trial"
+  | "trial_expiring"
+  | "trial_expired"
+  | "demo"
+  | "suspended"
+  | "archived"
+  | "deleted";
+
+export interface LifecycleWorkspace {
+  id: string;
+  name: string;
+  plan: string;
+  suspended: boolean;
+  suspendedAt: string | null;
+  suspendReason: string | null;
+  subscriptionStatus: string | null;
+  trialEndsAt: string | null;
+  trialStartedAt: string | null;
+  trialExtendedAt: string | null;
+  trialExtensionReason: string | null;
+  isDemoWorkspace: boolean;
+  demoResetAt: string | null;
+  archivedAt: string | null;
+  deletedAt: string | null;
+  deletionScheduledAt: string | null;
+  deletionReason: string | null;
+  onboardingCompleted: boolean;
+  createdAt: string;
+  owner: { id: string; name: string; email: string };
+  trialExtendedBy: { id: string; name: string } | null;
+  archivedBy: { id: string; name: string } | null;
+  deletedBy: { id: string; name: string } | null;
+  memberCount: number;
+  itemCount: number;
+  stockMovementCount: number;
+  lastActivityAt: string | null;
+  lifecycleStatus: WorkspaceLifecycleStatus;
+}
+
+export interface LifecycleWorkspacesResponse {
+  workspaces: LifecycleWorkspace[];
+  pagination: AdminPagination;
+}
+
+export interface LifecycleStats {
+  total: number;
+  activeTrials: number;
+  expiringTrials: number;
+  expiredTrials: number;
+  inactive: number;
+  demo: number;
+  archived: number;
+  softDeleted: number;
+  suspended: number;
+}
+
+export interface WorkspaceLifecycleLog {
+  id: string;
+  action: string;
+  note: string | null;
+  meta: Record<string, unknown> | null;
+  createdAt: string;
+  admin: { id: string; name: string; email: string };
+}
