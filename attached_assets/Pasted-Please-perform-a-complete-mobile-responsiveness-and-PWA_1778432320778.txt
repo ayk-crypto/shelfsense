@@ -1,0 +1,219 @@
+Please perform a complete mobile responsiveness and PWA readiness review of ShelfSense.
+
+The application is currently partially responsive, but some screens still require horizontal scrolling on mobile. This creates poor UX, especially for restaurant/store users who will use ShelfSense from mobile devices.
+
+The main issue observed is on the Reports section, where not all reports, tables, filters, cards, and report outputs are properly visible on mobile screens. However, please do not only fix the Reports page. Perform a complete smoke test across the whole application.
+
+Objective
+
+Make ShelfSense fully mobile responsive, practical, and PWA-ready so users can comfortably use it from mobile browsers and installed home-screen app mode.
+
+The application should work properly on:
+
+360px width mobile screens
+375px width iPhone-style screens
+390px–430px modern mobile screens
+Tablets
+Desktop screens
+Scope of testing
+
+Please check all major user-facing screens, including but not limited to:
+
+Dashboard / Today
+Daily Ops
+Receive Stock
+Stock Out
+Stock Activity
+Items
+Item Detail
+Alerts
+Suppliers
+Purchases
+Reports
+Activity
+Team
+Locations
+Plan
+Settings
+Login / Signup / Onboarding
+Admin panel pages, if applicable
+Main issue to fix
+
+The app should not require left-to-right scrolling on mobile unless absolutely unavoidable.
+
+Please inspect and fix:
+
+Tables overflowing outside the viewport
+Report cards not wrapping properly
+Filters taking too much width
+Date range selectors overflowing
+Long item names breaking layout
+Buttons pushing content outside the screen
+Sidebar/navigation behavior on mobile
+Modals overflowing the screen
+Dropdowns/select fields not fitting mobile width
+Tabs not wrapping or scrolling cleanly
+Charts or report widgets causing horizontal overflow
+Empty states and error states on mobile
+Purchase/reorder cards on small screens
+Stock activity tables on mobile
+Reports page requirements
+
+The Reports section must be redesigned for mobile usability.
+
+On desktop, reports can remain table-based.
+
+On mobile, reports should use a mobile-friendly layout such as:
+
+Stacked cards instead of wide tables
+Collapsible report sections
+Horizontally scrollable table only inside a contained table wrapper, not causing full-page horizontal scroll
+Sticky/visible filters where useful
+Compact summary cards
+Clear labels and values
+Proper spacing between report rows
+
+For example, instead of showing a wide table like:
+
+Item | Category | Opening Stock | Received | Issued | Current Stock | Value | Location
+
+On mobile, show it as a card:
+
+Item Name
+Category: Grocery
+Opening: 20 packet
+Received: 10 packet
+Issued: 5 packet
+Current: 25 packet
+Value: Rs 2,500
+Location: Main Branch
+
+Mobile UX expectations
+
+Please make mobile UX feel intentional, not just squeezed.
+
+Requirements:
+
+No full-page horizontal scrolling.
+All pages should fit within mobile viewport.
+Buttons should be easy to tap.
+Forms should stack vertically on mobile.
+Tables should become cards or be contained within safe scroll wrappers.
+Filters should collapse or stack cleanly.
+Sidebar should become a proper mobile drawer or bottom navigation.
+Text should not overlap or cut off.
+Modals should fit within screen height and allow vertical scroll.
+Charts should resize properly.
+Important actions should remain visible and usable.
+Pages should look clean on both mobile and desktop.
+PWA readiness
+
+Please also check and improve PWA support.
+
+Confirm or implement:
+
+Valid manifest.webmanifest
+App name and short name for ShelfSense
+Correct theme color and background color
+App icons for required sizes
+Mobile browser safe-area support
+Proper viewport meta tag
+Service worker registration, if already planned in the app
+Offline fallback page or graceful offline message
+Installability checks
+App should open cleanly in standalone mode after being added to home screen
+No broken layout in standalone PWA mode
+
+If full offline functionality is not currently planned, do not overcomplicate it. At minimum, make the app installable and show a clean offline message when internet is unavailable.
+
+Technical instructions
+
+Please inspect the existing frontend layout system before making changes.
+
+Look for common causes of mobile overflow, such as:
+
+width: 100vw;
+min-width: 900px;
+fixed table widths;
+large grid columns without breakpoints;
+nowrap text;
+overflow-visible containers;
+buttons in one row without wrapping;
+cards using fixed widths;
+charts without responsive containers;
+
+Please replace these with responsive patterns:
+
+max-width: 100%;
+overflow-x: hidden only where safe;
+grid-template-columns with responsive breakpoints;
+flex-wrap;
+min-width: 0;
+truncate long text properly;
+responsive table/card pattern;
+contained overflow-x-auto for tables;
+
+For React/Tailwind components, please ensure:
+
+Use w-full
+Use min-w-0
+Use responsive grids like grid-cols-1 md:grid-cols-2 lg:grid-cols-4
+Use flex-col sm:flex-row
+Use overflow-x-auto only inside table wrappers
+Avoid fixed pixel widths unless necessary
+Use responsive padding such as p-3 sm:p-4 lg:p-6
+Use smaller text and spacing where appropriate on mobile
+Use card-based layout for dense data on mobile
+Smoke test requirement
+
+After changes, please run a mobile smoke test for the full app.
+
+Test at least these viewport sizes:
+
+360 × 800
+375 × 812
+390 × 844
+414 × 896
+768 × 1024
+Desktop
+
+For each screen, check:
+
+Is there horizontal page scroll?
+Are all actions visible?
+Are filters usable?
+Are tables readable?
+Are modals usable?
+Are forms submit buttons visible?
+Is navigation usable?
+Does the page look professional?
+Add a simple responsive QA checklist
+
+Please add a developer checklist file, for example:
+
+docs/MOBILE_RESPONSIVENESS_QA.md
+
+Include:
+
+Screens tested
+Viewports tested
+Issues found
+Fixes applied
+Remaining known limitations, if any
+PWA readiness status
+Acceptance criteria
+
+Implementation will be considered complete when:
+
+No major app screen has full-page horizontal scroll on mobile.
+Reports page is fully usable on mobile.
+Tables are either converted into mobile cards or safely contained.
+Filters and buttons stack properly on mobile.
+Sidebar/navigation works cleanly on mobile.
+Forms and modals are usable on small screens.
+PWA manifest and installability basics are verified.
+App looks professional on mobile, tablet, and desktop.
+A mobile smoke test checklist is documented.
+Existing desktop layout should not be broken.
+
+Please start by auditing the layout and identifying all overflow sources, especially in Reports, Purchases, Reorder Suggestions, Stock Activity, and Admin pages. Then implement reusable responsive components so the same problem does not appear again on future pages.

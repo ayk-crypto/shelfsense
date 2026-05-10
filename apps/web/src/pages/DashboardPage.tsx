@@ -444,10 +444,35 @@ export function DashboardPage() {
                     <span className="badge badge--red">{expiredCount} expired</span>
                   </div>
 
+                  {lowStockCount > 0 && (
+                    <div className="db-expiry-list">
+                      <p className="db-list-label">Low stock</p>
+                      {alerts.lowStock.slice(0, 2).map((item) => {
+                        const shortage = item.minStockLevel - item.quantity;
+                        return (
+                          <div key={item.itemId} className="db-expiry-row">
+                            <div className="db-expiry-info">
+                              <span className="db-expiry-name">{item.itemName}</span>
+                              <span className="db-expiry-meta">
+                                {formatNumber(item.quantity)} on hand · min {formatNumber(item.minStockLevel)} {item.unit}
+                              </span>
+                            </div>
+                            <span className="db-lowstock-pill">
+                              {formatNumber(shortage)} short
+                            </span>
+                          </div>
+                        );
+                      })}
+                      {lowStockCount > 2 && (
+                        <p className="db-see-more">+{lowStockCount - 2} more low-stock items</p>
+                      )}
+                    </div>
+                  )}
+
                   {expiringSoonCount > 0 && (
                     <div className="db-expiry-list">
                       <p className="db-list-label">Expiring within {settings.expiryAlertDays} days</p>
-                      {alerts.expiringSoon.slice(0, 3).map((batch) => {
+                      {alerts.expiringSoon.slice(0, 2).map((batch) => {
                         const days = daysUntil(batch.expiryDate);
                         return (
                           <div key={batch.id} className="db-expiry-row">
@@ -464,11 +489,13 @@ export function DashboardPage() {
                           </div>
                         );
                       })}
-                      {expiringSoonCount > 3 && (
-                        <p className="db-see-more">+{expiringSoonCount - 3} more expiring items</p>
+                      {expiringSoonCount > 2 && (
+                        <p className="db-see-more">+{expiringSoonCount - 2} more expiring items</p>
                       )}
                     </div>
                   )}
+
+                  <Link to="/alerts" className="db-card-link">View all alerts →</Link>
                 </>
               )}
             </div>
@@ -499,22 +526,22 @@ export function DashboardPage() {
                       <span>Item</span>
                       <span className="text-right">On Hand</span>
                       <span className="text-right">Min</span>
-                      <span className="text-right">Suggest</span>
+                      <span className="text-right">Buy</span>
                     </div>
-                    {reorderSuggestions.slice(0, 4).map((item) => (
+                    {reorderSuggestions.slice(0, 3).map((item) => (
                       <div key={item.itemId} className="db-reorder-row">
                         <span className="db-reorder-name">{item.itemName}</span>
                         <span className="db-reorder-num db-reorder-num--low">{formatNumber(item.totalQuantity)}</span>
                         <span className="db-reorder-num">{formatNumber(item.minStockLevel)}</span>
-                        <span className="db-reorder-num db-reorder-num--suggest">{formatNumber(item.suggestedQuantity)}</span>
+                        <span className="db-reorder-num db-reorder-num--suggest">{formatNumber(item.suggestedQuantity)} {item.unit}</span>
                       </div>
                     ))}
                   </div>
-                  {reorderSuggestions.length > 4 && (
-                    <p className="db-see-more">+{reorderSuggestions.length - 4} more items need reorder</p>
+                  {reorderSuggestions.length > 3 && (
+                    <p className="db-see-more">+{reorderSuggestions.length - 3} more items need reorder</p>
                   )}
-                  <Link className="btn btn--warning btn--sm db-reorder-cta" to="/reorder-suggestions">
-                    Create Purchase Order Draft
+                  <Link className="db-card-link db-reorder-link" to="/reorder-suggestions">
+                    Create purchase order draft →
                   </Link>
                 </>
               )}
@@ -545,7 +572,7 @@ export function DashboardPage() {
                   <span className="db-wastage-stat-label">Today</span>
                   <span className="db-wastage-stat-value">{formatCurrency(wastageToday, currency)}</span>
                 </div>
-                <div className="db-wastage-stat db-wastage-stat--week">
+                <div className={`db-wastage-stat${wastageWeek > 0 ? " db-wastage-stat--week" : ""}`}>
                   <span className="db-wastage-stat-label">This week</span>
                   <span className={`db-wastage-stat-value${wastageWeek > 0 ? " db-wastage-stat-value--red" : ""}`}>{formatCurrency(wastageWeek, currency)}</span>
                 </div>

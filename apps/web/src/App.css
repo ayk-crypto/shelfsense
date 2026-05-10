@@ -25052,6 +25052,43 @@ body {
 .db-expiry-pill--critical { background: #dc2626; color: #fff; border-color: #dc2626; }
 .db-expiry-pill--warn { background: #fef3c7; color: #92400e; border-color: #fde68a; }
 
+/* Low-stock shortage pill */
+.db-lowstock-pill {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #fed7aa;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Card footer link */
+.db-card-link {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-primary);
+  text-decoration: none;
+  align-self: flex-start;
+  transition: opacity 0.15s;
+}
+.db-card-link:hover { opacity: 0.75; text-decoration: underline; }
+
+/* Reorder card CTA link variant */
+.db-reorder-link {
+  align-self: stretch;
+  text-align: center;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-weight: 500;
+}
+.db-reorder-link:hover { background: #fef3c7; border-color: #fde68a; color: #92400e; opacity: 1; text-decoration: none; }
+
 /* Reorder table */
 .db-reorder-table {
   display: flex;
