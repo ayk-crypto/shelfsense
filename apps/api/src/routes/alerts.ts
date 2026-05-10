@@ -47,6 +47,8 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), as
         id: true,
         name: true,
         unit: true,
+        purchaseUnit: true,
+        purchaseConversionFactor: true,
         minStockLevel: true,
         stockBatches: {
           where: {
@@ -119,6 +121,8 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), as
         itemId: item.id,
         itemName: item.name,
         unit: item.unit,
+        purchaseUnit: item.purchaseUnit,
+        purchaseConversionFactor: item.purchaseConversionFactor,
         quantity,
         minStockLevel: item.minStockLevel,
       };

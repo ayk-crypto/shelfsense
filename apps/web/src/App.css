@@ -14208,6 +14208,14 @@ body {
   font-weight: 700;
 }
 
+.reorder-unit-hint {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  padding-left: 2px;
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+}
+
 .reorder-card-controls .form-input {
   min-height: 40px;
   border-radius: 8px;
@@ -14490,6 +14498,12 @@ body {
 
 .pur-supplier-hint:hover {
   background: #e0e7ff;
+}
+
+.pur-line-qty-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 
 .pur-line-cost-cell {

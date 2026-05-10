@@ -26,6 +26,7 @@ import type {
   Supplier,
 } from "../types";
 import { formatCurrency } from "../utils/currency";
+import { hasPurchaseUnit, fmtQty } from "../utils/purchaseUnits";
 
 const STATUSES: PurchaseStatus[] = ["DRAFT", "ORDERED", "PARTIALLY_RECEIVED", "RECEIVED", "CANCELLED"];
 
@@ -49,10 +50,13 @@ let lineSeq = 0;
 interface PurchaseLineDraft {
   key: number;
   itemId: string;
-  quantity: string;
-  unitCost: string;
+  quantity: string;       // in purchase units if purchaseUnit set, else base units
+  unitCost: string;       // per purchase unit if purchaseUnit set, else per base unit
   lastCost?: number | null;
   metaLoading?: boolean;
+  purchaseUnit?: string | null;
+  purchaseConversionFactor?: number | null;
+  baseUnit?: string;
 }
 
 interface ReceiveLineDraft {
@@ -553,17 +557,39 @@ function NewPurchaseModal({
   const [supplierSuggestion, setSupplierSuggestion] = useState<{ id: string; name: string } | null>(null);
 
   async function handleItemChange(key: number, itemId: string) {
-    setLines((prev) => prev.map((l) => l.key === key ? { ...l, itemId, lastCost: undefined, metaLoading: !!itemId } : l));
+    const selectedItem = items.find((i) => i.id === itemId);
+    const factor = selectedItem?.purchaseConversionFactor ?? null;
+    const hasUnit = hasPurchaseUnit(selectedItem?.purchaseUnit, factor);
+    setLines((prev) => prev.map((l) =>
+      l.key === key
+        ? {
+            ...l,
+            itemId,
+            lastCost: undefined,
+            metaLoading: !!itemId,
+            purchaseUnit: selectedItem?.purchaseUnit ?? null,
+            purchaseConversionFactor: factor,
+            baseUnit: selectedItem?.unit,
+          }
+        : l,
+    ));
     if (!itemId) return;
     try {
       const [suggRes, priceRes] = await Promise.all([
         getSupplierSuggestion(itemId),
         getPriceHistory(itemId, 1),
       ]);
-      const lastCost = priceRes.history[0]?.unitCost ?? null;
+      const baseCost = priceRes.history[0]?.unitCost ?? null;
+      // Convert per-base-unit cost → per-purchase-unit cost for display
+      const displayCost = hasUnit && factor && baseCost != null ? baseCost * factor : baseCost;
       setLines((prev) => prev.map((l) => {
         if (l.key !== key) return l;
-        return { ...l, metaLoading: false, lastCost, unitCost: l.unitCost || (lastCost != null ? String(lastCost) : "") };
+        return {
+          ...l,
+          metaLoading: false,
+          lastCost: displayCost,
+          unitCost: l.unitCost || (displayCost != null ? String(displayCost) : ""),
+        };
       }));
       if (suggRes.suggestion && !supplierId) {
         setSupplierSuggestion(suggRes.suggestion);
@@ -597,11 +623,19 @@ function NewPurchaseModal({
       supplierId,
       date,
       expectedDeliveryDate: expectedDeliveryDate || undefined,
-      items: validLines.map((line) => ({
-        itemId: line.itemId,
-        quantity: numberValue(line.quantity)!,
-        unitCost: numberValue(line.unitCost)!,
-      })),
+      items: validLines.map((line) => {
+        const factor = line.purchaseConversionFactor;
+        const hasUnit = hasPurchaseUnit(line.purchaseUnit, factor);
+        const purchaseQty = numberValue(line.quantity) ?? 0;
+        const purchaseCost = numberValue(line.unitCost) ?? 0;
+        return {
+          itemId: line.itemId,
+          // Convert purchase units → base units before sending
+          quantity: hasUnit && factor ? purchaseQty * factor : purchaseQty,
+          // Convert per-purchase-unit cost → per-base-unit cost before sending
+          unitCost: hasUnit && factor && purchaseCost > 0 ? purchaseCost / factor : purchaseCost,
+        };
+      }),
     };
 
     setSaving(true);
@@ -680,9 +714,36 @@ function NewPurchaseModal({
                       <option value="">Select item</option>
                       {items.map((item) => <option key={item.id} value={item.id}>{item.name} / {item.unit}</option>)}
                     </select>
-                    <input aria-label="Quantity" className="form-input" type="number" min="0.01" step="0.01" value={line.quantity} onChange={(event) => updateLine(line.key, { quantity: event.target.value })} placeholder="0" />
+                    <div className="pur-line-qty-cell">
+                      <input
+                        aria-label={line.purchaseUnit ? `Quantity (${line.purchaseUnit})` : "Quantity"}
+                        className="form-input"
+                        type="number"
+                        min="0.01"
+                        step={line.purchaseUnit ? "1" : "0.01"}
+                        value={line.quantity}
+                        onChange={(event) => updateLine(line.key, { quantity: event.target.value })}
+                        placeholder="0"
+                      />
+                      {line.purchaseUnit && line.purchaseConversionFactor && (
+                        <span className="pur-cost-hint">
+                          {(numberValue(line.quantity) ?? 0) > 0
+                            ? `≈ ${fmtQty((numberValue(line.quantity)! * line.purchaseConversionFactor))} ${line.baseUnit}`
+                            : `1 ${line.purchaseUnit} = ${line.purchaseConversionFactor} ${line.baseUnit}`}
+                        </span>
+                      )}
+                    </div>
                     <div className="pur-line-cost-cell">
-                      <input aria-label="Unit cost" className="form-input" type="number" min="0" step="0.01" value={line.unitCost} onChange={(event) => updateLine(line.key, { unitCost: event.target.value })} placeholder="0.00" />
+                      <input
+                        aria-label={line.purchaseUnit ? `Cost per ${line.purchaseUnit}` : "Unit cost"}
+                        className="form-input"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={line.unitCost}
+                        onChange={(event) => updateLine(line.key, { unitCost: event.target.value })}
+                        placeholder="0.00"
+                      />
                       {line.lastCost != null && <span className="pur-cost-hint">Last: {fmt(line.lastCost, currency)}</span>}
                     </div>
                     <span className="purchase-line-total">{fmt(quantity * unitCost, currency)}</span>
@@ -800,7 +861,12 @@ function ReceivePurchaseModal({
               return (
                 <div key={itemLine.id} className="purchase-line receive-line">
                   <span className="td-name">{itemLine.item.name}</span>
-                  <span>{itemLine.remainingQuantity}</span>
+                  <span>
+                    {itemLine.remainingQuantity} {itemLine.item.unit}
+                    {hasPurchaseUnit(itemLine.item.purchaseUnit, itemLine.item.purchaseConversionFactor) && itemLine.item.purchaseConversionFactor ? (
+                      <span className="pur-cost-hint">≈ {fmtQty(itemLine.remainingQuantity / itemLine.item.purchaseConversionFactor)} {itemLine.item.purchaseUnit}</span>
+                    ) : null}
+                  </span>
                   <input className="form-input" type="number" min="0" max={itemLine.remainingQuantity} step="0.01" value={line.receivedQuantity} onChange={(event) => updateLine(itemLine.id, { receivedQuantity: event.target.value })} />
                   <select className="form-input form-select" value={line.locationId} onChange={(event) => updateLine(itemLine.id, { locationId: event.target.value })}>
                     {locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}

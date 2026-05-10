@@ -5,6 +5,13 @@ import { useLocation } from "../context/LocationContext";
 import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
 import type { AlertsResponse, ExpiryAlert, LowStockAlert } from "../types";
 import { getSuggestedReorderQuantity } from "../utils/reorder";
+import {
+  hasPurchaseUnit,
+  getSuggestedPurchaseQty,
+  getSuggestedBaseEquivalent,
+  getPurchaseBreakdown,
+  formatPurchaseBreakdown,
+} from "../utils/purchaseUnits";
 
 const EMPTY_ALERTS: AlertsResponse = {
   lowStock: [],
@@ -186,12 +193,19 @@ function LowStockSection({
             item.minStockLevel,
             multiplier
           );
+          const factor = item.purchaseConversionFactor;
+          const hasUnit = hasPurchaseUnit(item.purchaseUnit, factor);
+          const suggestedPurchaseQty = hasUnit && factor ? getSuggestedPurchaseQty(reorder, factor) : null;
+          const suggestedBaseEquiv = suggestedPurchaseQty != null && factor ? getSuggestedBaseEquivalent(suggestedPurchaseQty, factor) : null;
           return (
             <div key={item.itemId} className="alrt-row alrt-row--amber">
               <div className="alrt-row-main">
                 <span className="alrt-row-name">{item.itemName}</span>
                 <span className="alrt-row-meta">
                   {formatNumber(item.quantity)} {item.unit} available
+                  {hasUnit && factor ? (
+                    <> &middot; {formatPurchaseBreakdown(getPurchaseBreakdown(item.quantity, factor, item.purchaseUnit!, item.unit))}</>
+                  ) : null}
                 </span>
               </div>
               <div className="alrt-row-stats">
@@ -202,11 +216,20 @@ function LowStockSection({
                   </strong>
                 </div>
                 <div className="alrt-stat">
-                  <span className="alrt-stat-label">Reorder</span>
+                  <span className="alrt-stat-label">Shortage</span>
                   <strong className="alrt-stat-value alrt-stat-value--amber">
                     {formatNumber(reorder)} {item.unit}
                   </strong>
                 </div>
+                {suggestedPurchaseQty != null && (
+                  <div className="alrt-stat">
+                    <span className="alrt-stat-label">Buy</span>
+                    <strong className="alrt-stat-value alrt-stat-value--amber">
+                      {suggestedPurchaseQty} {item.purchaseUnit}
+                      {suggestedBaseEquiv != null ? ` (≈ ${formatNumber(suggestedBaseEquiv)} ${item.unit})` : ""}
+                    </strong>
+                  </div>
+                )}
               </div>
             </div>
           );

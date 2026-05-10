@@ -612,6 +612,8 @@ export interface LowStockAlert {
   itemId: string;
   itemName: string;
   unit: string;
+  purchaseUnit: string | null;
+  purchaseConversionFactor: number | null;
   quantity: number;
   minStockLevel: number;
 }
@@ -696,6 +698,8 @@ export interface PurchaseItemLine {
     name: string;
     unit: string;
     trackExpiry: boolean;
+    purchaseUnit: string | null;
+    purchaseConversionFactor: number | null;
   };
 }
 
@@ -786,6 +790,8 @@ export interface ReorderSuggestion {
   barcode: string | null;
   category: string | null;
   unit: string;
+  purchaseUnit: string | null;
+  purchaseConversionFactor: number | null;
   currentStock: number;
   minStockLevel: number;
   suggestedQuantity: number;

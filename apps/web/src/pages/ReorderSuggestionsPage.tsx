@@ -8,6 +8,14 @@ import { useLocation } from "../context/LocationContext";
 import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
 import type { ReorderSuggestion, Supplier } from "../types";
 import { formatCurrency } from "../utils/currency";
+import {
+  hasPurchaseUnit,
+  getSuggestedPurchaseQty,
+  getSuggestedBaseEquivalent,
+  getPurchaseBreakdown,
+  formatPurchaseBreakdown,
+  fmtQty,
+} from "../utils/purchaseUnits";
 
 interface DraftLineState {
   selected: boolean;
@@ -113,11 +121,19 @@ export function ReorderSuggestionsPage() {
 
     const items = selectedLines.map((suggestion) => {
       const line = lines[suggestion.itemId];
+      const factor = suggestion.purchaseConversionFactor;
+      const hasUnit = hasPurchaseUnit(suggestion.purchaseUnit, factor);
+      const purchaseQty = toNumber(line.quantity);
+      // Convert purchase units → base units before sending to API
+      const baseQty = hasUnit && factor ? purchaseQty * factor : purchaseQty;
+      // Convert per-purchase-unit cost → per-base-unit cost
+      const purchaseCost = toNumber(line.unitCost);
+      const baseCost = hasUnit && factor && purchaseCost > 0 ? purchaseCost / factor : purchaseCost;
       return {
         itemId: suggestion.itemId,
         supplierId: line.supplierId,
-        quantity: toNumber(line.quantity),
-        unitCost: toNumber(line.unitCost),
+        quantity: baseQty,
+        unitCost: baseCost,
       };
     });
 
@@ -277,8 +293,21 @@ export function ReorderSuggestionsPage() {
 
                     <div className="reorder-stock-grid">
                       <Metric label="Current" value={`${formatNumber(suggestion.currentStock)} ${suggestion.unit}`} tone="danger" />
+                      {hasPurchaseUnit(suggestion.purchaseUnit, suggestion.purchaseConversionFactor) && suggestion.purchaseConversionFactor ? (
+                        <Metric
+                          label={`In ${suggestion.purchaseUnit}s`}
+                          value={formatPurchaseBreakdown(getPurchaseBreakdown(suggestion.currentStock, suggestion.purchaseConversionFactor, suggestion.purchaseUnit!, suggestion.unit))}
+                        />
+                      ) : null}
                       <Metric label="Minimum" value={`${formatNumber(suggestion.minStockLevel)} ${suggestion.unit}`} />
-                      <Metric label="Suggested" value={`${formatNumber(suggestion.suggestedQuantity)} ${suggestion.unit}`} tone="accent" />
+                      <Metric label="Shortage" value={`${formatNumber(suggestion.suggestedQuantity)} ${suggestion.unit}`} tone="accent" />
+                      {hasPurchaseUnit(suggestion.purchaseUnit, suggestion.purchaseConversionFactor) && suggestion.purchaseConversionFactor ? (
+                        <Metric
+                          label="Suggested purchase"
+                          value={`${getSuggestedPurchaseQty(suggestion.suggestedQuantity, suggestion.purchaseConversionFactor)} ${suggestion.purchaseUnit} (≈ ${getSuggestedBaseEquivalent(getSuggestedPurchaseQty(suggestion.suggestedQuantity, suggestion.purchaseConversionFactor), suggestion.purchaseConversionFactor)} ${suggestion.unit})`}
+                          tone="accent"
+                        />
+                      ) : null}
                       <Metric label="Location" value={suggestion.location.name} />
                     </div>
                   </div>
@@ -304,18 +333,29 @@ export function ReorderSuggestionsPage() {
                           </select>
                         </label>
                         <label className="form-label">
-                          Qty
+                          {hasPurchaseUnit(suggestion.purchaseUnit, suggestion.purchaseConversionFactor)
+                            ? `Qty (${suggestion.purchaseUnit})`
+                            : `Qty (${suggestion.unit})`}
                           <input
                             className="form-input"
                             type="number"
                             min="0"
-                            step="0.01"
+                            step={hasPurchaseUnit(suggestion.purchaseUnit, suggestion.purchaseConversionFactor) ? "1" : "0.01"}
                             value={line.quantity}
                             onChange={(event) => updateLine(suggestion.itemId, { quantity: event.target.value })}
                           />
+                          {hasPurchaseUnit(suggestion.purchaseUnit, suggestion.purchaseConversionFactor) && suggestion.purchaseConversionFactor && (
+                            <span className="reorder-unit-hint">
+                              {toNumber(line.quantity) > 0
+                                ? `≈ ${fmtQty(toNumber(line.quantity) * suggestion.purchaseConversionFactor)} ${suggestion.unit}`
+                                : `1 ${suggestion.purchaseUnit} = ${suggestion.purchaseConversionFactor} ${suggestion.unit}`}
+                            </span>
+                          )}
                         </label>
                         <label className="form-label">
-                          Unit cost
+                          {hasPurchaseUnit(suggestion.purchaseUnit, suggestion.purchaseConversionFactor)
+                            ? `Cost per ${suggestion.purchaseUnit}`
+                            : `Unit cost`}
                           <input
                             className="form-input"
                             type="number"
@@ -349,15 +389,26 @@ export function ReorderSuggestionsPage() {
 
 function buildInitialLines(suggestions: ReorderSuggestion[]) {
   return Object.fromEntries(
-    suggestions.map((suggestion) => [
-      suggestion.itemId,
-      {
-        selected: false,
-        supplierId: suggestion.preferredSupplier?.id ?? "",
-        quantity: String(suggestion.suggestedQuantity),
-        unitCost: String(suggestion.lastPurchaseCost ?? 0),
-      },
-    ]),
+    suggestions.map((suggestion) => {
+      const factor = suggestion.purchaseConversionFactor;
+      const hasUnit = hasPurchaseUnit(suggestion.purchaseUnit, factor);
+      // When item has a purchase unit, express qty in purchase units (rounded up)
+      const qty = hasUnit && factor
+        ? String(getSuggestedPurchaseQty(suggestion.suggestedQuantity, factor))
+        : String(suggestion.suggestedQuantity);
+      // lastPurchaseCost is stored per base unit in DB; convert to per purchase unit for display
+      const lastCost = suggestion.lastPurchaseCost;
+      const displayCost = hasUnit && factor && lastCost != null ? lastCost * factor : lastCost;
+      return [
+        suggestion.itemId,
+        {
+          selected: false,
+          supplierId: suggestion.preferredSupplier?.id ?? "",
+          quantity: qty,
+          unitCost: String(displayCost ?? 0),
+        },
+      ];
+    }),
   );
 }
 

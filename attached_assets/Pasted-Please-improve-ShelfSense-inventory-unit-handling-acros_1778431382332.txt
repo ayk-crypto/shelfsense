@@ -1,0 +1,277 @@
+Please improve ShelfSense inventory unit handling across the full system, especially for restaurant inventory where purchase units and consumption/measurement units are different.
+
+Currently, items have:
+
+Unit of Measurement / Base Unit
+Unit of Purchase
+Purchase Conversion Factor / Multiplier
+
+Example:
+
+Item: Tissue Packet
+Base Unit: packet
+Purchase Unit: carton
+Conversion Factor: 20
+Meaning: 1 carton = 20 packets
+
+The system currently displays stock mainly in the base unit, such as “28 packet”. This is technically correct for inventory movement, but not practical for purchasing users. When users are creating purchase drafts, viewing reorder suggestions, stock alerts, item details, stock activity, reports, or dashboard summaries, they should also see the purchase-unit equivalent where relevant.
+
+Please implement this as a complete structural improvement, not only a UI patch.
+
+Required behavior
+
+Inventory calculations should continue to use the base unit internally because stock issue, stock adjustment, kitchen consumption, and stock movement are normally done in the base unit.
+
+However, wherever the user is making purchasing decisions, the system should also show the purchase unit equivalent.
+
+For example:
+
+If:
+
+Current stock = 42 packets
+Purchase unit = carton
+Conversion factor = 20
+
+Display:
+
+Current stock: 42 packets
+Purchase view: 2 cartons + 2 packets
+
+If:
+
+Minimum stock = 80 packets
+Current stock = 42 packets
+Shortage = 38 packets
+
+Display:
+
+Shortage: 38 packets
+Purchase need: 1 carton + 18 packets
+Suggested purchase: 2 cartons
+
+The suggested purchase quantity should preferably be rounded up to the nearest whole purchase unit, because suppliers usually sell in full cartons, bags, boxes, crates, etc.
+
+Reorder Suggestions screen improvement
+
+On the Reorder Suggestions screen, each item card should show both units clearly.
+
+Currently it shows:
+
+Current: 17 packet
+Minimum: 45 packet
+Suggested: 28 packet
+
+Please update it to show:
+
+Current: 17 packet
+Purchase view: 0 carton + 17 packet, or simply 17 packet if less than 1 carton
+Minimum: 45 packet
+Minimum purchase view: 1 carton + 25 packet, if 1 carton = 20 packet
+Shortage: 28 packet
+Suggested purchase: 2 cartons
+Equivalent received stock: 40 packet
+
+The Qty field on the right side of the purchase draft should be based on the purchase unit, not the base unit, when the supplier purchase unit is configured.
+
+Example:
+
+If shortage is 28 packets and 1 carton = 20 packets, the suggested purchase quantity should be:
+
+Qty: 2
+Unit: carton
+Equivalent: 40 packets
+
+Not:
+
+Qty: 28 packet
+
+This makes purchasing practical because the user orders from supplier in cartons, bags, boxes, etc.
+
+Purchase Draft behavior
+
+When creating purchase drafts from reorder suggestions:
+
+Purchase quantity should be stored/displayed in purchase unit.
+The system should also calculate and show the base unit equivalent.
+Example: 2 cartons × 20 packets = 40 packets.
+When stock is received, stock should be increased in base unit quantity.
+Example: Receiving 2 cartons should add 40 packets to inventory.
+
+Purchase line should show:
+
+Item name
+Supplier
+Purchase Qty
+Purchase Unit
+Conversion
+Base Quantity Equivalent
+Unit Cost
+Line Total
+
+Example:
+
+Item: 12×15 Shopper
+Purchase Qty: 2 cartons
+Conversion: 1 carton = 15 kg / packet / piece depending on item config
+Stock added on receive: 30 base units
+
+Receive Stock screen improvement
+
+When receiving stock against a purchase:
+
+If purchase was made in purchase unit, show:
+
+Purchase Qty: 2 cartons
+Conversion: 1 carton = 20 packets
+Stock to be added: 40 packets
+
+The actual inventory ledger should record both:
+
+purchaseQuantity
+purchaseUnit
+baseQuantity
+baseUnit
+conversionFactor
+
+This way reports and audit history remain clear.
+
+Stock Activity / Movement History
+
+Stock movement should continue to show base quantity because actual inventory is maintained in base unit.
+
+But for purchase-related movements, also show the purchase unit context.
+
+Example:
+
+Received Stock
++40 packets
+Purchase equivalent: 2 cartons
+Supplier: ABC Supplier
+Conversion: 1 carton = 20 packets
+
+For stock out / kitchen issue:
+
+Issued Stock
+-5 packets
+No need to show carton unless useful.
+
+Item Detail page
+
+On each item detail page, add a “Unit Configuration” section:
+
+Base Unit / Measurement Unit: packet
+Purchase Unit: carton
+Conversion Factor: 1 carton = 20 packets
+Current Stock: 42 packets
+Purchase View: 2 cartons + 2 packets
+Minimum Stock: 80 packets
+Minimum Purchase View: 4 cartons
+Reorder Shortage: 38 packets
+Suggested Purchase Qty: 2 cartons
+Alerts page
+
+Low stock alerts should show both operational and purchase view:
+
+Example:
+
+Low Stock: Tissue Packet
+Current: 42 packets
+Minimum: 80 packets
+Shortage: 38 packets
+Suggested Purchase: 2 cartons
+Equivalent: 40 packets
+
+Reports
+
+Inventory reports should include both base unit and purchase unit columns where relevant:
+
+Current Stock Base Qty
+Base Unit
+Purchase Unit
+Conversion Factor
+Current Stock Purchase View
+Minimum Stock Base Qty
+Suggested Purchase Qty
+Suggested Purchase Unit
+Suggested Purchase Base Equivalent
+Backend calculation requirement
+
+Please create a reusable helper function for unit conversion and display formatting instead of duplicating logic in different components.
+
+Suggested helper functions:
+
+function toBaseQuantity(purchaseQty, conversionFactor) {
+  return purchaseQty * conversionFactor;
+}
+
+function toPurchaseQuantity(baseQty, conversionFactor) {
+  return baseQty / conversionFactor;
+}
+
+function getPurchaseBreakdown(baseQty, conversionFactor, purchaseUnit, baseUnit) {
+  // Example: 42 packets, factor 20, carton/packet
+  // Return: "2 cartons + 2 packets"
+}
+
+function getSuggestedPurchaseQty(shortageBaseQty, conversionFactor) {
+  // Round up to full purchase unit
+  return Math.ceil(shortageBaseQty / conversionFactor);
+}
+
+function getSuggestedBaseEquivalent(suggestedPurchaseQty, conversionFactor) {
+  return suggestedPurchaseQty * conversionFactor;
+}
+
+Please handle edge cases:
+
+If purchase unit is missing, use base unit only.
+If conversion factor is missing, 0, or invalid, do not break UI. Show base unit only and display a warning in item setup.
+If purchase unit and base unit are the same, do not duplicate display.
+If base quantity is less than one purchase unit, show only base quantity or “0 carton + X packet” depending on best UX.
+For fractional units such as kg/liter, avoid confusing carton breakdown unless the conversion makes sense.
+For whole units like packet/piece/bottle, use whole-number breakdown.
+UI / UX requirement
+
+The UI should be practical for a restaurant owner or store manager.
+
+Avoid showing only technical unit values. Display purchasing information in a human-friendly way.
+
+On reorder cards, the user should immediately understand:
+
+How much stock is currently available.
+How much is needed to reach minimum level.
+How much should be purchased from supplier.
+What stock quantity will be added after receiving that purchase.
+
+Suggested card layout:
+
+Left side:
+
+Item name
+SKU
+Current stock: 17 packet
+Purchase view: 0 carton + 17 packet
+Minimum level: 45 packet
+Shortage: 28 packet
+Location: Main Branch
+
+Right side:
+
+Supplier dropdown
+Suggested Purchase Qty: 2
+Purchase Unit: carton
+Equivalent Stock: 40 packet
+Unit Cost
+Line Total
+
+Button:
+
+Create Purchase Draft
+
+Database / API requirement
+
+Please review existing schema before making changes.
+
+If current purchase unit, base unit, and conversion factor already exist on Item, use them.
+
+If pur

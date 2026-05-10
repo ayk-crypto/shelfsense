@@ -36,6 +36,8 @@ const purchaseInclude = {
           name: true,
           unit: true,
           trackExpiry: true,
+          purchaseUnit: true,
+          purchaseConversionFactor: true,
         },
       },
     },

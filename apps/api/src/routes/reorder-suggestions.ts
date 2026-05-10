@@ -32,6 +32,8 @@ reorderSuggestionsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OP
       barcode: true,
       category: true,
       unit: true,
+      purchaseUnit: true,
+      purchaseConversionFactor: true,
       minStockLevel: true,
       trackExpiry: true,
       stockBatches: {
@@ -66,6 +68,8 @@ reorderSuggestionsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OP
         barcode: item.barcode,
         category: item.category,
         unit: item.unit,
+        purchaseUnit: item.purchaseUnit,
+        purchaseConversionFactor: item.purchaseConversionFactor,
         currentStock,
         minStockLevel: item.minStockLevel,
         suggestedQuantity,
