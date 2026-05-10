@@ -1,12 +1,16 @@
 {
+  "id": "/",
   "name": "ShelfSense",
   "short_name": "ShelfSense",
   "description": "Inventory, stock movement, expiry, purchasing, and branch management for small businesses.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
+  "orientation": "portrait-primary",
   "background_color": "#f5f7fa",
   "theme_color": "#4f46e5",
+  "categories": ["business", "productivity"],
   "icons": [
     {
       "src": "/icons/icon-192.png",
@@ -32,5 +36,7 @@
       "type": "image/png",
       "purpose": "maskable"
     }
-  ]
+  ],
+  "screenshots": [],
+  "prefer_related_applications": false
 }

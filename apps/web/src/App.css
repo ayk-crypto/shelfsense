@@ -25892,3 +25892,173 @@ body {
   color: #94a3b8;
   flex-shrink: 0;
 }
+
+/* =============================================================
+   MOBILE RESPONSIVENESS — Comprehensive Polish Pass
+   Target: 360 px – 430 px screens, zero horizontal page scroll
+   ============================================================= */
+
+/* ── 1. Prevent page-level horizontal scroll inside the main content area ── */
+.page-content {
+  overflow-x: hidden;
+}
+
+/* ── 2. iOS auto-zoom prevention ──────────────────────────────────────────
+   Safari zooms the viewport when a focused <input>/<select>/<textarea>
+   has font-size < 16 px. Override every text-entry control on mobile. */
+@media (max-width: 767px) {
+  .form-input,
+  .form-select,
+  .field-input,
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="date"],
+  input[type="time"],
+  input[type="search"],
+  input[type="tel"],
+  input[type="url"],
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  /* Keep label / helper text small; only entry elements need 16 px */
+  .form-label,
+  .form-helper,
+  .form-error {
+    font-size: inherit;
+  }
+}
+
+/* ── 3. Purchase lifecycle filter bar: collapse to 1-column on mobile ─────
+   At 1180 px it already goes to 2 columns; ensure 1-col below 640 px. */
+@media (max-width: 640px) {
+  .purchase-filters--lifecycle {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── 4. Activity table: loosen the hard 280 px min-width on mobile ─────── */
+@media (max-width: 767px) {
+  .activity-table-wrap td:last-child {
+    min-width: 160px;
+    white-space: normal;
+  }
+}
+
+/* ── 5. Explicit overflow-x: auto on every table-wrap descendant ──────────
+   belt-and-suspenders: table-wrap already has overflow-x: auto but a
+   parent with overflow: hidden (e.g. rpt-table-container) can reset the
+   inner scroll context. Declare it explicitly on the wraps inside those
+   containers so browsers honour it. */
+.rpt-table-container .table-wrap,
+.stock-count-detail-table-wrap,
+.batch-detail-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 767px) {
+  .activity-table-wrap,
+  .stock-entry-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* ── 6. Topbar: very narrow viewports (≤ 380 px) ── */
+@media (max-width: 380px) {
+  .topbar {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .location-selector-select {
+    max-width: 110px;
+    min-width: 76px;
+    font-size: 11.5px;
+  }
+
+  .topbar-brand-powered {
+    display: none;
+  }
+}
+
+/* ── 7. Bottom-nav labels: tighten on very narrow screens ── */
+@media (max-width: 380px) {
+  .bottom-nav-item {
+    font-size: 9.5px;
+    min-width: 50px;
+    gap: 2px;
+  }
+
+  .bottom-nav-item .nav-icon {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+/* ── 8. Announcement banners: comfortable on mobile ── */
+@media (max-width: 640px) {
+  .ann-banner {
+    padding: 10px 12px;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+}
+
+/* ── 9. Billing-pending banner: stack button on mobile ── */
+@media (max-width: 640px) {
+  .billing-pending-banner {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .billing-pending-banner-btn {
+    width: 100%;
+    text-align: center;
+  }
+}
+
+/* ── 10. Page-header safe wrapping ── */
+@media (max-width: 640px) {
+  .page-header {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+}
+
+/* ── 11. Onboarding card: tighter padding at 360 px ── */
+@media (max-width: 420px) {
+  .onboarding-card {
+    padding: 20px 14px;
+  }
+}
+
+/* ── 12. Item cards: guard against overflow on tiny viewports ── */
+@media (max-width: 640px) {
+  .item-card {
+    min-width: 0;
+    overflow: hidden;
+  }
+}
+
+/* ── 13. rpt-filter-input: 16 px on ALL mobile (not just ≤ 600 px) ───────
+   The existing rule at 600 px already covers the rpt inputs; this
+   reinforces it and aligns with the global form-input rule above. */
+@media (max-width: 767px) {
+  .rpt-filter-input {
+    font-size: 16px;
+  }
+}
+
+/* ── 14. Stock-entry / receive-stock form rows ── */
+@media (max-width: 520px) {
+  .stock-entry-table-wrap .table th,
+  .stock-entry-table-wrap .table td {
+    padding: 8px 10px;
+    font-size: 12.5px;
+  }
+}
