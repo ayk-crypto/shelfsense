@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import * as XLSX from "xlsx";
 import { createReorderPurchases, getReorderSuggestions } from "../api/reorderSuggestions";
 import { getSuppliers } from "../api/suppliers";
 import { useAuth } from "../context/AuthContext";
@@ -143,6 +144,67 @@ export function ReorderSuggestionsPage() {
     }
   }
 
+  function handleExport() {
+    const date = new Date().toISOString().split("T")[0];
+    const rows = suggestions.map((s) => {
+      const line = lines[s.itemId] ?? { selected: false, supplierId: "", quantity: "", unitCost: "" };
+      const factor = s.purchaseConversionFactor;
+      const hasUop = hasPurchaseUnit(s.purchaseUnit, factor);
+      const purchaseUnit = s.purchaseUnit ?? s.unit;
+      const qtyLabel = hasUop ? purchaseUnit : s.unit;
+      const buyQty = hasUop && factor
+        ? getSuggestedPurchaseQty(s.suggestedQuantity, factor)
+        : s.suggestedQuantity;
+      const supplierName = line.supplierId
+        ? (suppliers.find((sup) => sup.id === line.supplierId)?.name ?? "")
+        : (s.preferredSupplier?.name ?? "");
+      const orderedQty = line.quantity !== "" ? Number(line.quantity) : buyQty;
+      const unitCost = line.unitCost !== "" ? Number(line.unitCost) : "";
+      const lineTotal = orderedQty && unitCost !== "" ? orderedQty * (unitCost as number) : "";
+
+      return {
+        "Item Name": s.itemName,
+        "SKU": s.sku ?? "",
+        "Category": s.category ?? "",
+        "Location": s.location.name ?? "",
+        "Current Stock": s.currentStock,
+        "Min Stock": s.minStockLevel,
+        "Shortage (base unit)": s.suggestedQuantity,
+        "Base Unit": s.unit,
+        [`Suggested Buy Qty`]: buyQty,
+        "Order Unit": qtyLabel,
+        "Qty to Order": orderedQty,
+        "Supplier": supplierName,
+        "Unit Cost": unitCost,
+        "Line Total": lineTotal,
+      };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+
+    // Column widths
+    ws["!cols"] = [
+      { wch: 28 }, // Item Name
+      { wch: 12 }, // SKU
+      { wch: 16 }, // Category
+      { wch: 16 }, // Location
+      { wch: 14 }, // Current Stock
+      { wch: 12 }, // Min Stock
+      { wch: 20 }, // Shortage
+      { wch: 12 }, // Base Unit
+      { wch: 18 }, // Suggested Buy Qty
+      { wch: 12 }, // Order Unit
+      { wch: 14 }, // Qty to Order
+      { wch: 22 }, // Supplier
+      { wch: 12 }, // Unit Cost
+      { wch: 12 }, // Line Total
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Reorder Suggestions");
+    XLSX.writeFile(wb, `reorder-suggestions-${date}.xlsx`);
+  }
+
   if (loading) {
     return (
       <div className="page-loading">
@@ -223,6 +285,15 @@ export function ReorderSuggestionsPage() {
                 <span className="ro-toolbar-hint">Select items to create a draft</span>
               )}
             </div>
+
+            <button
+              type="button"
+              className="btn btn--secondary ro-export-btn"
+              onClick={handleExport}
+              title="Export all suggested items to Excel"
+            >
+              Export Excel
+            </button>
 
             {canCreateDrafts ? (
               <button
