@@ -522,15 +522,22 @@ function escHtml(str: string): string {
 }
 
 function downloadPurchaseOrder(purchase: Purchase, currency: string) {
-  const rows = purchase.purchaseItems.map((line) => `
+  const rows = purchase.purchaseItems.map((line) => {
+    const hasUop = hasPurchaseUnit(line.item.purchaseUnit, line.item.purchaseConversionFactor);
+    const factor = line.item.purchaseConversionFactor ?? 1;
+    const displayUnit = hasUop ? (line.item.purchaseUnit ?? line.item.unit) : line.item.unit;
+    const dQty = (n: number) => hasUop ? fmtQty(n / factor) : String(n);
+    const dCost = hasUop ? line.unitCost * factor : line.unitCost;
+    return `
     <tr>
       <td>${escHtml(line.item.name)}</td>
-      <td style="text-align:right">${line.orderedQuantity} ${escHtml(line.item.unit)}</td>
-      <td style="text-align:right">${line.receivedQuantity} ${escHtml(line.item.unit)}</td>
-      <td style="text-align:right">${line.remainingQuantity} ${escHtml(line.item.unit)}</td>
-      <td style="text-align:right">${escHtml(fmt(line.unitCost, currency))}</td>
+      <td style="text-align:right">${dQty(line.orderedQuantity)} ${escHtml(displayUnit)}</td>
+      <td style="text-align:right">${dQty(line.receivedQuantity)} ${escHtml(displayUnit)}</td>
+      <td style="text-align:right">${dQty(line.remainingQuantity)} ${escHtml(displayUnit)}</td>
+      <td style="text-align:right">${escHtml(fmt(dCost, currency))}</td>
       <td style="text-align:right">${escHtml(fmt(line.orderedValue, currency))}</td>
-    </tr>`).join("");
+    </tr>`;
+  }).join("");
 
   const datesHtml = [
     purchase.orderedAt
@@ -875,19 +882,26 @@ function PurchaseDetailModal({
                 </tr>
               </thead>
               <tbody>
-                {purchase.purchaseItems.map((line) => (
+                {purchase.purchaseItems.map((line) => {
+                  const hasUop = hasPurchaseUnit(line.item.purchaseUnit, line.item.purchaseConversionFactor);
+                  const factor = line.item.purchaseConversionFactor ?? 1;
+                  const displayUnit = hasUop ? (line.item.purchaseUnit ?? line.item.unit) : line.item.unit;
+                  const dQty = (n: number) => hasUop ? fmtQty(n / factor) : fmtQty(n);
+                  const dCost = hasUop ? line.unitCost * factor : line.unitCost;
+                  return (
                   <tr key={line.id}>
                     <td>
                       <span className="td-name">{line.item.name}</span>
-                      <span className="td-unit"> / {line.item.unit}</span>
+                      <span className="td-unit"> / {displayUnit}</span>
                     </td>
-                    <td className="text-right td-num">{line.orderedQuantity}</td>
-                    <td className="text-right td-num">{line.receivedQuantity}</td>
-                    <td className={`text-right td-num${line.remainingQuantity > 0 ? " pod-remaining--active" : ""}`}>{line.remainingQuantity}</td>
-                    <td className="text-right td-num">{fmt(line.unitCost, currency)}</td>
+                    <td className="text-right td-num">{dQty(line.orderedQuantity)}</td>
+                    <td className="text-right td-num">{dQty(line.receivedQuantity)}</td>
+                    <td className={`text-right td-num${line.remainingQuantity > 0 ? " pod-remaining--active" : ""}`}>{dQty(line.remainingQuantity)}</td>
+                    <td className="text-right td-num">{fmt(dCost, currency)}</td>
                     <td className="text-right td-num">{fmt(line.orderedValue, currency)}</td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
               <tfoot>
                 <tr className="pod-tfoot-row">
