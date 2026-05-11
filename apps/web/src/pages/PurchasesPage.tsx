@@ -755,6 +755,19 @@ function PurchaseDetailModal({
     { label: "Cancelled", value: purchase.cancelledAt },
   ].filter((d) => d.value);
 
+  // Sum quantities in purchase units so KPI strip matches what the table shows
+  const poQtys = purchase.purchaseItems.reduce(
+    (acc, line) => {
+      const hasUop = hasPurchaseUnit(line.item.purchaseUnit, line.item.purchaseConversionFactor);
+      const factor = line.item.purchaseConversionFactor ?? 1;
+      acc.ordered   += hasUop ? line.orderedQuantity   / factor : line.orderedQuantity;
+      acc.received  += hasUop ? line.receivedQuantity  / factor : line.receivedQuantity;
+      acc.remaining += hasUop ? line.remainingQuantity / factor : line.remainingQuantity;
+      return acc;
+    },
+    { ordered: 0, received: 0, remaining: 0 },
+  );
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", handler);
@@ -820,16 +833,16 @@ function PurchaseDetailModal({
             </div>
             <div className="pod-kpi">
               <span className="pod-kpi-label">Ordered qty</span>
-              <span className="pod-kpi-value">{purchase.orderedQuantity}</span>
+              <span className="pod-kpi-value">{fmtQty(poQtys.ordered)}</span>
             </div>
             <div className="pod-kpi">
               <span className="pod-kpi-label">Received qty</span>
-              <span className="pod-kpi-value">{purchase.receivedQuantity}</span>
+              <span className="pod-kpi-value">{fmtQty(poQtys.received)}</span>
             </div>
             <div className="pod-kpi">
               <span className="pod-kpi-label">Remaining</span>
-              <span className={`pod-kpi-value${purchase.remainingQuantity > 0 ? " pod-kpi-value--warn" : " pod-kpi-value--ok"}`}>
-                {purchase.remainingQuantity}
+              <span className={`pod-kpi-value${poQtys.remaining > 0 ? " pod-kpi-value--warn" : " pod-kpi-value--ok"}`}>
+                {fmtQty(poQtys.remaining)}
               </span>
             </div>
           </div>
