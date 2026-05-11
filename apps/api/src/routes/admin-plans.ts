@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { Prisma } from "../generated/prisma/client.js";
+import { Prisma, SubscriptionStatus } from "../generated/prisma/client.js";
 import { prisma } from "../db/prisma.js";
 import { asyncHandler } from "../utils/async-handler.js";
 
@@ -18,7 +18,7 @@ async function logAdminAction(
 }
 
 // Statuses that represent a workspace currently on this plan (not historical/closed)
-const ACTIVE_SUB_STATUSES = ["ACTIVE", "TRIAL", "PAST_DUE", "MANUAL_REVIEW"] as const;
+const ACTIVE_SUB_STATUSES: SubscriptionStatus[] = ["ACTIVE", "TRIAL", "PAST_DUE", "MANUAL_REVIEW"];
 
 const PLAN_SELECT = {
   id: true,
@@ -69,7 +69,7 @@ adminPlansRouter.get("/", asyncHandler(async (_req, res) => {
     }),
   ]);
 
-  const activeCountMap = new Map(activeGroups.map((r) => [r.planId, r._count.planId]));
+  const activeCountMap = new Map(activeGroups.map((r) => [r.planId, (r._count as { planId: number } | undefined)?.planId ?? 0]));
 
   return res.json({
     plans: plans.map(({ _count, ...p }) => ({

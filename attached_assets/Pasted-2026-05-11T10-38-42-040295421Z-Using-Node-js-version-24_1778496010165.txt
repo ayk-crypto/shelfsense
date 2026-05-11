@@ -1,0 +1,50 @@
+2026-05-11T10:38:42.040295421Z ==> Using Node.js version 24.14.1 (default)
+2026-05-11T10:38:42.065694128Z ==> Docs on specifying a Node.js version: https://render.com/docs/node-version
+2026-05-11T10:38:44.084341008Z ==> Running build command 'npm install --include-dev && npx prisma generate && npm run build'...
+2026-05-11T10:38:52.120375035Z 
+2026-05-11T10:38:52.120404335Z added 298 packages, and audited 301 packages in 8s
+2026-05-11T10:38:52.120420426Z 
+2026-05-11T10:38:52.120523338Z 34 packages are looking for funding
+2026-05-11T10:38:52.12061534Z   run `npm fund` for details
+2026-05-11T10:38:52.184094921Z 
+2026-05-11T10:38:52.184123702Z 7 vulnerabilities (6 moderate, 1 high)
+2026-05-11T10:38:52.184127842Z 
+2026-05-11T10:38:52.184134012Z To address issues that do not require attention, run:
+2026-05-11T10:38:52.184138402Z   npm audit fix
+2026-05-11T10:38:52.184142122Z 
+2026-05-11T10:38:52.184146052Z To address all issues (including breaking changes), run:
+2026-05-11T10:38:52.184150723Z   npm audit fix --force
+2026-05-11T10:38:52.184154403Z 
+2026-05-11T10:38:52.184159573Z Run `npm audit` for details.
+2026-05-11T10:38:53.404580219Z Loaded Prisma config from prisma.config.ts.
+2026-05-11T10:38:53.40460054Z 
+2026-05-11T10:38:53.495234306Z Prisma schema loaded from prisma/schema.prisma.
+2026-05-11T10:38:54.16663117Z 
+2026-05-11T10:38:54.166653071Z ✔ Generated Prisma Client (7.8.0) to ./src/generated/prisma in 364ms
+2026-05-11T10:38:54.166656891Z 
+2026-05-11T10:38:54.336429251Z 
+2026-05-11T10:38:54.336453682Z > @shelfsense/api@0.1.0 build
+2026-05-11T10:38:54.336457962Z > prisma generate && tsc -b
+2026-05-11T10:38:54.336461272Z 
+2026-05-11T10:38:55.056955232Z Loaded Prisma config from prisma.config.ts.
+2026-05-11T10:38:55.056979643Z 
+2026-05-11T10:38:55.172418883Z Prisma schema loaded from prisma/schema.prisma.
+2026-05-11T10:38:55.844940662Z 
+2026-05-11T10:38:55.844961932Z ✔ Generated Prisma Client (7.8.0) to ./src/generated/prisma in 391ms
+2026-05-11T10:38:55.844967032Z 
+2026-05-11T10:39:00.819120094Z src/routes/admin-plans.ts(67,26): error TS2322: Type 'readonly ["ACTIVE", "TRIAL", "PAST_DUE", "MANUAL_REVIEW"]' is not assignable to type 'SubscriptionStatus[] | FieldRef<"Subscription", "SubscriptionStatus[]"> | undefined'.
+2026-05-11T10:39:00.819145145Z   The type 'readonly ["ACTIVE", "TRIAL", "PAST_DUE", "MANUAL_REVIEW"]' is 'readonly' and cannot be assigned to the mutable type 'SubscriptionStatus[]'.
+2026-05-11T10:39:00.819222476Z src/routes/admin-plans.ts(72,69): error TS18048: 'r._count' is possibly 'undefined'.
+2026-05-11T10:39:00.819232777Z src/routes/admin-plans.ts(72,78): error TS2339: Property 'planId' does not exist on type 'true | { id?: number | undefined; workspaceId?: number | undefined; planId?: number | undefined; status?: number | undefined; billingCycle?: number | undefined; currency?: number | undefined; ... 18 more ...; _all?: number | undefined; }'.
+2026-05-11T10:39:00.819238637Z   Property 'planId' does not exist on type 'true'.
+2026-05-11T10:39:00.819247437Z src/routes/admin-plans.ts(165,64): error TS2322: Type 'readonly ["ACTIVE", "TRIAL", "PAST_DUE", "MANUAL_REVIEW"]' is not assignable to type 'SubscriptionStatus[] | FieldRef<"Subscription", "SubscriptionStatus[]"> | undefined'.
+2026-05-11T10:39:00.819267668Z   The type 'readonly ["ACTIVE", "TRIAL", "PAST_DUE", "MANUAL_REVIEW"]' is 'readonly' and cannot be assigned to the mutable type 'SubscriptionStatus[]'.
+2026-05-11T10:39:00.875771716Z npm error Lifecycle script `build` failed with error:
+2026-05-11T10:39:00.875878128Z npm error code 2
+2026-05-11T10:39:00.87594121Z npm error path /opt/render/project/src/apps/api
+2026-05-11T10:39:00.876026981Z npm error workspace @shelfsense/api@0.1.0
+2026-05-11T10:39:00.876088793Z npm error location /opt/render/project/src/apps/api
+2026-05-11T10:39:00.876170835Z npm error command failed
+2026-05-11T10:39:00.876325458Z npm error command sh -c prisma generate && tsc -b
+2026-05-11T10:39:00.916285334Z ==> Build failed 😞
+2026-05-11T10:39:00.916304214Z ==> Common ways to troubleshoot your deploy: https://render.com/docs/troubleshooting-deploys
