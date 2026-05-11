@@ -47,3 +47,7 @@ export async function receivePurchase(
 ): Promise<ReceivePurchaseResponse> {
   return apiClient.post<ReceivePurchaseResponse>(`/purchases/${id}/receive`, data, true);
 }
+
+export async function patchPurchaseSupplier(id: string, supplierId: string): Promise<PurchaseResponse> {
+  return apiClient.patch<PurchaseResponse>(`/purchases/${id}/supplier`, { supplierId });
+}

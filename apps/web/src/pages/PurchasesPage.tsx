@@ -8,6 +8,7 @@ import {
   getPurchase,
   getPurchases,
   orderPurchase,
+  patchPurchaseSupplier,
   receivePurchase,
 } from "../api/purchases";
 import { getItems } from "../api/items";
@@ -116,6 +117,9 @@ export function PurchasesPage() {
   const [cancelling, setCancelling] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [filters, setFilters] = useState<PurchaseFilters>({});
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkSupplierId, setBulkSupplierId] = useState("");
+  const [bulkAssigning, setBulkAssigning] = useState(false);
 
   function showToast(msg: string, type: "success" | "error") {
     const id = ++toastSeq;
@@ -179,6 +183,47 @@ export function PurchasesPage() {
     setDetailPurchase(res.purchase);
     setReceivePurchaseTarget((current) => current?.id === id ? res.purchase : current);
     await load(filters);
+  }
+
+  function toggleSelect(id: string, checked: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id); else next.delete(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll(checked: boolean) {
+    if (checked) {
+      setSelectedIds(new Set(purchases.filter((p) => p.status === "DRAFT").map((p) => p.id)));
+    } else {
+      setSelectedIds(new Set());
+    }
+  }
+
+  async function handleBulkAssign() {
+    if (!bulkSupplierId || selectedIds.size === 0) return;
+    setBulkAssigning(true);
+    const ids = [...selectedIds];
+    let successCount = 0;
+    let failCount = 0;
+    for (const id of ids) {
+      try {
+        await patchPurchaseSupplier(id, bulkSupplierId);
+        successCount++;
+      } catch {
+        failCount++;
+      }
+    }
+    setBulkAssigning(false);
+    setSelectedIds(new Set());
+    setBulkSupplierId("");
+    await load(filters);
+    if (failCount === 0) {
+      showToast(`Supplier updated on ${successCount} draft${successCount !== 1 ? "s" : ""}`, "success");
+    } else {
+      showToast(`Updated ${successCount}, failed ${failCount}`, "error");
+    }
   }
 
   async function handleOrder(purchase: Purchase) {
@@ -307,6 +352,29 @@ export function PurchasesPage() {
         )}
       </div>
 
+      {/* Bulk action bar — appears when DRAFT rows are selected */}
+      {selectedIds.size > 0 && (
+        <div className="pur-bulk-bar">
+          <span className="pur-bulk-count">{selectedIds.size} draft{selectedIds.size !== 1 ? "s" : ""} selected</span>
+          <select
+            className="pur-bulk-supplier"
+            value={bulkSupplierId}
+            onChange={(e) => setBulkSupplierId(e.target.value)}
+          >
+            <option value="">— pick supplier —</option>
+            {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+          <button
+            className="btn btn--primary btn--sm"
+            disabled={!bulkSupplierId || bulkAssigning}
+            onClick={() => { void handleBulkAssign(); }}
+          >
+            {bulkAssigning ? "Assigning…" : "Assign Supplier"}
+          </button>
+          <button className="pur-bulk-clear" onClick={() => setSelectedIds(new Set())}>Clear</button>
+        </div>
+      )}
+
       {purchases.length === 0 ? (
         <div className="empty-state">
           <h3>No purchases found</h3>
@@ -315,43 +383,73 @@ export function PurchasesPage() {
         </div>
       ) : (
         <div className="pur-list">
-          {purchases.map((purchase) => (
-            <article
-              key={purchase.id}
-              className="pur-item pur-item--lifecycle"
-              role="button"
-              tabIndex={0}
-              onClick={() => setDetailPurchase(purchase)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") setDetailPurchase(purchase);
-              }}
-            >
-              <div className="pur-item-body">
-                <div className="pur-item-row">
-                  <span className="pur-item-supplier">{purchase.supplier.name}</span>
-                  <StatusBadge status={purchase.status} />
+          {/* Select-all header — only shown when there are DRAFTs */}
+          {purchases.some((p) => p.status === "DRAFT") && (
+            <div className="pur-select-all-row">
+              <label className="pur-select-all-label">
+                <input
+                  type="checkbox"
+                  checked={
+                    purchases.filter((p) => p.status === "DRAFT").length > 0 &&
+                    purchases.filter((p) => p.status === "DRAFT").every((p) => selectedIds.has(p.id))
+                  }
+                  onChange={(e) => toggleSelectAll(e.target.checked)}
+                />
+                <span>Select all drafts</span>
+              </label>
+            </div>
+          )}
+          {purchases.map((purchase) => {
+            const isDraft = purchase.status === "DRAFT";
+            const isSelected = selectedIds.has(purchase.id);
+            return (
+              <article
+                key={purchase.id}
+                className={`pur-item pur-item--lifecycle${isDraft ? " pur-item--selectable" : ""}${isSelected ? " pur-item--selected" : ""}`}
+                role="button"
+                tabIndex={0}
+                onClick={() => setDetailPurchase(purchase)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") setDetailPurchase(purchase);
+                }}
+              >
+                {isDraft && (
+                  <div className="pur-check-wrap" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={(e) => toggleSelect(purchase.id, e.target.checked)}
+                      aria-label={`Select draft from ${purchase.supplier.name}`}
+                    />
+                  </div>
+                )}
+                <div className="pur-item-body">
+                  <div className="pur-item-row">
+                    <span className="pur-item-supplier">{purchase.supplier.name}</span>
+                    <StatusBadge status={purchase.status} />
+                  </div>
+                  <div className="pur-item-items">
+                    {purchase.purchaseItems.slice(0, 2).map((line) => line.item.name).join(" / ")}
+                    {purchase.purchaseItems.length > 2 && <span className="pur-item-extra"> +{purchase.purchaseItems.length - 2} more</span>}
+                  </div>
+                  <div className="purchase-progress">
+                    <span>Ordered {purchase.orderedQuantity}</span>
+                    <span>Received {purchase.receivedQuantity}</span>
+                    <span>Remaining {purchase.remainingQuantity}</span>
+                    <span>{purchase.location.name}</span>
+                  </div>
                 </div>
-                <div className="pur-item-items">
-                  {purchase.purchaseItems.slice(0, 2).map((line) => line.item.name).join(" / ")}
-                  {purchase.purchaseItems.length > 2 && <span className="pur-item-extra"> +{purchase.purchaseItems.length - 2} more</span>}
+                <div className="pur-item-right">
+                  <span className="pur-item-amount">{fmt(purchase.totalAmount, currency)}</span>
+                  <span className="pur-item-received">{fmt(purchase.receivedValue, currency)} received</span>
+                  <span className="pur-item-date">{fmtDate(purchase.date)}</span>
                 </div>
-                <div className="purchase-progress">
-                  <span>Ordered {purchase.orderedQuantity}</span>
-                  <span>Received {purchase.receivedQuantity}</span>
-                  <span>Remaining {purchase.remainingQuantity}</span>
-                  <span>{purchase.location.name}</span>
-                </div>
-              </div>
-              <div className="pur-item-right">
-                <span className="pur-item-amount">{fmt(purchase.totalAmount, currency)}</span>
-                <span className="pur-item-received">{fmt(purchase.receivedValue, currency)} received</span>
-                <span className="pur-item-date">{fmtDate(purchase.date)}</span>
-              </div>
-              <svg className="pur-item-chevron" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <path d="M8 5l5 5-5 5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </article>
-          ))}
+                <svg className="pur-item-chevron" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M8 5l5 5-5 5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </article>
+            );
+          })}
         </div>
       )}
 

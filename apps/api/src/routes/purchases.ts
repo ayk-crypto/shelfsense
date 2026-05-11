@@ -191,6 +191,44 @@ purchasesRouter.get("/:id", requireRole([Role.OWNER, Role.MANAGER]), asyncHandle
   return res.json({ purchase: mapPurchaseRecord(purchase) });
 }));
 
+purchasesRouter.patch("/:id/supplier", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
+  const workspaceId = getWorkspaceId(req);
+  if (!workspaceId) return res.status(403).json({ error: "Workspace access required" });
+
+  const { supplierId } = req.body as { supplierId?: unknown };
+  if (!supplierId || typeof supplierId !== "string") {
+    return res.status(400).json({ error: "supplierId is required" });
+  }
+
+  const purchase = await prisma.purchase.findFirst({
+    where: { id: req.params.id, workspaceId },
+    select: { id: true, status: true, supplierId: true },
+  });
+  if (!purchase) return res.status(404).json({ error: "Purchase not found" });
+  if (purchase.status !== PurchaseStatus.DRAFT) {
+    return res.status(400).json({ error: "Supplier can only be changed on DRAFT purchases" });
+  }
+
+  const supplier = await prisma.supplier.findFirst({
+    where: { id: supplierId, workspaceId },
+    select: { id: true, name: true },
+  });
+  if (!supplier) return res.status(404).json({ error: "Supplier not found" });
+
+  const updated = await prisma.purchase.update({
+    where: { id: purchase.id },
+    data: { supplierId: supplier.id },
+    include: purchaseInclude,
+  });
+
+  await logPurchaseAction(req, workspaceId, "PURCHASE_SUPPLIER_CHANGED", purchase.id, {
+    supplierId: supplier.id,
+    supplierName: supplier.name,
+  });
+
+  return res.json({ purchase: mapPurchaseRecord(updated) });
+}));
+
 purchasesRouter.post("/:id/order", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
   const workspaceId = getWorkspaceId(req);
   if (!workspaceId) return res.status(403).json({ error: "Workspace access required" });
