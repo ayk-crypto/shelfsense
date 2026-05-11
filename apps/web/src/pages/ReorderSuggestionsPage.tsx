@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { createReorderPurchases, getReorderSuggestions } from "../api/reorderSuggestions";
 import { getSuppliers } from "../api/suppliers";
@@ -161,6 +161,9 @@ export function ReorderSuggestionsPage() {
     return l?.supplierId && toNumber(l.quantity) > 0;
   }).length;
 
+  // column span for detail row
+  const colSpan = canCreateDrafts ? 10 : 6;
+
   return (
     <div className="reorder-page">
       {/* Header */}
@@ -241,236 +244,237 @@ export function ReorderSuggestionsPage() {
             </div>
           )}
 
-          {/* List */}
-          <div className="ro-list">
-            {suggestions.map((s) => {
-              const line = lines[s.itemId] ?? { selected: false, supplierId: "", quantity: "", unitCost: "" };
-              const factor = s.purchaseConversionFactor;
-              const hasUop = hasPurchaseUnit(s.purchaseUnit, factor);
-              const purchaseUnit = s.purchaseUnit ?? s.unit;
-              const qtyLabel = hasUop ? purchaseUnit : s.unit;
+          {/* Table */}
+          <div className="ro-table-wrap">
+            <table className="ro-table">
+              <thead>
+                <tr>
+                  <th className="ro-th ro-th--check"></th>
+                  <th className="ro-th ro-th--name">Item</th>
+                  <th className="ro-th ro-th--stock">Current</th>
+                  <th className="ro-th ro-th--min">Min</th>
+                  <th className="ro-th ro-th--buy">Buy</th>
+                  {canCreateDrafts ? (
+                    <>
+                      <th className="ro-th ro-th--supplier">Supplier</th>
+                      <th className="ro-th ro-th--qty">Qty</th>
+                      <th className="ro-th ro-th--cost">Unit Cost</th>
+                      <th className="ro-th ro-th--total">Total</th>
+                    </>
+                  ) : (
+                    <th className="ro-th ro-th--supplier">Preferred Supplier</th>
+                  )}
+                  <th className="ro-th ro-th--expand"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {suggestions.map((s) => {
+                  const line = lines[s.itemId] ?? { selected: false, supplierId: "", quantity: "", unitCost: "" };
+                  const factor = s.purchaseConversionFactor;
+                  const hasUop = hasPurchaseUnit(s.purchaseUnit, factor);
+                  const purchaseUnit = s.purchaseUnit ?? s.unit;
+                  const qtyLabel = hasUop ? purchaseUnit : s.unit;
 
-              // Suggested buy quantity
-              const buyQty = hasUop && factor
-                ? getSuggestedPurchaseQty(s.suggestedQuantity, factor)
-                : s.suggestedQuantity;
+                  const buyQty = hasUop && factor
+                    ? getSuggestedPurchaseQty(s.suggestedQuantity, factor)
+                    : s.suggestedQuantity;
 
-              // Current stock display
-              const currentDisplay = hasUop && factor
-                ? (() => {
-                    const whole = Math.floor(s.currentStock / factor);
-                    const rem = +(s.currentStock - whole * factor).toFixed(6);
-                    if (whole === 0) return `${fmtQty(rem)} ${s.unit}`;
-                    if (rem === 0) return `${whole} ${purchaseUnit}`;
-                    return `${whole} ${purchaseUnit} + ${fmtQty(rem)} ${s.unit}`;
-                  })()
-                : `${fmtQty(s.currentStock)} ${s.unit}`;
+                  const currentDisplay = hasUop && factor
+                    ? (() => {
+                        const whole = Math.floor(s.currentStock / factor);
+                        const rem = +(s.currentStock - whole * factor).toFixed(6);
+                        if (whole === 0) return `${fmtQty(rem)} ${s.unit}`;
+                        if (rem === 0) return `${whole} ${purchaseUnit}`;
+                        return `${whole} ${purchaseUnit} + ${fmtQty(rem)} ${s.unit}`;
+                      })()
+                    : `${fmtQty(s.currentStock)} ${s.unit}`;
 
-              const minDisplay = hasUop && factor
-                ? `${fmtQty(Math.ceil(s.minStockLevel / factor))} ${purchaseUnit}`
-                : `${fmtQty(s.minStockLevel)} ${s.unit}`;
+                  const minDisplay = hasUop && factor
+                    ? `${fmtQty(Math.ceil(s.minStockLevel / factor))} ${purchaseUnit}`
+                    : `${fmtQty(s.minStockLevel)} ${s.unit}`;
 
-              const itemTotal = toNumber(line.quantity) * toNumber(line.unitCost);
-              const noSupplier = canCreateDrafts && suppliers.length > 0 && !line.supplierId;
-              const detailsOpen = openDetails.has(s.itemId);
+                  const itemTotal = toNumber(line.quantity) * toNumber(line.unitCost);
+                  const noSupplier = canCreateDrafts && suppliers.length > 0 && !line.supplierId;
+                  const detailsOpen = openDetails.has(s.itemId);
 
-              // Last cost hint per purchase unit
-              const lastCostBase = s.lastPurchaseCost;
-              const lastCostDisplay = hasUop && factor && lastCostBase != null
-                ? lastCostBase * factor
-                : lastCostBase;
+                  const lastCostBase = s.lastPurchaseCost;
+                  const lastCostDisplay = hasUop && factor && lastCostBase != null
+                    ? lastCostBase * factor
+                    : lastCostBase;
 
-              // Qty hint (base units equivalent of entered qty)
-              const enteredQty = toNumber(line.quantity);
-              const qtyHint = hasUop && factor && enteredQty > 0
-                ? `≈ ${fmtQty(enteredQty * factor)} ${s.unit}`
-                : hasUop && factor
-                ? `1 ${purchaseUnit} = ${factor} ${s.unit}`
-                : null;
+                  const enteredQty = toNumber(line.quantity);
+                  const qtyHint = hasUop && factor && enteredQty > 0
+                    ? `≈ ${fmtQty(enteredQty * factor)} ${s.unit}`
+                    : hasUop && factor
+                    ? `1 ${purchaseUnit} = ${factor} ${s.unit}`
+                    : null;
 
-              return (
-                <article
-                  key={s.itemId}
-                  className={`ro-row${line.selected ? " ro-row--selected" : ""}${noSupplier ? " ro-row--needs-supplier" : ""}`}
-                >
-                  {/* Checkbox */}
-                  <label className="ro-check">
-                    <input
-                      type="checkbox"
-                      checked={line.selected}
-                      disabled={!canCreateDrafts || !line.supplierId}
-                      onChange={(e) => updateLine(s.itemId, { selected: e.target.checked })}
-                      aria-label={`Select ${s.itemName}`}
-                    />
-                  </label>
-
-                  <div className="ro-body">
-                    {/* Item name + Buy badge */}
-                    <div className="ro-head">
-                      <div className="ro-name-block">
-                        <span className="ro-item-name">{s.itemName}</span>
-                        <span className="ro-item-meta">
-                          {s.sku ? `SKU ${s.sku}` : ""}
-                          {s.sku && s.category ? " · " : ""}
-                          {s.category ?? ""}
-                        </span>
-                      </div>
-                      <div className={`ro-buy-badge${buyQty === 0 ? " ro-buy-badge--zero" : ""}`}>
-                        <span className="ro-buy-label">Buy</span>
-                        <span className="ro-buy-qty">{fmtQty(buyQty)} <span className="ro-buy-unit">{qtyLabel}</span></span>
-                      </div>
-                    </div>
-
-                    {/* Stock summary + details toggle */}
-                    <div className="ro-stock-row">
-                      <span className="ro-stock-item ro-stock-item--low">
-                        Current: <strong>{currentDisplay}</strong>
-                      </span>
-                      <span className="ro-stock-sep">·</span>
-                      <span className="ro-stock-item">
-                        Min: <strong>{minDisplay}</strong>
-                      </span>
-                      {s.location.name && (
-                        <>
-                          <span className="ro-stock-sep">·</span>
-                          <span className="ro-stock-item ro-stock-item--muted">{s.location.name}</span>
-                        </>
-                      )}
-                      <button
-                        type="button"
-                        className="ro-details-btn"
-                        onClick={() => toggleDetails(s.itemId)}
-                      >
-                        {detailsOpen ? "▴ Hide" : "▾ Details"}
-                      </button>
-                    </div>
-
-                    {/* Expandable details */}
-                    {detailsOpen && (
-                      <div className="ro-details">
-                        <div className="ro-detail-row">
-                          <span>Current stock</span>
-                          <span>{fmtQty(s.currentStock)} {s.unit}</span>
-                        </div>
-                        {hasUop && factor && (
-                          <div className="ro-detail-row">
-                            <span>Current (in {purchaseUnit}s)</span>
-                            <span>{currentDisplay}</span>
-                          </div>
-                        )}
-                        <div className="ro-detail-row">
-                          <span>Minimum stock</span>
-                          <span>{fmtQty(s.minStockLevel)} {s.unit}</span>
-                        </div>
-                        <div className="ro-detail-row">
-                          <span>Shortage</span>
-                          <span>{fmtQty(s.suggestedQuantity)} {s.unit}</span>
-                        </div>
-                        {hasUop && factor && (
-                          <>
-                            <div className="ro-detail-row">
-                              <span>Suggested purchase</span>
-                              <span>{buyQty} {purchaseUnit}</span>
-                            </div>
-                            <div className="ro-detail-row">
-                              <span>1 {purchaseUnit} =</span>
-                              <span>{factor} {s.unit}</span>
-                            </div>
-                          </>
-                        )}
-                        {s.trackExpiry && (
-                          <div className="ro-detail-row">
-                            <span>Expiry tracking</span>
-                            <span>Enabled</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Purchase controls */}
-                    {canCreateDrafts ? (
-                      <div className="ro-controls">
-                        {/* Supplier */}
-                        <div className="ro-ctrl ro-ctrl--supplier">
-                          <label className="ro-ctrl-label" htmlFor={`supplier-${s.itemId}`}>Supplier</label>
-                          <select
-                            id={`supplier-${s.itemId}`}
-                            className="ro-select"
-                            value={line.supplierId}
-                            onChange={(e) => updateLine(s.itemId, {
-                              supplierId: e.target.value,
-                              selected: e.target.value ? line.selected : false,
-                            })}
-                            disabled={suppliers.length === 0}
-                          >
-                            <option value="">Select supplier</option>
-                            {suppliers.map((sup) => (
-                              <option key={sup.id} value={sup.id}>{sup.name}</option>
-                            ))}
-                          </select>
-                        </div>
-
-                        {/* Quantity */}
-                        <div className="ro-ctrl ro-ctrl--qty">
-                          <label className="ro-ctrl-label" htmlFor={`qty-${s.itemId}`}>
-                            Qty
-                            <span className="ro-ctrl-unit">({qtyLabel})</span>
-                          </label>
+                  return (
+                    <Fragment key={s.itemId}>
+                      <tr className={`ro-tr${line.selected ? " ro-tr--selected" : ""}${noSupplier ? " ro-tr--needs-supplier" : ""}`}>
+                        {/* Checkbox */}
+                        <td className="ro-td ro-td--check">
                           <input
-                            id={`qty-${s.itemId}`}
-                            className="ro-input"
-                            type="number"
-                            min="0"
-                            step={hasUop ? "1" : "0.01"}
-                            value={line.quantity}
-                            onChange={(e) => updateLine(s.itemId, { quantity: e.target.value })}
+                            type="checkbox"
+                            checked={line.selected}
+                            disabled={!canCreateDrafts || !line.supplierId}
+                            onChange={(e) => updateLine(s.itemId, { selected: e.target.checked })}
+                            aria-label={`Select ${s.itemName}`}
                           />
-                          {qtyHint && (
-                            <span className="ro-ctrl-hint">{qtyHint}</span>
-                          )}
-                        </div>
+                        </td>
 
-                        {/* Cost */}
-                        <div className="ro-ctrl ro-ctrl--cost">
-                          <label className="ro-ctrl-label" htmlFor={`cost-${s.itemId}`}>
-                            Cost
-                            <span className="ro-ctrl-unit">/{qtyLabel}</span>
-                          </label>
-                          <input
-                            id={`cost-${s.itemId}`}
-                            className="ro-input"
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            placeholder="Enter cost"
-                            value={line.unitCost}
-                            onChange={(e) => updateLine(s.itemId, { unitCost: e.target.value })}
-                          />
-                          {lastCostDisplay != null && lastCostDisplay > 0 && (
-                            <span className="ro-ctrl-hint">
-                              Last: {formatCurrency(lastCostDisplay, currency)}/{qtyLabel}
+                        {/* Item name */}
+                        <td className="ro-td ro-td--name">
+                          <span className="ro-item-name">{s.itemName}</span>
+                          {(s.sku || s.category || s.location.name) && (
+                            <span className="ro-item-meta">
+                              {[s.sku ? `SKU ${s.sku}` : "", s.category ?? "", s.location.name ?? ""].filter(Boolean).join(" · ")}
                             </span>
                           )}
-                        </div>
+                        </td>
 
-                        {/* Line total */}
-                        <div className="ro-ctrl ro-ctrl--total">
-                          <span className="ro-ctrl-label">Total</span>
-                          <span className={`ro-total-val${itemTotal > 0 ? " ro-total-val--active" : ""}`}>
-                            {formatCurrency(itemTotal, currency)}
+                        {/* Current stock */}
+                        <td className="ro-td ro-td--stock">{currentDisplay}</td>
+
+                        {/* Min stock */}
+                        <td className="ro-td ro-td--min">{minDisplay}</td>
+
+                        {/* Buy qty chip */}
+                        <td className="ro-td ro-td--buy">
+                          <span className={`ro-buy-chip${buyQty === 0 ? " ro-buy-chip--zero" : ""}`}>
+                            <span className="ro-buy-chip-label">Buy</span>
+                            <span className="ro-buy-chip-qty">{fmtQty(buyQty)}</span>
+                            <span className="ro-buy-chip-unit">{qtyLabel}</span>
                           </span>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="ro-readonly">
-                        <span className="ro-readonly-label">Preferred supplier</span>
-                        <span className="ro-readonly-val">{s.preferredSupplier?.name ?? "—"}</span>
-                      </div>
-                    )}
-                  </div>
-                </article>
-              );
-            })}
+                        </td>
+
+                        {canCreateDrafts ? (
+                          <>
+                            {/* Supplier */}
+                            <td className="ro-td ro-td--supplier">
+                              <select
+                                className="ro-select--sm"
+                                value={line.supplierId}
+                                onChange={(e) => updateLine(s.itemId, {
+                                  supplierId: e.target.value,
+                                  selected: e.target.value ? line.selected : false,
+                                })}
+                                disabled={suppliers.length === 0}
+                              >
+                                <option value="">— select —</option>
+                                {suppliers.map((sup) => (
+                                  <option key={sup.id} value={sup.id}>{sup.name}</option>
+                                ))}
+                              </select>
+                            </td>
+
+                            {/* Qty */}
+                            <td className="ro-td ro-td--qty">
+                              <input
+                                className="ro-input--sm"
+                                type="number"
+                                min="0"
+                                step={hasUop ? "1" : "0.01"}
+                                value={line.quantity}
+                                onChange={(e) => updateLine(s.itemId, { quantity: e.target.value })}
+                                aria-label={`Quantity in ${qtyLabel}`}
+                              />
+                              {qtyHint && <span className="ro-ctrl-hint">{qtyHint}</span>}
+                            </td>
+
+                            {/* Unit cost */}
+                            <td className="ro-td ro-td--cost">
+                              <input
+                                className="ro-input--sm"
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                placeholder="Cost"
+                                value={line.unitCost}
+                                onChange={(e) => updateLine(s.itemId, { unitCost: e.target.value })}
+                                aria-label={`Cost per ${qtyLabel}`}
+                              />
+                              {lastCostDisplay != null && lastCostDisplay > 0 && (
+                                <span className="ro-ctrl-hint">Last: {formatCurrency(lastCostDisplay, currency)}</span>
+                              )}
+                            </td>
+
+                            {/* Line total */}
+                            <td className="ro-td ro-td--total">
+                              <span className={`ro-total-val${itemTotal > 0 ? " ro-total-val--active" : ""}`}>
+                                {formatCurrency(itemTotal, currency)}
+                              </span>
+                            </td>
+                          </>
+                        ) : (
+                          <td className="ro-td ro-td--supplier ro-td--readonly-sup">
+                            {s.preferredSupplier?.name ?? <span className="ro-no-supplier">—</span>}
+                          </td>
+                        )}
+
+                        {/* Expand toggle */}
+                        <td className="ro-td ro-td--expand">
+                          <button
+                            type="button"
+                            className="ro-expand-btn"
+                            onClick={() => toggleDetails(s.itemId)}
+                            title={detailsOpen ? "Hide details" : "Show details"}
+                          >
+                            {detailsOpen ? "▴" : "▾"}
+                          </button>
+                        </td>
+                      </tr>
+
+                      {/* Detail expansion row */}
+                      {detailsOpen && (
+                        <tr className="ro-tr-detail">
+                          <td colSpan={colSpan} className="ro-td-detail">
+                            <div className="ro-details">
+                              <div className="ro-detail-row">
+                                <span>Current stock</span>
+                                <span>{fmtQty(s.currentStock)} {s.unit}</span>
+                              </div>
+                              {hasUop && factor && (
+                                <div className="ro-detail-row">
+                                  <span>Current ({purchaseUnit}s)</span>
+                                  <span>{currentDisplay}</span>
+                                </div>
+                              )}
+                              <div className="ro-detail-row">
+                                <span>Minimum stock</span>
+                                <span>{fmtQty(s.minStockLevel)} {s.unit}</span>
+                              </div>
+                              <div className="ro-detail-row">
+                                <span>Shortage</span>
+                                <span>{fmtQty(s.suggestedQuantity)} {s.unit}</span>
+                              </div>
+                              {hasUop && factor && (
+                                <>
+                                  <div className="ro-detail-row">
+                                    <span>Suggested purchase</span>
+                                    <span>{buyQty} {purchaseUnit}</span>
+                                  </div>
+                                  <div className="ro-detail-row">
+                                    <span>1 {purchaseUnit} =</span>
+                                    <span>{factor} {s.unit}</span>
+                                  </div>
+                                </>
+                              )}
+                              {s.trackExpiry && (
+                                <div className="ro-detail-row">
+                                  <span>Expiry tracking</span>
+                                  <span>Enabled</span>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </>
       )}
