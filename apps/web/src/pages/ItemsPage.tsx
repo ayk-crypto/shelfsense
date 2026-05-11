@@ -43,7 +43,7 @@ type BarcodeLabelPresetId = "small" | "medium" | "large";
 type BarcodeLabelTemplateId = "barcode-only" | "name" | "name-details";
 type ItemStatusFilter = "all" | "ok" | "low" | "expiring" | "expired" | "archived";
 type ItemSortKey = "name" | "stock-asc" | "stock-desc" | "value-desc" | "recent";
-type SupplierFilter = "all" | "has_supplier" | "no_supplier";
+type SupplierFilter = "all" | "has_supplier" | "no_supplier" | string;
 
 const BARCODE_LABEL_PRESET_STORAGE_KEY = "shelfsense.barcodeLabelPreset";
 const BARCODE_LABEL_TEMPLATE_STORAGE_KEY = "shelfsense.barcodeLabelTemplate";
@@ -193,7 +193,12 @@ export function ItemsPage() {
       const matchesSupplier =
         supplierFilter === "all" ||
         (supplierFilter === "has_supplier" && hasSupplierMapping) ||
-        (supplierFilter === "no_supplier" && !hasSupplierMapping);
+        (supplierFilter === "no_supplier" && !hasSupplierMapping) ||
+        (supplierFilter !== "all" &&
+          supplierFilter !== "has_supplier" &&
+          supplierFilter !== "no_supplier" &&
+          (mappingInfo?.primary?.supplierId === supplierFilter ||
+            (mappingInfo?.alternates ?? []).some((a) => a.supplierId === supplierFilter)));
       return matchesSearch && matchesCategory && matchesStatus && matchesSupplier;
     });
 
@@ -227,6 +232,8 @@ export function ItemsPage() {
   useEffect(() => {
     const query = searchParams.get("q") ?? "";
     setSearchTerm(query);
+    const supplier = searchParams.get("supplier");
+    if (supplier) setSupplierFilter(supplier);
   }, [searchParams]);
 
   useEffect(() => {
@@ -565,12 +572,19 @@ export function ItemsPage() {
           <select
             className="form-select"
             value={supplierFilter}
-            onChange={(e) => setSupplierFilter(e.target.value as SupplierFilter)}
-            aria-label="Filter by supplier mapping"
+            onChange={(e) => setSupplierFilter(e.target.value)}
+            aria-label="Filter by supplier"
           >
             <option value="all">All suppliers</option>
             <option value="has_supplier">Has supplier</option>
             <option value="no_supplier">No supplier</option>
+            {suppliersList.length > 0 && (
+              <optgroup label="By supplier">
+                {suppliersList.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </optgroup>
+            )}
           </select>
           <select
             className="form-select"
