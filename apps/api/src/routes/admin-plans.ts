@@ -17,6 +17,9 @@ async function logAdminAction(
   });
 }
 
+// Statuses that represent a workspace currently on this plan (not historical/closed)
+const ACTIVE_SUB_STATUSES = ["ACTIVE", "TRIAL", "PAST_DUE", "MANUAL_REVIEW"] as const;
+
 const PLAN_SELECT = {
   id: true,
   name: true,
@@ -53,12 +56,27 @@ const PLAN_SELECT = {
 } as const;
 
 adminPlansRouter.get("/", asyncHandler(async (_req, res) => {
-  const plans = await prisma.plan.findMany({
-    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-    select: PLAN_SELECT,
-  });
+  const [plans, activeGroups] = await Promise.all([
+    prisma.plan.findMany({
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      select: PLAN_SELECT,
+    }),
+    // Single grouped query for active subscription counts per plan
+    prisma.subscription.groupBy({
+      by: ["planId"],
+      where: { status: { in: ACTIVE_SUB_STATUSES } },
+      _count: { planId: true },
+    }),
+  ]);
+
+  const activeCountMap = new Map(activeGroups.map((r) => [r.planId, r._count.planId]));
+
   return res.json({
-    plans: plans.map((p) => ({ ...p, subscriptionCount: p._count.subscriptions, _count: undefined })),
+    plans: plans.map(({ _count, ...p }) => ({
+      ...p,
+      subscriptionCount: _count.subscriptions,
+      activeSubscriptionCount: activeCountMap.get(p.id) ?? 0,
+    })),
   });
 }));
 
@@ -142,9 +160,13 @@ adminPlansRouter.post("/", asyncHandler(async (req, res) => {
 
 adminPlansRouter.get("/:id", asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const plan = await prisma.plan.findUnique({ where: { id }, select: PLAN_SELECT });
+  const [plan, activeCount] = await Promise.all([
+    prisma.plan.findUnique({ where: { id }, select: PLAN_SELECT }),
+    prisma.subscription.count({ where: { planId: id, status: { in: ACTIVE_SUB_STATUSES } } }),
+  ]);
   if (!plan) return res.status(404).json({ error: "Plan not found" });
-  return res.json({ plan: { ...plan, subscriptionCount: plan._count.subscriptions, _count: undefined } });
+  const { _count, ...rest } = plan;
+  return res.json({ plan: { ...rest, subscriptionCount: _count.subscriptions, activeSubscriptionCount: activeCount } });
 }));
 
 adminPlansRouter.patch("/:id", asyncHandler(async (req, res) => {

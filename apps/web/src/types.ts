@@ -1246,6 +1246,7 @@ export interface AdminPlan {
   isActive: boolean;
   sortOrder: number;
   subscriptionCount: number;
+  activeSubscriptionCount: number;
   createdAt: string;
   updatedAt: string;
 }

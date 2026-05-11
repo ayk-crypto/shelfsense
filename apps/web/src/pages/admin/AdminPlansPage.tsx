@@ -121,7 +121,12 @@ export function AdminPlansPage() {
                 </div>
               )}
               <div className="admin-plan-card-footer">
-                <span className="admin-muted">{plan.subscriptionCount} subscription{plan.subscriptionCount !== 1 ? "s" : ""}</span>
+                <span
+                  className="admin-muted"
+                  title={`${plan.subscriptionCount} total subscription record${plan.subscriptionCount !== 1 ? "s" : ""} (including historical)`}
+                >
+                  {plan.activeSubscriptionCount} active workspace{plan.activeSubscriptionCount !== 1 ? "s" : ""}
+                </span>
                 <div className="admin-actions">
                   <button className="admin-action-btn" onClick={() => { setEditingPlan(plan); setShowModal(true); }}>Edit</button>
                   <button
