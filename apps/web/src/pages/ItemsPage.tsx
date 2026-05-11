@@ -1440,17 +1440,22 @@ function AddItemModal({
           <div className="form-row-2col">
             <div className="form-group">
               <label className="form-label">Purchase Unit</label>
-              <input
-                className="form-input"
-                list="add-purchase-unit-options"
-                value={form.purchaseUnit ?? ""}
-                onChange={(e) => setForm({ ...form, purchaseUnit: e.target.value || null })}
-                placeholder="e.g. Carton"
-              />
-              {purchaseUnitOptions.length > 0 && (
-                <datalist id="add-purchase-unit-options">
-                  {purchaseUnitOptions.map((u) => <option key={u} value={u} />)}
-                </datalist>
+              {purchaseUnitOptions.length > 0 ? (
+                <select
+                  className="form-select"
+                  value={form.purchaseUnit ?? ""}
+                  onChange={(e) => setForm({ ...form, purchaseUnit: e.target.value || null, purchaseConversionFactor: e.target.value ? form.purchaseConversionFactor : null })}
+                >
+                  <option value="">— none —</option>
+                  {purchaseUnitOptions.map((u) => <option key={u} value={u}>{u}</option>)}
+                </select>
+              ) : (
+                <input
+                  className="form-input"
+                  value={form.purchaseUnit ?? ""}
+                  onChange={(e) => setForm({ ...form, purchaseUnit: e.target.value || null })}
+                  placeholder="e.g. Carton"
+                />
               )}
               <p className="form-helper">The larger unit you buy in (optional).</p>
             </div>
@@ -1651,17 +1656,22 @@ function EditItemModal({
           <div className="form-row-2col">
             <div className="form-group">
               <label className="form-label">Purchase Unit</label>
-              <input
-                className="form-input"
-                list="edit-purchase-unit-options"
-                value={form.purchaseUnit ?? ""}
-                onChange={(e) => setForm({ ...form, purchaseUnit: e.target.value || null })}
-                placeholder="e.g. Carton"
-              />
-              {purchaseUnitOptions.length > 0 && (
-                <datalist id="edit-purchase-unit-options">
-                  {purchaseUnitOptions.map((u) => <option key={u} value={u} />)}
-                </datalist>
+              {purchaseUnitOptions.length > 0 ? (
+                <select
+                  className="form-select"
+                  value={form.purchaseUnit ?? ""}
+                  onChange={(e) => setForm({ ...form, purchaseUnit: e.target.value || null, purchaseConversionFactor: e.target.value ? form.purchaseConversionFactor : null })}
+                >
+                  <option value="">— none —</option>
+                  {purchaseUnitOptions.map((u) => <option key={u} value={u}>{u}</option>)}
+                </select>
+              ) : (
+                <input
+                  className="form-input"
+                  value={form.purchaseUnit ?? ""}
+                  onChange={(e) => setForm({ ...form, purchaseUnit: e.target.value || null })}
+                  placeholder="e.g. Carton"
+                />
               )}
               <p className="form-helper">The larger unit you buy in (optional).</p>
             </div>
