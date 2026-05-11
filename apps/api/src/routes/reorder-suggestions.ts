@@ -1,4 +1,4 @@
-import { PurchaseStatus, Role } from "../generated/prisma/enums.js";
+import { ItemSupplierRole, PurchaseStatus, Role } from "../generated/prisma/enums.js";
 import { Router, type Request } from "express";
 import { Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../db/prisma.js";
@@ -52,6 +52,11 @@ reorderSuggestionsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OP
           },
         },
       },
+      itemSuppliers: {
+        where: { workspaceId, role: ItemSupplierRole.PRIMARY },
+        take: 1,
+        select: { supplier: { select: { id: true, name: true } } },
+      },
     },
   });
 
@@ -60,6 +65,7 @@ reorderSuggestionsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OP
       const currentStock = item.stockBatches.reduce((sum, batch) => sum + batch.remainingQuantity, 0);
       const suggestedQuantity = getSuggestedQuantity(currentStock, item.minStockLevel);
       const lastPurchase = item.purchaseItems[0] ?? null;
+      const primaryMappedSupplier = item.itemSuppliers[0]?.supplier ?? null;
 
       return {
         itemId: item.id,
@@ -75,7 +81,7 @@ reorderSuggestionsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OP
         suggestedQuantity,
         trackExpiry: item.trackExpiry,
         location,
-        preferredSupplier: lastPurchase?.purchase.supplier ?? null,
+        preferredSupplier: primaryMappedSupplier ?? lastPurchase?.purchase.supplier ?? null,
         lastPurchaseCost: lastPurchase?.unitCost ?? null,
       };
     })
