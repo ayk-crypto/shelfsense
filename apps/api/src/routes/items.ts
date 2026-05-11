@@ -1,9 +1,10 @@
 import { Router } from "express";
-import { Role } from "../generated/prisma/enums.js";
+import { ItemSupplierRole, Role } from "../generated/prisma/enums.js";
 import { Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../db/prisma.js";
 import { requireActiveWorkspace, requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async-handler.js";
+import { logAction } from "../utils/audit-log.js";
 import { PLAN_LIMITS, isAtLimit, type PlanTier } from "../utils/plan-limits.js";
 
 export const itemsRouter = Router();
@@ -117,6 +118,315 @@ itemsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), asy
 
   return res.json({ items });
 }));
+
+// ── Supplier Mapping Routes ────────────────────────────────────────────────
+
+const supplierMappingInclude = {
+  supplier: { select: { id: true, name: true } },
+} as const;
+
+function mapItemSupplier(r: {
+  id: string;
+  supplierId: string;
+  role: ItemSupplierRole;
+  supplierItemCode: string | null;
+  preferredPurchaseUnit: string | null;
+  lastPurchasePrice: number | null;
+  lastPurchaseDate: Date | null;
+  minimumOrderQuantity: number | null;
+  createdAt: Date;
+  updatedAt: Date;
+  supplier: { id: string; name: string };
+}) {
+  return {
+    id: r.id,
+    supplierId: r.supplierId,
+    supplierName: r.supplier.name,
+    role: r.role,
+    supplierItemCode: r.supplierItemCode,
+    preferredPurchaseUnit: r.preferredPurchaseUnit,
+    lastPurchasePrice: r.lastPurchasePrice,
+    lastPurchaseDate: r.lastPurchaseDate?.toISOString() ?? null,
+    minimumOrderQuantity: r.minimumOrderQuantity,
+    createdAt: r.createdAt.toISOString(),
+    updatedAt: r.updatedAt.toISOString(),
+  };
+}
+
+itemsRouter.get("/supplier-mappings", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), asyncHandler(async (req, res) => {
+  const workspaceId = getWorkspaceId(req);
+  if (!workspaceId) return res.status(403).json({ error: "Workspace access required" });
+
+  const { search, supplierId, hasSupplier } = req.query as Record<string, string | undefined>;
+
+  const items = await prisma.item.findMany({
+    where: {
+      workspaceId,
+      isActive: true,
+      ...(search ? {
+        name: { contains: search, mode: "insensitive" },
+      } : {}),
+    },
+    select: { id: true, name: true, category: true },
+    orderBy: { name: "asc" },
+  });
+
+  const mappings = await prisma.itemSupplier.findMany({
+    where: {
+      workspaceId,
+      ...(supplierId ? { supplierId } : {}),
+    },
+    include: supplierMappingInclude,
+  });
+
+  const mappingsByItem = new Map<string, typeof mappings>();
+  for (const m of mappings) {
+    if (!mappingsByItem.has(m.itemId)) mappingsByItem.set(m.itemId, []);
+    mappingsByItem.get(m.itemId)!.push(m);
+  }
+
+  let result = items.map((item) => {
+    const itemMappings = mappingsByItem.get(item.id) ?? [];
+    const primary = itemMappings.find((m) => m.role === "PRIMARY") ?? null;
+    const alternates = itemMappings.filter((m) => m.role === "ALTERNATE");
+    return {
+      itemId: item.id,
+      itemName: item.name,
+      category: item.category,
+      primary: primary ? mapItemSupplier(primary) : null,
+      alternates: alternates.map(mapItemSupplier),
+    };
+  });
+
+  if (hasSupplier === "true") result = result.filter((r) => r.primary !== null || r.alternates.length > 0);
+  if (hasSupplier === "false") result = result.filter((r) => r.primary === null && r.alternates.length === 0);
+
+  return res.json({ items: result });
+}));
+
+itemsRouter.post("/bulk-assign-supplier", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
+  const workspaceId = getWorkspaceId(req);
+  if (!workspaceId) return res.status(403).json({ error: "Workspace access required" });
+
+  const body = req.body as {
+    itemIds?: unknown;
+    supplierId?: unknown;
+    role?: unknown;
+    replaceExistingPrimary?: unknown;
+    convertOldPrimaryToAlternate?: unknown;
+  };
+
+  const itemIds = Array.isArray(body.itemIds) ? (body.itemIds as unknown[]).filter((id): id is string => typeof id === "string") : [];
+  const supplierId = typeof body.supplierId === "string" ? body.supplierId : null;
+  const role = body.role === "ALTERNATE" ? ItemSupplierRole.ALTERNATE : ItemSupplierRole.PRIMARY;
+  const replaceExistingPrimary = body.replaceExistingPrimary !== false;
+  const convertOldPrimaryToAlternate = body.convertOldPrimaryToAlternate === true;
+
+  if (itemIds.length === 0) return res.status(400).json({ error: "No item IDs provided" });
+  if (!supplierId) return res.status(400).json({ error: "supplierId is required" });
+
+  const [supplier, items] = await Promise.all([
+    prisma.supplier.findFirst({ where: { id: supplierId, workspaceId }, select: { id: true, name: true } }),
+    prisma.item.findMany({ where: { id: { in: itemIds }, workspaceId, isActive: true }, select: { id: true, name: true } }),
+  ]);
+
+  if (!supplier) return res.status(404).json({ error: "Supplier not found" });
+
+  const foundIds = new Set(items.map((i) => i.id));
+  const itemMap = new Map(items.map((i) => [i.id, i]));
+
+  let assigned = 0; let skipped = 0; let failed = 0;
+  const skippedItems: Array<{ itemId: string; itemName: string; reason: string }> = [];
+  const failedItems: Array<{ itemId: string; itemName: string; reason: string }> = [];
+
+  for (const itemId of itemIds) {
+    if (!foundIds.has(itemId)) {
+      failed++;
+      failedItems.push({ itemId, itemName: "Unknown", reason: "Item not found in workspace" });
+      continue;
+    }
+    const item = itemMap.get(itemId)!;
+    try {
+      if (role === ItemSupplierRole.PRIMARY) {
+        const existing = await prisma.itemSupplier.findFirst({
+          where: { itemId, role: ItemSupplierRole.PRIMARY, supplierId: { not: supplierId } },
+          select: { id: true, supplierId: true },
+        });
+        if (existing) {
+          if (!replaceExistingPrimary) {
+            skipped++;
+            skippedItems.push({ itemId, itemName: item.name, reason: "Primary supplier already assigned" });
+            continue;
+          }
+          if (convertOldPrimaryToAlternate) {
+            const alreadyAlt = await prisma.itemSupplier.findFirst({
+              where: { itemId, supplierId: existing.supplierId, role: ItemSupplierRole.ALTERNATE },
+            });
+            if (!alreadyAlt) {
+              await prisma.itemSupplier.update({ where: { id: existing.id }, data: { role: ItemSupplierRole.ALTERNATE } });
+            } else {
+              await prisma.itemSupplier.delete({ where: { id: existing.id } });
+            }
+          } else {
+            await prisma.itemSupplier.delete({ where: { id: existing.id } });
+          }
+        }
+      }
+
+      await prisma.itemSupplier.upsert({
+        where: { itemId_supplierId_role: { itemId, supplierId, role } },
+        create: { id: crypto.randomUUID(), workspaceId, itemId, supplierId, role },
+        update: {},
+      });
+      assigned++;
+    } catch {
+      failed++;
+      failedItems.push({ itemId, itemName: item.name, reason: "Failed to assign supplier" });
+    }
+  }
+
+  await logAction({
+    userId: req.user!.userId,
+    workspaceId,
+    action: "BULK_ASSIGN_SUPPLIER",
+    entity: "Item",
+    entityId: supplierId,
+    meta: { supplierId, supplierName: supplier.name, role, assigned, skipped, failed, itemCount: itemIds.length },
+  });
+
+  return res.json({ total: itemIds.length, assigned, skipped, failed, skippedItems, failedItems });
+}));
+
+itemsRouter.post("/bulk-remove-supplier", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
+  const workspaceId = getWorkspaceId(req);
+  if (!workspaceId) return res.status(403).json({ error: "Workspace access required" });
+
+  const body = req.body as { itemIds?: unknown; supplierId?: unknown; role?: unknown };
+  const itemIds = Array.isArray(body.itemIds) ? (body.itemIds as unknown[]).filter((id): id is string => typeof id === "string") : [];
+  const supplierId = typeof body.supplierId === "string" ? body.supplierId : null;
+  const roleFilter = typeof body.role === "string" ? body.role : "ANY";
+
+  if (itemIds.length === 0) return res.status(400).json({ error: "No item IDs provided" });
+  if (!supplierId) return res.status(400).json({ error: "supplierId is required" });
+
+  const [supplier, items] = await Promise.all([
+    prisma.supplier.findFirst({ where: { id: supplierId, workspaceId }, select: { id: true, name: true } }),
+    prisma.item.findMany({ where: { id: { in: itemIds }, workspaceId }, select: { id: true, name: true } }),
+  ]);
+
+  if (!supplier) return res.status(404).json({ error: "Supplier not found" });
+
+  const foundIds = new Set(items.map((i) => i.id));
+  const itemMap = new Map(items.map((i) => [i.id, i]));
+  let removed = 0; let skipped = 0;
+  const skippedItems: Array<{ itemId: string; itemName: string; reason: string }> = [];
+
+  for (const itemId of itemIds) {
+    if (!foundIds.has(itemId)) { skipped++; skippedItems.push({ itemId, itemName: "Unknown", reason: "Item not found" }); continue; }
+    const item = itemMap.get(itemId)!;
+    const result = await prisma.itemSupplier.deleteMany({
+      where: {
+        itemId,
+        supplierId,
+        workspaceId,
+        ...(roleFilter !== "ANY" ? { role: roleFilter as ItemSupplierRole } : {}),
+      },
+    });
+    if (result.count === 0) {
+      skipped++;
+      skippedItems.push({ itemId, itemName: item.name, reason: "Mapping not found" });
+    } else {
+      removed += result.count;
+    }
+  }
+
+  await logAction({
+    userId: req.user!.userId,
+    workspaceId,
+    action: "BULK_REMOVE_SUPPLIER",
+    entity: "Item",
+    entityId: supplierId,
+    meta: { supplierId, supplierName: supplier.name, role: roleFilter, removed, skipped },
+  });
+
+  return res.json({ total: itemIds.length, removed, skipped, skippedItems });
+}));
+
+itemsRouter.get("/:id/suppliers", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), asyncHandler(async (req, res) => {
+  const workspaceId = getWorkspaceId(req);
+  if (!workspaceId) return res.status(403).json({ error: "Workspace access required" });
+
+  const item = await prisma.item.findFirst({ where: { id: req.params.id, workspaceId }, select: { id: true } });
+  if (!item) return res.status(404).json({ error: "Item not found" });
+
+  const mappings = await prisma.itemSupplier.findMany({
+    where: { itemId: item.id, workspaceId },
+    include: supplierMappingInclude,
+    orderBy: [{ role: "asc" }, { createdAt: "asc" }],
+  });
+
+  return res.json({ suppliers: mappings.map(mapItemSupplier) });
+}));
+
+itemsRouter.patch("/:id/suppliers", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
+  const workspaceId = getWorkspaceId(req);
+  if (!workspaceId) return res.status(403).json({ error: "Workspace access required" });
+
+  const item = await prisma.item.findFirst({ where: { id: req.params.id, workspaceId }, select: { id: true, name: true } });
+  if (!item) return res.status(404).json({ error: "Item not found" });
+
+  const body = req.body as { mappings?: unknown };
+  if (!Array.isArray(body.mappings)) return res.status(400).json({ error: "mappings array is required" });
+
+  const mappings = body.mappings as Array<{
+    supplierId?: unknown;
+    role?: unknown;
+    supplierItemCode?: unknown;
+    preferredPurchaseUnit?: unknown;
+    minimumOrderQuantity?: unknown;
+  }>;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.itemSupplier.deleteMany({ where: { itemId: item.id, workspaceId } });
+    for (const m of mappings) {
+      if (typeof m.supplierId !== "string") continue;
+      const supplier = await tx.supplier.findFirst({ where: { id: m.supplierId, workspaceId }, select: { id: true } });
+      if (!supplier) continue;
+      const role = m.role === "ALTERNATE" ? ItemSupplierRole.ALTERNATE : ItemSupplierRole.PRIMARY;
+      await tx.itemSupplier.create({
+        data: {
+          id: crypto.randomUUID(),
+          workspaceId,
+          itemId: item.id,
+          supplierId: m.supplierId,
+          role,
+          supplierItemCode: typeof m.supplierItemCode === "string" ? m.supplierItemCode : null,
+          preferredPurchaseUnit: typeof m.preferredPurchaseUnit === "string" ? m.preferredPurchaseUnit : null,
+          minimumOrderQuantity: typeof m.minimumOrderQuantity === "number" ? m.minimumOrderQuantity : null,
+        },
+      });
+    }
+  });
+
+  await logAction({
+    userId: req.user!.userId,
+    workspaceId,
+    action: "UPDATE_ITEM_SUPPLIERS",
+    entity: "Item",
+    entityId: item.id,
+    meta: { itemName: item.name, mappingCount: mappings.length },
+  });
+
+  const updated = await prisma.itemSupplier.findMany({
+    where: { itemId: item.id, workspaceId },
+    include: supplierMappingInclude,
+    orderBy: [{ role: "asc" }, { createdAt: "asc" }],
+  });
+
+  return res.json({ suppliers: updated.map(mapItemSupplier) });
+}));
+
+// ── End Supplier Mapping Routes ────────────────────────────────────────────
 
 itemsRouter.get("/:id/batches-detail", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), asyncHandler(async (req, res) => {
   const workspaceId = getWorkspaceId(req);

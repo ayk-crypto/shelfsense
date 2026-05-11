@@ -122,6 +122,11 @@ enum EmailLogStatus {
   FAILED
 }
 
+enum ItemSupplierRole {
+  PRIMARY
+  ALTERNATE
+}
+
 enum AnnouncementSeverity {
   INFO
   SUCCESS
@@ -282,6 +287,7 @@ model Workspace {
   stockMovements                 StockMovement[]
   suppliers                      Supplier[]
   purchases                      Purchase[]
+  itemSuppliers                  ItemSupplier[]
   auditLogs                      AuditLog[]
   notifications                  Notification[]
   customRoles                    CustomRole[]
@@ -416,6 +422,7 @@ model Item {
   stockMovements           StockMovement[]
   purchaseItems            PurchaseItem[]
   stockCountItems          StockCountItem[]
+  itemSuppliers            ItemSupplier[]
 
   @@index([workspaceId])
   @@index([workspaceId, isActive])
@@ -539,7 +546,8 @@ model Supplier {
   updatedAt   DateTime     @updatedAt
   workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   purchases   Purchase[]
-  stockBatches StockBatch[]
+  stockBatches   StockBatch[]
+  itemSuppliers  ItemSupplier[]
 
   @@index([workspaceId])
 }
@@ -589,6 +597,30 @@ model PurchaseItem {
 
   @@index([purchaseId])
   @@index([itemId])
+}
+
+model ItemSupplier {
+  id                    String           @id @default(uuid()) @db.Uuid
+  workspaceId           String           @db.Uuid
+  itemId                String           @db.Uuid
+  supplierId            String           @db.Uuid
+  role                  ItemSupplierRole @default(PRIMARY)
+  supplierItemCode      String?
+  preferredPurchaseUnit String?
+  lastPurchasePrice     Float?
+  lastPurchaseDate      DateTime?
+  minimumOrderQuantity  Float?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  workspace             Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  item                  Item             @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  supplier              Supplier         @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, supplierId, role])
+  @@index([workspaceId])
+  @@index([itemId])
+  @@index([supplierId])
+  @@index([workspaceId, role])
 }
 
 model AdminAuditLog {

@@ -1580,3 +1580,61 @@ export interface WorkspaceLifecycleLog {
   createdAt: string;
   admin: { id: string; name: string; email: string };
 }
+
+export type ItemSupplierRole = "PRIMARY" | "ALTERNATE";
+
+export interface ItemSupplierMapping {
+  id: string;
+  supplierId: string;
+  supplierName: string;
+  role: ItemSupplierRole;
+  supplierItemCode: string | null;
+  preferredPurchaseUnit: string | null;
+  lastPurchasePrice: number | null;
+  lastPurchaseDate: string | null;
+  minimumOrderQuantity: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ItemSupplierInfo {
+  itemId: string;
+  itemName: string;
+  category: string | null;
+  primary: ItemSupplierMapping | null;
+  alternates: ItemSupplierMapping[];
+}
+
+export interface SupplierMappingsResponse {
+  items: ItemSupplierInfo[];
+}
+
+export interface BulkAssignSupplierRequest {
+  itemIds: string[];
+  supplierId: string;
+  role: ItemSupplierRole;
+  replaceExistingPrimary?: boolean;
+  convertOldPrimaryToAlternate?: boolean;
+}
+
+export interface BulkAssignSupplierResponse {
+  total: number;
+  assigned: number;
+  skipped: number;
+  failed: number;
+  skippedItems: Array<{ itemId: string; itemName: string; reason: string }>;
+  failedItems: Array<{ itemId: string; itemName: string; reason: string }>;
+}
+
+export interface BulkRemoveSupplierRequest {
+  itemIds: string[];
+  supplierId: string;
+  role: ItemSupplierRole | "ANY";
+}
+
+export interface BulkRemoveSupplierResponse {
+  total: number;
+  removed: number;
+  skipped: number;
+  skippedItems: Array<{ itemId: string; itemName: string; reason: string }>;
+}

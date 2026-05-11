@@ -1,0 +1,523 @@
+You are working on ShelfSense. We need to add a practical supplier-to-item mapping feature so purchase orders can be generated supplier-wise without manually selecting a supplier for every item each time.
+
+Current issue:
+
+* Inventory items already exist, for example Salted Grills has around 148 items.
+* Suppliers also already exist in the Suppliers module.
+* Currently, while creating a purchase order, the system asks to select/add supplier individually for each item.
+* This is not practical for real restaurant operations.
+* We need a bulk supplier assignment feature so existing items can be mapped quickly.
+
+Goal:
+Build **Supplier–Item Mapping** with **Bulk Supplier Assignment**, and prepare the foundation for future low-stock purchase suggestions grouped by supplier.
+
+---
+
+## 1. Data model requirement
+
+Please inspect the existing database schema first.
+
+We need to support this relationship:
+
+* One item can have one primary supplier.
+* One item can have multiple alternate suppliers.
+* One supplier can be linked with many items.
+
+Recommended structure:
+
+Create a new join table/model if it does not already exist.
+
+Suggested model name:
+
+`ItemSupplier`
+
+Suggested fields:
+
+* `id`
+* `workspaceId`
+* `itemId`
+* `supplierId`
+* `role` enum/string: `PRIMARY` or `ALTERNATE`
+* `supplierItemCode` nullable string
+* `preferredPurchaseUnit` nullable string
+* `lastPurchasePrice` nullable decimal
+* `lastPurchaseDate` nullable datetime
+* `minimumOrderQuantity` nullable decimal
+* `isActive` boolean default true
+* `createdAt`
+* `updatedAt`
+
+Important constraints:
+
+* Ensure tenant/workspace isolation using `workspaceId`.
+* Prevent duplicate active mappings for the same `itemId + supplierId + role`.
+* An item should have only one active `PRIMARY` supplier at a time.
+* An item may have multiple `ALTERNATE` suppliers.
+* If assigning a new primary supplier with “replace existing primary” enabled, the old primary mapping should either be deactivated or changed to alternate based on the cleanest approach for the current codebase.
+
+Please use the existing project style, naming conventions, Prisma models, routes, validation patterns, audit logging patterns, and permission middleware.
+
+---
+
+## 2. Backend API requirements
+
+Add backend endpoints for supplier-item mapping.
+
+Please inspect existing route structure first and follow the same style.
+
+Required endpoints:
+
+### A. Get supplier mappings for items
+
+Endpoint example:
+
+`GET /api/items/supplier-mappings`
+
+It should support filters:
+
+* `supplierId`
+* `itemId`
+* `role`
+* `hasSupplier=true/false`
+* `categoryId`
+* `search`
+
+Purpose:
+Used by the inventory screen to show which items already have supplier mapping and which do not.
+
+Response should include:
+
+* item id
+* item name
+* item category
+* primary supplier if available
+* alternate suppliers if available
+* mapping status
+
+---
+
+### B. Bulk assign supplier to items
+
+Endpoint example:
+
+`POST /api/items/bulk-assign-supplier`
+
+Request body:
+
+```json
+{
+  "itemIds": ["item-id-1", "item-id-2"],
+  "supplierId": "supplier-id",
+  "role": "PRIMARY",
+  "replaceExistingPrimary": true,
+  "convertOldPrimaryToAlternate": false
+}
+```
+
+Expected behavior:
+
+* Validate all item IDs belong to the current workspace.
+* Validate supplier belongs to the current workspace.
+* If role is `PRIMARY`:
+
+  * If item has no primary supplier, add this supplier as primary.
+  * If item already has a primary supplier and `replaceExistingPrimary=true`, replace it.
+  * If item already has a primary supplier and `replaceExistingPrimary=false`, skip that item and return it in a skipped list.
+* If role is `ALTERNATE`:
+
+  * Add supplier as alternate if not already linked.
+  * Do not remove or replace primary supplier.
+* Prevent duplicates.
+* Return a clear summary:
+
+  * total selected
+  * assigned count
+  * skipped count
+  * failed count
+  * skipped items with reason
+  * failed items with reason
+
+Example response:
+
+```json
+{
+  "total": 10,
+  "assigned": 8,
+  "skipped": 2,
+  "failed": 0,
+  "skippedItems": [
+    {
+      "itemId": "abc",
+      "itemName": "Mozzarella Cheese",
+      "reason": "Primary supplier already exists"
+    }
+  ],
+  "failedItems": []
+}
+```
+
+---
+
+### C. Remove supplier mapping from selected items
+
+Endpoint example:
+
+`POST /api/items/bulk-remove-supplier`
+
+Request body:
+
+```json
+{
+  "itemIds": ["item-id-1", "item-id-2"],
+  "supplierId": "supplier-id",
+  "role": "PRIMARY"
+}
+```
+
+Behavior:
+
+* Remove/deactivate the selected supplier mapping from selected items.
+* Follow existing soft-delete or hard-delete convention of the project.
+
+---
+
+### D. Single item supplier settings
+
+Endpoint examples:
+
+`GET /api/items/:id/suppliers`
+
+`PUT /api/items/:id/suppliers`
+
+Purpose:
+On item edit/details screen, user should be able to manage supplier settings manually for one item.
+
+Single item settings should allow:
+
+* Set primary supplier
+* Add alternate suppliers
+* Remove alternate suppliers
+* View last purchase price/date if available
+
+---
+
+## 3. Frontend UI requirements
+
+Add supplier mapping functionality in the Inventory / Items module.
+
+### A. Inventory list changes
+
+On the inventory/items list screen:
+
+Add:
+
+* checkbox per row/card
+* select all visible items
+* bulk action bar when items are selected
+
+Bulk action bar should show:
+
+`10 selected | Assign Supplier | Remove Supplier | Clear Selection`
+
+The UI should be responsive:
+
+* On desktop: checkboxes in table/list rows.
+* On mobile: selection mode on item cards.
+
+---
+
+### B. Filters
+
+Add filters to help map existing 148 items quickly:
+
+* Search item
+* Category
+* Supplier mapping status:
+
+  * All
+  * Has supplier
+  * No supplier
+* Primary supplier
+* Stock status if already available:
+
+  * In stock
+  * Low stock
+  * Out of stock
+
+Most important filter:
+
+`No supplier`
+
+This lets the user quickly find all unmapped items.
+
+---
+
+### C. Assign Supplier modal
+
+When clicking **Assign Supplier**, open a modal.
+
+Modal fields:
+
+1. Supplier dropdown
+
+   * Searchable if possible.
+   * Show supplier name.
+   * Only show active suppliers.
+
+2. Supplier role
+   Options:
+
+   * Primary Supplier
+   * Alternate Supplier
+
+3. Replacement behavior
+   Only visible when role is Primary:
+
+   * Checkbox: `Replace existing primary supplier where already assigned`
+   * Optional checkbox: `Move existing primary supplier to alternate supplier`
+
+4. Summary text
+   Example:
+   `You are assigning "ABC Chicken Supplier" as Primary Supplier for 10 selected items.`
+
+5. Confirm button:
+   `Assign Supplier`
+
+6. Cancel button
+
+After confirmation:
+
+* Show success toast with assigned/skipped summary.
+* Refresh inventory list/mapping status.
+* Keep failed/skipped details accessible, either in modal or toast details.
+
+---
+
+### D. Remove Supplier modal
+
+When clicking **Remove Supplier**, open a modal.
+
+Fields:
+
+* Supplier dropdown
+* Role dropdown:
+
+  * Primary
+  * Alternate
+  * Any role
+* Confirmation message
+
+After confirmation:
+
+* Remove/deactivate mapping.
+* Show summary toast.
+
+---
+
+### E. Supplier mapping display on item row/card
+
+Each item should show supplier status clearly.
+
+Example:
+
+For mapped item:
+
+`Primary: ABC Chicken Supplier`
+
+If alternates exist:
+
+`Alternates: Metro, Imtiaz`
+
+For unmapped item:
+
+`No supplier mapped`
+
+Use a subtle warning/status pill for unmapped items.
+
+---
+
+### F. Item detail/edit screen
+
+Add a section:
+
+`Supplier Settings`
+
+Fields:
+
+* Primary supplier
+* Alternate suppliers
+* Preferred purchase unit
+* Supplier item code
+* Last purchase price/date read-only if available
+
+This is not the main priority, but include it if it fits cleanly without disturbing existing flows. Bulk assignment is the priority.
+
+---
+
+## 4. Purchase Order behavior changes
+
+After supplier mapping is available, update purchase order flow carefully.
+
+Current problem:
+The PO process asks supplier individually for each item.
+
+New behavior should be:
+
+### A. Supplier-first PO creation
+
+When creating a manual PO:
+
+* User selects supplier once at PO header level.
+* Item dropdown/search should show items linked to that supplier first.
+* Add a toggle or link:
+  `Show all items`
+* If user selects an item not linked to the selected supplier, show warning:
+  `This item is not mapped to the selected supplier. You can still add it for this PO, or map it for future use.`
+
+### B. Low-stock purchase suggestion foundation
+
+Prepare the backend/frontend structure for future purchase suggestions grouped by supplier.
+
+Not mandatory to fully implement auto-generation now unless the existing low-stock logic already exists.
+
+Expected future behavior:
+
+* System identifies low-stock items.
+* Groups them by primary supplier.
+* User can generate separate POs supplier-wise.
+
+For now, at minimum:
+
+* Ensure item-supplier mapping can support this future grouped PO flow.
+* Do not break current PO creation.
+
+---
+
+## 5. Dashboard / admin improvement
+
+Add a small inventory insight card if dashboard structure allows:
+
+`Items Without Supplier Mapping`
+
+Example:
+`37 items need supplier mapping`
+
+Clicking the card should open inventory list with `No supplier` filter applied.
+
+This will help users clean up supplier mapping gradually.
+
+---
+
+## 6. Permissions and tenant isolation
+
+Very important:
+
+* Supplier-item mapping must be workspace scoped.
+* A user from one workspace must never access or assign suppliers/items from another workspace.
+* Follow existing role/permission system.
+* Only authorized roles should perform bulk supplier assignment.
+* Read-only users should not be able to modify mapping.
+
+Suggested permission:
+
+* Users who can manage inventory or purchase orders should be able to assign suppliers.
+* If project has admin/manager roles, restrict write actions to those roles.
+
+---
+
+## 7. Audit logging
+
+If audit logging exists, log these actions:
+
+* Bulk supplier assignment
+* Bulk supplier removal
+* Single item supplier update
+* Primary supplier replacement
+
+Audit log should include:
+
+* workspaceId
+* userId
+* action name
+* supplierId
+* affected item count
+* itemIds if reasonable
+* timestamp
+
+---
+
+## 8. Validation and edge cases
+
+Handle these cases cleanly:
+
+* No items selected
+* Supplier not selected
+* Supplier inactive
+* Item belongs to another workspace
+* Supplier belongs to another workspace
+* Duplicate mapping already exists
+* Primary supplier already exists and replace is not enabled
+* Trying to assign inactive/deleted item
+* Network/API failure
+* Partial success during bulk assignment
+
+The UI should not fail silently.
+
+---
+
+## 9. Migration and production safety
+
+Please create proper Prisma migration files. Do not rely only on `prisma db push`.
+
+Migration should be production-safe and idempotent where possible.
+
+After changes:
+
+* Run typecheck/build.
+* Run Prisma generate.
+* Ensure migration applies cleanly.
+* Do not break existing production data.
+* Existing items should remain unchanged until mapping is assigned.
+
+---
+
+## 10. Testing checklist
+
+Please test or add tests for:
+
+### Backend
+
+* Bulk assign primary supplier to items with no supplier.
+* Bulk assign alternate supplier.
+* Replace existing primary supplier.
+* Skip existing primary supplier when replacement is false.
+* Prevent cross-workspace item/supplier assignment.
+* Prevent duplicate mapping.
+* Remove supplier mapping.
+* Get item supplier mapping list with `No supplier` filter.
+
+### Frontend
+
+* Select multiple inventory items.
+* Select all visible items.
+* Assign supplier modal works.
+* Replace primary checkbox works.
+* No supplier filter works.
+* Supplier mapping status appears on item rows/cards.
+* PO item selection prioritizes selected supplier’s mapped items.
+* Mobile responsiveness is acceptable.
+
+---
+
+## 11. Expected result
+
+After this change:
+
+* Salted Grills can map suppliers to 148 existing items quickly.
+* User can filter items by category or no supplier.
+* User can select 10, 20, or more items and assign one supplier in bulk.
+* Purchase order creation becomes supplier-wise instead of item-by-item supplier selection.
+* ShelfSense becomes more practical for real restaurant procurement operations.
+* Future low-stock purchase suggestions can be generated supplier-wise.
+
+Please implement this carefully in small, safe commits and keep the existing purchase order flow working during the transition.

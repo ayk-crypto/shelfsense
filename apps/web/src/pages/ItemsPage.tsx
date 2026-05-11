@@ -4,12 +4,14 @@ import { ConfirmModal } from "../components/ConfirmModal";
 import type { ConfirmOptions } from "../components/ConfirmModal";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { archiveItem, createItem, deleteItemPermanently, getItems, reactivateItem, updateItem } from "../api/items";
+import { buildSupplierMappingMap, bulkAssignSupplier, bulkRemoveSupplier, getItemSuppliers, getSupplierMappings, putItemSuppliers } from "../api/item-suppliers";
+import { getSuppliers } from "../api/suppliers";
 import { addOpeningStock, getStockMovements, getStockSummary, stockIn, stockOut, stockTransfer } from "../api/stock";
 import { useAuth } from "../context/AuthContext";
 import { hasPermission } from "../utils/permissions";
 import { useLocation } from "../context/LocationContext";
 import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
-import type { CreateItemInput, Item, Location, StockMovement, StockSummaryItem } from "../types";
+import type { BulkAssignSupplierRequest, CreateItemInput, Item, ItemSupplierInfo, ItemSupplierMapping, Location, StockMovement, StockSummaryItem, Supplier } from "../types";
 import { formatCurrency } from "../utils/currency";
 import { DEFAULT_CATEGORY_OPTIONS, DEFAULT_UNIT_OPTIONS } from "../utils/inventoryDefaults";
 import { getSuggestedReorderQuantity } from "../utils/reorder";
@@ -41,6 +43,7 @@ type BarcodeLabelPresetId = "small" | "medium" | "large";
 type BarcodeLabelTemplateId = "barcode-only" | "name" | "name-details";
 type ItemStatusFilter = "all" | "ok" | "low" | "expiring" | "expired" | "archived";
 type ItemSortKey = "name" | "stock-asc" | "stock-desc" | "value-desc" | "recent";
+type SupplierFilter = "all" | "has_supplier" | "no_supplier";
 
 const BARCODE_LABEL_PRESET_STORAGE_KEY = "shelfsense.barcodeLabelPreset";
 const BARCODE_LABEL_TEMPLATE_STORAGE_KEY = "shelfsense.barcodeLabelTemplate";
@@ -146,6 +149,12 @@ export function ItemsPage() {
   const [openActionMenuItemId, setOpenActionMenuItemId] = useState<string | null>(null);
   const [pendingCommandAction, setPendingCommandAction] = useState<"stock-in" | "transfer" | null>(null);
   const inventorySearchRef = useRef<HTMLInputElement>(null);
+  const [supplierFilter, setSupplierFilter] = useState<SupplierFilter>("all");
+  const [supplierMappingMap, setSupplierMappingMap] = useState<Map<string, ItemSupplierInfo>>(new Map());
+  const [suppliersList, setSuppliersList] = useState<Supplier[]>([]);
+  const [assignSupplierOpen, setAssignSupplierOpen] = useState(false);
+  const [removeSupplierOpen, setRemoveSupplierOpen] = useState(false);
+  const [manageSuppliersItem, setManageSuppliersItem] = useState<Item | null>(null);
   const selectedCount = selectedItemIds.size;
   const usageMap = useMemo(
     () => new Map(getUsageInsights(usageMovements).map((usage) => [usage.itemId, usage])),
@@ -178,7 +187,14 @@ export function ItemsPage() {
         (statusFilter === "expiring" && status.label === "Expiring" && item.isActive) ||
         (statusFilter === "expired" && status.label === "Expired" && item.isActive) ||
         (statusFilter === "ok" && status.label === "OK" && item.isActive);
-      return matchesSearch && matchesCategory && matchesStatus;
+      const mappingInfo = supplierMappingMap.get(item.id);
+      const hasSupplierMapping =
+        (mappingInfo?.primary != null) || (mappingInfo?.alternates?.length ?? 0) > 0;
+      const matchesSupplier =
+        supplierFilter === "all" ||
+        (supplierFilter === "has_supplier" && hasSupplierMapping) ||
+        (supplierFilter === "no_supplier" && !hasSupplierMapping);
+      return matchesSearch && matchesCategory && matchesStatus && matchesSupplier;
     });
 
     return filtered.sort((a, b) => {
@@ -190,7 +206,7 @@ export function ItemsPage() {
       if (sortBy === "recent") return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       return a.name.localeCompare(b.name);
     });
-  }, [items, summaryMap, settings.expiryAlertDays, searchTerm, categoryFilter, statusFilter, sortBy]);
+  }, [items, summaryMap, settings.expiryAlertDays, searchTerm, categoryFilter, statusFilter, sortBy, supplierFilter, supplierMappingMap]);
   const hasBarcodes = useMemo(() => filteredItems.some((item) => item.barcode), [filteredItems]);
   const visibleItemIds = useMemo(() => filteredItems.map((item) => item.id), [filteredItems]);
   const allVisibleSelected =
@@ -287,6 +303,11 @@ export function ItemsPage() {
     } finally {
       setLoading(false);
     }
+    try {
+      const [mappingsRes, suppliersRes] = await Promise.all([getSupplierMappings(), getSuppliers()]);
+      setSupplierMappingMap(buildSupplierMappingMap(mappingsRes.items));
+      setSuppliersList(suppliersRes.suppliers);
+    } catch { /* non-blocking */ }
   }
 
   useEffect(() => { void loadAll(); }, [canManageStock, activeLocationId, showArchived]);
@@ -543,6 +564,16 @@ export function ItemsPage() {
           </select>
           <select
             className="form-select"
+            value={supplierFilter}
+            onChange={(e) => setSupplierFilter(e.target.value as SupplierFilter)}
+            aria-label="Filter by supplier mapping"
+          >
+            <option value="all">All suppliers</option>
+            <option value="has_supplier">Has supplier</option>
+            <option value="no_supplier">No supplier</option>
+          </select>
+          <select
+            className="form-select"
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as ItemSortKey)}
             aria-label="Sort inventory items"
@@ -566,7 +597,7 @@ export function ItemsPage() {
               {showArchived ? "Hide archived" : "Show archived"}
             </button>
           )}
-          {(searchTerm || categoryFilter !== "all" || statusFilter !== "all" || sortBy !== "name") && (
+          {(searchTerm || categoryFilter !== "all" || statusFilter !== "all" || sortBy !== "name" || supplierFilter !== "all") && (
             <button
               className="btn btn--ghost"
               onClick={() => {
@@ -574,6 +605,7 @@ export function ItemsPage() {
                 setCategoryFilter("all");
                 setStatusFilter("all");
                 setSortBy("name");
+                setSupplierFilter("all");
                 setPendingCommandAction(null);
                 setSearchParams(new URLSearchParams(), { replace: true });
               }}
@@ -629,6 +661,8 @@ export function ItemsPage() {
           onApplyUnit={() => { void applyBulkUpdate(`Update unit to ${bulkUnit}`, { unit: bulkUnit }); }}
           onEnableExpiry={() => { void applyBulkUpdate("Enable expiry tracking", { trackExpiry: true }); }}
           onDisableExpiry={() => { void applyBulkUpdate("Disable expiry tracking", { trackExpiry: false }); }}
+          onAssignSupplier={() => setAssignSupplierOpen(true)}
+          onRemoveSupplier={() => setRemoveSupplierOpen(true)}
         />
       )}
 
@@ -721,6 +755,24 @@ export function ItemsPage() {
                           </span>
                           {item.sku && <span className="item-sku-label">SKU {item.sku}</span>}
                         </span>
+                        {(() => {
+                          const mapping = supplierMappingMap.get(item.id);
+                          if (!mapping) return null;
+                          return (
+                            <span className="item-supplier-row">
+                              {mapping.primary && (
+                                <span className="item-supplier-tag item-supplier-tag--primary" title={`Primary supplier: ${mapping.primary.supplierName}`}>
+                                  {mapping.primary.supplierName}
+                                </span>
+                              )}
+                              {mapping.alternates.map((a) => (
+                                <span key={a.id} className="item-supplier-tag item-supplier-tag--alternate" title={`Alternate: ${a.supplierName}`}>
+                                  {a.supplierName}
+                                </span>
+                              ))}
+                            </span>
+                          );
+                        })()}
                         {s?.isLowStock && (
                           <span className="reorder-hint">
                             Suggested reorder:{" "}
@@ -819,6 +871,11 @@ export function ItemsPage() {
                                 Barcode
                               </button>
                               {canManageStock && (
+                                <button className="row-action-menu-item" role="menuitem" onClick={() => { setOpenActionMenuItemId(null); setManageSuppliersItem(item); }}>
+                                  Manage suppliers
+                                </button>
+                              )}
+                              {canManageStock && (
                                 <>
                                   <div className="row-action-menu-divider" />
                                   {item.isActive ? (
@@ -894,6 +951,16 @@ export function ItemsPage() {
                       <span className="item-card-stat">
                         <span className="item-card-stat-label">Barcode</span>
                         <span className="item-card-stat-value">{item.barcode}</span>
+                      </span>
+                    )}
+                    {supplierMappingMap.get(item.id)?.primary && (
+                      <span className="item-card-stat">
+                        <span className="item-card-stat-label">Supplier</span>
+                        <span className="item-card-stat-value">
+                          <span className="item-supplier-tag item-supplier-tag--primary">
+                            {supplierMappingMap.get(item.id)!.primary!.supplierName}
+                          </span>
+                        </span>
                       </span>
                     )}
                     <span className="item-card-stat">
@@ -994,6 +1061,11 @@ export function ItemsPage() {
                           <button className="row-action-menu-item" role="menuitem" onClick={() => { setOpenActionMenuItemId(null); setBarcodeItem(item); }}>
                             Barcode
                           </button>
+                          {canManageStock && (
+                            <button className="row-action-menu-item" role="menuitem" onClick={() => { setOpenActionMenuItemId(null); setManageSuppliersItem(item); }}>
+                              Manage suppliers
+                            </button>
+                          )}
                           {canManageStock && (
                             <>
                               <div className="row-action-menu-divider" />
@@ -1225,6 +1297,47 @@ export function ItemsPage() {
         </div>
       )}
 
+      {assignSupplierOpen && (
+        <BulkAssignSupplierModal
+          selectedItemIds={[...selectedItemIds]}
+          suppliers={suppliersList}
+          onClose={() => setAssignSupplierOpen(false)}
+          onSuccess={(msg) => {
+            setAssignSupplierOpen(false);
+            showToast(msg, "success");
+            void loadAll();
+          }}
+          onError={(msg) => showToast(msg, "error")}
+        />
+      )}
+
+      {removeSupplierOpen && (
+        <BulkRemoveSupplierModal
+          selectedItemIds={[...selectedItemIds]}
+          suppliers={suppliersList}
+          onClose={() => setRemoveSupplierOpen(false)}
+          onSuccess={(msg) => {
+            setRemoveSupplierOpen(false);
+            showToast(msg, "success");
+            void loadAll();
+          }}
+          onError={(msg) => showToast(msg, "error")}
+        />
+      )}
+
+      {manageSuppliersItem && (
+        <ItemSuppliersModal
+          item={manageSuppliersItem}
+          suppliers={suppliersList}
+          onClose={() => setManageSuppliersItem(null)}
+          onSuccess={(msg) => {
+            showToast(msg, "success");
+            void loadAll();
+          }}
+          onError={(msg) => showToast(msg, "error")}
+        />
+      )}
+
       <div className="toast-stack">
         {toasts.map((t) => (
           <div key={t.id} className={`toast toast--${t.type}`}>
@@ -1264,6 +1377,8 @@ function BulkItemsBar({
   onApplyUnit,
   onEnableExpiry,
   onDisableExpiry,
+  onAssignSupplier,
+  onRemoveSupplier,
 }: {
   selectedCount: number;
   allVisibleSelected: boolean;
@@ -1281,6 +1396,8 @@ function BulkItemsBar({
   onApplyUnit: () => void;
   onEnableExpiry: () => void;
   onDisableExpiry: () => void;
+  onAssignSupplier: () => void;
+  onRemoveSupplier: () => void;
 }) {
   return (
     <div className="bulk-actions-bar" aria-live="polite">
@@ -1341,6 +1458,13 @@ function BulkItemsBar({
         </button>
         <button type="button" className="btn btn--sm btn--ghost" disabled={saving} onClick={onDisableExpiry}>
           Disable expiry
+        </button>
+        <div className="bulk-action-divider" />
+        <button type="button" className="btn btn--sm btn--ghost" disabled={saving} onClick={onAssignSupplier} title="Assign a supplier to selected items">
+          Assign supplier
+        </button>
+        <button type="button" className="btn btn--sm btn--ghost" disabled={saving} onClick={onRemoveSupplier} title="Remove a supplier from selected items">
+          Remove supplier
         </button>
         <button type="button" className="btn btn--sm btn--secondary" disabled={saving} onClick={onClear}>
           Clear
@@ -3353,6 +3477,350 @@ function ScannerLoadingOverlay() {
         <p className="scanner-loading-text">Loading scanner…</p>
       </div>
     </div>
+  );
+}
+
+// ── Supplier Modal Components ──────────────────────────────────────────────
+
+function SupplierModalShell({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
+  return (
+    <div className="sm-modal-overlay" onClick={onClose}>
+      <div className="sm-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+        <div className="sm-modal-header">
+          <h2 className="sm-modal-title">{title}</h2>
+          <button type="button" className="sm-modal-close" onClick={onClose} aria-label="Close">
+            <svg viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"/></svg>
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function BulkAssignSupplierModal({
+  selectedItemIds,
+  suppliers,
+  onClose,
+  onSuccess,
+  onError,
+}: {
+  selectedItemIds: string[];
+  suppliers: Supplier[];
+  onClose: () => void;
+  onSuccess: (msg: string) => void;
+  onError: (msg: string) => void;
+}) {
+  const [supplierId, setSupplierId] = useState(suppliers[0]?.id ?? "");
+  const [role, setRole] = useState<"PRIMARY" | "ALTERNATE">("PRIMARY");
+  const [replaceExisting, setReplaceExisting] = useState(true);
+  const [convertOld, setConvertOld] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [result, setResult] = useState<{ assigned: number; skipped: number; failed: number } | null>(null);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!supplierId) return;
+    setSaving(true);
+    try {
+      const res = await bulkAssignSupplier({
+        itemIds: selectedItemIds,
+        supplierId,
+        role,
+        replaceExistingPrimary: replaceExisting,
+        convertOldPrimaryToAlternate: convertOld,
+      });
+      setResult({ assigned: res.assigned, skipped: res.skipped, failed: res.failed });
+      if (res.assigned > 0) {
+        onSuccess(`Assigned supplier to ${res.assigned} item${res.assigned === 1 ? "" : "s"}${res.skipped > 0 ? ` (${res.skipped} skipped)` : ""}`);
+      } else {
+        setResult(res);
+      }
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Failed to assign supplier");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (suppliers.length === 0) {
+    return (
+      <SupplierModalShell title="Assign Supplier" onClose={onClose}>
+        <div className="sm-modal-body">
+          <p className="sm-empty">No suppliers found. Add suppliers first before assigning them to items.</p>
+        </div>
+        <div className="sm-modal-footer">
+          <button type="button" className="btn btn--secondary" onClick={onClose}>Close</button>
+        </div>
+      </SupplierModalShell>
+    );
+  }
+
+  return (
+    <SupplierModalShell title={`Assign Supplier — ${selectedItemIds.length} item${selectedItemIds.length === 1 ? "" : "s"}`} onClose={onClose}>
+      <form onSubmit={(e) => { void handleSubmit(e); }}>
+        <div className="sm-modal-body">
+          <div className="sm-form-row">
+            <div className="sm-form-group">
+              <label className="sm-form-label" htmlFor="bulk-assign-supplier">Supplier</label>
+              <select
+                id="bulk-assign-supplier"
+                className="form-select"
+                value={supplierId}
+                onChange={(e) => setSupplierId(e.target.value)}
+                required
+              >
+                {suppliers.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="sm-form-group">
+              <label className="sm-form-label" htmlFor="bulk-assign-role">Role</label>
+              <select
+                id="bulk-assign-role"
+                className="form-select"
+                value={role}
+                onChange={(e) => setRole(e.target.value as "PRIMARY" | "ALTERNATE")}
+              >
+                <option value="PRIMARY">Primary</option>
+                <option value="ALTERNATE">Alternate</option>
+              </select>
+            </div>
+          </div>
+          {role === "PRIMARY" && (
+            <>
+              <label className="form-checkbox-row" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, cursor: "pointer" }}>
+                <input type="checkbox" checked={replaceExisting} onChange={(e) => setReplaceExisting(e.target.checked)} />
+                <span className="sm-form-label" style={{ margin: 0 }}>Replace existing primary supplier</span>
+              </label>
+              {replaceExisting && (
+                <label className="form-checkbox-row" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, cursor: "pointer" }}>
+                  <input type="checkbox" checked={convertOld} onChange={(e) => setConvertOld(e.target.checked)} />
+                  <span className="sm-form-label" style={{ margin: 0 }}>Convert old primary to alternate</span>
+                </label>
+              )}
+            </>
+          )}
+          {result && result.assigned === 0 && (
+            <div className={`sm-result-box ${result.failed > 0 ? "sm-result-box--error" : "sm-result-box--warning"}`}>
+              <div className="sm-result-title">No items updated</div>
+              <p>Skipped: {result.skipped} · Failed: {result.failed}</p>
+            </div>
+          )}
+        </div>
+        <div className="sm-modal-footer">
+          <button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button>
+          <button type="submit" className="btn btn--primary" disabled={saving || !supplierId}>
+            {saving ? <><div className="spinner spinner--sm spinner--white" /> Assigning…</> : `Assign to ${selectedItemIds.length} item${selectedItemIds.length === 1 ? "" : "s"}`}
+          </button>
+        </div>
+      </form>
+    </SupplierModalShell>
+  );
+}
+
+function BulkRemoveSupplierModal({
+  selectedItemIds,
+  suppliers,
+  onClose,
+  onSuccess,
+  onError,
+}: {
+  selectedItemIds: string[];
+  suppliers: Supplier[];
+  onClose: () => void;
+  onSuccess: (msg: string) => void;
+  onError: (msg: string) => void;
+}) {
+  const [supplierId, setSupplierId] = useState(suppliers[0]?.id ?? "");
+  const [role, setRole] = useState<"PRIMARY" | "ALTERNATE" | "ANY">("ANY");
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!supplierId) return;
+    setSaving(true);
+    try {
+      const res = await bulkRemoveSupplier({ itemIds: selectedItemIds, supplierId, role });
+      if (res.removed > 0) {
+        onSuccess(`Removed ${res.removed} mapping${res.removed === 1 ? "" : "s"}${res.skipped > 0 ? ` (${res.skipped} had no match)` : ""}`);
+      } else {
+        onError("No supplier mappings found to remove for selected items");
+      }
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Failed to remove supplier");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (suppliers.length === 0) {
+    return (
+      <SupplierModalShell title="Remove Supplier" onClose={onClose}>
+        <div className="sm-modal-body"><p className="sm-empty">No suppliers configured.</p></div>
+        <div className="sm-modal-footer"><button type="button" className="btn btn--secondary" onClick={onClose}>Close</button></div>
+      </SupplierModalShell>
+    );
+  }
+
+  return (
+    <SupplierModalShell title={`Remove Supplier — ${selectedItemIds.length} item${selectedItemIds.length === 1 ? "" : "s"}`} onClose={onClose}>
+      <form onSubmit={(e) => { void handleSubmit(e); }}>
+        <div className="sm-modal-body">
+          <div className="sm-form-row">
+            <div className="sm-form-group">
+              <label className="sm-form-label" htmlFor="bulk-remove-supplier">Supplier</label>
+              <select id="bulk-remove-supplier" className="form-select" value={supplierId} onChange={(e) => setSupplierId(e.target.value)} required>
+                {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </div>
+            <div className="sm-form-group">
+              <label className="sm-form-label" htmlFor="bulk-remove-role">Role to remove</label>
+              <select id="bulk-remove-role" className="form-select" value={role} onChange={(e) => setRole(e.target.value as "PRIMARY" | "ALTERNATE" | "ANY")}>
+                <option value="ANY">Any role</option>
+                <option value="PRIMARY">Primary only</option>
+                <option value="ALTERNATE">Alternate only</option>
+              </select>
+            </div>
+          </div>
+          <p style={{ fontSize: 13, color: "var(--text-secondary, #64748b)" }}>
+            This will remove the selected supplier mapping from all {selectedItemIds.length} selected items.
+          </p>
+        </div>
+        <div className="sm-modal-footer">
+          <button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button>
+          <button type="submit" className="btn btn--danger" disabled={saving || !supplierId}>
+            {saving ? <><div className="spinner spinner--sm spinner--white" /> Removing…</> : "Remove mapping"}
+          </button>
+        </div>
+      </form>
+    </SupplierModalShell>
+  );
+}
+
+function ItemSuppliersModal({
+  item,
+  suppliers,
+  onClose,
+  onSuccess,
+  onError,
+}: {
+  item: Item;
+  suppliers: Supplier[];
+  onClose: () => void;
+  onSuccess: (msg: string) => void;
+  onError: (msg: string) => void;
+}) {
+  const [mappings, setMappings] = useState<ItemSupplierMapping[]>([]);
+  const [loadingMappings, setLoadingMappings] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [addSupplierId, setAddSupplierId] = useState(suppliers[0]?.id ?? "");
+  const [addRole, setAddRole] = useState<"PRIMARY" | "ALTERNATE">("PRIMARY");
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const res = await getItemSuppliers(item.id);
+        if (!cancelled) setMappings(res.suppliers);
+      } catch { /* silent */ }
+      finally { if (!cancelled) setLoadingMappings(false); }
+    }
+    void load();
+    return () => { cancelled = true; };
+  }, [item.id]);
+
+  async function handleSave(newMappings: Array<{ supplierId: string; role: "PRIMARY" | "ALTERNATE" }>) {
+    setSaving(true);
+    try {
+      const res = await putItemSuppliers(item.id, newMappings);
+      setMappings(res.suppliers);
+      onSuccess(`Supplier mappings updated for "${item.name}"`);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Failed to update suppliers");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleRemove(mappingId: string) {
+    const next = mappings.filter((m) => m.id !== mappingId);
+    void handleSave(next.map((m) => ({ supplierId: m.supplierId, role: m.role })));
+  }
+
+  function handleAdd() {
+    if (!addSupplierId) return;
+    const alreadyExists = mappings.some((m) => m.supplierId === addSupplierId && m.role === addRole);
+    if (alreadyExists) {
+      onError(`This supplier is already mapped as ${addRole.toLowerCase()} for this item`);
+      return;
+    }
+    const next = [...mappings.map((m) => ({ supplierId: m.supplierId, role: m.role })), { supplierId: addSupplierId, role: addRole }];
+    void handleSave(next);
+  }
+
+  const usedSupplierIds = new Set(mappings.map((m) => m.supplierId));
+  const availableSuppliers = suppliers.filter((s) => !usedSupplierIds.has(s.id));
+
+  return (
+    <SupplierModalShell title={`Manage Suppliers — ${item.name}`} onClose={onClose}>
+      <div className="sm-modal-body">
+        {loadingMappings ? (
+          <div style={{ textAlign: "center", padding: "24px 0" }}><div className="spinner" /></div>
+        ) : mappings.length === 0 ? (
+          <p className="sm-empty">No suppliers assigned to this item yet.</p>
+        ) : (
+          <div className="sm-mapping-list">
+            {mappings.map((m) => (
+              <div key={m.id} className="sm-mapping-row">
+                <div className="sm-mapping-row-supplier">
+                  <span className="sm-mapping-row-supplier-name">{m.supplierName}</span>
+                  {m.supplierItemCode && <span style={{ fontSize: 11, color: "var(--text-muted, #94a3b8)" }}> · Code: {m.supplierItemCode}</span>}
+                </div>
+                <span className={`item-supplier-tag item-supplier-tag--${m.role === "PRIMARY" ? "primary" : "alternate"}`}>
+                  {m.role === "PRIMARY" ? "Primary" : "Alternate"}
+                </span>
+                <div className="sm-mapping-row-actions">
+                  <button type="button" className="btn btn--sm btn--ghost" disabled={saving} onClick={() => handleRemove(m.id)} title="Remove mapping">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {availableSuppliers.length > 0 && (
+          <>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Add supplier</div>
+            <div className="sm-add-row">
+              <select className="form-select" value={addSupplierId} onChange={(e) => setAddSupplierId(e.target.value)} style={{ flex: 1 }}>
+                {availableSuppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+              <select className="form-select" value={addRole} onChange={(e) => setAddRole(e.target.value as "PRIMARY" | "ALTERNATE")} style={{ width: 130 }}>
+                <option value="PRIMARY">Primary</option>
+                <option value="ALTERNATE">Alternate</option>
+              </select>
+              <button type="button" className="btn btn--primary btn--sm" disabled={saving || !addSupplierId} onClick={handleAdd}>
+                {saving ? <div className="spinner spinner--sm spinner--white" /> : "Add"}
+              </button>
+            </div>
+          </>
+        )}
+        {suppliers.length === 0 && (
+          <p className="sm-empty">No suppliers in your workspace. Add suppliers first.</p>
+        )}
+      </div>
+      <div className="sm-modal-footer">
+        <button type="button" className="btn btn--secondary" onClick={onClose}>Done</button>
+      </div>
+    </SupplierModalShell>
   );
 }
 

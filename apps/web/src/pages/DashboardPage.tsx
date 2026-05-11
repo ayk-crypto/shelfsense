@@ -11,6 +11,7 @@ import {
   YAxis,
 } from "recharts";
 import { getAlerts } from "../api/alerts";
+import { getSupplierMappings } from "../api/item-suppliers";
 import { getStockMovements, getStockSummary, getStockTrend } from "../api/stock";
 import { useAuth } from "../context/AuthContext";
 import { hasPermission } from "../utils/permissions";
@@ -116,6 +117,7 @@ export function DashboardPage() {
     wastage: string | null;
     usage: string | null;
   }>({ alerts: null, wastage: null, usage: null });
+  const [unmappedItemsCount, setUnmappedItemsCount] = useState<number | null>(null);
   const [insightTab, setInsightTab] = useState<InsightTab>("usage");
   const [checklistDismissed, setChecklistDismissed] = useState(() => {
     try { return localStorage.getItem("ss_onboarding_dismissed") === "1"; } catch { return false; }
@@ -179,6 +181,7 @@ export function DashboardPage() {
           wastageResWeek,
           wastageResLastWeek,
           usageResult,
+          supplierMappingsResult,
         ] = await Promise.allSettled([
           getStockSummary(),
           getAlerts(),
@@ -186,8 +189,8 @@ export function DashboardPage() {
           getStockMovements({ type: "WASTAGE", fromDate: thisWeekStartStr, toDate: todayStr }),
           getStockMovements({ type: "WASTAGE", fromDate: lastWeekStartStr, toDate: lastWeekEndStr }),
           getStockMovements({ type: "STOCK_OUT", ...usageRange }),
+          getSupplierMappings(),
         ]);
-
         if (summaryResult.status === "fulfilled") {
           setSummary(summaryResult.value.summary);
         } else {
@@ -227,6 +230,12 @@ export function DashboardPage() {
           nextWidgetErrors.usage = usageResult.reason instanceof Error ? usageResult.reason.message : "Failed to load usage data";
         }
 
+        if (supplierMappingsResult.status === "fulfilled") {
+          const unmapped = supplierMappingsResult.value.items.filter(
+            (i) => i.primary === null && i.alternates.length === 0,
+          );
+          setUnmappedItemsCount(unmapped.length);
+        }
         setWidgetErrors(nextWidgetErrors);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load dashboard data");
@@ -393,6 +402,26 @@ export function DashboardPage() {
             )}
           </div>
         </div>
+
+        {unmappedItemsCount !== null && (
+          <>
+            <div className="db-kpi-divider" />
+            <Link
+              to="/items?supplier=no_supplier"
+              className={`db-kpi-item db-kpi-item--link${unmappedItemsCount > 0 ? " db-kpi-item--warn" : ""}`}
+              title="View items with no supplier assigned"
+            >
+              <div className={`db-kpi-icon${unmappedItemsCount > 0 ? " db-kpi-icon--orange" : " db-kpi-icon--gray"}`}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              </div>
+              <div className="db-kpi-body">
+                <span className="db-kpi-label">No Supplier</span>
+                <span className="db-kpi-value">{unmappedItemsCount}</span>
+                {unmappedItemsCount > 0 && <span className="db-kpi-sub">items unmapped</span>}
+              </div>
+            </Link>
+          </>
+        )}
       </div>
 
       {/* ── Onboarding Checklist ── */}
