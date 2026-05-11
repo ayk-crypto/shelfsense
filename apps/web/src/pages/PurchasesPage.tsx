@@ -498,45 +498,219 @@ export function PurchasesPage() {
       )}
 
       {cancelTarget && (
-        <div className="modal-overlay" onClick={() => setCancelTarget(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2 className="modal-title">Cancel Purchase</h2>
-              <button className="modal-close" onClick={() => setCancelTarget(null)} aria-label="Close">×</button>
-            </div>
-            <div className="modal-body">
-              <p style={{ marginBottom: "var(--space-3)" }}>
-                Cancel purchase from <strong>{cancelTarget.supplier.name}</strong>? This cannot be undone.
-              </p>
-              <label className="form-label">Reason (optional)</label>
-              <input
-                className="form-input"
-                type="text"
-                placeholder="e.g. Supplier out of stock"
-                value={cancelReason}
-                onChange={(e) => setCancelReason(e.target.value)}
-                autoFocus
-              />
-            </div>
-            <div className="modal-footer">
-              <button type="button" className="btn btn--ghost" onClick={() => setCancelTarget(null)}>Back</button>
-              <button
-                type="button"
-                className="btn btn--danger"
-                disabled={cancelling}
-                onClick={() => { void confirmCancel(); }}
-              >
-                {cancelling ? "Cancelling..." : "Cancel Purchase"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <CancelPurchaseModal
+          target={cancelTarget}
+          reason={cancelReason}
+          cancelling={cancelling}
+          onReasonChange={setCancelReason}
+          onConfirm={() => { void confirmCancel(); }}
+          onClose={() => setCancelTarget(null)}
+        />
       )}
 
       <div className="toast-stack">
         {toasts.map((toast) => (
           <div key={toast.id} className={`toast toast--${toast.type}`}>{toast.msg}</div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function escHtml(str: string): string {
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function downloadPurchaseOrder(purchase: Purchase, currency: string) {
+  const rows = purchase.purchaseItems.map((line) => `
+    <tr>
+      <td>${escHtml(line.item.name)}</td>
+      <td style="text-align:right">${line.orderedQuantity} ${escHtml(line.item.unit)}</td>
+      <td style="text-align:right">${line.receivedQuantity} ${escHtml(line.item.unit)}</td>
+      <td style="text-align:right">${line.remainingQuantity} ${escHtml(line.item.unit)}</td>
+      <td style="text-align:right">${escHtml(fmt(line.unitCost, currency))}</td>
+      <td style="text-align:right">${escHtml(fmt(line.orderedValue, currency))}</td>
+    </tr>`).join("");
+
+  const datesHtml = [
+    purchase.orderedAt
+      ? `<div class="po-date"><span>Ordered</span><strong>${escHtml(fmtDate(purchase.orderedAt))}</strong></div>`
+      : "",
+    purchase.expectedDeliveryDate
+      ? `<div class="po-date"><span>Expected delivery</span><strong>${escHtml(fmtDate(purchase.expectedDeliveryDate))}</strong></div>`
+      : "",
+    purchase.receivedAt
+      ? `<div class="po-date"><span>Received</span><strong>${escHtml(fmtDate(purchase.receivedAt))}</strong></div>`
+      : "",
+    purchase.cancelledAt
+      ? `<div class="po-date"><span>Cancelled</span><strong>${escHtml(fmtDate(purchase.cancelledAt))}</strong></div>`
+      : "",
+  ].filter(Boolean).join("");
+
+  const statusSlug = purchase.status.toLowerCase().replace(/_/g, "-");
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PO-${escHtml(purchase.id.slice(-8).toUpperCase())}</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#1e293b;background:#fff;padding:48px;font-size:13px;max-width:900px;margin:0 auto}
+  @media print{.no-print{display:none!important}body{padding:24px}}
+  .print-btn{background:#6366f1;color:#fff;border:none;padding:10px 22px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:32px;display:inline-flex;align-items:center;gap:8px}
+  .print-btn:hover{background:#4f46e5}
+  .po-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:36px;padding-bottom:20px;border-bottom:2.5px solid #6366f1;gap:20px}
+  .po-title{font-size:28px;font-weight:800;color:#6366f1;letter-spacing:-0.5px}
+  .po-num{font-size:13px;color:#64748b;margin-top:4px;font-weight:500}
+  .po-meta-right{text-align:right;font-size:13px;color:#64748b;line-height:2}
+  .po-meta-right strong{color:#1e293b;font-weight:600}
+  .po-section{margin-bottom:24px}
+  .po-section-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#94a3b8;margin-bottom:6px}
+  .po-supplier{font-size:17px;font-weight:700;color:#1e293b}
+  .po-badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em}
+  .po-badge--draft{background:#f1f5f9;color:#475569}
+  .po-badge--ordered{background:#eef2ff;color:#4338ca}
+  .po-badge--partially-received{background:#fff7ed;color:#c2410c}
+  .po-badge--received{background:#ecfdf5;color:#047857}
+  .po-badge--cancelled{background:#fef2f2;color:#b91c1c}
+  .po-dates{display:flex;flex-wrap:wrap;gap:20px}
+  .po-date span{display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#94a3b8;margin-bottom:3px}
+  .po-date strong{font-size:13px;font-weight:600;color:#1e293b}
+  .po-box{border:1px solid #e2e8f0;border-radius:10px;overflow:hidden}
+  table{width:100%;border-collapse:collapse}
+  thead{background:#f8fafc}
+  th{padding:10px 14px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:#64748b;border-bottom:1px solid #e2e8f0}
+  th:not(:first-child){text-align:right}
+  td{padding:11px 14px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#1e293b;vertical-align:middle}
+  td:not(:first-child){text-align:right;font-variant-numeric:tabular-nums}
+  tr:last-child td{border-bottom:none}
+  tfoot td{background:#f8fafc;font-weight:700;border-top:2px solid #e2e8f0;font-size:14px;border-bottom:none}
+  .cancel-box{background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px 16px;color:#991b1b;font-size:13px;margin-top:16px}
+  .po-footer-note{margin-top:52px;padding-top:14px;border-top:1px solid #e2e8f0;font-size:11px;color:#94a3b8;text-align:center}
+</style>
+</head>
+<body>
+<div class="no-print">
+  <button class="print-btn" onclick="window.print()">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+    Print / Save as PDF
+  </button>
+</div>
+<div class="po-top">
+  <div>
+    <div class="po-title">Purchase Order</div>
+    <div class="po-num">PO-${escHtml(purchase.id.slice(-8).toUpperCase())}</div>
+  </div>
+  <div class="po-meta-right">
+    <div>Date: <strong>${escHtml(fmtDate(purchase.date))}</strong></div>
+    <div>Branch: <strong>${escHtml(purchase.location.name)}</strong></div>
+    <div>Status: <span class="po-badge po-badge--${statusSlug}">${escHtml(STATUS_LABEL[purchase.status])}</span></div>
+  </div>
+</div>
+
+<div class="po-section">
+  <div class="po-section-lbl">Supplier</div>
+  <div class="po-supplier">${escHtml(purchase.supplier.name)}</div>
+</div>
+
+${datesHtml ? `<div class="po-section">
+  <div class="po-section-lbl">Dates</div>
+  <div class="po-dates">${datesHtml}</div>
+</div>` : ""}
+
+<div class="po-section">
+  <div class="po-section-lbl">Line Items</div>
+  <div class="po-box">
+    <table>
+      <thead>
+        <tr>
+          <th>Item</th>
+          <th>Ordered</th>
+          <th>Received</th>
+          <th>Remaining</th>
+          <th>Unit cost</th>
+          <th>Total value</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+      <tfoot>
+        <tr><td colspan="5">Total ordered value</td><td>${escHtml(fmt(purchase.totalAmount, currency))}</td></tr>
+        <tr><td colspan="5">Total received value</td><td>${escHtml(fmt(purchase.receivedValue, currency))}</td></tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+
+${purchase.cancelReason ? `<div class="cancel-box"><strong>Cancellation reason:</strong> ${escHtml(purchase.cancelReason)}</div>` : ""}
+
+<div class="po-footer-note">Generated by ShelfSense &nbsp;·&nbsp; ${new Date().toLocaleString()}</div>
+</body>
+</html>`;
+
+  const win = window.open("", "_blank");
+  if (win) {
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+  }
+}
+
+function CancelPurchaseModal({
+  target,
+  reason,
+  cancelling,
+  onReasonChange,
+  onConfirm,
+  onClose,
+}: {
+  target: Purchase;
+  reason: string;
+  cancelling: boolean;
+  onReasonChange: (v: string) => void;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2 className="modal-title">Cancel Purchase Order</h2>
+          <button type="button" className="modal-close" onClick={onClose} aria-label="Close">
+            <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"/>
+            </svg>
+          </button>
+        </div>
+        <div className="modal-body">
+          <div className="poc-warning">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span>Cancelling the purchase from <strong>{target.supplier.name}</strong> cannot be undone.</span>
+          </div>
+          <label className="form-group">
+            <span className="form-label">Reason (optional)</span>
+            <input
+              className="form-input"
+              type="text"
+              placeholder="e.g. Supplier out of stock"
+              value={reason}
+              onChange={(e) => onReasonChange(e.target.value)}
+              autoFocus
+            />
+          </label>
+        </div>
+        <div className="modal-footer">
+          <button type="button" className="btn btn--ghost" onClick={onClose}>Back</button>
+          <button type="button" className="btn btn--danger" disabled={cancelling} onClick={onConfirm}>
+            {cancelling ? "Cancelling…" : "Yes, Cancel PO"}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -564,68 +738,187 @@ function PurchaseDetailModal({
   const canOrder = purchase.status === "DRAFT";
   const canReceive = purchase.status === "ORDERED" || purchase.status === "PARTIALLY_RECEIVED";
   const canCancel = purchase.status === "DRAFT" || purchase.status === "ORDERED" || purchase.status === "PARTIALLY_RECEIVED";
+  const receivedPct = purchase.orderedQuantity > 0
+    ? Math.min(100, Math.round((purchase.receivedQuantity / purchase.orderedQuantity) * 100))
+    : 0;
+  const lifecycleDates = [
+    { label: "Ordered", value: purchase.orderedAt },
+    { label: "Expected delivery", value: purchase.expectedDeliveryDate },
+    { label: "Received", value: purchase.receivedAt },
+    { label: "Cancelled", value: purchase.cancelledAt },
+  ].filter((d) => d.value);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal modal--wide" onClick={(event) => event.stopPropagation()}>
-        <div className="modal-header">
-          <div>
-            <h2 className="modal-title">Purchase Details</h2>
-            <p className="modal-subtitle">{purchase.supplier.name} / {fmtDate(purchase.date)}</p>
+      <div className="modal modal--wide pod" onClick={(e) => e.stopPropagation()}>
+
+        {/* ── Header ── */}
+        <div className="pod-head">
+          <div className="pod-head-left">
+            <div className="pod-avatar" aria-hidden="true">
+              {purchase.supplier.name.charAt(0).toUpperCase()}
+            </div>
+            <div className="pod-head-info">
+              <span className="pod-supplier-name">{purchase.supplier.name}</span>
+              <span className="pod-ref">
+                PO-{purchase.id.slice(-8).toUpperCase()}
+                <span className="pod-ref-dot">·</span>
+                {purchase.location.name}
+                <span className="pod-ref-dot">·</span>
+                {fmtDate(purchase.date)}
+              </span>
+            </div>
           </div>
-          <button className="modal-close" onClick={onClose} aria-label="Close">x</button>
-        </div>
-        <div className="modal-body">
-          <div className="purchase-detail-summary">
+          <div className="pod-head-right">
             <StatusBadge status={purchase.status} />
-            <div><span>Ordered</span><strong>{purchase.orderedQuantity}</strong></div>
-            <div><span>Received</span><strong>{purchase.receivedQuantity}</strong></div>
-            <div><span>Remaining</span><strong>{purchase.remainingQuantity}</strong></div>
-            <div><span>Ordered value</span><strong>{fmt(purchase.totalAmount, currency)}</strong></div>
-            <div><span>Received value</span><strong>{fmt(purchase.receivedValue, currency)}</strong></div>
+            <button
+              type="button"
+              className="btn btn--ghost btn--sm pod-dl-btn"
+              onClick={() => downloadPurchaseOrder(purchase, currency)}
+              title="Download / Print PO"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Download PO
+            </button>
+            <button type="button" className="modal-close" onClick={onClose} aria-label="Close">
+              <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* ── Scrollable body ── */}
+        <div className="pod-body">
+
+          {/* KPI strip */}
+          <div className="pod-kpis">
+            <div className="pod-kpi">
+              <span className="pod-kpi-label">Ordered value</span>
+              <span className="pod-kpi-value pod-kpi-value--accent">{fmt(purchase.totalAmount, currency)}</span>
+            </div>
+            <div className="pod-kpi">
+              <span className="pod-kpi-label">Received value</span>
+              <span className="pod-kpi-value">{fmt(purchase.receivedValue, currency)}</span>
+            </div>
+            <div className="pod-kpi">
+              <span className="pod-kpi-label">Ordered qty</span>
+              <span className="pod-kpi-value">{purchase.orderedQuantity}</span>
+            </div>
+            <div className="pod-kpi">
+              <span className="pod-kpi-label">Received qty</span>
+              <span className="pod-kpi-value">{purchase.receivedQuantity}</span>
+            </div>
+            <div className="pod-kpi">
+              <span className="pod-kpi-label">Remaining</span>
+              <span className={`pod-kpi-value${purchase.remainingQuantity > 0 ? " pod-kpi-value--warn" : " pod-kpi-value--ok"}`}>
+                {purchase.remainingQuantity}
+              </span>
+            </div>
           </div>
 
-          <div className="purchase-lifecycle-dates">
-            <span>Ordered: {fmtDate(purchase.orderedAt)}</span>
-            <span>Expected: {fmtDate(purchase.expectedDeliveryDate)}</span>
-            <span>Received: {fmtDate(purchase.receivedAt)}</span>
-            {purchase.cancelledAt && <span>Cancelled: {fmtDate(purchase.cancelledAt)}</span>}
+          {/* Receive progress bar */}
+          {purchase.orderedQuantity > 0 && (
+            <div className="pod-progress-wrap">
+              <div className="pod-progress-track">
+                <div className="pod-progress-fill" style={{ width: `${receivedPct}%` }} />
+              </div>
+              <span className="pod-progress-pct">{receivedPct}% received</span>
+            </div>
+          )}
+
+          {/* Lifecycle dates */}
+          {lifecycleDates.length > 0 && (
+            <div className="pod-dates">
+              {lifecycleDates.map((d) => (
+                <div key={d.label} className="pod-date-cell">
+                  <span className="pod-date-label">{d.label}</span>
+                  <span className="pod-date-value">{fmtDate(d.value)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Cancel reason */}
+          {purchase.cancelReason && (
+            <div className="pod-cancel-alert">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <span><strong>Cancelled:</strong> {purchase.cancelReason}</span>
+            </div>
+          )}
+
+          {/* Line items */}
+          <div className="pod-items-heading">
+            <span>Line items</span>
+            <span className="pod-items-count">{purchase.purchaseItems.length}</span>
           </div>
-
-          {purchase.cancelReason && <div className="alert alert--error">Cancelled: {purchase.cancelReason}</div>}
-
           <div className="table-wrap">
-            <table className="table">
+            <table className="table pod-table">
               <thead>
                 <tr>
                   <th>Item</th>
-                  <th className="text-right">Ordered qty</th>
-                  <th className="text-right">Received qty</th>
+                  <th className="text-right">Ordered</th>
+                  <th className="text-right">Received</th>
                   <th className="text-right">Remaining</th>
-                  <th className="text-right">Est. unit cost</th>
-                  <th className="text-right">Ordered value</th>
+                  <th className="text-right">Unit cost</th>
+                  <th className="text-right">Total</th>
                 </tr>
               </thead>
               <tbody>
                 {purchase.purchaseItems.map((line) => (
                   <tr key={line.id}>
-                    <td className="td-name">{line.item.name} <span className="td-unit">/ {line.item.unit}</span></td>
+                    <td>
+                      <span className="td-name">{line.item.name}</span>
+                      <span className="td-unit"> / {line.item.unit}</span>
+                    </td>
                     <td className="text-right td-num">{line.orderedQuantity}</td>
                     <td className="text-right td-num">{line.receivedQuantity}</td>
-                    <td className="text-right td-num">{line.remainingQuantity}</td>
+                    <td className={`text-right td-num${line.remainingQuantity > 0 ? " pod-remaining--active" : ""}`}>{line.remainingQuantity}</td>
                     <td className="text-right td-num">{fmt(line.unitCost, currency)}</td>
                     <td className="text-right td-num">{fmt(line.orderedValue, currency)}</td>
                   </tr>
                 ))}
               </tbody>
+              <tfoot>
+                <tr className="pod-tfoot-row">
+                  <td colSpan={5} className="pod-tfoot-label">Total ordered value</td>
+                  <td className="text-right pod-tfoot-total">{fmt(purchase.totalAmount, currency)}</td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         </div>
-        <div className="modal-footer">
-          <button className="btn btn--ghost" onClick={onClose}>Close</button>
-          {canCancel && <button className="btn btn--danger" onClick={() => onCancel(purchase)}>Cancel Purchase</button>}
-          {canOrder && <button className="btn btn--primary" onClick={() => onOrder(purchase)}>Mark Ordered</button>}
-          {canReceive && <button className="btn btn--primary" onClick={() => onReceive(purchase)}>Receive Items</button>}
+
+        {/* ── Footer ── */}
+        <div className="pod-footer">
+          <button type="button" className="btn btn--ghost" onClick={onClose}>Close</button>
+          <div className="pod-footer-actions">
+            {canCancel && (
+              <button type="button" className="btn btn--danger" onClick={() => onCancel(purchase)}>
+                Cancel PO
+              </button>
+            )}
+            {canOrder && (
+              <button type="button" className="btn btn--secondary" onClick={() => onOrder(purchase)}>
+                Mark as Ordered
+              </button>
+            )}
+            {canReceive && (
+              <button type="button" className="btn btn--primary" onClick={() => onReceive(purchase)}>
+                Receive Items
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -887,20 +1180,25 @@ function ReceivePurchaseModal({
   onSuccess: (purchase: Purchase) => void | Promise<void>;
   onError: (message: string) => void;
 }) {
+  const pendingItems = purchase.purchaseItems.filter((line) => line.remainingQuantity > 0);
   const [lines, setLines] = useState<ReceiveLineDraft[]>(() =>
-    purchase.purchaseItems
-      .filter((line) => line.remainingQuantity > 0)
-      .map((line) => ({
-        purchaseItemId: line.id,
-        receivedQuantity: String(line.remainingQuantity),
-        locationId: defaultLocationId || purchase.location.id,
-        expiryDate: "",
-        batchNo: "",
-        unitCost: String(line.unitCost),
-        notes: "",
-      })),
+    pendingItems.map((line) => ({
+      purchaseItemId: line.id,
+      receivedQuantity: String(line.remainingQuantity),
+      locationId: defaultLocationId || purchase.location.id,
+      expiryDate: "",
+      batchNo: "",
+      unitCost: String(line.unitCost),
+      notes: "",
+    })),
   );
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
 
   function updateLine(purchaseItemId: string, patch: Partial<ReceiveLineDraft>) {
     setLines((current) => current.map((line) => line.purchaseItemId === purchaseItemId ? { ...line, ...patch } : line));
@@ -939,48 +1237,129 @@ function ReceivePurchaseModal({
     }
   }
 
+  const receiveTotal = lines.reduce(
+    (sum, line) => sum + (numberValue(line.receivedQuantity) ?? 0) * (numberValue(line.unitCost) ?? 0),
+    0,
+  );
+
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal modal--wide" onClick={(event) => event.stopPropagation()}>
+      <div className="modal modal--wide por" onClick={(event) => event.stopPropagation()}>
         <div className="modal-header">
           <div>
             <h2 className="modal-title">Receive Items</h2>
-            <p className="modal-subtitle">{purchase.supplier.name} / Remaining {purchase.remainingQuantity}</p>
+            <p className="modal-subtitle">
+              {purchase.supplier.name}
+              <span style={{ margin: "0 5px", opacity: 0.4 }}>·</span>
+              {pendingItems.length} item{pendingItems.length !== 1 ? "s" : ""} pending
+              <span style={{ margin: "0 5px", opacity: 0.4 }}>·</span>
+              {purchase.remainingQuantity} units remaining
+            </p>
           </div>
-          <button className="modal-close" onClick={onClose} aria-label="Close">x</button>
+          <button type="button" className="modal-close" onClick={onClose} aria-label="Close">
+            <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"/>
+            </svg>
+          </button>
         </div>
         <form onSubmit={(event) => { void submit(event); }}>
-          <div className="modal-body">
-            <div className="purchase-line receive-line receive-line--header">
-              <span>Item</span><span>Remaining</span><span>Receive</span><span>Branch</span><span>Expiry</span><span>Batch</span><span>Unit cost</span><span>Notes</span>
+          <div className="por-body">
+            <p className="por-hint">
+              Confirm quantities below. Expiry dates and batch numbers are recorded per delivery. Stock is added to inventory on submit.
+            </p>
+            <div className="por-items">
+              {pendingItems.map((itemLine) => {
+                const line = lines.find((l) => l.purchaseItemId === itemLine.id)!;
+                const hasUop = hasPurchaseUnit(itemLine.item.purchaseUnit, itemLine.item.purchaseConversionFactor);
+                return (
+                  <div key={itemLine.id} className="por-card">
+                    <div className="por-card-head">
+                      <span className="por-card-name">{itemLine.item.name}</span>
+                      <span className="por-card-remaining">
+                        {itemLine.remainingQuantity} {itemLine.item.unit} remaining
+                        {hasUop && itemLine.item.purchaseConversionFactor && (
+                          <span className="por-card-uop">
+                            {" "}≈ {fmtQty(itemLine.remainingQuantity / itemLine.item.purchaseConversionFactor)} {itemLine.item.purchaseUnit}
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                    <div className="por-fields">
+                      <label className="por-field">
+                        <span className="por-field-label">Receive qty *</span>
+                        <input
+                          className="form-input"
+                          type="number"
+                          min="0"
+                          max={itemLine.remainingQuantity}
+                          step="0.01"
+                          value={line.receivedQuantity}
+                          onChange={(e) => updateLine(itemLine.id, { receivedQuantity: e.target.value })}
+                        />
+                      </label>
+                      <label className="por-field">
+                        <span className="por-field-label">Branch</span>
+                        <select
+                          className="form-input form-select"
+                          value={line.locationId}
+                          onChange={(e) => updateLine(itemLine.id, { locationId: e.target.value })}
+                        >
+                          {locations.map((loc) => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
+                        </select>
+                      </label>
+                      <label className="por-field">
+                        <span className="por-field-label">Expiry date</span>
+                        <input
+                          className="form-input"
+                          type="date"
+                          value={line.expiryDate}
+                          onChange={(e) => updateLine(itemLine.id, { expiryDate: e.target.value })}
+                        />
+                      </label>
+                      <label className="por-field">
+                        <span className="por-field-label">Batch / Lot no.</span>
+                        <input
+                          className="form-input"
+                          value={line.batchNo}
+                          onChange={(e) => updateLine(itemLine.id, { batchNo: e.target.value })}
+                          placeholder="Optional"
+                        />
+                      </label>
+                      <label className="por-field">
+                        <span className="por-field-label">Unit cost</span>
+                        <input
+                          className="form-input"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={line.unitCost}
+                          onChange={(e) => updateLine(itemLine.id, { unitCost: e.target.value })}
+                        />
+                      </label>
+                      <label className="por-field">
+                        <span className="por-field-label">Notes</span>
+                        <input
+                          className="form-input"
+                          value={line.notes}
+                          onChange={(e) => updateLine(itemLine.id, { notes: e.target.value })}
+                          placeholder="Optional"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            {purchase.purchaseItems.filter((line) => line.remainingQuantity > 0).map((itemLine) => {
-              const line = lines.find((candidate) => candidate.purchaseItemId === itemLine.id)!;
-              return (
-                <div key={itemLine.id} className="purchase-line receive-line">
-                  <span className="td-name">{itemLine.item.name}</span>
-                  <span>
-                    {itemLine.remainingQuantity} {itemLine.item.unit}
-                    {hasPurchaseUnit(itemLine.item.purchaseUnit, itemLine.item.purchaseConversionFactor) && itemLine.item.purchaseConversionFactor ? (
-                      <span className="pur-cost-hint">≈ {fmtQty(itemLine.remainingQuantity / itemLine.item.purchaseConversionFactor)} {itemLine.item.purchaseUnit}</span>
-                    ) : null}
-                  </span>
-                  <input className="form-input" type="number" min="0" max={itemLine.remainingQuantity} step="0.01" value={line.receivedQuantity} onChange={(event) => updateLine(itemLine.id, { receivedQuantity: event.target.value })} />
-                  <select className="form-input form-select" value={line.locationId} onChange={(event) => updateLine(itemLine.id, { locationId: event.target.value })}>
-                    {locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
-                  </select>
-                  <input className="form-input" type="date" value={line.expiryDate} onChange={(event) => updateLine(itemLine.id, { expiryDate: event.target.value })} />
-                  <input className="form-input" value={line.batchNo} onChange={(event) => updateLine(itemLine.id, { batchNo: event.target.value })} />
-                  <input className="form-input" type="number" min="0" step="0.01" value={line.unitCost} onChange={(event) => updateLine(itemLine.id, { unitCost: event.target.value })} />
-                  <input className="form-input" value={line.notes} onChange={(event) => updateLine(itemLine.id, { notes: event.target.value })} placeholder="Optional" />
-                </div>
-              );
-            })}
-            <p className="purchase-receive-hint">Stock batches and stock-in movements are created only when this receiving form is submitted.</p>
           </div>
           <div className="modal-footer">
             <button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button>
-            <button className="btn btn--primary" disabled={saving}>{saving ? "Receiving..." : `Receive (${fmt(lines.reduce((sum, line) => sum + ((numberValue(line.receivedQuantity) ?? 0) * (numberValue(line.unitCost) ?? 0)), 0), currency)})`}</button>
+            <button className="btn btn--primary" disabled={saving}>
+              {saving
+                ? "Receiving…"
+                : receiveTotal > 0
+                  ? `Receive · ${fmt(receiveTotal, currency)}`
+                  : "Receive Items"}
+            </button>
           </div>
         </form>
       </div>
