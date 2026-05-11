@@ -1,0 +1,50 @@
+2026-05-11T10:45:29.651506386Z added 244 packages, and audited 247 packages in 5s
+2026-05-11T10:45:29.651530417Z 
+2026-05-11T10:45:29.651604369Z 32 packages are looking for funding
+2026-05-11T10:45:29.65165784Z   run `npm fund` for details
+2026-05-11T10:45:29.653712199Z 
+2026-05-11T10:45:29.653720439Z 2 moderate severity vulnerabilities
+2026-05-11T10:45:29.653723709Z 
+2026-05-11T10:45:29.653727919Z To address all issues, run:
+2026-05-11T10:45:29.653731029Z   npm audit fix
+2026-05-11T10:45:29.653733979Z 
+2026-05-11T10:45:29.653736999Z Run `npm audit` for details.
+2026-05-11T10:45:30.688361979Z 
+2026-05-11T10:45:30.688386989Z up to date, audited 247 packages in 868ms
+2026-05-11T10:45:30.68839828Z 
+2026-05-11T10:45:30.688486842Z 32 packages are looking for funding
+2026-05-11T10:45:30.688537024Z   run `npm fund` for details
+2026-05-11T10:45:30.691488697Z 
+2026-05-11T10:45:30.691501268Z 2 moderate severity vulnerabilities
+2026-05-11T10:45:30.691506278Z 
+2026-05-11T10:45:30.691511638Z To address all issues, run:
+2026-05-11T10:45:30.691516168Z   npm audit fix
+2026-05-11T10:45:30.691519198Z 
+2026-05-11T10:45:30.691522198Z Run `npm audit` for details.
+2026-05-11T10:45:30.77214582Z ==> Running build command 'npm install && npm run build'...
+2026-05-11T10:45:31.761262306Z 
+2026-05-11T10:45:31.761290406Z up to date, audited 247 packages in 895ms
+2026-05-11T10:45:31.761306507Z 
+2026-05-11T10:45:31.76141897Z 32 packages are looking for funding
+2026-05-11T10:45:31.761487052Z   run `npm fund` for details
+2026-05-11T10:45:31.764831607Z 
+2026-05-11T10:45:31.764844278Z 2 moderate severity vulnerabilities
+2026-05-11T10:45:31.764847818Z 
+2026-05-11T10:45:31.764851638Z To address all issues, run:
+2026-05-11T10:45:31.764854818Z   npm audit fix
+2026-05-11T10:45:31.764857768Z 
+2026-05-11T10:45:31.764860818Z Run `npm audit` for details.
+2026-05-11T10:45:31.943233098Z 
+2026-05-11T10:45:31.943258009Z > @shelfsense/web@0.1.0 build
+2026-05-11T10:45:31.943263389Z > tsc -b && vite build
+2026-05-11T10:45:31.943267359Z 
+2026-05-11T10:45:43.365850709Z src/pages/ReorderSuggestionsPage.tsx(3,23): error TS2307: Cannot find module 'xlsx' or its corresponding type declarations.
+2026-05-11T10:45:43.429613053Z npm error Lifecycle script `build` failed with error:
+2026-05-11T10:45:43.429742287Z npm error code 2
+2026-05-11T10:45:43.429821619Z npm error path /opt/render/project/src/apps/web
+2026-05-11T10:45:43.429910562Z npm error workspace @shelfsense/web@0.1.0
+2026-05-11T10:45:43.429989604Z npm error location /opt/render/project/src/apps/web
+2026-05-11T10:45:43.430102858Z npm error command failed
+2026-05-11T10:45:43.430320814Z npm error command sh -c tsc -b && vite build
+2026-05-11T10:45:43.477803815Z ==> Build failed 😞
+2026-05-11T10:45:43.477826576Z ==> Common ways to troubleshoot your deploy: https://render.com/docs/troubleshooting-deploys
