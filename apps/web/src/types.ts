@@ -702,6 +702,8 @@ export interface PurchaseItemLine {
     trackExpiry: boolean;
     purchaseUnit: string | null;
     purchaseConversionFactor: number | null;
+    category: string | null;
+    minStockLevel: number;
   };
 }
 
@@ -724,6 +726,8 @@ export interface Purchase {
   supplier: {
     id: string;
     name: string;
+    phone: string | null;
+    notes: string | null;
   };
   location: {
     id: string;

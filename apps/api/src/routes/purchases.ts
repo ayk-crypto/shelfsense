@@ -19,6 +19,8 @@ const purchaseInclude = {
     select: {
       id: true,
       name: true,
+      phone: true,
+      notes: true,
     },
   },
   location: {
@@ -38,6 +40,8 @@ const purchaseInclude = {
           trackExpiry: true,
           purchaseUnit: true,
           purchaseConversionFactor: true,
+          category: true,
+          minStockLevel: true,
         },
       },
     },
