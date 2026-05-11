@@ -463,6 +463,7 @@ function ActionModal({
 }
 
 // ─── Action Menu ──────────────────────────────────────────────────────────────
+// Uses position:fixed for the dropdown so it escapes overflow:hidden table containers.
 
 function ActionMenu({
   ws,
@@ -474,15 +475,45 @@ function ActionMenu({
   onAction: (m: ModalAction) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  function openMenu() {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (rect) {
+      setMenuPos({
+        top: rect.bottom + 4,
+        right: window.innerWidth - rect.right,
+      });
+    }
+    setOpen(true);
+  }
+
+  function closeMenu() {
+    setOpen(false);
+    setMenuPos(null);
+  }
 
   useEffect(() => {
     if (!open) return;
-    function close(e: MouseEvent) {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    function onDown(e: MouseEvent) {
+      if (
+        !triggerRef.current?.contains(e.target as Node) &&
+        !menuRef.current?.contains(e.target as Node)
+      ) {
+        closeMenu();
+      }
     }
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
+    function onScroll() { closeMenu(); }
+    document.addEventListener("mousedown", onDown);
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onScroll);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onScroll);
+    };
   }, [open]);
 
   const isDeleted = !!ws.deletedAt;
@@ -496,7 +527,7 @@ function ActionMenu({
       <button
         key={label}
         className={`lc-menu-item${danger ? " lc-menu-item--danger" : ""}`}
-        onClick={() => { setOpen(false); action(); }}
+        onClick={() => { closeMenu(); action(); }}
         type="button"
       >
         {label}
@@ -527,19 +558,25 @@ function ActionMenu({
   }
 
   return (
-    <div ref={ref} className="lc-action-wrap">
+    <div className="lc-action-wrap">
       <button
+        ref={triggerRef}
         className="lc-action-trigger"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => open ? closeMenu() : openMenu()}
         type="button"
         aria-label="Actions"
+        aria-expanded={open}
       >
         <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
           <circle cx="12" cy="5" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="12" cy="19" r="1.5" />
         </svg>
       </button>
-      {open && (
-        <div className="lc-action-menu">
+      {open && menuPos && (
+        <div
+          ref={menuRef}
+          className="lc-action-menu"
+          style={{ position: "fixed", top: menuPos.top, right: menuPos.right, left: "auto" }}
+        >
           {items}
         </div>
       )}
