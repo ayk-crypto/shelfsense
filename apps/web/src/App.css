@@ -14229,6 +14229,13 @@ body {
   font-size: 12px;
 }
 
+@media (max-width: 480px) {
+  .pur-item-row { flex-wrap: wrap; gap: 5px; }
+  .purchase-status { font-size: 10px; padding: 3px 7px; min-height: 20px; }
+  .purchase-progress { gap: 5px; }
+  .purchase-progress span { font-size: 11px; padding: 2px 6px; }
+}
+
 .purchase-detail-summary {
   display: grid;
   grid-template-columns: auto repeat(5, minmax(110px, 1fr));
@@ -27434,9 +27441,42 @@ body {
 .pod-kpi-value--warn   { color: #d97706; }
 .pod-kpi-value--ok     { color: #059669; }
 
+/* ── Download PO: in header on desktop, in footer on mobile ── */
+.pod-footer-start {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.pod-footer-dl { display: none; }
+
+/* Download PO: footer button shown on mobile; header button icon-only */
 @media (max-width: 600px) {
+  /* Modal: full-width (overlay already handles bottom-sheet at ≤520px) */
+  .modal--wide.pod {
+    width: 100vw;
+    max-width: 100vw;
+  }
+
+  /* Header: icon-only download button (hide text label) */
+  .pod-dl-text { display: none; }
+  .pod-dl-btn { padding: 7px 9px !important; min-width: 0; }
+
+  /* Footer: show download button */
+  .pod-footer-dl {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+
+  /* KPIs: 3 columns on medium-mobile (5 tiles = 3+2, readable) */
   .pod-kpis { grid-template-columns: repeat(3, 1fr); }
-  .pod-head-right .pod-dl-btn { display: none; }
+
+  /* Head: compact sizing */
+  .pod-supplier-name { font-size: 14px; }
+  .pod-ref { font-size: 11px; flex-wrap: wrap; row-gap: 2px; }
+  .pod-avatar { width: 36px; height: 36px; font-size: 14px; }
 }
 
 /* ── Receive progress bar ── */
@@ -27589,10 +27629,41 @@ body {
 }
 
 @media (max-width: 480px) {
-  .pod-head { padding: 14px 16px; gap: 10px; }
-  .pod-body { padding: 14px 16px 18px; }
-  .pod-footer { padding: 12px 16px; flex-wrap: wrap; }
-  .pod-footer-actions { flex-wrap: wrap; }
+  .pod-head { padding: 12px 14px; gap: 8px; }
+  .pod-body { padding: 12px 14px 16px; }
+
+  /* KPIs: 2 columns on very small phones (5 tiles → 2+2+1) */
+  .pod-kpis { grid-template-columns: repeat(2, 1fr); }
+  .pod-kpi { padding: 10px 10px 9px; }
+  .pod-kpi-value { font-size: 16px; }
+
+  /* Footer: stack vertically, full-width buttons */
+  .pod-footer {
+    padding: 10px 14px 14px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .pod-footer-start {
+    justify-content: space-between;
+  }
+  .pod-footer-start .btn,
+  .pod-footer-dl { flex: 1 1 0; justify-content: center; }
+  .pod-footer-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .pod-footer-actions .btn { justify-content: center; width: 100%; }
+
+  /* Dates: smaller tiles */
+  .pod-date-cell { padding: 8px 10px; min-width: 90px; }
+  .pod-date-value { font-size: 12px; }
+
+  /* Reduce avatar size further */
+  .pod-avatar { width: 30px; height: 30px; font-size: 12px; }
+  .pod-head-left { gap: 9px; }
 }
 
 /* =============================================
