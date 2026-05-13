@@ -179,7 +179,9 @@ export function ItemsPage() {
         item.category?.toLowerCase().includes(query) ||
         item.sku?.toLowerCase().includes(query) ||
         item.barcode?.toLowerCase().includes(query);
-      const matchesCategory = categoryFilter === "all" || item.category === categoryFilter;
+      const matchesCategory =
+        categoryFilter === "all" ||
+        (categoryFilter === "__uncategorized__" ? !item.category?.trim() : item.category === categoryFilter);
       const matchesStatus =
         statusFilter === "all" ||
         (statusFilter === "archived" && !item.isActive) ||
@@ -552,6 +554,7 @@ export function ItemsPage() {
             aria-label="Filter by category"
           >
             <option value="all">All categories</option>
+            <option value="__uncategorized__">Uncategorized</option>
             {filterCategoryOptions.map((category) => (
               <option key={category} value={category}>{category}</option>
             ))}
@@ -632,7 +635,7 @@ export function ItemsPage() {
         <p className="inventory-filter-summary">
           Showing {filteredItems.length} of {items.length} items
           {searchTerm ? ` matching "${searchTerm.trim()}"` : ""}
-          {categoryFilter !== "all" ? ` in ${categoryFilter}` : ""}
+          {categoryFilter !== "all" ? ` in ${categoryFilter === "__uncategorized__" ? "Uncategorized" : categoryFilter}` : ""}
           {statusFilter !== "all" ? ` with ${statusFilter.replace("-", " ")} status` : ""}.
         </p>
       </div>
