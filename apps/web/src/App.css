@@ -14689,6 +14689,24 @@ body {
 .ro-create-btn { white-space: nowrap; }
 .ro-view-note { font-size: 13px; font-weight: 600; color: #94a3b8; }
 
+.ro-supplier-focus {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.ro-supplier-focus-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+}
+.ro-supplier-focus-select {
+  min-width: 130px;
+  max-width: 200px;
+  width: auto !important;
+}
+
 /* ── Table layout ─────────────────────────────────────────────────────────── */
 .ro-table-wrap {
   border: 1px solid #e2e8f0;

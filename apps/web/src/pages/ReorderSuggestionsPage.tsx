@@ -36,6 +36,7 @@ export function ReorderSuggestionsPage() {
   const [openDetails, setOpenDetails] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [supplierFocusId, setSupplierFocusId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -76,6 +77,16 @@ export function ReorderSuggestionsPage() {
     selectedLines.map((s) => lines[s.itemId]?.supplierId).filter(Boolean),
   ).size;
 
+  const focusedCreateLines = useMemo(
+    () => supplierFocusId
+      ? selectedLines.filter((s) => lines[s.itemId]?.supplierId === supplierFocusId)
+      : selectedLines,
+    [supplierFocusId, selectedLines, lines],
+  );
+  const focusedSupplier = supplierFocusId
+    ? (suppliers.find((sup) => sup.id === supplierFocusId) ?? null)
+    : null;
+
   function updateLine(itemId: string, patch: Partial<DraftLineState>) {
     setSuccess(null);
     setLines((cur) => ({
@@ -113,7 +124,7 @@ export function ReorderSuggestionsPage() {
     setSuccess(null);
     setError(null);
 
-    const items = selectedLines.map((s) => {
+    const items = focusedCreateLines.map((s) => {
       const line = lines[s.itemId];
       const factor = s.purchaseConversionFactor;
       const hasUnit = hasPurchaseUnit(s.purchaseUnit, factor);
@@ -295,14 +306,42 @@ export function ReorderSuggestionsPage() {
               Export Excel
             </button>
 
+            {canCreateDrafts && suppliers.length > 0 && (
+              <div className="ro-supplier-focus">
+                <span className="ro-supplier-focus-label">Supplier</span>
+                <select
+                  className="ro-select--sm ro-supplier-focus-select"
+                  value={supplierFocusId}
+                  onChange={(e) => setSupplierFocusId(e.target.value)}
+                  aria-label="Filter by supplier for PO creation"
+                >
+                  <option value="">All suppliers</option>
+                  {suppliers.map((sup) => {
+                    const count = selectedLines.filter((s) => lines[s.itemId]?.supplierId === sup.id).length;
+                    return (
+                      <option key={sup.id} value={sup.id}>
+                        {sup.name}{count > 0 ? ` (${count})` : ""}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+            )}
+
             {canCreateDrafts ? (
               <button
                 type="button"
                 className="btn btn--primary ro-create-btn"
                 onClick={handleCreateDrafts}
-                disabled={creating || selectedCount === 0}
+                disabled={creating || focusedCreateLines.length === 0}
               >
-                {creating ? "Creating…" : selectedSupplierCount > 1 ? `Create ${selectedSupplierCount} Drafts` : "Create Draft"}
+                {creating
+                  ? "Creating…"
+                  : focusedSupplier
+                    ? `Create PO – ${focusedSupplier.name}`
+                    : selectedSupplierCount > 1
+                      ? `Create ${selectedSupplierCount} Drafts`
+                      : "Create Draft"}
               </button>
             ) : (
               <span className="ro-view-note">View only</span>
