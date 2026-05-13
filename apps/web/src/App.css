@@ -27777,10 +27777,149 @@ body {
   color: var(--color-text-muted);
 }
 
+.por-card-head-left {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.por-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}
+
+.por-card-stat {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.por-card-stat strong {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.por-card-stat--rem strong {
+  color: #4f46e5;
+}
+
+.por-batch-tally {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.por-batch-total {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+
+.por-batch-total--ok {
+  color: #047857;
+  background: #ecfdf5;
+  border-color: #6ee7b7;
+}
+
+.por-batch-total--over {
+  color: #b91c1c;
+  background: #fef2f2;
+  border-color: #fca5a5;
+}
+
+.por-over-warning {
+  font-size: 11px;
+  font-weight: 600;
+  color: #b91c1c;
+}
+
+/* Batch rows inside a card */
+.por-batches {
+  display: flex;
+  flex-direction: column;
+}
+
+.por-batch-row {
+  border-top: 1px solid var(--color-border);
+}
+
+.por-batch-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px 0;
+}
+
+.por-batch-num {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+}
+
+.por-batch-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: #94a3b8;
+  border-radius: 5px;
+  transition: background 0.1s, color 0.1s;
+  padding: 0;
+}
+
+.por-batch-remove:hover {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.por-field--over {
+  border-color: #f87171 !important;
+}
+
+/* Add batch button row */
+.por-add-batch-row {
+  padding: 10px 16px 12px;
+  border-top: 1px dashed var(--color-border);
+}
+
+.por-add-batch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6366f1;
+  padding: 5px 8px;
+  border-radius: 6px;
+  transition: background 0.1s;
+}
+
+.por-add-batch-btn:hover {
+  background: #eef2ff;
+}
+
 @media (max-width: 480px) {
   .por-body { padding: 14px 16px; }
-  .por-card-head { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .por-card-head { flex-direction: column; align-items: flex-start; gap: 8px; }
   .por-card-remaining { white-space: normal; }
+  .por-batch-tally { align-items: flex-start; }
 }
 
 /* =============================================

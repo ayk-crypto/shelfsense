@@ -382,14 +382,20 @@ purchasesRouter.post("/:id/receive", requireRole([Role.OWNER, Role.MANAGER]), as
       let receivedValue = 0;
       let receivedQuantity = 0;
 
+      // Track how much we've already committed for each item in this transaction
+      // (multiple batch rows for the same purchaseItemId arrive in one request)
+      const accumulatedByItem = new Map<string, number>();
+
       for (const line of input.lines) {
         const purchaseItem = purchaseItemById.get(line.purchaseItemId!);
         if (!purchaseItem) throw new HttpError(400, "Received line does not belong to this purchase");
 
         const remainingQuantity = purchaseItem.quantity - purchaseItem.receivedQuantity;
-        if (line.receivedQuantity! > remainingQuantity) {
+        const alreadyAccumulated = accumulatedByItem.get(line.purchaseItemId!) ?? 0;
+        if (alreadyAccumulated + line.receivedQuantity! > remainingQuantity) {
           throw new HttpError(400, `Cannot receive more than ordered for ${purchaseItem.item.name}`);
         }
+        accumulatedByItem.set(line.purchaseItemId!, alreadyAccumulated + line.receivedQuantity!);
 
         const effectiveUnitCost = line.unitCost ?? purchaseItem.unitCost;
         const expiryDate = line.expiryDate instanceof Date ? line.expiryDate : null;
