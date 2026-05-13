@@ -1,0 +1,398 @@
+ShelfSense Procurement & Inventory Receiving Refactor
+
+We need to redesign and simplify the procurement receiving workflow in ShelfSense. The current architecture has two separate ways to increase inventory:
+
+1. Purchase Order → Receive Stock
+2. Ops → Stock In
+
+Both currently increase inventory independently, which creates:
+- duplicate stock risk
+- incorrect inventory counts
+- broken audit trail
+- PO mismatch
+- procurement confusion
+- poor SaaS UX
+
+We need to redesign this into a proper industry-standard procurement + receiving architecture.
+
+====================================================
+GOAL
+====================================================
+
+Inventory received from suppliers MUST flow through Purchase Orders using a unified receiving engine.
+
+The current “Stock In” flow should NOT be used for procurement receiving anymore.
+
+Instead:
+- PO Receiving becomes the main inventory receiving workflow
+- Stock In becomes “Manual Inventory Adjustment”
+
+====================================================
+CORE ARCHITECTURE
+====================================================
+
+NEW FLOW:
+
+Low Stock → Generate PO → Supplier Delivery → Receive Inventory (GRN) → Inventory Updated
+
+Inventory should ONLY increase from procurement via:
+- PO Receiving / GRN
+
+NOT via generic Stock In.
+
+====================================================
+PART 1 — REDESIGN PO RECEIVE STOCK SCREEN
+====================================================
+
+Replace the current simple popup with a complete receiving interface.
+
+Current issue:
+- only supports single batch
+- no proper expiry handling
+- limited receiving capability
+
+NEW RECEIVE SCREEN MUST SUPPORT:
+
+For EACH PO item:
+
+1. Ordered Quantity
+2. Previously Received Quantity
+3. Remaining Quantity
+4. Receive Quantity
+5. Unit Cost
+6. Tax Per Unit (optional)
+7. Supplier (auto-populated)
+8. Multiple Batches
+9. Expiry Tracking
+10. Batch Notes
+11. Partial Receiving
+12. Batch Add/Remove buttons
+
+====================================================
+MULTI BATCH SUPPORT
+====================================================
+
+This is critical.
+
+Example:
+
+PO:
+Chicken Nuggets → 20 cartons
+
+Supplier delivers:
+Batch A → 12 cartons → Expiry Aug 2026
+Batch B → 8 cartons → Expiry Sep 2026
+
+User must be able to add BOTH batches under same item during receiving.
+
+UI:
+
+Chicken Nuggets
+---------------------------------
+Ordered: 20
+Received: 0
+Remaining: 20
+
+[ Batch Section ]
+
+Batch #1
+- Batch Number
+- Expiry
+- Qty
+- Unit Cost
+
++ Add Another Batch
+
+Batch #2
+...
+
+System auto-calculates:
+Total received qty from all batches
+
+Validation:
+Total batch qty cannot exceed remaining qty.
+
+====================================================
+AUTO BATCH FEATURES
+====================================================
+
+If user does not enter batch number:
+- auto-generate batch ID
+
+Format:
+BT-YYYYMMDD-RANDOM
+
+Example:
+BT-20260514-0021
+
+====================================================
+SUPPLIER AUTO POPULATION
+====================================================
+
+If item already mapped to supplier:
+- auto-select preferred supplier
+- auto-fill last purchase cost if available
+
+No need to manually select supplier every time.
+
+====================================================
+PARTIAL RECEIVING
+====================================================
+
+Support partial deliveries.
+
+Example:
+
+PO Qty = 100
+First delivery = 60
+Second delivery = 40
+
+System should track:
+- ordered qty
+- received qty
+- remaining qty
+
+PO statuses:
+
+Draft
+Sent
+Partial
+Received
+Closed
+Cancelled
+
+Rules:
+- Partial if received < ordered
+- Received if received == ordered
+
+====================================================
+DISABLE DUPLICATE RECEIVING
+====================================================
+
+CRITICAL FIX.
+
+Currently:
+If user receives inventory via Stock In,
+PO still stays open and can be received again.
+
+This creates duplicate stock.
+
+Fix logic:
+
+If inventory already received against PO:
+- PO quantities update automatically
+- remaining qty reduces
+- fully received PO becomes locked
+
+Buttons:
+- “Receive Remaining”
+OR
+- “View Receipt”
+
+No double inventory addition allowed.
+
+====================================================
+PART 2 — CREATE GRN SYSTEM
+====================================================
+
+Implement Goods Receipt Notes (GRN).
+
+Every receiving action generates a GRN record.
+
+GRN stores:
+- GRN Number
+- PO Reference
+- Supplier
+- Received By
+- Received Date
+- Item details
+- Batch details
+- Expiry
+- Unit cost
+- Tax
+- Notes
+
+GRN Number format:
+GRN-YYYYMMDD-0001
+
+====================================================
+GRN FEATURES
+====================================================
+
+Need:
+- GRN listing page
+- GRN details page
+- View linked PO
+- Print/download GRN
+- Audit trail
+
+====================================================
+PART 3 — REWORK STOCK IN
+====================================================
+
+Rename:
+“Stock In”
+TO:
+“Manual Inventory Adjustment”
+
+This should ONLY be used for:
+
+- Opening stock
+- Manual correction
+- Inventory reconciliation
+- Damaged stock correction
+- Production return
+- Internal transfer
+- Emergency adjustment
+
+NOT supplier procurement receiving.
+
+====================================================
+MANUAL ADJUSTMENT TYPES
+====================================================
+
+Adjustment reason dropdown:
+
+- Opening Stock
+- Manual Correction
+- Physical Count Adjustment
+- Damaged Stock Recovery
+- Kitchen Return
+- Internal Transfer
+- Other
+
+Audit logging mandatory.
+
+====================================================
+PART 4 — INVENTORY UPDATE LOGIC
+====================================================
+
+When PO Receiving completes:
+
+System automatically:
+- creates GRN
+- creates batches
+- updates inventory
+- updates stock valuation
+- updates PO status
+- updates received quantities
+- stores supplier history
+- stores purchase cost history
+- writes audit logs
+
+====================================================
+PART 5 — INVENTORY COSTING
+====================================================
+
+Store:
+- latest purchase cost
+- average cost
+- supplier-specific cost history
+
+Future-ready for:
+- FIFO
+- weighted average costing
+
+====================================================
+PART 6 — UX IMPROVEMENTS
+====================================================
+
+UI should be:
+- modern SaaS style
+- mobile responsive
+- minimal clicks
+- operationally fast
+
+Key UX goals:
+- Receiving entire PO in one screen
+- Easy batch addition
+- Auto calculations
+- Prevent mistakes
+- Fast workflow for restaurant operators
+
+====================================================
+RECEIVING SCREEN UX
+====================================================
+
+Each item should appear as collapsible card/table row.
+
+Example:
+
+Chicken Nuggets
+Ordered: 20
+Remaining: 20
+
+[ Add Batch ]
+
+Batch | Expiry | Qty | Unit Cost | Remove
+
+System auto shows:
+Total Batch Qty
+
+Warnings:
+- Over receiving
+- Missing expiry
+- Missing cost
+
+====================================================
+PART 7 — VALIDATIONS
+====================================================
+
+Validation rules:
+
+- Cannot receive more than remaining qty
+- Batch qty total must equal receive qty
+- Expiry required for expiry-tracked items
+- Unit cost required
+- Cannot edit finalized GRN
+- Cannot receive closed PO
+- Cannot create duplicate receiving
+
+====================================================
+PART 8 — DATABASE CHANGES
+====================================================
+
+Need proper schema support for:
+
+1. GoodsReceipt
+2. GoodsReceiptItem
+3. InventoryBatch
+4. InventoryAdjustment
+5. SupplierItemMapping enhancements
+
+Track:
+- expiry
+- received qty
+- remaining qty
+- linked PO
+- linked GRN
+- cost history
+
+====================================================
+PART 9 — FUTURE READY FEATURES
+====================================================
+
+Design architecture ready for:
+- barcode scanning
+- invoice upload OCR
+- supplier invoices
+- warehouse transfer
+- multi-location inventory
+- batch recalls
+- expiry alerts
+- landed cost allocation
+
+====================================================
+IMPORTANT
+====================================================
+
+This redesign should:
+- simplify operations
+- eliminate duplicate stock risk
+- improve audit trail
+- improve SaaS maturity
+- align with real procurement workflows
+- support restaurants and retail businesses professionally
+
+This is a major core workflow refactor.
+Please carefully redesign both backend and frontend architecture accordingly.
