@@ -51,3 +51,11 @@ export async function receivePurchase(
 export async function patchPurchaseSupplier(id: string, supplierId: string): Promise<PurchaseResponse> {
   return apiClient.patch<PurchaseResponse>(`/purchases/${id}/supplier`, { supplierId });
 }
+
+export async function deletePurchase(id: string): Promise<{ success: boolean }> {
+  return apiClient.delete<{ success: boolean }>(`/purchases/${id}`);
+}
+
+export async function bulkDeletePurchases(ids: string[]): Promise<{ deletedCount: number }> {
+  return apiClient.post<{ deletedCount: number }>("/purchases/bulk-delete", { ids }, true);
+}

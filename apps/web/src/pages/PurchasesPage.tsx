@@ -3,8 +3,10 @@ import { useSearchParams } from "react-router-dom";
 import { PlanFeatureGate } from "../components/PlanFeatureGate";
 import { usePlanFeatures } from "../context/PlanFeaturesContext";
 import {
+  bulkDeletePurchases,
   cancelPurchase,
   createPurchase,
+  deletePurchase,
   getPurchase,
   getPurchases,
   orderPurchase,
@@ -120,6 +122,9 @@ export function PurchasesPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkSupplierId, setBulkSupplierId] = useState("");
   const [bulkAssigning, setBulkAssigning] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Purchase | null>(null);
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   function showToast(msg: string, type: "success" | "error") {
     const id = ++toastSeq;
@@ -258,6 +263,46 @@ export function PurchasesPage() {
     }
   }
 
+  function handleDeleteDraft(purchase: Purchase) {
+    setDeleteTarget(purchase);
+  }
+
+  async function confirmDeleteDraft() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await deletePurchase(deleteTarget.id);
+      showToast("Draft purchase order deleted.", "success");
+      if (detailPurchase?.id === deleteTarget.id) setDetailPurchase(null);
+      setDeleteTarget(null);
+      setSelectedIds((prev) => { const next = new Set(prev); next.delete(deleteTarget.id); return next; });
+      await load(filters);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Failed to delete purchase", "error");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  async function confirmBulkDeleteDrafts() {
+    setDeleting(true);
+    try {
+      const res = await bulkDeletePurchases([...selectedIds]);
+      const n = res.deletedCount;
+      showToast(
+        n === 1 ? "Draft purchase order deleted." : `${n} draft purchase orders deleted.`,
+        "success",
+      );
+      setBulkDeleteConfirmOpen(false);
+      setSelectedIds(new Set());
+      await load(filters);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Failed to delete purchases", "error");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   if (planFeatures.isLoading || loading) {
     return (
       <div className="page-loading">
@@ -371,6 +416,12 @@ export function PurchasesPage() {
           >
             {bulkAssigning ? "Assigning…" : "Assign Supplier"}
           </button>
+          <button
+            className="btn btn--danger btn--sm"
+            onClick={() => setBulkDeleteConfirmOpen(true)}
+          >
+            Delete Selected
+          </button>
           <button className="pur-bulk-clear" onClick={() => setSelectedIds(new Set())}>Clear</button>
         </div>
       )}
@@ -444,9 +495,11 @@ export function PurchasesPage() {
                   <span className="pur-item-received">{fmt(purchase.receivedValue, currency)} received</span>
                   <span className="pur-item-date">{fmtDate(purchase.date)}</span>
                 </div>
-                <svg className="pur-item-chevron" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8">
-                  <path d="M8 5l5 5-5 5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
+                <RowActionMenu
+                  purchase={purchase}
+                  onDeleteDraft={() => handleDeleteDraft(purchase)}
+                  onCancel={() => handleCancel(purchase)}
+                />
               </article>
             );
           })}
@@ -507,6 +560,24 @@ export function PurchasesPage() {
           onReasonChange={setCancelReason}
           onConfirm={() => { void confirmCancel(); }}
           onClose={() => setCancelTarget(null)}
+        />
+      )}
+
+      {deleteTarget && (
+        <DeleteDraftModal
+          purchase={deleteTarget}
+          deleting={deleting}
+          onConfirm={() => { void confirmDeleteDraft(); }}
+          onClose={() => setDeleteTarget(null)}
+        />
+      )}
+
+      {bulkDeleteConfirmOpen && (
+        <BulkDeleteDraftsModal
+          count={selectedIds.size}
+          deleting={deleting}
+          onConfirm={() => { void confirmBulkDeleteDrafts(); }}
+          onClose={() => setBulkDeleteConfirmOpen(false)}
         />
       )}
 
@@ -912,6 +983,193 @@ function CancelPurchaseModal({
 
 function StatusBadge({ status }: { status: PurchaseStatus }) {
   return <span className={`purchase-status purchase-status--${status.toLowerCase().replace("_", "-")}`}>{STATUS_LABEL[status]}</span>;
+}
+
+function RowActionMenu({
+  purchase,
+  onDeleteDraft,
+  onCancel,
+}: {
+  purchase: Purchase;
+  onDeleteDraft: () => void;
+  onCancel: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const isDraft = purchase.status === "DRAFT";
+  const canCancel = purchase.status === "ORDERED" || purchase.status === "PARTIALLY_RECEIVED";
+
+  useEffect(() => {
+    if (!open) return;
+    function outside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", outside);
+    return () => document.removeEventListener("mousedown", outside);
+  }, [open]);
+
+  if (!isDraft && !canCancel) {
+    return (
+      <svg className="pur-item-chevron" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path d="M8 5l5 5-5 5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+
+  return (
+    <div className="pur-row-menu" ref={menuRef} onClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        className="pur-row-menu-btn"
+        aria-label="More actions"
+        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <circle cx="12" cy="5" r="1.8" />
+          <circle cx="12" cy="12" r="1.8" />
+          <circle cx="12" cy="19" r="1.8" />
+        </svg>
+      </button>
+      {open && (
+        <div className="pur-row-menu-drop">
+          {isDraft && (
+            <button
+              type="button"
+              className="pur-row-menu-item pur-row-menu-item--danger"
+              onClick={() => { setOpen(false); onDeleteDraft(); }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                <path d="M10 11v6" /><path d="M14 11v6" />
+                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+              </svg>
+              Delete Draft
+            </button>
+          )}
+          {canCancel && (
+            <button
+              type="button"
+              className="pur-row-menu-item"
+              onClick={() => { setOpen(false); onCancel(); }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="15" y1="9" x2="9" y2="15" />
+                <line x1="9" y1="9" x2="15" y2="15" />
+              </svg>
+              Cancel PO
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DeleteDraftModal({
+  purchase,
+  deleting,
+  onConfirm,
+  onClose,
+}: {
+  purchase: Purchase;
+  deleting: boolean;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", h);
+    return () => document.removeEventListener("keydown", h);
+  }, [onClose]);
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2 className="modal-title">Delete draft purchase order?</h2>
+          <button type="button" className="modal-close" onClick={onClose} aria-label="Close">
+            <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+          </button>
+        </div>
+        <div className="modal-body">
+          <div className="poc-warning poc-warning--danger">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+            </svg>
+            <div>
+              <p>This will permanently delete the draft purchase order from <strong>{purchase.supplier.name}</strong>.</p>
+              <p style={{ marginTop: 6, opacity: 0.85 }}>This cannot be undone. To preserve a record, cancel the purchase order instead.</p>
+            </div>
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button type="button" className="btn btn--ghost" onClick={onClose} disabled={deleting}>Back</button>
+          <button type="button" className="btn btn--danger" disabled={deleting} onClick={onConfirm}>
+            {deleting ? "Deleting…" : "Delete Draft"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BulkDeleteDraftsModal({
+  count,
+  deleting,
+  onConfirm,
+  onClose,
+}: {
+  count: number;
+  deleting: boolean;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", h);
+    return () => document.removeEventListener("keydown", h);
+  }, [onClose]);
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2 className="modal-title">Delete {count} draft purchase order{count !== 1 ? "s" : ""}?</h2>
+          <button type="button" className="modal-close" onClick={onClose} aria-label="Close">
+            <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+          </button>
+        </div>
+        <div className="modal-body">
+          <div className="poc-warning poc-warning--danger">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+            </svg>
+            <div>
+              <p>This will permanently delete <strong>{count} selected draft purchase order{count !== 1 ? "s" : ""}</strong>.</p>
+              <p style={{ marginTop: 6, opacity: 0.85 }}>This cannot be undone. Only draft orders will be deleted — any non-draft orders in the selection are ignored.</p>
+            </div>
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button type="button" className="btn btn--ghost" onClick={onClose} disabled={deleting}>Back</button>
+          <button type="button" className="btn btn--danger" disabled={deleting} onClick={onConfirm}>
+            {deleting ? "Deleting…" : `Delete ${count} Draft${count !== 1 ? "s" : ""}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function PurchaseDetailModal({

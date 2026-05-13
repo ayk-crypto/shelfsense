@@ -166,6 +166,39 @@ purchasesRouter.get("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(a
   return res.json({ purchases: purchases.map(mapPurchaseRecord) });
 }));
 
+purchasesRouter.post("/bulk-delete", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
+  const workspaceId = getWorkspaceId(req);
+  if (!workspaceId) return res.status(403).json({ error: "Workspace access required" });
+
+  const body = req.body as { ids?: unknown };
+  const ids = Array.isArray(body.ids)
+    ? (body.ids as unknown[]).filter((id): id is string => typeof id === "string")
+    : [];
+  if (ids.length === 0) return res.status(400).json({ error: "At least one purchase ID is required" });
+
+  const purchases = await prisma.purchase.findMany({
+    where: { id: { in: ids }, workspaceId },
+    select: { id: true, status: true, supplier: { select: { name: true } } },
+  });
+
+  const draftPurchases = purchases.filter((p) => p.status === PurchaseStatus.DRAFT);
+  if (draftPurchases.length === 0) {
+    return res.status(400).json({ error: "Only draft purchase orders can be deleted." });
+  }
+
+  const draftIds = draftPurchases.map((p) => p.id);
+  await prisma.purchase.deleteMany({ where: { id: { in: draftIds }, workspaceId } });
+
+  for (const p of draftPurchases) {
+    await logPurchaseAction(req, workspaceId, "PURCHASE_DRAFT_DELETED", p.id, {
+      reference: `PO-${p.id.slice(-8).toUpperCase()}`,
+      supplierName: p.supplier.name,
+    });
+  }
+
+  return res.json({ deletedCount: draftIds.length });
+}));
+
 purchasesRouter.get("/open", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
   const workspaceId = getWorkspaceId(req);
   if (!workspaceId) return res.status(403).json({ error: "Workspace access required" });
@@ -463,6 +496,33 @@ purchasesRouter.post("/:id/receive", requireRole([Role.OWNER, Role.MANAGER]), as
     }
     throw error;
   }
+}));
+
+purchasesRouter.delete("/:id", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
+  const workspaceId = getWorkspaceId(req);
+  if (!workspaceId) return res.status(403).json({ error: "Workspace access required" });
+
+  const purchase = await prisma.purchase.findFirst({
+    where: { id: req.params.id, workspaceId },
+    select: { id: true, status: true, supplier: { select: { name: true } } },
+  });
+
+  if (!purchase) return res.status(404).json({ error: "Purchase not found" });
+
+  if (purchase.status !== PurchaseStatus.DRAFT) {
+    return res.status(400).json({
+      error: "Only draft purchase orders can be deleted. Cancel the purchase order instead.",
+    });
+  }
+
+  await prisma.purchase.delete({ where: { id: purchase.id } });
+
+  await logPurchaseAction(req, workspaceId, "PURCHASE_DRAFT_DELETED", purchase.id, {
+    reference: `PO-${purchase.id.slice(-8).toUpperCase()}`,
+    supplierName: purchase.supplier.name,
+  });
+
+  return res.json({ success: true });
 }));
 
 function getWorkspaceId(req: Express.Request) {

@@ -1,0 +1,82 @@
+Please improve the Purchase Orders screen actions and add proper delete functionality for draft purchase orders only.
+
+Current issue:
+On the Purchases screen, I can cancel a PO but I do not see any option to delete a PO. For SaaS/inventory best practice, deletion should only be allowed for Draft POs. Submitted, partially received, fully received, or cancelled POs should not be deleted because they are part of inventory/audit history.
+
+Required changes:
+
+1. Add Delete option for Draft POs
+
+* For each PO row/card, show a clear action menu such as three-dot menu or inline action.
+* If PO status is Draft, show:
+
+  * Edit
+  * Delete Draft
+* If PO status is Ordered / Partially Received, show:
+
+  * View
+  * Cancel PO
+* If PO status is Fully Received, show:
+
+  * View
+* If PO status is Cancelled, show:
+
+  * View
+
+2. Bulk delete for selected draft POs
+
+* On the current screen, when draft POs are selected, the bulk action bar currently shows supplier assignment.
+* Add a secondary action button: “Delete Selected Drafts”.
+* This action should only apply to selected POs with Draft status.
+* If non-draft POs are selected, disable delete and show helper text:
+  “Only draft purchase orders can be deleted.”
+
+3. Confirmation modal
+   Before deleting, show a confirmation modal:
+   Title: Delete draft purchase order?
+   Message:
+   “This will permanently delete the selected draft purchase order(s). This action cannot be undone. Submitted or received purchase orders should be cancelled instead of deleted.”
+   Buttons:
+
+* Cancel
+* Delete Draft
+
+For multiple selected drafts:
+Title: Delete selected drafts?
+Message:
+“You are about to permanently delete X draft purchase orders. This action cannot be undone.”
+Buttons:
+
+* Cancel
+* Delete Drafts
+
+4. Backend/API rules
+
+* Add/verify DELETE endpoint for purchase orders.
+* Backend must enforce that only Draft POs can be deleted.
+* If PO is not Draft, return a proper error:
+  “Only draft purchase orders can be deleted. Please cancel the purchase order instead.”
+* Deleting a draft PO should also delete related draft PO line items safely.
+* Ensure tenant/workspace isolation is enforced so one workspace cannot delete another workspace’s PO.
+
+5. Audit/activity trail
+
+* When a draft PO is deleted, record an activity log entry:
+  “Draft purchase order deleted”
+* Store PO number/reference, supplier name if available, user, timestamp, and workspace.
+
+6. UX improvements
+
+* Add toast messages:
+  Success: “Draft purchase order deleted successfully.”
+  Bulk success: “X draft purchase orders deleted successfully.”
+  Error: “Only draft purchase orders can be deleted.”
+* Keep the UI clean and SaaS-style.
+* Use danger styling for delete actions.
+* Do not show delete for finalized/received purchase orders.
+
+7. Important business rule
+
+* Delete = only for Draft POs.
+* Cancel = for Ordered or active POs that should remain in history.
+* Fully received POs must remain locked for audit and inventory traceability.
