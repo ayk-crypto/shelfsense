@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { PlanFeatureGate } from "../components/PlanFeatureGate";
 import { usePlanFeatures } from "../context/PlanFeaturesContext";
 import {
@@ -11,7 +11,6 @@ import {
   getPurchases,
   orderPurchase,
   patchPurchaseSupplier,
-  receivePurchase,
 } from "../api/purchases";
 import { getItems } from "../api/items";
 import { getLocations } from "../api/locations";
@@ -62,40 +61,6 @@ interface PurchaseLineDraft {
   baseUnit?: string;
 }
 
-interface ReceiveLineDraft {
-  purchaseItemId: string;
-  receivedQuantity: string;
-  locationId: string;
-  expiryDate: string;
-  batchNo: string;
-  unitCost: string;
-  notes: string;
-}
-
-let batchSeq = 0;
-
-interface BatchDraft {
-  key: number;
-  quantity: string;
-  locationId: string;
-  expiryDate: string;
-  batchNo: string;
-  unitCost: string;
-  notes: string;
-}
-
-function newBatch(defaults: Pick<BatchDraft, "locationId" | "unitCost">): BatchDraft {
-  return {
-    key: ++batchSeq,
-    quantity: "",
-    locationId: defaults.locationId,
-    expiryDate: "",
-    batchNo: "",
-    unitCost: defaults.unitCost,
-    notes: "",
-  };
-}
-
 function newLine(): PurchaseLineDraft {
   return { key: ++lineSeq, itemId: "", quantity: "", unitCost: "" };
 }
@@ -124,6 +89,7 @@ function numberValue(value: string) {
 
 export function PurchasesPage() {
   const planFeatures = usePlanFeatures();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const handledReorderRedirect = useRef(false);
   const { activeLocationId } = useLocation();
@@ -136,7 +102,6 @@ export function PurchasesPage() {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
-  const [receivePurchaseTarget, setReceivePurchaseTarget] = useState<Purchase | null>(null);
   const [detailPurchase, setDetailPurchase] = useState<Purchase | null>(null);
   const [cancelTarget, setCancelTarget] = useState<Purchase | null>(null);
   const [cancelReason, setCancelReason] = useState("");
@@ -210,7 +175,6 @@ export function PurchasesPage() {
   async function refreshDetail(id: string) {
     const res = await getPurchase(id);
     setDetailPurchase(res.purchase);
-    setReceivePurchaseTarget((current) => current?.id === id ? res.purchase : current);
     await load(filters);
   }
 
@@ -555,23 +519,9 @@ export function PurchasesPage() {
           onClose={() => setDetailPurchase(null)}
           onOrder={handleOrder}
           onCancel={handleCancel}
-          onReceive={(purchase) => setReceivePurchaseTarget(purchase)}
-        />
-      )}
-
-      {receivePurchaseTarget && (
-        <ReceivePurchaseModal
-          purchase={receivePurchaseTarget}
-          currency={currency}
-          locations={locations}
-          defaultLocationId={activeLocationId || locations[0]?.id || ""}
-          onClose={() => setReceivePurchaseTarget(null)}
-          onError={(message) => showToast(message, "error")}
-          onSuccess={async (purchase) => {
-            setReceivePurchaseTarget(null);
-            setDetailPurchase(purchase);
-            showToast(purchase.status === "RECEIVED" ? "Purchase fully received" : "Purchase partially received", "success");
-            await refreshDetail(purchase.id);
+          onReceive={(purchase) => {
+            setDetailPurchase(null);
+            navigate(`/stock-in?mode=po&poId=${purchase.id}`);
           }}
         />
       )}
@@ -1673,289 +1623,6 @@ function NewPurchaseModal({
           </div>
         </form>
       </div>
-    </div>
-  );
-}
-
-function ReceivePurchaseModal({
-  purchase,
-  currency,
-  locations,
-  defaultLocationId,
-  onClose,
-  onSuccess,
-  onError,
-}: {
-  purchase: Purchase;
-  currency: string;
-  locations: Location[];
-  defaultLocationId: string;
-  onClose: () => void;
-  onSuccess: (purchase: Purchase) => void | Promise<void>;
-  onError: (message: string) => void;
-}) {
-  const pendingItems = purchase.purchaseItems.filter((line) => line.remainingQuantity > 0);
-  const fallbackLocationId = defaultLocationId || purchase.location.id;
-
-  // batches: one entry per PO item, each containing an array of batch rows
-  const [batches, setBatches] = useState<Record<string, BatchDraft[]>>(() => {
-    const init: Record<string, BatchDraft[]> = {};
-    for (const line of pendingItems) {
-      init[line.id] = [newBatch({ locationId: fallbackLocationId, unitCost: String(line.unitCost) })];
-    }
-    return init;
-  });
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [onClose]);
-
-  function updateBatch(purchaseItemId: string, key: number, patch: Partial<BatchDraft>) {
-    setBatches((cur) => ({
-      ...cur,
-      [purchaseItemId]: cur[purchaseItemId].map((b) => b.key === key ? { ...b, ...patch } : b),
-    }));
-  }
-
-  function addBatch(purchaseItemId: string, defaults: Pick<BatchDraft, "locationId" | "unitCost">) {
-    setBatches((cur) => ({
-      ...cur,
-      [purchaseItemId]: [...cur[purchaseItemId], newBatch(defaults)],
-    }));
-  }
-
-  function removeBatch(purchaseItemId: string, key: number) {
-    setBatches((cur) => ({
-      ...cur,
-      [purchaseItemId]: cur[purchaseItemId].filter((b) => b.key !== key),
-    }));
-  }
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-
-    // Flatten all batches into API lines, skipping empty qty rows
-    const lines: { purchaseItemId: string; receivedQuantity: number; locationId: string; expiryDate?: string; batchNo?: string; unitCost?: number; notes?: string }[] = [];
-
-    for (const item of pendingItems) {
-      const itemBatches = batches[item.id] ?? [];
-      let totalForItem = 0;
-      for (const b of itemBatches) {
-        const qty = numberValue(b.quantity) ?? 0;
-        if (qty <= 0) continue;
-        totalForItem += qty;
-        lines.push({
-          purchaseItemId: item.id,
-          receivedQuantity: qty,
-          locationId: b.locationId,
-          expiryDate: b.expiryDate || undefined,
-          batchNo: b.batchNo || undefined,
-          unitCost: numberValue(b.unitCost),
-          notes: b.notes || undefined,
-        });
-      }
-      if (totalForItem > item.remainingQuantity) {
-        return onError(`Total received for "${item.item.name}" (${totalForItem}) exceeds remaining (${item.remainingQuantity} ${item.item.unit})`);
-      }
-    }
-
-    if (lines.length === 0) return onError("Enter at least one received quantity");
-
-    setSaving(true);
-    try {
-      const res = await receivePurchase(purchase.id, { lines });
-      await onSuccess(res.purchase);
-    } catch (err) {
-      onError(err instanceof Error ? err.message : "Failed to receive purchase");
-      setSaving(false);
-    }
-  }
-
-  const receiveTotal = pendingItems.reduce((sum, item) => {
-    const itemBatches = batches[item.id] ?? [];
-    return sum + itemBatches.reduce((s, b) => {
-      return s + (numberValue(b.quantity) ?? 0) * (numberValue(b.unitCost) ?? 0);
-    }, 0);
-  }, 0);
-
-  return (
-    <div className="por-page">
-      <div className="por-page-header">
-        <div className="por-page-header-left">
-          <button type="button" className="por-page-back" onClick={onClose} aria-label="Back">
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12.5 15L7 10l5.5-5" />
-            </svg>
-            Back
-          </button>
-          <div>
-            <h1 className="por-page-title">Receive Items</h1>
-            <p className="por-page-subtitle">
-              {purchase.supplier.name}
-              <span style={{ margin: "0 5px", opacity: 0.4 }}>·</span>
-              {pendingItems.length} item{pendingItems.length !== 1 ? "s" : ""} pending
-              <span style={{ margin: "0 5px", opacity: 0.4 }}>·</span>
-              {purchase.remainingQuantity} units remaining
-            </p>
-          </div>
-        </div>
-      </div>
-      <form onSubmit={(event) => { void submit(event); }} style={{ display: "contents" }}>
-        <div className="por-body por-body--page">
-            <p className="por-hint">
-              Enter received quantities below. Add multiple batches per item when the supplier delivers different expiry dates or lot numbers in one shipment.
-            </p>
-            <div className="por-items">
-              {pendingItems.map((itemLine) => {
-                const hasUop = hasPurchaseUnit(itemLine.item.purchaseUnit, itemLine.item.purchaseConversionFactor);
-                const itemBatches = batches[itemLine.id] ?? [];
-                const batchTotal = itemBatches.reduce((s, b) => s + (numberValue(b.quantity) ?? 0), 0);
-                const isOver = batchTotal > itemLine.remainingQuantity;
-                const lastBatch = itemBatches[itemBatches.length - 1];
-                return (
-                  <div key={itemLine.id} className="por-card">
-                    {/* Card header — item name + remaining */}
-                    <div className="por-card-head">
-                      <div className="por-card-head-left">
-                        <span className="por-card-name">{itemLine.item.name}</span>
-                        <div className="por-card-meta">
-                          <span className="por-card-stat">Ordered: <strong>{itemLine.orderedQuantity} {itemLine.item.unit}</strong></span>
-                          <span className="por-card-stat">Previously received: <strong>{itemLine.receivedQuantity} {itemLine.item.unit}</strong></span>
-                          <span className="por-card-stat por-card-stat--rem">Remaining: <strong>{itemLine.remainingQuantity} {itemLine.item.unit}</strong>
-                            {hasUop && itemLine.item.purchaseConversionFactor && (
-                              <span className="por-card-uop"> ≈ {fmtQty(itemLine.remainingQuantity / itemLine.item.purchaseConversionFactor)} {itemLine.item.purchaseUnit}</span>
-                            )}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="por-batch-tally">
-                        <span className={`por-batch-total${isOver ? " por-batch-total--over" : batchTotal > 0 ? " por-batch-total--ok" : ""}`}>
-                          {batchTotal > 0 ? `${fmtQty(batchTotal)} / ${itemLine.remainingQuantity} ${itemLine.item.unit}` : `0 / ${itemLine.remainingQuantity} ${itemLine.item.unit}`}
-                        </span>
-                        {isOver && <span className="por-over-warning">Over by {fmtQty(batchTotal - itemLine.remainingQuantity)}</span>}
-                      </div>
-                    </div>
-
-                    {/* Batch rows */}
-                    <div className="por-batches">
-                      {itemBatches.map((batch, idx) => (
-                        <div key={batch.key} className="por-batch-row">
-                          <div className="por-batch-label">
-                            <span className="por-batch-num">Batch {idx + 1}</span>
-                            {itemBatches.length > 1 && (
-                              <button
-                                type="button"
-                                className="por-batch-remove"
-                                onClick={() => removeBatch(itemLine.id, batch.key)}
-                                aria-label={`Remove batch ${idx + 1}`}
-                              >
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                                </svg>
-                              </button>
-                            )}
-                          </div>
-                          <div className="por-fields">
-                            <label className="por-field">
-                              <span className="por-field-label">Qty ({itemLine.item.unit}) *</span>
-                              <input
-                                className={`form-input${isOver ? " por-field--over" : ""}`}
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                placeholder="0"
-                                value={batch.quantity}
-                                onChange={(e) => updateBatch(itemLine.id, batch.key, { quantity: e.target.value })}
-                              />
-                            </label>
-                            <label className="por-field">
-                              <span className="por-field-label">Branch</span>
-                              <select
-                                className="form-input form-select"
-                                value={batch.locationId}
-                                onChange={(e) => updateBatch(itemLine.id, batch.key, { locationId: e.target.value })}
-                              >
-                                {locations.map((loc) => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
-                              </select>
-                            </label>
-                            <label className="por-field">
-                              <span className="por-field-label">Expiry date</span>
-                              <input
-                                className="form-input"
-                                type="date"
-                                value={batch.expiryDate}
-                                onChange={(e) => updateBatch(itemLine.id, batch.key, { expiryDate: e.target.value })}
-                              />
-                            </label>
-                            <label className="por-field">
-                              <span className="por-field-label">Batch / Lot no.</span>
-                              <input
-                                className="form-input"
-                                value={batch.batchNo}
-                                onChange={(e) => updateBatch(itemLine.id, batch.key, { batchNo: e.target.value })}
-                                placeholder="Optional"
-                              />
-                            </label>
-                            <label className="por-field">
-                              <span className="por-field-label">Unit cost</span>
-                              <input
-                                className="form-input"
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={batch.unitCost}
-                                onChange={(e) => updateBatch(itemLine.id, batch.key, { unitCost: e.target.value })}
-                              />
-                            </label>
-                            <label className="por-field">
-                              <span className="por-field-label">Notes</span>
-                              <input
-                                className="form-input"
-                                value={batch.notes}
-                                onChange={(e) => updateBatch(itemLine.id, batch.key, { notes: e.target.value })}
-                                placeholder="Optional"
-                              />
-                            </label>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Add batch button */}
-                    <div className="por-add-batch-row">
-                      <button
-                        type="button"
-                        className="por-add-batch-btn"
-                        onClick={() => addBatch(itemLine.id, {
-                          locationId: lastBatch?.locationId ?? fallbackLocationId,
-                          unitCost: lastBatch?.unitCost ?? String(itemLine.unitCost),
-                        })}
-                      >
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-                        </svg>
-                        Add another batch
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        <div className="por-page-footer">
-          <button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button>
-          <button className="btn btn--primary" disabled={saving}>
-            {saving
-              ? "Receiving…"
-              : receiveTotal > 0
-                ? `Receive · ${fmt(receiveTotal, currency)}`
-                : "Receive Items"}
-          </button>
-        </div>
-      </form>
     </div>
   );
 }

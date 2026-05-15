@@ -121,6 +121,39 @@ export function StockInPage() {
         setSuppliers(suppliersRes.suppliers);
         setLocations(locationsRes.locations);
 
+        // Deep-link from PO detail: /stock-in?mode=po&poId=<id>
+        const deepMode = searchParams.get("mode");
+        const deepPoId = searchParams.get("poId");
+        if (deepMode === "po" && deepPoId) {
+          setMode("po");
+          setPoLoading(true);
+          const next = new URLSearchParams(searchParams);
+          next.delete("mode");
+          next.delete("poId");
+          setSearchParams(next, { replace: true });
+          try {
+            const res = await getOpenPurchases();
+            setOpenPOs(res.purchases);
+            const po = res.purchases.find((p) => p.id === deepPoId) ?? null;
+            if (po) {
+              const fallbackLoc = locationsRes.locations[0]?.id ?? "";
+              setSelectedPoId(po.id);
+              setSelectedPo(po);
+              const init: Record<string, PoBatchDraft[]> = {};
+              for (const item of po.purchaseItems.filter((i) => i.remainingQuantity > 0)) {
+                init[item.id] = [newPoBatch({ locationId: fallbackLoc, unitCost: String(item.unitCost) })];
+              }
+              setPoBatches(init);
+            }
+          } catch {
+            setOpenPOs([]);
+          } finally {
+            setPoLoading(false);
+          }
+          setLoadingItems(false);
+          return;
+        }
+
         const itemId = searchParams.get("itemId");
         const query = searchParams.get("q")?.trim().toLowerCase();
         const preselected = itemId
