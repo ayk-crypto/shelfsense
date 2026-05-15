@@ -121,6 +121,7 @@ export interface WorkspaceSettings {
   customUnits: string[];
   customCategories: string[];
   customPurchaseUnits: string[];
+  inventoryCostBasis: "INCLUDING_TAX" | "EXCLUDING_TAX";
 }
 
 export interface WorkspaceSettingsResponse {
@@ -229,6 +230,70 @@ export interface UpdateWorkspaceSettingsInput {
   customUnits?: string[];
   customCategories?: string[];
   customPurchaseUnits?: string[];
+  inventoryCostBasis?: "INCLUDING_TAX" | "EXCLUDING_TAX";
+}
+
+export type OcrStatus = "NOT_UPLOADED" | "UPLOADED" | "PROCESSING" | "EXTRACTED" | "NEEDS_REVIEW" | "FAILED";
+export type TaxMode = "TAX_PER_UNIT" | "TAX_PER_LINE" | "ALLOCATED_FROM_INVOICE_TOTAL" | "TAX_INCLUSIVE_PRICE" | "NO_TAX";
+export type InvoiceLineMatchStatus = "MATCHED" | "NEEDS_REVIEW" | "EXTRA_INVOICE_ITEM" | "UNMATCHED";
+
+export interface InvoiceUpload {
+  id: string;
+  workspaceId: string;
+  purchaseOrderId: string | null;
+  supplierId: string | null;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  ocrStatus: OcrStatus;
+  invoiceNumber: string | null;
+  invoiceDate: string | null;
+  supplierName: string | null;
+  invoiceSubtotalExclTax: number | null;
+  invoiceTaxTotal: number | null;
+  invoiceTotalInclTax: number | null;
+  taxMode: TaxMode | null;
+  duplicateWarning: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InvoiceLine {
+  id: string;
+  invoiceUploadId: string;
+  lineNumber: number;
+  rawDescription: string;
+  normalizedDescription: string | null;
+  extractedQty: number | null;
+  extractedUnitCostExclTax: number | null;
+  extractedUnitTax: number | null;
+  extractedUnitCostInclTax: number | null;
+  extractedLineSubtotalExclTax: number | null;
+  extractedLineTaxTotal: number | null;
+  extractedLineTotalInclTax: number | null;
+  extractedTaxRate: number | null;
+  extractedBatchNo: string | null;
+  extractedExpiryDate: string | null;
+  taxMode: TaxMode | null;
+  suggestedInventoryItemId: string | null;
+  matchedPurchaseItemId: string | null;
+  confidenceScore: number | null;
+  matchStatus: InvoiceLineMatchStatus | null;
+  userConfirmedItemId: string | null;
+  userConfirmedPurchaseItemId: string | null;
+  userEditedQty: number | null;
+  userEditedUnitCostExclTax: number | null;
+  userEditedUnitTax: number | null;
+  userEditedUnitCostInclTax: number | null;
+  userEditedBatchNo: string | null;
+  userEditedExpiryDate: string | null;
+  userAction: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InvoiceUploadFull extends InvoiceUpload {
+  invoiceLines: InvoiceLine[];
 }
 
 export interface Location {
@@ -776,6 +841,9 @@ export interface ReceivePurchaseLineInput {
   expiryDate?: string;
   batchNo?: string;
   unitCost?: number;
+  unitCostExclTax?: number;
+  unitTax?: number;
+  unitCostInclTax?: number;
   notes?: string;
 }
 

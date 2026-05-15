@@ -410,6 +410,9 @@ purchasesRouter.post("/:id/receive", requireRole([Role.OWNER, Role.MANAGER]), as
             quantity: line.receivedQuantity!,
             remainingQuantity: line.receivedQuantity!,
             unitCost: effectiveUnitCost,
+            unitCostExclTax: line.unitCostExclTax ?? null,
+            unitTax: line.unitTax ?? null,
+            unitCostInclTax: line.unitCostInclTax ?? null,
             expiryDate,
             batchNo,
             supplierName: purchase.supplier.name,
@@ -583,6 +586,9 @@ function parseReceiveLineInput(value: unknown, defaultLocationId: string) {
     expiryDate?: unknown;
     batchNo?: unknown;
     unitCost?: unknown;
+    unitCostExclTax?: unknown;
+    unitTax?: unknown;
+    unitCostInclTax?: unknown;
     notes?: unknown;
   };
 
@@ -593,6 +599,9 @@ function parseReceiveLineInput(value: unknown, defaultLocationId: string) {
     expiryDate: parseOptionalDate(input.expiryDate),
     batchNo: parseNullableString(input.batchNo),
     unitCost: parseOptionalNumber(input.unitCost),
+    unitCostExclTax: parseOptionalNumber(input.unitCostExclTax),
+    unitTax: parseOptionalNumber(input.unitTax),
+    unitCostInclTax: parseOptionalNumber(input.unitCostInclTax),
     notes: parseNullableString(input.notes),
   };
 }

@@ -1,4 +1,4 @@
-import { Role } from "../generated/prisma/enums.js";
+import { InventoryCostBasis, Role } from "../generated/prisma/enums.js";
 import { Router } from "express";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { prisma } from "../db/prisma.js";
@@ -20,6 +20,7 @@ const DEFAULT_WORKSPACE_SETTINGS = {
   emailExpiringSoon: false,
   emailExpired: false,
   dailyDigestEnabled: false,
+  inventoryCostBasis: InventoryCostBasis.INCLUDING_TAX,
 };
 
 const PHONE_PATTERN = /^[+\d\s-]{7,24}$/;
@@ -56,6 +57,7 @@ workspaceRouter.get("/settings", requireAuth, asyncHandler(async (req, res) => {
       customUnits: true,
       customCategories: true,
       customPurchaseUnits: true,
+      inventoryCostBasis: true,
     },
   });
 
@@ -127,6 +129,7 @@ workspaceRouter.patch("/settings", requireAuth, requireRole([Role.OWNER]), async
       customUnits: true,
       customCategories: true,
       customPurchaseUnits: true,
+      inventoryCostBasis: true,
     },
   });
 
@@ -217,6 +220,7 @@ interface WorkspaceSettingsInput {
   customUnits?: string[];
   customCategories?: string[];
   customPurchaseUnits?: string[];
+  inventoryCostBasis?: InventoryCostBasis;
 }
 
 function parseWorkspaceSettingsInput(body: unknown): WorkspaceSettingsInput {
@@ -280,6 +284,11 @@ function parseWorkspaceSettingsInput(body: unknown): WorkspaceSettingsInput {
   const purchaseUnits = parseStringArray(raw["customPurchaseUnits"]);
   if (purchaseUnits !== undefined) result.customPurchaseUnits = purchaseUnits;
 
+  const costBasis = raw["inventoryCostBasis"];
+  if (costBasis === InventoryCostBasis.INCLUDING_TAX || costBasis === InventoryCostBasis.EXCLUDING_TAX) {
+    result.inventoryCostBasis = costBasis;
+  }
+
   return result;
 }
 
@@ -330,6 +339,7 @@ function normalizeWorkspaceSettings(settings: {
   customUnits?: string[];
   customCategories?: string[];
   customPurchaseUnits?: string[];
+  inventoryCostBasis?: InventoryCostBasis | null;
 }) {
   return {
     id: settings.id,
@@ -358,5 +368,6 @@ function normalizeWorkspaceSettings(settings: {
     customUnits: settings.customUnits ?? [],
     customCategories: settings.customCategories ?? [],
     customPurchaseUnits: settings.customPurchaseUnits ?? [],
+    inventoryCostBasis: settings.inventoryCostBasis ?? DEFAULT_WORKSPACE_SETTINGS.inventoryCostBasis,
   };
 }

@@ -139,4 +139,5 @@ export const env = {
   paddleProMonthlyPriceId: process.env.PADDLE_PRO_MONTHLY_PRICE_ID,
   paddleProAnnualPriceId: process.env.PADDLE_PRO_ANNUAL_PRICE_ID,
   appFrontendUrl: process.env.APP_FRONTEND_URL ?? process.env.WEB_BASE_URL ?? process.env.APP_URL ?? "http://localhost:5000",
+  openAiApiKey: process.env.OPENAI_API_KEY,
 };

@@ -25,6 +25,7 @@ const DEFAULT_SETTINGS: WorkspaceSettings = {
   customUnits: [],
   customCategories: [],
   customPurchaseUnits: [],
+  inventoryCostBasis: "INCLUDING_TAX",
 };
 
 interface WorkspaceSettingsContextValue {

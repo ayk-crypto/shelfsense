@@ -31,6 +31,7 @@ import { workspaceRouter } from "./routes/workspace.js";
 import { supportRouter } from "./routes/support.js";
 import { webhooksRouter } from "./routes/webhooks.js";
 import { billingRouter } from "./routes/billing.js";
+import { receivingRouter } from "./routes/receiving.js";
 
 export const app = express();
 
@@ -203,6 +204,7 @@ app.use("/subscriptions", subscriptionsRouter);
 app.use("/billing", billingRouter);
 app.use("/team", teamRouter);
 app.use("/support", supportRouter);
+app.use("/receiving", receivingRouter);
 app.use((req, res) => {
   const body: Record<string, unknown> = { error: "Route not found", code: "NOT_FOUND" };
   if (req.requestId) body.requestId = req.requestId;

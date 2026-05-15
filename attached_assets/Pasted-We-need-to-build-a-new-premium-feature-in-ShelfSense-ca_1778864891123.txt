@@ -1,0 +1,892 @@
+We need to build a new premium feature in ShelfSense called:
+
+“Smart Receiving Match Engine”
+
+This feature should enhance the existing Purchase Order receiving workflow with invoice OCR, AI-assisted item matching, tax normalization, and GRN creation.
+
+====================================================
+BACKGROUND / CURRENT FLOW
+=========================
+
+ShelfSense currently has a Purchase Order receiving workflow.
+
+Current process:
+
+1. User creates a Purchase Order.
+2. User clicks “Receive Items”.
+3. User goes to the Receive Stock page.
+4. User selects a PO.
+5. PO items populate automatically.
+6. Receiving quantity is auto-filled based on PO quantity but can be changed by the user.
+7. User manually enters:
+
+   * Unit cost
+   * Tax
+   * Batch number
+   * Expiry date
+8. User confirms receiving.
+9. Inventory is updated.
+
+This flow is correct and should remain the core procurement receiving flow.
+
+====================================================
+IMPORTANT ARCHITECTURE RULE
+===========================
+
+Procurement inventory must ONLY increase through:
+
+Purchase Order Receiving / GRN
+
+OCR must NOT update stock directly.
+
+OCR should only prepare a draft receiving document by extracting invoice data and auto-filling fields.
+
+Final inventory update must happen only after the user reviews and confirms receiving / creates GRN.
+
+Do not create a separate OCR Stock-In workflow.
+
+This feature must enhance the existing PO Receive Stock page.
+
+====================================================
+FEATURE GOAL
+============
+
+When supplier goods arrive with an invoice, the user should be able to upload the supplier invoice on the Receive Stock page.
+
+The system should:
+
+1. Extract invoice data using OCR.
+2. Compare invoice items with PO items and inventory items.
+3. Suggest the best item matches with confidence percentage.
+4. Auto-fill receiving quantity, cost, tax, batch, and expiry where possible.
+5. Calculate unit cost including tax correctly.
+6. Show quantity/cost/tax variances.
+7. Let the user review and edit everything.
+8. Create GRN only after confirmation.
+9. Attach the invoice to the GRN for audit trail.
+
+====================================================
+REQUIRED WORKFLOW
+=================
+
+1. User opens Receive Stock page.
+2. User selects a Purchase Order.
+3. Existing PO items populate in the receiving table.
+4. Add a new section/button: “Upload Supplier Invoice”.
+5. User uploads supplier invoice file:
+
+   * PDF
+   * JPG
+   * PNG
+6. System stores the uploaded invoice.
+7. System extracts invoice details using OCR.
+8. System parses extracted invoice text into structured JSON.
+9. System compares extracted invoice lines against:
+
+   * PO items
+   * Inventory item master
+   * Supplier-item mappings
+   * Supplier item aliases
+   * SKU/barcode, where available
+   * Unit and pack size
+   * Previous confirmed matches
+   * Historical supplier pricing, where available
+10. System suggests best matches with confidence score.
+11. System auto-fills receiving fields:
+
+* Received quantity
+* Unit cost excluding tax
+* Unit tax
+* Unit cost including tax
+* Line subtotal excluding tax
+* Line tax total
+* Line total including tax
+* Batch number, if found
+* Expiry date, if found
+* Supplier invoice number
+* Invoice date
+
+12. User reviews all suggested matches before confirmation.
+13. User can manually change:
+
+* Matched inventory item
+* Received quantity
+* Unit cost excluding tax
+* Tax
+* Unit cost including tax
+* Batch number
+* Expiry date
+
+14. User confirms receiving.
+15. GRN is created.
+16. Inventory is updated.
+17. Uploaded invoice is attached to the GRN for audit trail.
+18. Confirmed matches are saved as supplier item aliases for future learning.
+
+====================================================
+OCR EXTRACTION REQUIREMENTS
+===========================
+
+The OCR should extract the following fields where available:
+
+Invoice header:
+
+* Supplier name
+* Supplier tax number, if available
+* Invoice number
+* Invoice date
+* PO number, if printed
+* Grand total
+* Total tax
+* Total discount
+* Payment terms, if available
+
+Invoice line items:
+
+* Raw item description
+* Quantity
+* Unit price
+* Total price / subtotal
+* Tax amount
+* Tax percentage, if available
+* Discount, if available
+* Final line total / sum
+* Batch number, if available
+* Expiry date, if available
+* SKU/barcode/item code, if available
+* Unit/pack size, if available
+
+The OCR result should be stored as structured JSON for audit and debugging.
+
+====================================================
+INVOICE TAX AND COST NORMALIZATION
+==================================
+
+This is very important.
+
+Supplier invoices may show tax in different formats.
+
+The system must normalize all invoice cost data into these fields:
+
+* unitCostExclTax
+* unitTax
+* unitCostInclTax
+* lineSubtotalExclTax
+* lineTaxTotal
+* lineTotalInclTax
+* taxRate
+* taxMode
+
+Supported invoice formats:
+
+1. Tax per unit
+2. Tax per line item
+3. Tax only at invoice total level
+4. Price already includes tax
+5. No tax
+
+====================================================
+LINE-LEVEL TAX FORMAT
+=====================
+
+Some supplier invoices have columns like:
+
+Item Name | Qty | Unit Price | Total Price | Tax | Sum
+
+In this format:
+
+* Unit Price is usually excluding tax
+* Total Price is Qty × Unit Price excluding tax
+* Tax is the collective tax amount for the full line quantity
+* Sum is Total Price + Tax
+
+Example:
+Qty = 10
+Unit Price Excl. Tax = 100
+Total Price Excl. Tax = 1,000
+Line Tax Total = 180
+Line Total Incl. Tax = 1,180
+
+The system must calculate:
+
+unitTax = lineTaxTotal / quantity
+
+unitCostInclTax = lineTotalInclTax / quantity
+
+Alternative:
+unitCostInclTax = unitCostExclTax + unitTax
+
+Example calculation:
+Unit Tax = 180 / 10 = 18
+Unit Cost Incl. Tax = 1,180 / 10 = 118
+
+The receiving table should show:
+
+* Qty = 10
+* Unit Cost Excl. Tax = 100
+* Line Subtotal Excl. Tax = 1,000
+* Line Tax Total = 180
+* Unit Tax = 18
+* Unit Cost Incl. Tax = 118
+* Line Total Incl. Tax = 1,180
+
+====================================================
+TAX ONLY AT INVOICE TOTAL LEVEL
+===============================
+
+If tax is only given at invoice total level and not per line:
+
+Example:
+Line 1 subtotal = 1,000
+Line 2 subtotal = 2,000
+Invoice subtotal = 3,000
+Invoice tax = 540
+Invoice total = 3,540
+
+Then allocate tax proportionally:
+
+Line 1 tax = 540 × 1,000 / 3,000 = 180
+Line 2 tax = 540 × 2,000 / 3,000 = 360
+
+Then calculate unitTax and unitCostInclTax for each line.
+
+Mark such tax as:
+taxMode = “allocated_from_invoice_total”
+
+Show a warning:
+“Tax was allocated proportionally from invoice-level tax. Please review before confirming.”
+
+====================================================
+TAX-INCLUSIVE PRICE FORMAT
+==========================
+
+If the invoice price already includes tax:
+
+Store extracted unit price as:
+unitCostInclTax
+
+If tax rate is known, back-calculate:
+
+unitCostExclTax = unitCostInclTax / (1 + taxRate)
+
+unitTax = unitCostInclTax - unitCostExclTax
+
+Example:
+Unit Cost Incl. Tax = 118
+Tax Rate = 18%
+
+unitCostExclTax = 118 / 1.18 = 100
+unitTax = 18
+
+Mark:
+taxMode = “tax_inclusive_price”
+
+====================================================
+NO TAX FORMAT
+=============
+
+If no tax is found:
+
+unitTax = 0
+lineTaxTotal = 0
+unitCostInclTax = unitCostExclTax
+lineTotalInclTax = lineSubtotalExclTax
+taxMode = “no_tax”
+
+====================================================
+INVENTORY COST BASIS SETTING
+============================
+
+Add a workspace-level setting:
+
+Inventory Cost Basis:
+
+1. Including Tax
+2. Excluding Tax
+
+Default should be:
+Including Tax
+
+Reason:
+For restaurant inventory use cases, the owner usually needs to know actual purchase cost paid per unit.
+
+If Inventory Cost Basis = Including Tax:
+
+* Inventory valuation should use unitCostInclTax
+
+If Inventory Cost Basis = Excluding Tax:
+
+* Inventory valuation should use unitCostExclTax
+
+However, both values should always be stored for reporting and audit.
+
+====================================================
+RECEIVING TABLE COST COLUMNS
+============================
+
+The receiving table should not use only one generic “unit cost”.
+
+It should support these fields:
+
+* PO Item
+* Invoice Line Description
+* Ordered Qty
+* Invoice Qty
+* Receive Qty
+* Unit Cost Excl. Tax
+* Unit Tax
+* Unit Cost Incl. Tax
+* Line Subtotal Excl. Tax
+* Line Tax Total
+* Line Total Incl. Tax
+* Batch No.
+* Expiry Date
+* Match Confidence
+* Match Status
+* Action
+
+User must be able to override extracted or calculated cost/tax values before confirming receiving.
+
+====================================================
+MATCHING ENGINE REQUIREMENTS
+============================
+
+The system should match extracted invoice lines with PO and inventory items.
+
+Compare invoice line against:
+
+* PO item name
+* Inventory item name
+* SKU
+* Barcode
+* Supplier item code
+* Supplier item alias
+* Brand
+* Purchase unit
+* Pack size
+* Previous invoice history
+* Supplier-item mapping
+
+Confidence score should consider:
+
+* Exact SKU/barcode match
+* Supplier item alias match
+* Name similarity
+* Brand similarity
+* Unit similarity
+* Pack size similarity
+* Supplier match
+* PO presence
+* Previous confirmed mapping
+* Historical cost range
+
+Confidence behavior:
+
+* 90% to 100% = High confidence, auto-suggest
+* 70% to 89% = Medium confidence, suggest but mark as Needs Review
+* Below 70% = Low confidence, do not auto-map unless user confirms
+* No match = show as Extra Invoice Item
+
+Examples:
+Invoice item: “National Chilli Garlic 4KG”
+Inventory item: “Chilli Garlic (4 KG) - National / bottle”
+Expected confidence: High
+
+Invoice item: “Multipurpose Cleaner”
+Inventory item: “All Purpose Cleaner”
+Expected confidence: Medium, needs review
+
+====================================================
+LEARNING BEHAVIOR
+=================
+
+When user confirms a match, the system should save or update a supplier item alias.
+
+Example:
+Invoice Item: “Multipurpose Cleaner”
+Confirmed ShelfSense Item: “All Purpose Cleaner”
+
+Next time the same supplier invoice contains “Multipurpose Cleaner”, the system should match it with higher confidence.
+
+Create/update supplier item aliases table:
+
+supplier_item_aliases:
+
+* id
+* workspaceId
+* supplierId
+* invoiceItemName
+* normalizedInvoiceItemName
+* inventoryItemId
+* confidenceBoost
+* lastConfirmedAt
+* confirmedBy
+* createdAt
+* updatedAt
+
+====================================================
+UI / UX REQUIREMENTS
+====================
+
+On the Receive Stock page, add the following sections:
+
+A) PO Summary
+Show:
+
+* PO number
+* Supplier
+* PO date
+* Expected delivery date
+* PO status
+* Ordered total
+
+B) Upload Supplier Invoice
+Show:
+
+* Upload PDF/JPG/PNG
+* Upload progress
+* Button: Extract Invoice Data
+* OCR status:
+
+  * Not Uploaded
+  * Uploaded
+  * Processing
+  * Extracted
+  * Needs Review
+  * Failed
+
+C) Smart Matching Results
+Group extracted invoice lines into:
+
+* Matched Items
+* Needs Review
+* Extra Invoice Items
+* Missing PO Items
+
+D) Receiving Table
+Columns:
+
+* PO Item
+* Invoice Line Description
+* Ordered Qty
+* Invoice Qty
+* Receive Qty
+* Unit Cost Excl. Tax
+* Unit Tax
+* Unit Cost Incl. Tax
+* Line Subtotal Excl. Tax
+* Line Tax Total
+* Line Total Incl. Tax
+* Batch No.
+* Expiry Date
+* Match Confidence
+* Match Status
+* Action
+
+E) Variance Summary
+Show:
+
+* Ordered total
+* Invoice subtotal excluding tax
+* Invoice tax total
+* Invoice total including tax
+* Calculated receiving total
+* Difference
+* Quantity variances
+* Cost variances
+* Tax variances
+* Missing PO items
+* Extra invoice items
+
+F) Final Actions
+
+* Save Draft Receiving
+* Confirm Receiving / Create GRN
+* Cancel
+
+====================================================
+EXTRA INVOICE ITEMS
+===================
+
+If invoice contains items that are not in the PO:
+
+Show them under:
+Extra Invoice Items
+
+User options:
+
+1. Add to this GRN
+2. Map to existing inventory item
+3. Ignore
+4. Mark as PO variance
+
+Extra invoice items must not be added silently.
+
+====================================================
+MISSING PO ITEMS
+================
+
+If PO contains items that are not found in invoice:
+
+Show them under:
+Missing PO Items
+
+User options:
+
+1. Mark as Not Received
+2. Enter received quantity manually
+3. Keep pending for partial receiving
+
+The system should support partial receiving.
+
+====================================================
+BATCH AND EXPIRY TRACKING
+=========================
+
+OCR should extract batch number and expiry date where available.
+
+But many invoices will not include batch/expiry.
+
+Inventory item master should have setting:
+requiresExpiryTracking: true/false
+
+Validation:
+
+* If item requires expiry tracking and expiry date is missing, user must enter expiry date manually before confirming.
+* If item does not require expiry tracking, expiry field should be optional.
+* Batch number should be optional unless the item or workspace setting requires it.
+
+Examples:
+Expiry required:
+
+* Chicken
+* Dairy
+* Frozen items
+* Sauces
+* Perishable food items
+
+Expiry optional:
+
+* Cleaning items
+* Packaging items
+* Non-consumables
+
+====================================================
+DUPLICATE INVOICE DETECTION
+===========================
+
+If same supplier invoice number already exists for the same supplier/workspace:
+
+Show warning:
+“This invoice number already exists for this supplier. Please review before continuing.”
+
+Do not block automatically unless system setting says duplicate invoices are not allowed.
+
+====================================================
+VALIDATION REQUIREMENTS
+=======================
+
+User cannot confirm receiving if:
+
+* Required item match is missing
+* Receive quantity is invalid
+* Unit cost is missing
+* Required expiry date is missing
+* Invoice line marked Needs Review is not confirmed
+* Extra invoice item has no user-selected action
+
+Warnings should be shown if:
+
+* Invoice total does not match calculated receiving total
+* Tax was allocated from invoice-level total
+* Unit cost is significantly different from previous purchase cost
+* Invoice quantity differs from PO quantity
+* Invoice has extra items
+* PO has missing items
+* Duplicate invoice number is found
+
+Warnings should not always block confirmation. User may proceed with proper acknowledgement where reasonable.
+
+====================================================
+DATA MODEL SUGGESTIONS
+======================
+
+Create or extend tables as needed.
+
+1. supplier_invoice_uploads
+
+Fields:
+
+* id
+* workspaceId
+* purchaseOrderId
+* supplierId
+* fileUrl
+* fileName
+* fileType
+* fileSize
+* ocrStatus
+* extractedRawText
+* extractedJson
+* invoiceNumber
+* invoiceDate
+* invoiceSubtotalExclTax
+* invoiceTaxTotal
+* invoiceTotalInclTax
+* taxMode
+* duplicateWarning
+* createdBy
+* createdAt
+* updatedAt
+
+2. supplier_invoice_lines
+
+Fields:
+
+* id
+* invoiceUploadId
+* lineNumber
+* rawDescription
+* normalizedDescription
+* extractedQty
+* extractedUnitCostExclTax
+* extractedUnitTax
+* extractedUnitCostInclTax
+* extractedLineSubtotalExclTax
+* extractedLineTaxTotal
+* extractedLineTotalInclTax
+* extractedTaxRate
+* extractedDiscount
+* extractedBatchNo
+* extractedExpiryDate
+* taxMode
+* suggestedInventoryItemId
+* matchedPurchaseOrderItemId
+* confidenceScore
+* matchStatus
+* userConfirmedInventoryItemId
+* userConfirmedPurchaseOrderItemId
+* userEditedQty
+* userEditedUnitCostExclTax
+* userEditedUnitTax
+* userEditedUnitCostInclTax
+* userEditedBatchNo
+* userEditedExpiryDate
+* userAction
+* createdAt
+* updatedAt
+
+3. supplier_item_aliases
+
+Fields:
+
+* id
+* workspaceId
+* supplierId
+* invoiceItemName
+* normalizedInvoiceItemName
+* inventoryItemId
+* confidenceBoost
+* lastConfirmedAt
+* confirmedBy
+* createdAt
+* updatedAt
+
+4. GRN / receiving document attachment support
+
+Extend receiving/GRN tables to link:
+
+* invoiceUploadId
+* invoiceNumber
+* invoiceDate
+* invoiceFileUrl
+* invoiceSubtotalExclTax
+* invoiceTaxTotal
+* invoiceTotalInclTax
+
+Keep extracted invoice JSON linked to GRN for audit trail.
+
+5. Workspace setting
+
+Add:
+inventoryCostBasis
+
+Allowed values:
+
+* INCLUDING_TAX
+* EXCLUDING_TAX
+
+Default:
+INCLUDING_TAX
+
+====================================================
+API / BACKEND REQUIREMENTS
+==========================
+
+Please inspect current ShelfSense backend structure first and follow existing conventions.
+
+Potential endpoints:
+
+POST /api/receiving/invoices/upload
+
+* Upload supplier invoice against selected PO
+* Store file
+* Create supplier_invoice_uploads record
+* Return upload id
+
+POST /api/receiving/invoices/:invoiceUploadId/extract
+
+* Run OCR
+* Extract structured data
+* Store extracted raw text and JSON
+* Create supplier_invoice_lines
+* Return extracted data
+
+POST /api/receiving/invoices/:invoiceUploadId/match
+
+* Match extracted invoice lines against PO/inventory items
+* Calculate confidence scores
+* Return matching suggestions
+
+PATCH /api/receiving/invoice-lines/:lineId
+
+* Allow user to update match, qty, cost, tax, batch, expiry, action
+
+POST /api/receiving/:purchaseOrderId/confirm
+
+* Confirm receiving
+* Create GRN
+* Update inventory
+* Link invoice upload to GRN
+* Save confirmed supplier aliases
+* Respect inventoryCostBasis setting
+
+GET /api/receiving/invoices/:invoiceUploadId
+
+* Get invoice extraction and matching status
+
+====================================================
+FRONTEND REQUIREMENTS
+=====================
+
+Please inspect the current Receive Stock page/component first.
+
+Enhance the existing page instead of creating a separate module.
+
+Add:
+
+1. Invoice upload card
+2. OCR status indicator
+3. Smart matching result groups
+4. Editable receiving table with tax-normalized cost fields
+5. Variance summary card
+6. Confirmation validation and warnings
+7. Duplicate invoice warning
+8. Save draft / confirm receiving actions
+
+UI should be clean, SaaS-grade, mobile responsive, and easy for restaurant staff to use.
+
+Use clear labels:
+
+* Unit Cost Excl. Tax
+* Unit Tax
+* Unit Cost Incl. Tax
+* Line Tax Total
+* Line Total Incl. Tax
+
+Do not hide calculations from user. Make calculated values visible and editable.
+
+====================================================
+PHASED IMPLEMENTATION
+=====================
+
+Build this in phases.
+
+PHASE 1 MVP:
+
+* Add invoice upload on Receive Stock page
+* Store uploaded invoice
+* Extract invoice data into structured JSON
+* Show extracted invoice lines
+* Normalize cost/tax fields
+* Support line-level tax calculation
+* Match invoice lines to PO items
+* Auto-fill received quantity, unit cost excluding tax, unit tax, unit cost including tax
+* Allow user review/edit
+* Confirm receiving
+* Attach invoice to GRN
+* Ensure inventory updates only after confirmation
+
+PHASE 2:
+
+* Supplier item aliases
+* Learning from confirmed matches
+* Duplicate invoice detection
+* Full variance summary
+* Missing PO item handling
+* Extra invoice item handling
+* Expiry-required validation
+* Workspace inventory cost basis setting
+
+PHASE 3:
+
+* Cost anomaly detection
+* WhatsApp/email invoice ingestion
+* Multi-invoice receiving against same PO
+* Supplier statement reconciliation
+* Advanced supplier performance analytics
+* Price change analytics
+
+====================================================
+SECURITY / AUDIT REQUIREMENTS
+=============================
+
+* All uploaded invoices must be scoped by workspaceId.
+* Users should only access invoices within their workspace.
+* Keep audit trail of who uploaded invoice, who edited matches, and who confirmed receiving.
+* Do not overwrite raw OCR data.
+* Store user-edited values separately or track them clearly.
+* Keep original invoice file linked to GRN.
+* Validate file type and size.
+* Do not allow public access to invoice files.
+* Log receiving confirmation activity.
+
+====================================================
+ACCEPTANCE CRITERIA
+===================
+
+The feature is successful when:
+
+1. User can select a PO on Receive Stock page.
+2. User can upload supplier invoice PDF/JPG/PNG.
+3. System extracts invoice lines.
+4. System calculates:
+
+   * unitCostExclTax
+   * unitTax
+   * unitCostInclTax
+   * lineSubtotalExclTax
+   * lineTaxTotal
+   * lineTotalInclTax
+5. System correctly handles line-level collective tax.
+6. System suggests item matches with confidence score.
+7. User can review and edit all values.
+8. User cannot confirm receiving while required fields are missing.
+9. GRN is created only after user confirmation.
+10. Inventory updates only after GRN confirmation.
+11. Invoice file is attached to GRN.
+12. Confirmed matches can be reused later as supplier aliases.
+13. Existing PO receiving workflow does not break.
+
+====================================================
+IMPORTANT FINAL INSTRUCTION
+===========================
+
+Please inspect the current ShelfSense PO receiving implementation, database schema, routes, frontend components, and receiving/GRN logic first.
+
+Then implement Phase 1 in a clean, production-safe way without breaking the existing receiving workflow.
+
+Do not bypass PO Receiving.
+Do not update inventory from OCR directly.
+OCR should only help prepare receiving.
+Final inventory update must happen only through confirmed GRN.

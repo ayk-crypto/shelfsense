@@ -127,6 +127,35 @@ enum ItemSupplierRole {
   ALTERNATE
 }
 
+enum OcrStatus {
+  NOT_UPLOADED
+  UPLOADED
+  PROCESSING
+  EXTRACTED
+  NEEDS_REVIEW
+  FAILED
+}
+
+enum TaxMode {
+  TAX_PER_UNIT
+  TAX_PER_LINE
+  ALLOCATED_FROM_INVOICE_TOTAL
+  TAX_INCLUSIVE_PRICE
+  NO_TAX
+}
+
+enum InvoiceLineMatchStatus {
+  MATCHED
+  NEEDS_REVIEW
+  EXTRA_INVOICE_ITEM
+  UNMATCHED
+}
+
+enum InventoryCostBasis {
+  INCLUDING_TAX
+  EXCLUDING_TAX
+}
+
 enum AnnouncementSeverity {
   INFO
   SUCCESS
@@ -202,6 +231,7 @@ model User {
   supportMessages       SupportMessage[]      @relation("SupportMessageCreatedBy")
   supportNotes          SupportInternalNote[] @relation("SupportNoteCreatedBy")
   supportEvents         SupportTicketEvent[]  @relation("SupportEventActor")
+  invoiceUploads        SupplierInvoiceUpload[]
 }
 
 model PasswordResetToken {
@@ -298,6 +328,9 @@ model Workspace {
   billingEvents                  BillingEvent[]
   supportTickets                 SupportTicket[]
   lifecycleLogs                  WorkspaceLifecycleLog[]
+  inventoryCostBasis             InventoryCostBasis    @default(INCLUDING_TAX)
+  invoiceUploads                 SupplierInvoiceUpload[]
+  supplierItemAliases            SupplierItemAlias[]
 
   @@index([isDemoWorkspace])
   @@index([archivedAt])
@@ -423,6 +456,7 @@ model Item {
   purchaseItems            PurchaseItem[]
   stockCountItems          StockCountItem[]
   itemSuppliers            ItemSupplier[]
+  supplierItemAliases      SupplierItemAlias[]
 
   @@index([workspaceId])
   @@index([workspaceId, isActive])
@@ -438,6 +472,9 @@ model StockBatch {
   quantity          Float
   remainingQuantity Float
   unitCost          Float?
+  unitCostExclTax   Float?
+  unitTax           Float?
+  unitCostInclTax   Float?
   expiryDate        DateTime?
   batchNo           String?
   supplierName      String?
@@ -546,8 +583,9 @@ model Supplier {
   updatedAt   DateTime     @updatedAt
   workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   purchases   Purchase[]
-  stockBatches   StockBatch[]
-  itemSuppliers  ItemSupplier[]
+  stockBatches        StockBatch[]
+  itemSuppliers       ItemSupplier[]
+  supplierItemAliases SupplierItemAlias[]
 
   @@index([workspaceId])
 }
@@ -571,6 +609,7 @@ model Purchase {
   workspace            Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   location             Location       @relation(fields: [locationId], references: [id], onDelete: Cascade)
   purchaseItems        PurchaseItem[]
+  invoiceUploads       SupplierInvoiceUpload[]
 
   @@index([workspaceId])
   @@index([locationId])
@@ -998,4 +1037,95 @@ model WorkspaceLifecycleLog {
   @@index([workspaceId])
   @@index([adminId])
   @@index([createdAt])
+}
+
+model SupplierInvoiceUpload {
+  id                     String      @id @default(uuid()) @db.Uuid
+  workspaceId            String      @db.Uuid
+  purchaseOrderId        String?     @db.Uuid
+  supplierId             String?     @db.Uuid
+  uploadedById           String      @db.Uuid
+  fileName               String
+  fileType               String
+  fileSize               Int
+  filePath               String
+  ocrStatus              OcrStatus   @default(UPLOADED)
+  extractedRawText       String?
+  extractedJson          Json?
+  invoiceNumber          String?
+  invoiceDate            DateTime?
+  supplierName           String?
+  invoiceSubtotalExclTax Float?
+  invoiceTaxTotal        Float?
+  invoiceTotalInclTax    Float?
+  taxMode                TaxMode?
+  duplicateWarning       Boolean     @default(false)
+  createdAt              DateTime    @default(now())
+  updatedAt              DateTime    @updatedAt
+  workspace              Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  purchase               Purchase?   @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  uploadedBy             User        @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+  invoiceLines           SupplierInvoiceLine[]
+
+  @@index([workspaceId])
+  @@index([purchaseOrderId])
+  @@index([invoiceNumber])
+}
+
+model SupplierInvoiceLine {
+  id                          String                 @id @default(uuid()) @db.Uuid
+  invoiceUploadId             String                 @db.Uuid
+  lineNumber                  Int
+  rawDescription              String
+  normalizedDescription       String?
+  extractedQty                Float?
+  extractedUnitCostExclTax    Float?
+  extractedUnitTax            Float?
+  extractedUnitCostInclTax    Float?
+  extractedLineSubtotalExclTax Float?
+  extractedLineTaxTotal       Float?
+  extractedLineTotalInclTax   Float?
+  extractedTaxRate            Float?
+  extractedBatchNo            String?
+  extractedExpiryDate         DateTime?
+  taxMode                     TaxMode?
+  suggestedInventoryItemId    String?                @db.Uuid
+  matchedPurchaseItemId       String?                @db.Uuid
+  confidenceScore             Float?
+  matchStatus                 InvoiceLineMatchStatus?
+  userConfirmedItemId         String?                @db.Uuid
+  userConfirmedPurchaseItemId String?                @db.Uuid
+  userEditedQty               Float?
+  userEditedUnitCostExclTax   Float?
+  userEditedUnitTax           Float?
+  userEditedUnitCostInclTax   Float?
+  userEditedBatchNo           String?
+  userEditedExpiryDate        DateTime?
+  userAction                  String?
+  createdAt                   DateTime               @default(now())
+  updatedAt                   DateTime               @updatedAt
+  invoiceUpload               SupplierInvoiceUpload  @relation(fields: [invoiceUploadId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceUploadId])
+}
+
+model SupplierItemAlias {
+  id                        String    @id @default(uuid()) @db.Uuid
+  workspaceId               String    @db.Uuid
+  supplierId                String?   @db.Uuid
+  invoiceItemName           String
+  normalizedInvoiceItemName String
+  inventoryItemId           String    @db.Uuid
+  confidenceBoost           Float     @default(0.2)
+  lastConfirmedAt           DateTime?
+  confirmedById             String?   @db.Uuid
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+  workspace                 Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  item                      Item      @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  supplier                  Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+
+  @@unique([workspaceId, supplierId, normalizedInvoiceItemName])
+  @@index([workspaceId])
+  @@index([workspaceId, supplierId])
 }

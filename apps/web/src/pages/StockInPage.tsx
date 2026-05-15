@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { checkOcrStatus, matchInvoiceLines } from "../api/receiving";
 import { getItems } from "../api/items";
 import { getLocations } from "../api/locations";
 import { getOpenPurchases, receivePurchase } from "../api/purchases";
 import { getPriceHistory, getSupplierSuggestion, stockIn } from "../api/stock";
 import { getSuppliers } from "../api/suppliers";
+import { InvoiceUploadCard } from "../components/InvoiceUploadCard";
+import { SmartMatchingPanel } from "../components/SmartMatchingPanel";
 import { useLocation } from "../context/LocationContext";
 import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
-import type { Item, Location, Purchase, Supplier } from "../types";
+import type { InvoiceUploadFull, Item, Location, Purchase, Supplier } from "../types";
 import { formatCurrency } from "../utils/currency";
 
 interface BatchRow {
@@ -60,6 +63,9 @@ interface PoBatchDraft {
   expiryDate: string;
   batchNo: string;
   unitCost: string;
+  unitCostExclTax: string;
+  unitTax: string;
+  unitCostInclTax: string;
   notes: string;
 }
 
@@ -77,6 +83,9 @@ function newPoBatch(defaults: { locationId: string; unitCost: string; quantity?:
     expiryDate: "",
     batchNo: "",
     unitCost: defaults.unitCost,
+    unitCostExclTax: "",
+    unitTax: "",
+    unitCostInclTax: "",
     notes: "",
   };
 }
@@ -120,6 +129,8 @@ export function StockInPage() {
   const [overReceiveWarnings, setOverReceiveWarnings] = useState<Array<{ name: string; total: number; remaining: number; unit: string }>>([]);
   const [draftSavedAt, setDraftSavedAt] = useState<Date | null>(null);
   const [pendingDraft, setPendingDraft] = useState<PoDraftPayload | null>(null);
+  const [invoiceUpload, setInvoiceUpload] = useState<InvoiceUploadFull | null>(null);
+  const [ocrAvailable, setOcrAvailable] = useState(false);
 
   const searchRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -127,6 +138,12 @@ export function StockInPage() {
   const selectedPoRef = useRef(selectedPo);
   useEffect(() => { poBatchesRef.current = poBatches; }, [poBatches]);
   useEffect(() => { selectedPoRef.current = selectedPo; }, [selectedPo]);
+  useEffect(() => {
+    if (mode === "po") {
+      checkOcrStatus().then((res) => setOcrAvailable(res.available)).catch(() => {});
+    }
+  }, [mode]);
+  useEffect(() => { setInvoiceUpload(null); }, [selectedPoId]);
 
   useEffect(() => {
     async function load() {
@@ -449,7 +466,7 @@ export function StockInPage() {
     if (!selectedPo) return;
     const pendingItems = selectedPo.purchaseItems.filter((i) => i.remainingQuantity > 0);
 
-    const lines: { purchaseItemId: string; receivedQuantity: number; locationId?: string; expiryDate?: string; batchNo?: string; unitCost?: number; notes?: string }[] = [];
+    const lines: import("../types").ReceivePurchaseLineInput[] = [];
     const newOverWarnings: Array<{ name: string; total: number; remaining: number; unit: string }> = [];
 
     for (const item of pendingItems) {
@@ -466,6 +483,9 @@ export function StockInPage() {
           expiryDate: b.expiryDate || undefined,
           batchNo: b.batchNo || undefined,
           unitCost: parseFloat(b.unitCost) || undefined,
+          unitCostExclTax: parseFloat(b.unitCostExclTax) || undefined,
+          unitTax: parseFloat(b.unitTax) || undefined,
+          unitCostInclTax: parseFloat(b.unitCostInclTax) || undefined,
           notes: b.notes || undefined,
         });
       }
@@ -503,6 +523,45 @@ export function StockInPage() {
     } finally {
       setPoSubmitting(false);
     }
+  }
+
+  function handleApplyFromInvoice(results: Array<{
+    purchaseItemId: string;
+    qty: number;
+    unitCost: number;
+    unitCostExclTax: number | null;
+    unitTax: number | null;
+    unitCostInclTax: number | null;
+    batchNo: string;
+    expiryDate: string;
+  }>) {
+    const newBatches: Record<string, PoBatchDraft[]> = { ...poBatches };
+    for (const result of results) {
+      const existing = newBatches[result.purchaseItemId] ?? [];
+      const emptyIdx = existing.findIndex((b) => !parseFloat(b.quantity));
+      const patch: PoBatchDraft = {
+        key: emptyIdx >= 0 ? existing[emptyIdx].key : ++poBatchSeq,
+        quantity: String(result.qty),
+        locationId: existing[0]?.locationId ?? defaultLocationId ?? "",
+        expiryDate: result.expiryDate ?? "",
+        batchNo: result.batchNo ?? "",
+        unitCost: String(result.unitCost),
+        unitCostExclTax: result.unitCostExclTax != null ? String(result.unitCostExclTax) : "",
+        unitTax: result.unitTax != null ? String(result.unitTax) : "",
+        unitCostInclTax: result.unitCostInclTax != null ? String(result.unitCostInclTax) : "",
+        notes: "",
+      };
+      if (emptyIdx >= 0) {
+        newBatches[result.purchaseItemId] = [
+          ...existing.slice(0, emptyIdx),
+          patch,
+          ...existing.slice(emptyIdx + 1),
+        ];
+      } else {
+        newBatches[result.purchaseItemId] = [...existing, patch];
+      }
+    }
+    setPoBatches(newBatches);
   }
 
   function isRowValid(row: BatchRow) {
@@ -647,6 +706,39 @@ export function StockInPage() {
                     <button type="button" className="po-draft-btn po-draft-btn--discard" onClick={() => clearDraft(selectedPo.id)}>Discard</button>
                   </div>
                 </div>
+              )}
+              {selectedPo && (
+                <InvoiceUploadCard
+                  purchaseOrderId={selectedPo.id}
+                  ocrAvailable={ocrAvailable}
+                  onExtracted={async (upload) => {
+                    setInvoiceUpload(upload);
+                    try {
+                      const matched = await matchInvoiceLines(upload.id, selectedPo.id);
+                      setInvoiceUpload(matched.invoiceUpload);
+                    } catch {
+                      setInvoiceUpload(upload);
+                    }
+                  }}
+                  onUploaded={(upload) => setInvoiceUpload({ ...upload, invoiceLines: [] })}
+                />
+              )}
+              {invoiceUpload && invoiceUpload.invoiceLines.length > 0 && selectedPo && (
+                <SmartMatchingPanel
+                  invoiceUpload={invoiceUpload}
+                  purchaseItems={selectedPo.purchaseItems.filter((i) => i.remainingQuantity > 0).map((i) => ({
+                    id: i.id,
+                    itemId: i.itemId,
+                    itemName: i.item.name,
+                    unit: i.item.unit,
+                    remainingQuantity: i.remainingQuantity,
+                    unitCost: i.unitCost,
+                  }))}
+                  inventoryCostBasis={settings.inventoryCostBasis}
+                  currency={currency}
+                  onApply={handleApplyFromInvoice}
+                  onInvoiceUpdated={setInvoiceUpload}
+                />
               )}
               {selectedPo && Object.keys(poBatches).length > 0 && (
                 <div className="po-receive-form">
