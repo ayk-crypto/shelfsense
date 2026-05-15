@@ -392,7 +392,7 @@ purchasesRouter.post("/:id/receive", requireRole([Role.OWNER, Role.MANAGER]), as
 
         const remainingQuantity = purchaseItem.quantity - purchaseItem.receivedQuantity;
         const alreadyAccumulated = accumulatedByItem.get(line.purchaseItemId!) ?? 0;
-        if (alreadyAccumulated + line.receivedQuantity! > remainingQuantity) {
+        if (!input.allowOverReceive && alreadyAccumulated + line.receivedQuantity! > remainingQuantity) {
           throw new HttpError(400, `Cannot receive more than ordered for ${purchaseItem.item.name}`);
         }
         accumulatedByItem.set(line.purchaseItemId!, alreadyAccumulated + line.receivedQuantity!);
@@ -566,11 +566,12 @@ function parsePurchaseItemInput(value: unknown) {
 }
 
 function parseReceiveInput(body: unknown, defaultLocationId: string) {
-  const input = body as { lines?: unknown };
+  const input = body as { lines?: unknown; allowOverReceive?: unknown };
   return {
     lines: Array.isArray(input.lines)
       ? input.lines.map((line) => parseReceiveLineInput(line, defaultLocationId))
       : [],
+    allowOverReceive: input.allowOverReceive === true,
   };
 }
 

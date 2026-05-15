@@ -781,6 +781,7 @@ export interface ReceivePurchaseLineInput {
 
 export interface ReceivePurchaseInput {
   lines: ReceivePurchaseLineInput[];
+  allowOverReceive?: boolean;
 }
 
 export interface ReceivePurchaseResponse {

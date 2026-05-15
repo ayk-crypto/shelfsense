@@ -63,10 +63,16 @@ interface PoBatchDraft {
   notes: string;
 }
 
-function newPoBatch(defaults: { locationId: string; unitCost: string }): PoBatchDraft {
+interface PoDraftPayload {
+  poId: string;
+  savedAt: string;
+  batches: Record<string, Omit<PoBatchDraft, "key">[]>;
+}
+
+function newPoBatch(defaults: { locationId: string; unitCost: string; quantity?: string }): PoBatchDraft {
   return {
     key: ++poBatchSeq,
-    quantity: "",
+    quantity: defaults.quantity ?? "",
     locationId: defaults.locationId,
     expiryDate: "",
     batchNo: "",
@@ -74,6 +80,8 @@ function newPoBatch(defaults: { locationId: string; unitCost: string }): PoBatch
     notes: "",
   };
 }
+
+const PO_DRAFT_PREFIX = "shelfsense_po_receive_draft_";
 
 function generateBatchNo(rows: BatchRow[], itemId: string): string {
   const d = new Date();
@@ -108,9 +116,17 @@ export function StockInPage() {
   const [poBatches, setPoBatches] = useState<Record<string, PoBatchDraft[]>>({});
   const [poSubmitting, setPoSubmitting] = useState(false);
   const [poResult, setPoResult] = useState<{ type: "success" | "error"; msg: string } | null>(null);
+  const [overReceiveConfirmed, setOverReceiveConfirmed] = useState(false);
+  const [overReceiveWarnings, setOverReceiveWarnings] = useState<Array<{ name: string; total: number; remaining: number; unit: string }>>([]);
+  const [draftSavedAt, setDraftSavedAt] = useState<Date | null>(null);
+  const [pendingDraft, setPendingDraft] = useState<PoDraftPayload | null>(null);
 
   const searchRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const poBatchesRef = useRef(poBatches);
+  const selectedPoRef = useRef(selectedPo);
+  useEffect(() => { poBatchesRef.current = poBatches; }, [poBatches]);
+  useEffect(() => { selectedPoRef.current = selectedPo; }, [selectedPo]);
 
   useEffect(() => {
     async function load() {
@@ -141,7 +157,7 @@ export function StockInPage() {
               setSelectedPo(po);
               const init: Record<string, PoBatchDraft[]> = {};
               for (const item of po.purchaseItems.filter((i) => i.remainingQuantity > 0)) {
-                init[item.id] = [newPoBatch({ locationId: fallbackLoc, unitCost: String(item.unitCost) })];
+                init[item.id] = [newPoBatch({ locationId: fallbackLoc, unitCost: String(item.unitCost), quantity: String(item.remainingQuantity) })];
               }
               setPoBatches(init);
             }
@@ -337,16 +353,73 @@ export function StockInPage() {
     }
   }
 
+  function saveDraftNow() {
+    const po = selectedPoRef.current;
+    const batches = poBatchesRef.current;
+    if (!po) return;
+    const payload: PoDraftPayload = {
+      poId: po.id,
+      savedAt: new Date().toISOString(),
+      batches: Object.fromEntries(
+        Object.entries(batches).map(([id, arr]) => [id, arr.map(({ key: _k, ...rest }) => rest)])
+      ),
+    };
+    localStorage.setItem(PO_DRAFT_PREFIX + po.id, JSON.stringify(payload));
+    setDraftSavedAt(new Date());
+  }
+
+  function loadDraftFromStorage(poId: string): PoDraftPayload | null {
+    try {
+      const raw = localStorage.getItem(PO_DRAFT_PREFIX + poId);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as PoDraftPayload;
+      return parsed.poId === poId ? parsed : null;
+    } catch { return null; }
+  }
+
+  function applyDraft(draft: PoDraftPayload) {
+    const restored: Record<string, PoBatchDraft[]> = {};
+    for (const [id, arr] of Object.entries(draft.batches)) {
+      restored[id] = arr.map((b) => ({ ...b, key: ++poBatchSeq }));
+    }
+    setPoBatches(restored);
+    setDraftSavedAt(new Date(draft.savedAt));
+    setPendingDraft(null);
+  }
+
+  function clearDraft(poId: string) {
+    localStorage.removeItem(PO_DRAFT_PREFIX + poId);
+    setDraftSavedAt(null);
+    setPendingDraft(null);
+  }
+
+  useEffect(() => {
+    if (!selectedPo) return;
+    const id = setInterval(saveDraftNow, 30_000);
+    return () => clearInterval(id);
+  }, [selectedPo?.id]);
+
   function handlePoSelect(poId: string) {
     setSelectedPoId(poId);
     setPoResult(null);
+    setOverReceiveConfirmed(false);
+    setOverReceiveWarnings([]);
     const po = openPOs.find((p) => p.id === poId) ?? null;
     setSelectedPo(po);
-    if (!po) { setPoBatches({}); return; }
+    if (!po) { setPoBatches({}); setPendingDraft(null); setDraftSavedAt(null); return; }
+
+    const draft = loadDraftFromStorage(po.id);
+    if (draft) {
+      setPendingDraft(draft);
+    } else {
+      setPendingDraft(null);
+      setDraftSavedAt(null);
+    }
+
     const fallbackLoc = defaultLocationId || (locations[0]?.id ?? "");
     const init: Record<string, PoBatchDraft[]> = {};
     for (const item of po.purchaseItems.filter((i) => i.remainingQuantity > 0)) {
-      init[item.id] = [newPoBatch({ locationId: fallbackLoc, unitCost: String(item.unitCost) })];
+      init[item.id] = [newPoBatch({ locationId: fallbackLoc, unitCost: String(item.unitCost), quantity: String(item.remainingQuantity) })];
     }
     setPoBatches(init);
   }
@@ -372,11 +445,12 @@ export function StockInPage() {
     }));
   }
 
-  async function handlePoReceiveSubmit() {
+  async function handlePoReceiveSubmit(confirmed = false) {
     if (!selectedPo) return;
     const pendingItems = selectedPo.purchaseItems.filter((i) => i.remainingQuantity > 0);
 
     const lines: { purchaseItemId: string; receivedQuantity: number; locationId?: string; expiryDate?: string; batchNo?: string; unitCost?: number; notes?: string }[] = [];
+    const newOverWarnings: Array<{ name: string; total: number; remaining: number; unit: string }> = [];
 
     for (const item of pendingItems) {
       const itemBatches = poBatches[item.id] ?? [];
@@ -385,10 +459,6 @@ export function StockInPage() {
         const qty = parseFloat(b.quantity) || 0;
         if (qty <= 0) continue;
         totalForItem += qty;
-        if (totalForItem > item.remainingQuantity) {
-          setPoResult({ type: "error", msg: `Total received for "${item.item.name}" (${totalForItem}) exceeds remaining (${item.remainingQuantity} ${item.item.unit})` });
-          return;
-        }
         lines.push({
           purchaseItemId: item.id,
           receivedQuantity: qty,
@@ -399,22 +469,35 @@ export function StockInPage() {
           notes: b.notes || undefined,
         });
       }
+      if (totalForItem > item.remainingQuantity) {
+        newOverWarnings.push({ name: item.item.name, total: totalForItem, remaining: item.remainingQuantity, unit: item.item.unit });
+      }
     }
 
     if (lines.length === 0) {
       setPoResult({ type: "error", msg: "Enter at least one received quantity." });
       return;
     }
+
+    const isOverReceive = newOverWarnings.length > 0;
+    if (isOverReceive && !confirmed && !overReceiveConfirmed) {
+      setOverReceiveWarnings(newOverWarnings);
+      return;
+    }
+
     setPoSubmitting(true);
     setPoResult(null);
+    setOverReceiveWarnings([]);
     try {
-      await receivePurchase(selectedPo.id, { lines });
+      await receivePurchase(selectedPo.id, { lines, allowOverReceive: isOverReceive });
+      clearDraft(selectedPo.id);
       setPoResult({ type: "success", msg: "Receipt confirmed. Stock has been updated." });
       const res = await getOpenPurchases();
       setOpenPOs(res.purchases);
       setSelectedPoId("");
       setSelectedPo(null);
       setPoBatches({});
+      setOverReceiveConfirmed(false);
     } catch (err) {
       setPoResult({ type: "error", msg: err instanceof Error ? err.message : "Failed to record receipt." });
     } finally {
@@ -553,6 +636,18 @@ export function StockInPage() {
                   ))}
                 </select>
               </div>
+              {pendingDraft && selectedPo && (
+                <div className="po-draft-banner">
+                  <div className="po-draft-banner-text">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                    <span>You have an unsaved draft from {new Date(pendingDraft.savedAt).toLocaleString()}. Restore it?</span>
+                  </div>
+                  <div className="po-draft-banner-actions">
+                    <button type="button" className="po-draft-btn po-draft-btn--restore" onClick={() => applyDraft(pendingDraft)}>Restore Draft</button>
+                    <button type="button" className="po-draft-btn po-draft-btn--discard" onClick={() => clearDraft(selectedPo.id)}>Discard</button>
+                  </div>
+                </div>
+              )}
               {selectedPo && Object.keys(poBatches).length > 0 && (
                 <div className="po-receive-form">
                   <div className="po-receive-summary">
@@ -643,10 +738,45 @@ export function StockInPage() {
                     })}
                   </div>
                   <div className="po-receive-footer">
+                    {overReceiveWarnings.length > 0 && (
+                      <div className="po-overreceive-confirm">
+                        <div className="po-overreceive-confirm-icon">
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                        </div>
+                        <div className="po-overreceive-confirm-body">
+                          <p className="po-overreceive-confirm-title">Over-receive detected</p>
+                          <ul className="po-overreceive-confirm-list">
+                            {overReceiveWarnings.map((w) => (
+                              <li key={w.name}><strong>{w.name}</strong>: receiving {w.total} {w.unit} vs. {w.remaining} {w.unit} remaining (over by {+(w.total - w.remaining).toFixed(4)})</li>
+                            ))}
+                          </ul>
+                          <p className="po-overreceive-confirm-note">This will add extra inventory beyond the ordered quantity. Do you want to proceed?</p>
+                          <div className="po-overreceive-confirm-actions">
+                            <button type="button" className="btn btn--primary" onClick={() => { setOverReceiveConfirmed(true); void handlePoReceiveSubmit(true); }} disabled={poSubmitting}>
+                              {poSubmitting ? "Receiving…" : "Accept & Confirm Receipt"}
+                            </button>
+                            <button type="button" className="btn btn--ghost" onClick={() => setOverReceiveWarnings([])}>Cancel</button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     {poResult && <div className={`po-receive-result po-receive-result--${poResult.type}`}>{poResult.msg}</div>}
-                    <button type="button" className="btn btn--primary" onClick={() => void handlePoReceiveSubmit()} disabled={poSubmitting}>
-                      {poSubmitting ? "Receiving…" : "Confirm Receipt"}
-                    </button>
+                    {overReceiveWarnings.length === 0 && (
+                      <div className="po-footer-row">
+                        <div className="po-footer-draft">
+                          <button type="button" className="po-draft-save-btn" onClick={saveDraftNow} title="Save your current progress as a draft">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                            Save Draft
+                          </button>
+                          {draftSavedAt && (
+                            <span className="po-draft-saved-at">Auto-saved {draftSavedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                          )}
+                        </div>
+                        <button type="button" className="btn btn--primary" onClick={() => void handlePoReceiveSubmit()} disabled={poSubmitting}>
+                          {poSubmitting ? "Receiving…" : "Confirm Receipt"}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

@@ -15316,6 +15316,160 @@ body {
   background: #fee2e2;
 }
 
+.po-receive-footer {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.po-footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.po-footer-draft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.po-draft-save-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.po-draft-save-btn:hover {
+  background: #f1f5f9;
+  color: var(--color-text);
+  border-color: #94a3b8;
+}
+
+.po-draft-saved-at {
+  font-size: 11.5px;
+  color: var(--color-text-muted);
+  opacity: 0.75;
+}
+
+.po-draft-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  margin: 0 0 4px 0;
+  flex-wrap: wrap;
+}
+
+.po-draft-banner-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #1e40af;
+}
+
+.po-draft-banner-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.po-draft-btn {
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.po-draft-btn--restore {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+
+.po-draft-btn--restore:hover {
+  background: #1d4ed8;
+}
+
+.po-draft-btn--discard {
+  background: #fff;
+  color: #64748b;
+  border-color: #cbd5e1;
+}
+
+.po-draft-btn--discard:hover {
+  background: #f1f5f9;
+}
+
+.po-overreceive-confirm {
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+  margin-bottom: 4px;
+}
+
+.po-overreceive-confirm-icon {
+  flex-shrink: 0;
+  color: #b45309;
+  padding-top: 2px;
+}
+
+.po-overreceive-confirm-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.po-overreceive-confirm-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #92400e;
+  margin: 0 0 6px 0;
+}
+
+.po-overreceive-confirm-list {
+  margin: 0 0 8px 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+  color: #78350f;
+}
+
+.po-overreceive-confirm-list li {
+  margin-bottom: 3px;
+}
+
+.po-overreceive-confirm-note {
+  font-size: 12.5px;
+  color: #92400e;
+  margin: 0 0 10px 0;
+}
+
+.po-overreceive-confirm-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 /* =============================================
    Reports Page — v2 (server-side analytics)
    ============================================= */
