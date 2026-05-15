@@ -1,0 +1,96 @@
+Additional requirement for Smart Receiving Match Engine:
+
+Supplier invoices may show tax as a collective tax amount for the full line quantity, not as unit tax.
+
+Example invoice columns:
+
+* Item Name
+* Qty
+* Unit Price
+* Total Price
+* Tax
+* Sum / Final Total
+
+In this format:
+
+* Unit Price is usually price excluding tax
+* Total Price is Qty × Unit Price excluding tax
+* Tax is the total tax amount for the full line
+* Sum is Total Price + Tax
+
+The system must calculate unit tax and unit cost including tax automatically.
+
+Required calculations:
+unitTax = lineTaxTotal / quantity
+unitCostInclTax = lineTotalInclTax / quantity
+
+Alternative:
+unitCostInclTax = unitCostExclTax + unitTax
+
+Example:
+Qty = 10
+Unit Price Excl. Tax = 100
+Total Price Excl. Tax = 1,000
+Line Tax Total = 180
+Line Total Incl. Tax = 1,180
+
+System should calculate:
+Unit Tax = 180 / 10 = 18
+Unit Cost Incl. Tax = 1,180 / 10 = 118
+
+Receiving table should support and display:
+
+* Unit Cost Excl. Tax
+* Line Subtotal Excl. Tax
+* Line Tax Total
+* Unit Tax
+* Unit Cost Incl. Tax
+* Line Total Incl. Tax
+
+Invoice tax format support:
+
+1. Tax per unit
+2. Tax per line item
+3. Tax only at invoice total level
+4. Price already includes tax
+5. No tax
+
+If tax is given at line level:
+
+* Divide line tax total by quantity to calculate unit tax.
+* Divide final line total including tax by quantity to calculate unit cost including tax.
+
+If tax is only given at invoice total level:
+
+* Allocate tax proportionally across line items based on each line subtotal.
+* Mark this as “allocated tax” so user can review.
+
+If price is already tax-inclusive:
+
+* Store extracted unit price as unit cost including tax.
+* If tax rate is known, back-calculate tax using:
+  unitCostExclTax = unitCostInclTax / (1 + taxRate)
+  unitTax = unitCostInclTax - unitCostExclTax
+
+Important:
+The receiving screen should not only store one generic unit cost. It should normalize cost into:
+
+* unitCostExclTax
+* unitTax
+* unitCostInclTax
+* lineSubtotalExclTax
+* lineTaxTotal
+* lineTotalInclTax
+
+For inventory valuation/costing, use unitCostInclTax as the default actual landed unit cost, unless a workspace/accounting setting says to value inventory excluding tax.
+
+Add a workspace-level setting:
+Inventory Cost Basis:
+
+* Including Tax
+* Excluding Tax
+
+Default should be Including Tax for restaurant use cases.
+
+All calculations should be visible to the user before confirming receiving.
+User must be able to override extracted or calculated values before GRN confirmation.
