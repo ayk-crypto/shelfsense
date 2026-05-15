@@ -51,6 +51,30 @@ interface PoReceiveLineDraft {
   notes: string;
 }
 
+let poBatchSeq = 0;
+
+interface PoBatchDraft {
+  key: number;
+  quantity: string;
+  locationId: string;
+  expiryDate: string;
+  batchNo: string;
+  unitCost: string;
+  notes: string;
+}
+
+function newPoBatch(defaults: { locationId: string; unitCost: string }): PoBatchDraft {
+  return {
+    key: ++poBatchSeq,
+    quantity: "",
+    locationId: defaults.locationId,
+    expiryDate: "",
+    batchNo: "",
+    unitCost: defaults.unitCost,
+    notes: "",
+  };
+}
+
 function generateBatchNo(rows: BatchRow[], itemId: string): string {
   const d = new Date();
   const ymd = d.toISOString().slice(0, 10).replace(/-/g, "");
@@ -81,7 +105,7 @@ export function StockInPage() {
   const [poLoading, setPoLoading] = useState(false);
   const [selectedPoId, setSelectedPoId] = useState("");
   const [selectedPo, setSelectedPo] = useState<Purchase | null>(null);
-  const [poReceiveLines, setPoReceiveLines] = useState<PoReceiveLineDraft[]>([]);
+  const [poBatches, setPoBatches] = useState<Record<string, PoBatchDraft[]>>({});
   const [poSubmitting, setPoSubmitting] = useState(false);
   const [poResult, setPoResult] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
@@ -285,57 +309,79 @@ export function StockInPage() {
     setPoResult(null);
     const po = openPOs.find((p) => p.id === poId) ?? null;
     setSelectedPo(po);
-    if (!po) { setPoReceiveLines([]); return; }
-    setPoReceiveLines(
-      po.purchaseItems
-        .filter((item) => item.remainingQuantity > 0)
-        .map((item) => ({
-          purchaseItemId: item.id,
-          itemName: item.item.name,
-          itemUnit: item.item.unit,
-          remainingQty: item.remainingQuantity,
-          trackExpiry: item.item.trackExpiry,
-          receivedQuantity: String(item.remainingQuantity),
-          locationId: defaultLocationId || (locations[0]?.id ?? ""),
-          expiryDate: "",
-          batchNo: "",
-          unitCost: String(item.unitCost),
-          notes: "",
-        }))
-    );
+    if (!po) { setPoBatches({}); return; }
+    const fallbackLoc = defaultLocationId || (locations[0]?.id ?? "");
+    const init: Record<string, PoBatchDraft[]> = {};
+    for (const item of po.purchaseItems.filter((i) => i.remainingQuantity > 0)) {
+      init[item.id] = [newPoBatch({ locationId: fallbackLoc, unitCost: String(item.unitCost) })];
+    }
+    setPoBatches(init);
   }
 
-  function updatePoLine(purchaseItemId: string, patch: Partial<PoReceiveLineDraft>) {
-    setPoReceiveLines((prev) => prev.map((l) => l.purchaseItemId === purchaseItemId ? { ...l, ...patch } : l));
+  function updatePoBatch(purchaseItemId: string, key: number, patch: Partial<PoBatchDraft>) {
+    setPoBatches((cur) => ({
+      ...cur,
+      [purchaseItemId]: cur[purchaseItemId].map((b) => b.key === key ? { ...b, ...patch } : b),
+    }));
+  }
+
+  function addPoBatch(purchaseItemId: string, defaults: { locationId: string; unitCost: string }) {
+    setPoBatches((cur) => ({
+      ...cur,
+      [purchaseItemId]: [...cur[purchaseItemId], newPoBatch(defaults)],
+    }));
+  }
+
+  function removePoBatch(purchaseItemId: string, key: number) {
+    setPoBatches((cur) => ({
+      ...cur,
+      [purchaseItemId]: cur[purchaseItemId].filter((b) => b.key !== key),
+    }));
   }
 
   async function handlePoReceiveSubmit() {
     if (!selectedPo) return;
-    const validLines = poReceiveLines.filter((l) => (parseFloat(l.receivedQuantity) || 0) > 0);
-    if (validLines.length === 0) {
+    const pendingItems = selectedPo.purchaseItems.filter((i) => i.remainingQuantity > 0);
+
+    const lines: { purchaseItemId: string; receivedQuantity: number; locationId?: string; expiryDate?: string; batchNo?: string; unitCost?: number; notes?: string }[] = [];
+
+    for (const item of pendingItems) {
+      const itemBatches = poBatches[item.id] ?? [];
+      let totalForItem = 0;
+      for (const b of itemBatches) {
+        const qty = parseFloat(b.quantity) || 0;
+        if (qty <= 0) continue;
+        totalForItem += qty;
+        if (totalForItem > item.remainingQuantity) {
+          setPoResult({ type: "error", msg: `Total received for "${item.item.name}" (${totalForItem}) exceeds remaining (${item.remainingQuantity} ${item.item.unit})` });
+          return;
+        }
+        lines.push({
+          purchaseItemId: item.id,
+          receivedQuantity: qty,
+          locationId: b.locationId || undefined,
+          expiryDate: b.expiryDate || undefined,
+          batchNo: b.batchNo || undefined,
+          unitCost: parseFloat(b.unitCost) || undefined,
+          notes: b.notes || undefined,
+        });
+      }
+    }
+
+    if (lines.length === 0) {
       setPoResult({ type: "error", msg: "Enter at least one received quantity." });
       return;
     }
     setPoSubmitting(true);
     setPoResult(null);
     try {
-      await receivePurchase(selectedPo.id, {
-        lines: validLines.map((l) => ({
-          purchaseItemId: l.purchaseItemId,
-          receivedQuantity: parseFloat(l.receivedQuantity),
-          locationId: l.locationId || undefined,
-          expiryDate: l.expiryDate || undefined,
-          batchNo: l.batchNo || undefined,
-          unitCost: parseFloat(l.unitCost) || undefined,
-          notes: l.notes || undefined,
-        })),
-      });
+      await receivePurchase(selectedPo.id, { lines });
       setPoResult({ type: "success", msg: "Receipt confirmed. Stock has been updated." });
       const res = await getOpenPurchases();
       setOpenPOs(res.purchases);
       setSelectedPoId("");
       setSelectedPo(null);
-      setPoReceiveLines([]);
+      setPoBatches({});
     } catch (err) {
       setPoResult({ type: "error", msg: err instanceof Error ? err.message : "Failed to record receipt." });
     } finally {
@@ -474,7 +520,7 @@ export function StockInPage() {
                   ))}
                 </select>
               </div>
-              {selectedPo && poReceiveLines.length > 0 && (
+              {selectedPo && Object.keys(poBatches).length > 0 && (
                 <div className="po-receive-form">
                   <div className="po-receive-summary">
                     <span><strong>{selectedPo.supplier.name}</strong></span>
@@ -482,28 +528,87 @@ export function StockInPage() {
                     <span>Received so far: {selectedPo.receivedQuantity}</span>
                     <span>Remaining: <strong>{selectedPo.remainingQuantity}</strong></span>
                   </div>
-                  <div className="purchase-line receive-line receive-line--header">
-                    <span>Item</span><span>Remaining</span><span>Receive qty</span><span>Branch</span><span>Expiry</span><span>Batch</span><span>Unit cost</span><span>Notes</span>
+                  <div className="por-items" style={{ padding: "14px 16px", gap: 12 }}>
+                    {selectedPo.purchaseItems.filter((i) => i.remainingQuantity > 0).map((itemLine) => {
+                      const itemBatches = poBatches[itemLine.id] ?? [];
+                      const batchTotal = itemBatches.reduce((s, b) => s + (parseFloat(b.quantity) || 0), 0);
+                      const isOver = batchTotal > itemLine.remainingQuantity;
+                      const lastBatch = itemBatches[itemBatches.length - 1];
+                      const fallbackLoc = defaultLocationId || (locations[0]?.id ?? "");
+                      return (
+                        <div key={itemLine.id} className="por-card">
+                          <div className="por-card-head">
+                            <div className="por-card-head-left">
+                              <span className="por-card-name">{itemLine.item.name}</span>
+                              <div className="por-card-meta">
+                                <span className="por-card-stat">Ordered: <strong>{itemLine.orderedQuantity} {itemLine.item.unit}</strong></span>
+                                <span className="por-card-stat">Received: <strong>{itemLine.receivedQuantity} {itemLine.item.unit}</strong></span>
+                                <span className="por-card-stat por-card-stat--rem">Remaining: <strong>{itemLine.remainingQuantity} {itemLine.item.unit}</strong></span>
+                              </div>
+                            </div>
+                            <div className="por-batch-tally">
+                              <span className={`por-batch-total${isOver ? " por-batch-total--over" : batchTotal > 0 ? " por-batch-total--ok" : ""}`}>
+                                {batchTotal > 0 ? `${batchTotal} / ${itemLine.remainingQuantity} ${itemLine.item.unit}` : `0 / ${itemLine.remainingQuantity} ${itemLine.item.unit}`}
+                              </span>
+                              {isOver && <span className="por-over-warning">Over by {batchTotal - itemLine.remainingQuantity}</span>}
+                            </div>
+                          </div>
+                          <div className="por-batches">
+                            {itemBatches.map((batch, idx) => (
+                              <div key={batch.key} className="por-batch-row">
+                                <div className="por-batch-label">
+                                  <span className="por-batch-num">Batch {idx + 1}</span>
+                                  {itemBatches.length > 1 && (
+                                    <button type="button" className="por-batch-remove" onClick={() => removePoBatch(itemLine.id, batch.key)} aria-label={`Remove batch ${idx + 1}`}>
+                                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                        <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                                      </svg>
+                                    </button>
+                                  )}
+                                </div>
+                                <div className="por-fields">
+                                  <label className="por-field">
+                                    <span className="por-field-label">Qty ({itemLine.item.unit}) *</span>
+                                    <input className={`form-input${isOver ? " por-field--over" : ""}`} type="number" min="0" step="0.01" placeholder="0" value={batch.quantity} onChange={(e) => updatePoBatch(itemLine.id, batch.key, { quantity: e.target.value })} />
+                                  </label>
+                                  <label className="por-field">
+                                    <span className="por-field-label">Branch</span>
+                                    <select className="form-input form-select" value={batch.locationId} onChange={(e) => updatePoBatch(itemLine.id, batch.key, { locationId: e.target.value })}>
+                                      {locations.map((loc) => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
+                                    </select>
+                                  </label>
+                                  <label className="por-field">
+                                    <span className="por-field-label">Expiry date{itemLine.item.trackExpiry ? " *" : ""}</span>
+                                    <input className="form-input" type="date" value={batch.expiryDate} onChange={(e) => updatePoBatch(itemLine.id, batch.key, { expiryDate: e.target.value })} />
+                                  </label>
+                                  <label className="por-field">
+                                    <span className="por-field-label">Batch / Lot no.</span>
+                                    <input className="form-input" value={batch.batchNo} onChange={(e) => updatePoBatch(itemLine.id, batch.key, { batchNo: e.target.value })} placeholder="Optional" />
+                                  </label>
+                                  <label className="por-field">
+                                    <span className="por-field-label">Unit cost</span>
+                                    <input className="form-input" type="number" min="0" step="0.01" value={batch.unitCost} onChange={(e) => updatePoBatch(itemLine.id, batch.key, { unitCost: e.target.value })} />
+                                  </label>
+                                  <label className="por-field">
+                                    <span className="por-field-label">Notes</span>
+                                    <input className="form-input" value={batch.notes} onChange={(e) => updatePoBatch(itemLine.id, batch.key, { notes: e.target.value })} placeholder="Optional" />
+                                  </label>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="por-add-batch-row">
+                            <button type="button" className="por-add-batch-btn" onClick={() => addPoBatch(itemLine.id, { locationId: lastBatch?.locationId ?? fallbackLoc, unitCost: lastBatch?.unitCost ?? String(itemLine.unitCost) })}>
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                              </svg>
+                              Add another batch
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                  {poReceiveLines.map((line) => (
-                    <div key={line.purchaseItemId} className="purchase-line receive-line">
-                      <span className="td-name">{line.itemName} <span className="td-unit">/ {line.itemUnit}</span></span>
-                      <span>{line.remainingQty}</span>
-                      <input className="form-input" type="number" min="0" max={line.remainingQty} step="0.01" value={line.receivedQuantity} onChange={(e) => updatePoLine(line.purchaseItemId, { receivedQuantity: e.target.value })} />
-                      <select className="form-input form-select" value={line.locationId} onChange={(e) => updatePoLine(line.purchaseItemId, { locationId: e.target.value })}>
-                        {locations.map((loc) => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
-                      </select>
-                      {line.trackExpiry ? (
-                        <input className="form-input" type="date" value={line.expiryDate} onChange={(e) => updatePoLine(line.purchaseItemId, { expiryDate: e.target.value })} />
-                      ) : (
-                        <span className="stock-entry-na">—</span>
-                      )}
-                      <input className="form-input" value={line.batchNo} onChange={(e) => updatePoLine(line.purchaseItemId, { batchNo: e.target.value })} placeholder="Optional" />
-                      <input className="form-input" type="number" min="0" step="0.01" value={line.unitCost} onChange={(e) => updatePoLine(line.purchaseItemId, { unitCost: e.target.value })} />
-                      <input className="form-input" value={line.notes} onChange={(e) => updatePoLine(line.purchaseItemId, { notes: e.target.value })} placeholder="Optional" />
-                    </div>
-                  ))}
-                  <p className="purchase-receive-hint">Stock batches are created only when you confirm receipt below.</p>
                   <div className="po-receive-footer">
                     {poResult && <div className={`po-receive-result po-receive-result--${poResult.type}`}>{poResult.msg}</div>}
                     <button type="button" className="btn btn--primary" onClick={() => void handlePoReceiveSubmit()} disabled={poSubmitting}>

@@ -1782,12 +1782,18 @@ function ReceivePurchaseModal({
   }, 0);
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal modal--wide por" onClick={(event) => event.stopPropagation()}>
-        <div className="modal-header">
+    <div className="por-page">
+      <div className="por-page-header">
+        <div className="por-page-header-left">
+          <button type="button" className="por-page-back" onClick={onClose} aria-label="Back">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12.5 15L7 10l5.5-5" />
+            </svg>
+            Back
+          </button>
           <div>
-            <h2 className="modal-title">Receive Items</h2>
-            <p className="modal-subtitle">
+            <h1 className="por-page-title">Receive Items</h1>
+            <p className="por-page-subtitle">
               {purchase.supplier.name}
               <span style={{ margin: "0 5px", opacity: 0.4 }}>·</span>
               {pendingItems.length} item{pendingItems.length !== 1 ? "s" : ""} pending
@@ -1795,14 +1801,10 @@ function ReceivePurchaseModal({
               {purchase.remainingQuantity} units remaining
             </p>
           </div>
-          <button type="button" className="modal-close" onClick={onClose} aria-label="Close">
-            <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
-              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"/>
-            </svg>
-          </button>
         </div>
-        <form onSubmit={(event) => { void submit(event); }}>
-          <div className="por-body">
+      </div>
+      <form onSubmit={(event) => { void submit(event); }} style={{ display: "contents" }}>
+        <div className="por-body por-body--page">
             <p className="por-hint">
               Enter received quantities below. Add multiple batches per item when the supplier delivers different expiry dates or lot numbers in one shipment.
             </p>
@@ -1943,18 +1945,17 @@ function ReceivePurchaseModal({
               })}
             </div>
           </div>
-          <div className="modal-footer">
-            <button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button>
-            <button className="btn btn--primary" disabled={saving}>
-              {saving
-                ? "Receiving…"
-                : receiveTotal > 0
-                  ? `Receive · ${fmt(receiveTotal, currency)}`
-                  : "Receive Items"}
-            </button>
-          </div>
-        </form>
-      </div>
+        <div className="por-page-footer">
+          <button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button>
+          <button className="btn btn--primary" disabled={saving}>
+            {saving
+              ? "Receiving…"
+              : receiveTotal > 0
+                ? `Receive · ${fmt(receiveTotal, currency)}`
+                : "Receive Items"}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
