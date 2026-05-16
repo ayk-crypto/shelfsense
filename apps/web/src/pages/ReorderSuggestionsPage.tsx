@@ -87,6 +87,28 @@ export function ReorderSuggestionsPage() {
     ? (suppliers.find((sup) => sup.id === supplierFocusId) ?? null)
     : null;
 
+  const visibleSuggestions = useMemo(
+    () => supplierFocusId
+      ? suggestions.filter((s) => lines[s.itemId]?.supplierId === supplierFocusId)
+      : suggestions,
+    [supplierFocusId, suggestions, lines],
+  );
+
+  function handleSupplierFocusChange(newSupplierId: string) {
+    setSupplierFocusId(newSupplierId);
+    if (newSupplierId) {
+      setLines((cur) => {
+        const next = { ...cur };
+        for (const s of suggestions) {
+          if (!next[s.itemId]?.supplierId && s.preferredSupplier?.id === newSupplierId) {
+            next[s.itemId] = { ...next[s.itemId], supplierId: newSupplierId };
+          }
+        }
+        return next;
+      });
+    }
+  }
+
   function updateLine(itemId: string, patch: Partial<DraftLineState>) {
     setSuccess(null);
     setLines((cur) => ({
@@ -102,7 +124,7 @@ export function ReorderSuggestionsPage() {
     setSuccess(null);
     setLines((cur) => {
       const next = { ...cur };
-      for (const s of suggestions) {
+      for (const s of visibleSuggestions) {
         const hasSupplier = Boolean(next[s.itemId]?.supplierId);
         const hasQty = toNumber(next[s.itemId]?.quantity) > 0;
         next[s.itemId] = { ...next[s.itemId], selected: checked && hasSupplier && hasQty };
@@ -229,7 +251,7 @@ export function ReorderSuggestionsPage() {
     return <div className="page-error"><div className="alert alert--error">{error}</div></div>;
   }
 
-  const readyCount = suggestions.filter((s) => {
+  const readyCount = visibleSuggestions.filter((s) => {
     const l = lines[s.itemId];
     return l?.supplierId && toNumber(l.quantity) > 0;
   }).length;
@@ -312,7 +334,7 @@ export function ReorderSuggestionsPage() {
                 <select
                   className="ro-select--sm ro-supplier-focus-select"
                   value={supplierFocusId}
-                  onChange={(e) => setSupplierFocusId(e.target.value)}
+                  onChange={(e) => handleSupplierFocusChange(e.target.value)}
                   aria-label="Filter by supplier for PO creation"
                 >
                   <option value="">All suppliers</option>
@@ -378,7 +400,7 @@ export function ReorderSuggestionsPage() {
                 </tr>
               </thead>
               <tbody>
-                {suggestions.map((s) => {
+                {visibleSuggestions.map((s) => {
                   const line = lines[s.itemId] ?? { selected: false, supplierId: "", quantity: "", unitCost: "" };
                   const factor = s.purchaseConversionFactor;
                   const hasUop = hasPurchaseUnit(s.purchaseUnit, factor);

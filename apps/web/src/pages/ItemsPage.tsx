@@ -21,6 +21,7 @@ import {
   getLastSevenDaysRange,
   getUsageInsights,
 } from "../utils/usage";
+import { hasPurchaseUnit, getSuggestedPurchaseQty, toPurchaseQuantity } from "../utils/purchaseUnits";
 
 const BarcodeScanner = lazy(() =>
   import("../components/BarcodeScanner").then((m) => ({ default: m.BarcodeScanner })),
@@ -790,22 +791,21 @@ export function ItemsPage() {
                             </span>
                           );
                         })()}
-                        {s?.isLowStock && (
-                          <span className="reorder-hint">
-                            Suggested reorder:{" "}
-                            {formatNumber(getSuggestedReorderQuantity(
-                              s.totalQuantity,
-                              s.minStockLevel,
-                              settings.lowStockMultiplier,
-                            ))} {item.unit}
-                          </span>
-                        )}
-                        {usage && (
-                          <span className="usage-hint">
-                            7-day usage: {formatNumber(usage.totalQuantity)} {item.unit} · Avg/day:{" "}
-                            {formatNumber(usage.averageDailyUsage)} {item.unit}
-                          </span>
-                        )}
+                        {s?.isLowStock && (() => {
+                          const shortage = getSuggestedReorderQuantity(s.totalQuantity, s.minStockLevel, settings.lowStockMultiplier);
+                          const hasPU = hasPurchaseUnit(item.purchaseUnit, item.purchaseConversionFactor);
+                          const dispQty = hasPU && item.purchaseConversionFactor ? getSuggestedPurchaseQty(shortage, item.purchaseConversionFactor) : shortage;
+                          const dispUnit = hasPU && item.purchaseUnit ? item.purchaseUnit : item.unit;
+                          return <span className="reorder-hint">Suggested reorder: {formatNumber(dispQty)} {dispUnit}</span>;
+                        })()}
+                        {usage && (() => {
+                          const hasPU = hasPurchaseUnit(item.purchaseUnit, item.purchaseConversionFactor);
+                          const factor = item.purchaseConversionFactor ?? 1;
+                          const dispUnit = hasPU && item.purchaseUnit ? item.purchaseUnit : item.unit;
+                          const total = hasPU ? toPurchaseQuantity(usage.totalQuantity, factor) : usage.totalQuantity;
+                          const avg = hasPU ? toPurchaseQuantity(usage.averageDailyUsage, factor) : usage.averageDailyUsage;
+                          return <span className="usage-hint">7-day usage: {formatNumber(total)} {dispUnit} · Avg/day: {formatNumber(avg)} {dispUnit}</span>;
+                        })()}
                         {estimatedDaysRemaining !== null && (
                           <span className={`forecast-hint forecast-hint--${getForecastTone(estimatedDaysRemaining)}`}>
                             Est. remaining: {formatNumber(estimatedDaysRemaining)} days
@@ -997,22 +997,21 @@ export function ItemsPage() {
                       <span className="item-card-stat-value">{item.minStockLevel} {item.unit}</span>
                     </span>
                   </div>
-                  {s?.isLowStock && (
-                    <p className="reorder-hint reorder-hint--card">
-                      Suggested reorder:{" "}
-                      {formatNumber(getSuggestedReorderQuantity(
-                        s.totalQuantity,
-                        s.minStockLevel,
-                        settings.lowStockMultiplier,
-                      ))} {item.unit}
-                    </p>
-                  )}
-                  {usage && (
-                    <p className="usage-hint usage-hint--card">
-                      7-day usage: {formatNumber(usage.totalQuantity)} {item.unit} · Avg/day:{" "}
-                      {formatNumber(usage.averageDailyUsage)} {item.unit}
-                    </p>
-                  )}
+                  {s?.isLowStock && (() => {
+                    const shortage = getSuggestedReorderQuantity(s.totalQuantity, s.minStockLevel, settings.lowStockMultiplier);
+                    const hasPU = hasPurchaseUnit(item.purchaseUnit, item.purchaseConversionFactor);
+                    const dispQty = hasPU && item.purchaseConversionFactor ? getSuggestedPurchaseQty(shortage, item.purchaseConversionFactor) : shortage;
+                    const dispUnit = hasPU && item.purchaseUnit ? item.purchaseUnit : item.unit;
+                    return <p className="reorder-hint reorder-hint--card">Suggested reorder: {formatNumber(dispQty)} {dispUnit}</p>;
+                  })()}
+                  {usage && (() => {
+                    const hasPU = hasPurchaseUnit(item.purchaseUnit, item.purchaseConversionFactor);
+                    const factor = item.purchaseConversionFactor ?? 1;
+                    const dispUnit = hasPU && item.purchaseUnit ? item.purchaseUnit : item.unit;
+                    const total = hasPU ? toPurchaseQuantity(usage.totalQuantity, factor) : usage.totalQuantity;
+                    const avg = hasPU ? toPurchaseQuantity(usage.averageDailyUsage, factor) : usage.averageDailyUsage;
+                    return <p className="usage-hint usage-hint--card">7-day usage: {formatNumber(total)} {dispUnit} · Avg/day: {formatNumber(avg)} {dispUnit}</p>;
+                  })()}
                   {estimatedDaysRemaining !== null && (
                     <p className={`forecast-hint forecast-hint--card forecast-hint--${getForecastTone(estimatedDaysRemaining)}`}>
                       Est. remaining: {formatNumber(estimatedDaysRemaining)} days
