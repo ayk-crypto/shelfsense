@@ -32,6 +32,7 @@ import { supportRouter } from "./routes/support.js";
 import { webhooksRouter } from "./routes/webhooks.js";
 import { billingRouter } from "./routes/billing.js";
 import { receivingRouter } from "./routes/receiving.js";
+import { physicalCountSettingsRouter } from "./routes/physical-count-settings.js";
 
 export const app = express();
 
@@ -205,6 +206,7 @@ app.use("/billing", billingRouter);
 app.use("/team", teamRouter);
 app.use("/support", supportRouter);
 app.use("/receiving", receivingRouter);
+app.use("/physical-count-settings", physicalCountSettingsRouter);
 app.use((req, res) => {
   const body: Record<string, unknown> = { error: "Route not found", code: "NOT_FOUND" };
   if (req.requestId) body.requestId = req.requestId;

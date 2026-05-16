@@ -4,6 +4,7 @@ import { Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../db/prisma.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async-handler.js";
+import { calculateNextDueDate } from "../lib/physical-count-schedule.js";
 
 export const stockCountsRouter = Router();
 
@@ -336,6 +337,36 @@ stockCountsRouter.post("/:id/finalize", requireRole([Role.OWNER, Role.MANAGER]),
           } as Prisma.InputJsonValue,
         },
       });
+
+      // Update physical count schedule if configured
+      const pcSettings = await tx.physicalCountSettings.findUnique({
+        where: { workspaceId },
+        select: {
+          id: true,
+          enabled: true,
+          frequencyType: true,
+          customIntervalNumber: true,
+          customIntervalUnit: true,
+          createdAt: true,
+        },
+      });
+      if (pcSettings && pcSettings.enabled) {
+        const now = new Date();
+        const nextDueAt = calculateNextDueDate(now, {
+          frequencyType: pcSettings.frequencyType,
+          customIntervalNumber: pcSettings.customIntervalNumber,
+          customIntervalUnit: pcSettings.customIntervalUnit,
+          createdAt: pcSettings.createdAt,
+        });
+        await tx.physicalCountSettings.update({
+          where: { workspaceId },
+          data: {
+            lastCompletedAt: now,
+            lastCompletedCountId: count.id,
+            nextDueAt,
+          },
+        });
+      }
 
       return finalized;
     });

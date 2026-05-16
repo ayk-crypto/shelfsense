@@ -5,7 +5,9 @@ import {
   sendLowStockAlertEmail,
   sendExpirySoonAlertEmail,
   sendDailyDigestEmail,
+  sendPhysicalCountReminderEmail,
 } from "../services/email.js";
+import { daysUntilDue } from "../lib/physical-count-schedule.js";
 
 const LOW_STOCK_EMAIL_COOLDOWN_HOURS = 4;
 const EXPIRY_EMAIL_COOLDOWN_HOURS = 4;
@@ -14,9 +16,10 @@ export function startAlertScheduler(): void {
   cron.schedule("0 */4 * * *", () => void runLowStockJob());
   cron.schedule("0 2,6,10,14,18,22 * * *", () => void runExpirySoonJob());
   cron.schedule("0 8 * * *", () => void runDailyDigestJob());
+  cron.schedule("0 9 * * *", () => void runPhysicalCountReminderJob());
 
   logger.info(
-    "[SCHEDULER] Alert scheduler started — low stock every 4h, expiry every 4h (offset), daily digest at 08:00",
+    "[SCHEDULER] Alert scheduler started — low stock every 4h, expiry every 4h (offset), daily digest at 08:00, physical count reminder at 09:00",
   );
 }
 
@@ -340,5 +343,126 @@ async function runDailyDigestJob(): Promise<void> {
     }
   } catch (err) {
     logger.error("[SCHEDULER] Daily digest job fatal error", { error: String(err) });
+  }
+}
+
+async function runPhysicalCountReminderJob(): Promise<void> {
+  logger.info("[SCHEDULER] Running physical count reminder job");
+  try {
+    const now = new Date();
+    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const settingsRecords = await prisma.physicalCountSettings.findMany({
+      where: {
+        enabled: true,
+        nextDueAt: { not: null },
+      },
+      include: {
+        workspace: {
+          select: {
+            id: true,
+            name: true,
+            owner: { select: { email: true } },
+            emailAlertsEnabled: true,
+          },
+        },
+      },
+    });
+
+    logger.info(`[SCHEDULER] Physical count reminder: ${settingsRecords.length} configured workspace(s)`);
+
+    for (const rec of settingsRecords) {
+      try {
+        if (!rec.nextDueAt) continue;
+
+        const nextDue = new Date(rec.nextDueAt);
+        const days = daysUntilDue(nextDue);
+        const leadDays = rec.reminderLeadDays ?? 0;
+
+        // Trigger condition: days <= leadDays (includes overdue: days < 0)
+        if (days > leadDays) continue;
+
+        // Dedup: only send once per day
+        if (rec.lastReminderSentAt) {
+          const lastSentMidnight = new Date(rec.lastReminderSentAt);
+          lastSentMidnight.setHours(0, 0, 0, 0);
+          if (lastSentMidnight.getTime() === todayMidnight.getTime()) continue;
+        }
+
+        const workspaceId = rec.workspaceId;
+
+        // Check no active count already in progress
+        const activeCount = await prisma.stockCount.findFirst({
+          where: { workspaceId, status: "DRAFT" },
+          select: { id: true },
+        });
+        if (activeCount) {
+          logger.info("[SCHEDULER] Skipping reminder — active count exists", { workspaceId });
+          continue;
+        }
+
+        // Create in-app notification for the workspace owner
+        const owner = await prisma.user.findFirst({
+          where: {
+            ownedSpaces: { some: { id: workspaceId } },
+          },
+          select: { id: true },
+        });
+
+        if (owner) {
+          let title: string;
+          let message: string;
+          if (days < 0) {
+            const overdue = Math.abs(days);
+            title = "Physical count overdue";
+            message = `Physical inventory count is overdue by ${overdue} day${overdue !== 1 ? "s" : ""}. Please start a new count.`;
+          } else if (days === 0) {
+            title = "Physical count due today";
+            message = "Physical inventory count is due today. Start a count to verify stock accuracy.";
+          } else {
+            title = `Physical count due in ${days} days`;
+            message = `Physical inventory count is due in ${days} day${days !== 1 ? "s" : ""}. Plan ahead to avoid disruptions.`;
+          }
+
+          await prisma.notification.create({
+            data: {
+              workspaceId,
+              userId: owner.id,
+              type: "PHYSICAL_COUNT_REMINDER",
+              title,
+              message,
+              entity: "PhysicalCountSettings",
+              entityId: rec.id,
+            },
+          }).catch(() => {}); // ignore duplicate errors
+        }
+
+        // Send email if alerts are enabled
+        if (rec.workspace.emailAlertsEnabled) {
+          await sendPhysicalCountReminderEmail({
+            ownerEmail: rec.workspace.owner.email,
+            workspaceName: rec.workspace.name,
+            workspaceId,
+            daysUntilDue: days,
+            nextDueAt: nextDue,
+          });
+        }
+
+        // Mark reminder sent
+        await prisma.physicalCountSettings.update({
+          where: { id: rec.id },
+          data: { lastReminderSentAt: now },
+        });
+
+        logger.info("[SCHEDULER] Physical count reminder sent", { workspaceId, days });
+      } catch (err) {
+        logger.warn("[SCHEDULER] Physical count reminder failed for workspace", {
+          workspaceId: rec.workspaceId,
+          error: String(err),
+        });
+      }
+    }
+  } catch (err) {
+    logger.error("[SCHEDULER] Physical count reminder job fatal error", { error: String(err) });
   }
 }

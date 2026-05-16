@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Bar,
   BarChart,
@@ -13,11 +13,12 @@ import {
 import { getAlerts } from "../api/alerts";
 import { getSupplierMappings } from "../api/item-suppliers";
 import { getStockMovements, getStockSummary, getStockTrend } from "../api/stock";
+import { getPhysicalCountSettings } from "../api/physicalCountSettings";
 import { useAuth } from "../context/AuthContext";
 import { hasPermission } from "../utils/permissions";
 import { useLocation } from "../context/LocationContext";
 import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
-import type { AlertsResponse, StockMovement, StockSummaryItem, StockTrendDataPoint } from "../types";
+import type { AlertsResponse, PhysicalCountSettings, StockMovement, StockSummaryItem, StockTrendDataPoint } from "../types";
 import { formatCurrency } from "../utils/currency";
 import { getSuggestedReorderQuantity } from "../utils/reorder";
 import {
@@ -26,6 +27,7 @@ import {
   getStockForecast,
   getUsageInsights,
 } from "../utils/usage";
+import { PhysicalCountReminderCard } from "../components/PhysicalCountReminderCard";
 
 function formatDate(dateStr: string | null) {
   if (!dateStr) return "—";
@@ -119,6 +121,10 @@ export function DashboardPage() {
   }>({ alerts: null, wastage: null, usage: null });
   const [unmappedItemsCount, setUnmappedItemsCount] = useState<number | null>(null);
   const [insightTab, setInsightTab] = useState<InsightTab>("usage");
+  const [pcSettings, setPcSettings] = useState<PhysicalCountSettings | null>(null);
+  const [pcSettingsLoading, setPcSettingsLoading] = useState(false);
+  const navigate = useNavigate();
+
   const [checklistDismissed, setChecklistDismissed] = useState(() => {
     try { return localStorage.getItem("ss_onboarding_dismissed") === "1"; } catch { return false; }
   });
@@ -245,6 +251,15 @@ export function DashboardPage() {
     }
     void load();
   }, [canAccessManagement, activeLocationId, locationReady]);
+
+  useEffect(() => {
+    if (!canAccessManagement) return;
+    setPcSettingsLoading(true);
+    getPhysicalCountSettings()
+      .then((r) => setPcSettings(r.settings))
+      .catch(() => {})
+      .finally(() => setPcSettingsLoading(false));
+  }, [canAccessManagement]);
 
   useEffect(() => {
     if (!locationReady) return;
@@ -432,6 +447,16 @@ export function DashboardPage() {
             manualDone={checklistManualDone}
             onToggle={toggleChecklistStep}
             onDismiss={dismissChecklist}
+          />
+        </div>
+      )}
+
+      {canAccessManagement && (pcSettings?.enabled || pcSettingsLoading) && (
+        <div className="db-body">
+          <PhysicalCountReminderCard
+            settings={pcSettings}
+            loading={pcSettingsLoading}
+            onConfigure={() => navigate("/settings#physical-count")}
           />
         </div>
       )}

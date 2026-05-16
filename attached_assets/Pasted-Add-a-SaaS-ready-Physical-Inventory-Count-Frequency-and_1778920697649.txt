@@ -1,0 +1,383 @@
+Add a SaaS-ready Physical Inventory Count Frequency and Reminder feature.
+
+Context:
+The application is a multi-tenant inventory management SaaS. The feature must be designed generically for any business using the platform, not for one specific restaurant or company.
+
+Goal:
+Allow each tenant/workspace/business to configure how often physical inventory counts should be performed. The system should calculate reminders based on the last completed physical count, not fixed calendar dates.
+
+Important Business Logic:
+The reminder schedule must follow a rolling cycle based on the last completed physical count.
+
+Example:
+If a tenant selects Monthly frequency and completes physical inventory on 14 May, the next reminder should be due around 14 June.
+It should NOT remind on 1 June.
+
+This is correct because the business selected a one-month frequency, so the system should maintain a one-month gap from the actual completion date.
+
+====================================================
+FEATURE REQUIREMENTS
+====================================================
+
+1. Physical Count Settings
+
+Add a new settings section, preferably under:
+
+Settings → Inventory Settings → Physical Count
+
+or
+
+Inventory → Physical Count Settings
+
+Fields:
+- Enable Physical Inventory Reminders: Yes / No
+- Frequency:
+  - Weekly
+  - Bi-weekly
+  - Monthly
+  - Quarterly
+  - Custom
+- Custom frequency:
+  - Number input
+  - Unit dropdown:
+    - Days
+    - Weeks
+    - Months
+- Reminder lead time:
+  - Same day
+  - 1 day before
+  - 3 days before
+  - 7 days before
+- Reminder recipients:
+  - Workspace owner
+  - Admins
+  - Inventory managers
+  - Branch/location managers, if roles exist
+  - Optional custom user selection if supported
+- Optional branch/location selection if the SaaS supports multi-location inventory
+
+2. Database Changes
+
+Create or update tables in a multi-tenant-safe way.
+
+Suggested table:
+
+physical_inventory_settings
+
+Fields:
+- id
+- tenant_id or workspace_id
+- location_id nullable
+- enabled boolean default true
+- frequency_type varchar
+  values: weekly, biweekly, monthly, quarterly, custom
+- custom_interval_number integer nullable
+- custom_interval_unit varchar nullable
+  values: days, weeks, months
+- reminder_lead_days integer default 0
+- last_completed_count_id nullable
+- last_completed_at timestamp nullable
+- next_due_at timestamp nullable
+- created_at
+- updated_at
+
+Suggested table if not already available:
+
+physical_inventory_counts
+
+Fields:
+- id
+- tenant_id or workspace_id
+- location_id nullable
+- status
+  values: draft, in_progress, pending_review, completed, cancelled
+- scope_type
+  values: full_inventory, category, selected_items, low_stock, high_value, expiry_sensitive
+- started_at
+- started_by
+- completed_at nullable
+- completed_by nullable
+- reviewed_at nullable
+- reviewed_by nullable
+- variance_summary json nullable
+- notes nullable
+- created_at
+- updated_at
+
+Suggested table:
+
+physical_inventory_count_lines
+
+Fields:
+- id
+- count_id
+- tenant_id or workspace_id
+- item_id
+- category_id nullable
+- system_quantity
+- counted_quantity nullable
+- difference nullable
+- unit_cost nullable
+- variance_value nullable
+- reason nullable
+- notes nullable
+- created_at
+- updated_at
+
+3. Next Due Date Calculation
+
+Create a backend helper function:
+
+calculateNextPhysicalCountDueDate(lastCompletedAt, settings)
+
+Rules:
+- If reminders are disabled, return null.
+- If no previous completed count exists:
+  - calculate first due date from settings.created_at + configured frequency.
+- If a previous completed count exists:
+  - Weekly = lastCompletedAt + 7 days
+  - Bi-weekly = lastCompletedAt + 14 days
+  - Monthly = lastCompletedAt + 1 calendar month
+  - Quarterly = lastCompletedAt + 3 calendar months
+  - Custom days = lastCompletedAt + custom number of days
+  - Custom weeks = lastCompletedAt + custom number of weeks
+  - Custom months = lastCompletedAt + custom number of calendar months
+
+Important:
+Do not calculate monthly reminders from the 1st day of the next month.
+Do not use fixed calendar resets by default.
+Always calculate the next due date from the actual completed count date.
+
+Examples:
+- Completed: 2026-05-14
+  Frequency: Monthly
+  Next due: 2026-06-14
+
+- Completed: 2026-01-31
+  Frequency: Monthly
+  Next due: 2026-02-28 or the last valid day of the next month.
+
+- Completed: 2026-05-14
+  Frequency: Weekly
+  Next due: 2026-05-21
+
+4. Reminder Trigger Logic
+
+Add a backend scheduled job or daily reminder check using the existing app architecture.
+
+The job should run daily and check:
+- reminders are enabled
+- next_due_at is not null
+- current date >= next_due_at - reminder_lead_days
+- no active physical count already exists for the same tenant/workspace/location
+- reminder for the same due cycle has not already been sent, if reminder deduplication exists
+
+If conditions match:
+- create an in-app notification
+- show dashboard alert
+- optionally trigger email notification if email notification system exists
+- optionally trigger push notification if supported later
+
+Notification examples:
+- “Physical inventory count is due. Please start a new count to verify stock accuracy.”
+- “Physical inventory count is due in 3 days.”
+- “Physical inventory count is overdue since [date]. Please complete stock verification.”
+
+5. Dashboard / Inventory Alert
+
+Add a visible reminder card on the dashboard or inventory dashboard.
+
+States:
+- Not configured:
+  “Physical inventory reminders are not configured.”
+  Button: “Configure”
+
+- Upcoming:
+  “Physical count due in X days.”
+  Button: “View Schedule”
+
+- Due today:
+  “Physical count is due today.”
+  Button: “Start Physical Count”
+
+- Overdue:
+  “Physical count is overdue by X days.”
+  Button: “Start Physical Count”
+
+- Recently completed:
+  “Last physical count completed on [date]. Next count due on [date].”
+  Button: “View Count History”
+
+6. Physical Count Workflow
+
+Create or improve the physical count workflow so it is operationally smooth for any tenant.
+
+Suggested flow:
+
+Inventory → Physical Counts → Start Count
+
+Step 1: Select location/branch, if applicable.
+
+Step 2: Select count scope:
+- Full inventory
+- Category-wise count
+- Selected items
+- Low-stock items
+- High-value items
+- Expiry-sensitive items
+
+Step 3: Generate count sheet.
+
+Step 4: User enters counted quantity.
+
+Step 5: System compares:
+- System quantity
+- Counted quantity
+- Difference
+- Variance value
+
+Step 6: User adds variance reason:
+- Wastage not recorded
+- Internal usage not recorded
+- Loss/damage
+- Receiving mismatch
+- Sales/POS consumption mismatch
+- Counting mistake
+- Unit conversion issue
+- Other
+
+Step 7: Manager/admin reviews variances.
+
+Step 8: Approved variances create controlled inventory adjustment entries.
+
+Step 9: On final completion:
+- save completed_at
+- update last_completed_at in physical inventory settings
+- recalculate next_due_at using completed_at + selected frequency
+- create audit log
+- update dashboard reminder state
+
+7. Inventory Safety Rule
+
+Do not blindly overwrite inventory when a physical count is completed.
+
+Use a controlled adjustment flow:
+- Count is completed
+- Variances are generated
+- Variances are reviewed
+- Approved variances create inventory adjustment records
+- Inventory is updated through adjustment entries
+- Audit trail is maintained
+
+This prevents accidental stock corruption and supports SaaS-grade accountability.
+
+8. UI Requirements
+
+Use the existing design system and SaaS UI patterns.
+
+Required screens/components:
+- Physical Count Settings card
+- Dashboard reminder card
+- Physical Count list page
+- Start Physical Count flow
+- Count entry table
+- Variance review screen
+- Count detail/history page
+
+Count entry table columns:
+- Item name
+- SKU/barcode, if available
+- Category
+- Unit
+- System quantity
+- Counted quantity
+- Difference
+- Unit cost
+- Variance value
+- Reason
+- Notes
+
+UX requirements:
+- Mobile responsive
+- Tablet friendly
+- Search and filter support
+- Category filter
+- Location filter, if applicable
+- Loading states
+- Empty states
+- Toast notifications
+- Confirmation dialogs for completion, cancellation, and variance approval
+
+9. Audit Logs
+
+Create audit events for:
+- Physical count reminders enabled/disabled
+- Physical count frequency updated
+- Physical count started
+- Physical count submitted for review
+- Physical count completed
+- Physical count cancelled
+- Variance approved
+- Variance rejected
+- Inventory adjusted from physical count
+
+Each audit log should include:
+- tenant/workspace ID
+- user ID
+- action
+- timestamp
+- affected count ID
+- affected location ID, if applicable
+- before/after values where relevant
+
+10. Multi-Tenant SaaS Requirements
+
+This feature must be fully tenant-isolated.
+
+Requirements:
+- No tenant can view or modify another tenant’s physical count settings.
+- Physical count records must be scoped by tenant/workspace.
+- Notifications must only go to users belonging to the correct tenant/workspace.
+- Location-specific counts must only show relevant items.
+- API routes must validate tenant/workspace access.
+- Background jobs must process tenants safely without cross-tenant leakage.
+- All database queries must include tenant/workspace scoping.
+
+11. Permissions
+
+Use existing role/permission patterns.
+
+Suggested permissions:
+- inventory.physical_count.view
+- inventory.physical_count.start
+- inventory.physical_count.update
+- inventory.physical_count.submit
+- inventory.physical_count.review
+- inventory.physical_count.approve_adjustment
+- inventory.physical_count.settings.manage
+
+Only authorized roles should be able to:
+- change reminder settings
+- start counts
+- submit counts
+- approve variances
+- apply inventory adjustments
+
+12. Acceptance Criteria
+
+- Tenant admin can enable/disable physical inventory reminders.
+- Tenant admin can set frequency as weekly, bi-weekly, monthly, quarterly, or custom.
+- System calculates next_due_at from the last completed physical count date.
+- If monthly frequency is selected and count is completed on 14 May, next due date becomes 14 June.
+- Reminder does not reset to the 1st of the next month.
+- Dashboard shows physical count reminder status clearly.
+- System creates notifications when count is upcoming, due, or overdue.
+- Starting a count prevents duplicate active counts for the same tenant/location.
+- Completing a count updates last_completed_at and recalculates next_due_at.
+- Physical count variances are reviewed before inventory is adjusted.
+- Inventory is updated only through approved adjustment entries.
+- All important actions are captured in audit logs.
+- Feature works safely across multiple tenants/workspaces.
+- UI is responsive and suitable for mobile counting operations.
+
+Please implement this feature using the existing SaaS architecture, tenant/workspace isolation, authentication, authorization, API conventions, database migration style, UI components, notification system, audit logging approach, and existing inventory adjustment patterns.

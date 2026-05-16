@@ -331,6 +331,7 @@ model Workspace {
   inventoryCostBasis             InventoryCostBasis    @default(INCLUDING_TAX)
   invoiceUploads                 SupplierInvoiceUpload[]
   supplierItemAliases            SupplierItemAlias[]
+  physicalCountSettings          PhysicalCountSettings?
 
   @@index([isDemoWorkspace])
   @@index([archivedAt])
@@ -1128,4 +1129,25 @@ model SupplierItemAlias {
   @@unique([workspaceId, supplierId, normalizedInvoiceItemName])
   @@index([workspaceId])
   @@index([workspaceId, supplierId])
+}
+
+model PhysicalCountSettings {
+  id                   String    @id @default(uuid()) @db.Uuid
+  workspaceId          String    @unique @db.Uuid
+  locationId           String?   @db.Uuid
+  enabled              Boolean   @default(true)
+  frequencyType        String    @default("monthly")
+  customIntervalNumber Int?
+  customIntervalUnit   String?
+  reminderLeadDays     Int       @default(0)
+  lastCompletedAt      DateTime?
+  lastCompletedCountId String?   @db.Uuid
+  nextDueAt            DateTime?
+  lastReminderSentAt   DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  workspace            Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([nextDueAt])
 }

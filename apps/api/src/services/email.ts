@@ -383,3 +383,44 @@ export async function sendAlertDigestEmail(payload: AlertEmailPayload & { worksp
     },
   });
 }
+
+export async function sendPhysicalCountReminderEmail(payload: {
+  ownerEmail: string;
+  workspaceName: string;
+  workspaceId?: string;
+  daysUntilDue: number;
+  nextDueAt: Date;
+}): Promise<void> {
+  const { ownerEmail, workspaceName, daysUntilDue, nextDueAt, workspaceId } = payload;
+  const dueDateStr = nextDueAt.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  const startUrl = `${APP_URL}/stock-count`;
+
+  let subject: string;
+  let bodyText: string;
+  let bodyHtml: string;
+
+  if (daysUntilDue < 0) {
+    const overdueDays = Math.abs(daysUntilDue);
+    subject = `Physical Count Overdue — ${workspaceName}`;
+    bodyText = `Your physical inventory count is overdue by ${overdueDays} day${overdueDays !== 1 ? "s" : ""} (was due ${dueDateStr}). Please start a new count to verify stock accuracy.`;
+    bodyHtml = `<p>Your physical inventory count is <strong>overdue by ${overdueDays} day${overdueDays !== 1 ? "s" : ""}</strong> (was due ${dueDateStr}).</p><p>Please start a new count to verify stock accuracy.</p>`;
+  } else if (daysUntilDue === 0) {
+    subject = `Physical Count Due Today — ${workspaceName}`;
+    bodyText = `Your physical inventory count is due today (${dueDateStr}). Start a new count to verify stock accuracy.`;
+    bodyHtml = `<p>Your physical inventory count is <strong>due today</strong> (${dueDateStr}).</p><p>Start a new count to verify stock accuracy.</p>`;
+  } else {
+    subject = `Physical Count Due in ${daysUntilDue} Day${daysUntilDue !== 1 ? "s" : ""} — ${workspaceName}`;
+    bodyText = `Your physical inventory count is due in ${daysUntilDue} day${daysUntilDue !== 1 ? "s" : ""} on ${dueDateStr}.`;
+    bodyHtml = `<p>Your physical inventory count is due in <strong>${daysUntilDue} day${daysUntilDue !== 1 ? "s" : ""}</strong> on ${dueDateStr}.</p>`;
+  }
+
+  await dispatchMail({
+    to: ownerEmail,
+    subject,
+    type: "PHYSICAL_COUNT_REMINDER",
+    workspaceId,
+    text: [bodyText, "", `Start your count at ${startUrl}`].join("\n"),
+    html: `${bodyHtml}<p><a href="${startUrl}" style="display:inline-block;padding:10px 20px;background:#6366f1;color:#fff;border-radius:6px;text-decoration:none;">Start Physical Count →</a></p>`,
+    devMeta: { workspaceName, daysUntilDue },
+  });
+}

@@ -28820,3 +28820,218 @@ body {
 .srm-apply-btn {
   align-self: flex-end;
 }
+
+/* ─── Physical Count Settings — stg additions ─────────────────────────────── */
+
+.stg-field-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin-bottom: 1.125rem;
+}
+.stg-field-row:last-child { margin-bottom: 0; }
+
+.stg-field-row--toggle {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #f3f4f6;
+  margin-bottom: 1rem;
+}
+
+.stg-field-row--inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.stg-toggle-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  flex: 1;
+  cursor: pointer;
+}
+.stg-toggle-label span:first-child {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+}
+.stg-toggle-desc {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  line-height: 1.4;
+}
+
+.stg-toggle {
+  flex-shrink: 0;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 2.5rem;
+  height: 1.375rem;
+  background: #d1d5db;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  transition: background 0.18s ease;
+  padding: 0;
+}
+.stg-toggle--on { background: #6366f1; }
+.stg-toggle-thumb {
+  position: absolute;
+  left: 0.1875rem;
+  width: 1rem;
+  height: 1rem;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.18);
+  transition: transform 0.18s ease;
+}
+.stg-toggle--on .stg-toggle-thumb { transform: translateX(1.125rem); }
+
+.stg-select {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  background: #fff;
+  color: #111827;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.stg-select:focus { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,0.12); }
+
+.stg-select--inline { width: auto; }
+
+.stg-input {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  background: #fff;
+  color: #111827;
+  outline: none;
+  transition: border-color 0.15s;
+  width: 100%;
+}
+.stg-input:focus { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,0.12); }
+.stg-input--short { width: 5rem; }
+
+.stg-card-footer {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid #f3f4f6;
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.stg-info-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+
+.stg-info-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.625rem;
+  background: #ede9fe;
+  color: #4f46e5;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+/* ─── Physical Count Reminder Card ─────────────────────────────────────────── */
+
+.pc-reminder-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.875rem 1.25rem;
+  border-radius: 0.75rem;
+  border: 1px solid transparent;
+  background: #fff;
+}
+
+.pc-reminder-card--loading {
+  justify-content: center;
+  min-height: 3.5rem;
+  border-color: #e5e7eb;
+}
+
+.pc-reminder-card--unconfigured {
+  border-color: #e5e7eb;
+  background: #f9fafb;
+}
+
+.pc-reminder-card--ok {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.pc-reminder-card--upcoming {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.pc-reminder-card--due {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.pc-reminder-card--overdue {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.pc-reminder-icon {
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+}
+
+.pc-reminder-card--unconfigured .pc-reminder-icon { background: #f3f4f6; color: #9ca3af; }
+.pc-reminder-card--ok .pc-reminder-icon           { background: #dcfce7; color: #16a34a; }
+.pc-reminder-card--upcoming .pc-reminder-icon     { background: #dbeafe; color: #2563eb; }
+.pc-reminder-card--due .pc-reminder-icon          { background: #fef3c7; color: #d97706; }
+.pc-reminder-card--overdue .pc-reminder-icon      { background: #fee2e2; color: #dc2626; }
+
+.pc-reminder-icon svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.pc-reminder-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.pc-reminder-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 0.125rem;
+}
+
+.pc-reminder-sub {
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.pc-reminder-btn {
+  flex-shrink: 0;
+}

@@ -1711,3 +1711,20 @@ export interface BulkRemoveSupplierResponse {
   skipped: number;
   skippedItems: Array<{ itemId: string; itemName: string; reason: string }>;
 }
+
+export interface PhysicalCountSettings {
+  id: string;
+  workspaceId: string;
+  locationId: string | null;
+  enabled: boolean;
+  frequencyType: string;
+  customIntervalNumber: number | null;
+  customIntervalUnit: string | null;
+  reminderLeadDays: number;
+  lastCompletedAt: string | null;
+  lastCompletedCountId: string | null;
+  nextDueAt: string | null;
+  lastReminderSentAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}

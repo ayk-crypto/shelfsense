@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { updateWorkspaceSettings } from "../api/workspace";
+import { getPhysicalCountSettings, updatePhysicalCountSettings } from "../api/physicalCountSettings";
 import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
 import { DEFAULT_CATEGORY_OPTIONS, DEFAULT_UNIT_OPTIONS } from "../utils/inventoryDefaults";
-import type { WorkspaceSettings } from "../types";
+import type { PhysicalCountSettings, WorkspaceSettings } from "../types";
 
 interface Toast {
   id: number;
@@ -43,6 +44,33 @@ const CURRENCY_OPTIONS = [
 
 const PHONE_PATTERN = /^[+\d\s-]{7,24}$/;
 
+interface PcForm {
+  enabled: boolean;
+  frequencyType: string;
+  customIntervalNumber: string;
+  customIntervalUnit: string;
+  reminderLeadDays: string;
+}
+
+const DEFAULT_PC_FORM: PcForm = {
+  enabled: true,
+  frequencyType: "monthly",
+  customIntervalNumber: "1",
+  customIntervalUnit: "months",
+  reminderLeadDays: "3",
+};
+
+function pcSettingsToForm(s: PhysicalCountSettings | null): PcForm {
+  if (!s) return DEFAULT_PC_FORM;
+  return {
+    enabled: s.enabled,
+    frequencyType: s.frequencyType,
+    customIntervalNumber: String(s.customIntervalNumber ?? 1),
+    customIntervalUnit: s.customIntervalUnit ?? "months",
+    reminderLeadDays: String(s.reminderLeadDays),
+  };
+}
+
 export function SettingsPage() {
   const { settings, loading, error, setSettings } = useWorkspaceSettings();
   const [form, setForm] = useState<SettingsForm>(toForm(settings));
@@ -50,6 +78,20 @@ export function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const saveBarRef = useRef<HTMLDivElement>(null);
+
+  // Physical count settings state
+  const [pcSettings, setPcSettings] = useState<PhysicalCountSettings | null>(null);
+  const [pcForm, setPcForm] = useState<PcForm>(DEFAULT_PC_FORM);
+  const [pcSaving, setPcSaving] = useState(false);
+
+  useEffect(() => {
+    getPhysicalCountSettings()
+      .then((r) => {
+        setPcSettings(r.settings);
+        setPcForm(pcSettingsToForm(r.settings));
+      })
+      .catch(() => {});
+  }, []);
 
   const effectiveUnits = (u: string[]) => (u.length > 0 ? u : DEFAULT_UNIT_OPTIONS);
   const effectiveCategories = (c: string[]) => (c.length > 0 ? c : DEFAULT_CATEGORY_OPTIONS);
@@ -136,6 +178,36 @@ export function SettingsPage() {
       showToast(err instanceof Error ? err.message : "Failed to save settings", "error");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handlePcSave() {
+    const n = Number(pcForm.customIntervalNumber);
+    if (pcForm.frequencyType === "custom" && (!Number.isInteger(n) || n < 1)) {
+      showToast("Custom interval must be a positive whole number", "error");
+      return;
+    }
+    const leadDays = Number(pcForm.reminderLeadDays);
+    if (!Number.isInteger(leadDays) || leadDays < 0) {
+      showToast("Reminder lead days must be 0 or more", "error");
+      return;
+    }
+    setPcSaving(true);
+    try {
+      const res = await updatePhysicalCountSettings({
+        enabled: pcForm.enabled,
+        frequencyType: pcForm.frequencyType,
+        customIntervalNumber: pcForm.frequencyType === "custom" ? n : null,
+        customIntervalUnit: pcForm.frequencyType === "custom" ? pcForm.customIntervalUnit : null,
+        reminderLeadDays: leadDays,
+      });
+      setPcSettings(res.settings);
+      setPcForm(pcSettingsToForm(res.settings));
+      showToast("Physical count settings saved", "success");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Failed to save physical count settings", "error");
+    } finally {
+      setPcSaving(false);
     }
   }
 
@@ -522,6 +594,123 @@ export function SettingsPage() {
           </button>
         </div>
       </form>
+
+      {/* ── Physical Count Frequency ── */}
+      <div className="stg-card" id="physical-count">
+        <div className="stg-card-header">
+          <div className="stg-card-icon stg-card-icon--indigo">
+            <svg viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <div className="stg-card-title">
+            <h2>Physical Count Frequency</h2>
+            <p>Set how often your team should physically verify stock, and get reminders when a count is due.</p>
+          </div>
+        </div>
+        <div className="stg-card-body">
+          <div className="stg-field-row stg-field-row--toggle">
+            <label className="stg-toggle-label" htmlFor="pc-enabled">
+              <span>Enable physical count reminders</span>
+              <span className="stg-toggle-desc">Show a reminder on the dashboard and send email alerts when a count is due.</span>
+            </label>
+            <button
+              id="pc-enabled"
+              type="button"
+              role="switch"
+              aria-checked={pcForm.enabled}
+              className={`stg-toggle${pcForm.enabled ? " stg-toggle--on" : ""}`}
+              onClick={() => setPcForm({ ...pcForm, enabled: !pcForm.enabled })}
+            >
+              <span className="stg-toggle-thumb" />
+            </button>
+          </div>
+
+          {pcForm.enabled && (
+            <>
+              <div className="stg-field-row">
+                <label className="stg-label" htmlFor="pc-frequency">Count frequency</label>
+                <select
+                  id="pc-frequency"
+                  className="stg-select"
+                  value={pcForm.frequencyType}
+                  onChange={(e) => setPcForm({ ...pcForm, frequencyType: e.target.value })}
+                >
+                  <option value="weekly">Weekly</option>
+                  <option value="biweekly">Every 2 weeks</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="quarterly">Quarterly (every 3 months)</option>
+                  <option value="custom">Custom interval</option>
+                </select>
+              </div>
+
+              {pcForm.frequencyType === "custom" && (
+                <div className="stg-field-row stg-field-row--inline">
+                  <label className="stg-label" htmlFor="pc-custom-n">Every</label>
+                  <input
+                    id="pc-custom-n"
+                    type="number"
+                    min="1"
+                    className="stg-input stg-input--short"
+                    value={pcForm.customIntervalNumber}
+                    onChange={(e) => setPcForm({ ...pcForm, customIntervalNumber: e.target.value })}
+                  />
+                  <select
+                    className="stg-select stg-select--inline"
+                    value={pcForm.customIntervalUnit}
+                    onChange={(e) => setPcForm({ ...pcForm, customIntervalUnit: e.target.value })}
+                  >
+                    <option value="days">days</option>
+                    <option value="weeks">weeks</option>
+                    <option value="months">months</option>
+                  </select>
+                </div>
+              )}
+
+              <div className="stg-field-row">
+                <label className="stg-label" htmlFor="pc-reminder-lead">Remind me</label>
+                <select
+                  id="pc-reminder-lead"
+                  className="stg-select"
+                  value={pcForm.reminderLeadDays}
+                  onChange={(e) => setPcForm({ ...pcForm, reminderLeadDays: e.target.value })}
+                >
+                  <option value="0">On the due date only</option>
+                  <option value="1">1 day before</option>
+                  <option value="3">3 days before</option>
+                  <option value="7">7 days before</option>
+                </select>
+              </div>
+
+              {pcSettings && (
+                <div className="stg-info-row">
+                  {pcSettings.lastCompletedAt && (
+                    <span className="stg-info-pill">
+                      Last count: {new Date(pcSettings.lastCompletedAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}
+                    </span>
+                  )}
+                  {pcSettings.nextDueAt && (
+                    <span className="stg-info-pill">
+                      Next due: {new Date(pcSettings.nextDueAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}
+                    </span>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+        <div className="stg-card-footer">
+          <button
+            type="button"
+            className="btn btn--primary"
+            onClick={() => void handlePcSave()}
+            disabled={pcSaving}
+          >
+            {pcSaving ? <span className="btn-spinner" /> : null}
+            {pcSaving ? "Saving…" : "Save Physical Count Settings"}
+          </button>
+        </div>
+      </div>
 
       {/* ── Units & Categories ── */}
       <div className="stg-card">
