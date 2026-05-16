@@ -795,6 +795,7 @@ export function ItemsPage() {
                           const shortage = getSuggestedReorderQuantity(s.totalQuantity, s.minStockLevel, settings.lowStockMultiplier);
                           const hasPU = hasPurchaseUnit(item.purchaseUnit, item.purchaseConversionFactor);
                           const dispQty = hasPU && item.purchaseConversionFactor ? getSuggestedPurchaseQty(shortage, item.purchaseConversionFactor) : shortage;
+                          if (dispQty <= 0) return null;
                           const dispUnit = hasPU && item.purchaseUnit ? item.purchaseUnit : item.unit;
                           return <span className="reorder-hint">Suggested reorder: {formatNumber(dispQty)} {dispUnit}</span>;
                         })()}
@@ -1001,6 +1002,7 @@ export function ItemsPage() {
                     const shortage = getSuggestedReorderQuantity(s.totalQuantity, s.minStockLevel, settings.lowStockMultiplier);
                     const hasPU = hasPurchaseUnit(item.purchaseUnit, item.purchaseConversionFactor);
                     const dispQty = hasPU && item.purchaseConversionFactor ? getSuggestedPurchaseQty(shortage, item.purchaseConversionFactor) : shortage;
+                    if (dispQty <= 0) return null;
                     const dispUnit = hasPU && item.purchaseUnit ? item.purchaseUnit : item.unit;
                     return <p className="reorder-hint reorder-hint--card">Suggested reorder: {formatNumber(dispQty)} {dispUnit}</p>;
                   })()}
