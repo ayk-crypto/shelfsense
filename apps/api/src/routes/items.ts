@@ -839,6 +839,11 @@ function parseItemInput(body: unknown) {
     unit?: unknown;
     category?: unknown;
     minStockLevel?: unknown;
+    criticalStockLevel?: unknown;
+    parStockLevel?: unknown;
+    procurementFrequency?: unknown;
+    customFrequencyDays?: unknown;
+    procurementLeadTimeDays?: unknown;
     trackExpiry?: unknown;
     purchaseUnit?: unknown;
     purchaseConversionFactor?: unknown;
@@ -854,6 +859,20 @@ function parseItemInput(body: unknown) {
     return undefined;
   })();
 
+  const parseNullablePositiveFloat = (v: unknown) => {
+    if (v === null || v === undefined) return null;
+    const n = Number(v);
+    return Number.isFinite(n) && n >= 0 ? n : undefined;
+  };
+
+  const parseNullablePositiveInt = (v: unknown) => {
+    if (v === null || v === undefined) return null;
+    const n = Number(v);
+    return Number.isInteger(n) && n >= 0 ? n : undefined;
+  };
+
+  const VALID_FREQUENCIES = ["daily", "weekly", "biweekly", "monthly", "custom"];
+
   return {
     name: parseOptionalString(input.name),
     sku: parseNullableString(input.sku),
@@ -862,6 +881,16 @@ function parseItemInput(body: unknown) {
     category: parseNullableString(input.category),
     minStockLevel:
       typeof input.minStockLevel === "number" ? input.minStockLevel : undefined,
+    criticalStockLevel: parseNullablePositiveFloat(input.criticalStockLevel),
+    parStockLevel: parseNullablePositiveFloat(input.parStockLevel),
+    procurementFrequency:
+      typeof input.procurementFrequency === "string" && VALID_FREQUENCIES.includes(input.procurementFrequency)
+        ? input.procurementFrequency
+        : input.procurementFrequency === null
+          ? null
+          : undefined,
+    customFrequencyDays: parseNullablePositiveInt(input.customFrequencyDays),
+    procurementLeadTimeDays: parseNullablePositiveInt(input.procurementLeadTimeDays),
     trackExpiry:
       typeof input.trackExpiry === "boolean" ? input.trackExpiry : undefined,
     purchaseUnit: parseNullableString(input.purchaseUnit),

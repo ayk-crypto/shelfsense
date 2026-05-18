@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { Role } from "../generated/prisma/enums.js";
+import { Role, PurchaseStatus } from "../generated/prisma/enums.js";
 import { prisma } from "../db/prisma.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -11,6 +11,43 @@ export const alertsRouter = Router();
 
 alertsRouter.use(requireAuth);
 
+const OPEN_PO_STATUSES = [PurchaseStatus.ORDERED, PurchaseStatus.PARTIALLY_RECEIVED];
+
+/** Convert a procurement frequency to calendar-aware lead-adjusted trigger day */
+function calcNextProcurementDate(
+  lastReceivedDate: Date,
+  frequency: string,
+  customFrequencyDays: number | null,
+): Date | null {
+  const d = new Date(lastReceivedDate);
+  switch (frequency) {
+    case "daily":
+      d.setDate(d.getDate() + 1);
+      break;
+    case "weekly":
+      d.setDate(d.getDate() + 7);
+      break;
+    case "biweekly":
+      d.setDate(d.getDate() + 14);
+      break;
+    case "monthly": {
+      const day = d.getDate();
+      d.setDate(1);
+      d.setMonth(d.getMonth() + 1);
+      const dim = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      d.setDate(Math.min(day, dim));
+      break;
+    }
+    case "custom":
+      if (!customFrequencyDays || customFrequencyDays < 1) return null;
+      d.setDate(d.getDate() + customFrequencyDays);
+      break;
+    default:
+      return null;
+  }
+  return d;
+}
+
 alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), asyncHandler(async (req, res) => {
   const workspaceId = req.user?.workspaceId ?? null;
   const userId = req.user?.userId ?? null;
@@ -19,8 +56,8 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), as
     return res.status(403).json({ error: "Workspace access required" });
   }
   const locationId = await getActiveLocationId(req, workspaceId);
-
   const now = new Date();
+
   const workspace = await prisma.workspace.findUnique({
     where: { id: workspaceId },
     select: {
@@ -36,10 +73,12 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), as
       owner: { select: { email: true } },
     },
   });
+
   const expiryAlertUntil = new Date(now);
   expiryAlertUntil.setDate(now.getDate() + getExpiryAlertDays(workspace?.expiryAlertDays));
 
-  const [items, expiringSoon, expired] = await Promise.all([
+  // ── Fetch all data in parallel ────────────────────────────────────────────
+  const [items, openPurchases, expiringSoon, expired] = await Promise.all([
     prisma.item.findMany({
       where: { workspaceId, isActive: true },
       orderBy: { name: "asc" },
@@ -50,18 +89,31 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), as
         purchaseUnit: true,
         purchaseConversionFactor: true,
         minStockLevel: true,
+        criticalStockLevel: true,
+        parStockLevel: true,
+        procurementFrequency: true,
+        customFrequencyDays: true,
+        procurementLeadTimeDays: true,
+        lastReceivedDate: true,
         stockBatches: {
-          where: {
-            workspaceId,
-            locationId,
-            remainingQuantity: { gt: 0 },
-          },
-          select: {
-            remainingQuantity: true,
-          },
+          where: { workspaceId, locationId, remainingQuantity: { gt: 0 } },
+          select: { remainingQuantity: true },
         },
       },
     }),
+
+    // Items that have an open/pending PO
+    prisma.purchase.findMany({
+      where: { workspaceId, status: { in: OPEN_PO_STATUSES } },
+      select: {
+        id: true,
+        status: true,
+        purchaseItems: {
+          select: { itemId: true, quantity: true, receivedQuantity: true },
+        },
+      },
+    }),
+
     prisma.stockBatch.findMany({
       where: {
         workspaceId,
@@ -76,15 +128,10 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), as
         remainingQuantity: true,
         expiryDate: true,
         batchNo: true,
-        item: {
-          select: {
-            id: true,
-            name: true,
-            unit: true,
-          },
-        },
+        item: { select: { id: true, name: true, unit: true } },
       },
     }),
+
     prisma.stockBatch.findMany({
       where: {
         workspaceId,
@@ -99,36 +146,140 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), as
         remainingQuantity: true,
         expiryDate: true,
         batchNo: true,
-        item: {
-          select: {
-            id: true,
-            name: true,
-            unit: true,
-          },
-        },
+        item: { select: { id: true, name: true, unit: true } },
       },
     }),
   ]);
 
-  const lowStock = items
-    .map((item) => {
-      const quantity = item.stockBatches.reduce(
-        (total, batch) => total + batch.remainingQuantity,
-        0,
-      );
+  // Build set of itemIds that have open POs, and map to PO info
+  const itemOpenPo = new Map<string, { purchaseId: string; status: string }>();
+  for (const po of openPurchases) {
+    for (const line of po.purchaseItems) {
+      if (!itemOpenPo.has(line.itemId)) {
+        itemOpenPo.set(line.itemId, { purchaseId: po.id, status: po.status });
+      }
+    }
+  }
 
-      return {
+  // ── Categorise items ──────────────────────────────────────────────────────
+  type CriticalAlert = {
+    itemId: string; itemName: string; unit: string;
+    purchaseUnit: string | null; purchaseConversionFactor: number | null;
+    quantity: number; criticalStockLevel: number; minStockLevel: number;
+  };
+  type ReorderDueAlert = {
+    itemId: string; itemName: string; unit: string;
+    purchaseUnit: string | null; purchaseConversionFactor: number | null;
+    quantity: number; parStockLevel: number | null;
+    nextProcurementDate: string; procurementFrequency: string;
+    daysOverdue: number;
+  };
+  type BelowParAlert = {
+    itemId: string; itemName: string; unit: string;
+    purchaseUnit: string | null; purchaseConversionFactor: number | null;
+    quantity: number; parStockLevel: number;
+    nextProcurementDate: string | null; procurementFrequency: string | null;
+  };
+  type AwaitingAlert = {
+    itemId: string; itemName: string; unit: string;
+    purchaseUnit: string | null; purchaseConversionFactor: number | null;
+    quantity: number; purchaseId: string; poStatus: string;
+    criticalStockLevel: number | null;
+  };
+
+  const critical: CriticalAlert[] = [];
+  const reorderDue: ReorderDueAlert[] = [];
+  const belowPar: BelowParAlert[] = [];
+  const awaitingReceiving: AwaitingAlert[] = [];
+
+  for (const item of items) {
+    const quantity = item.stockBatches.reduce((s, b) => s + b.remainingQuantity, 0);
+    const effectiveCritical = item.criticalStockLevel ?? item.minStockLevel;
+
+    // ── Determine next procurement due date ──
+    let nextProcDate: Date | null = null;
+    if (item.procurementFrequency && item.lastReceivedDate) {
+      nextProcDate = calcNextProcurementDate(
+        item.lastReceivedDate,
+        item.procurementFrequency,
+        item.customFrequencyDays,
+      );
+    }
+
+    // Reorder due if today >= (nextDueDate - leadTimeDays)
+    const leadDays = item.procurementLeadTimeDays ?? 0;
+    const triggerDate = nextProcDate
+      ? new Date(nextProcDate.getTime() - leadDays * 86_400_000)
+      : null;
+    const isReorderDue = triggerDate !== null && now >= triggerDate;
+
+    const openPo = itemOpenPo.get(item.id);
+
+    if (openPo) {
+      // Open PO suppresses reorder/par alerts — show awaiting instead
+      awaitingReceiving.push({
         itemId: item.id,
         itemName: item.name,
         unit: item.unit,
         purchaseUnit: item.purchaseUnit,
         purchaseConversionFactor: item.purchaseConversionFactor,
         quantity,
+        purchaseId: openPo.purchaseId,
+        poStatus: openPo.status,
+        criticalStockLevel: effectiveCritical > 0 ? effectiveCritical : null,
+      });
+    } else if (effectiveCritical > 0 && quantity <= effectiveCritical) {
+      critical.push({
+        itemId: item.id,
+        itemName: item.name,
+        unit: item.unit,
+        purchaseUnit: item.purchaseUnit,
+        purchaseConversionFactor: item.purchaseConversionFactor,
+        quantity,
+        criticalStockLevel: effectiveCritical,
         minStockLevel: item.minStockLevel,
-      };
-    })
-    .filter((item) => item.minStockLevel !== null && item.quantity <= item.minStockLevel);
+      });
+    } else if (isReorderDue && nextProcDate) {
+      const diffMs = now.getTime() - nextProcDate.getTime();
+      reorderDue.push({
+        itemId: item.id,
+        itemName: item.name,
+        unit: item.unit,
+        purchaseUnit: item.purchaseUnit,
+        purchaseConversionFactor: item.purchaseConversionFactor,
+        quantity,
+        parStockLevel: item.parStockLevel,
+        nextProcurementDate: nextProcDate.toISOString(),
+        procurementFrequency: item.procurementFrequency!,
+        daysOverdue: Math.max(0, Math.round(diffMs / 86_400_000)),
+      });
+    } else if (item.parStockLevel !== null && quantity < item.parStockLevel) {
+      belowPar.push({
+        itemId: item.id,
+        itemName: item.name,
+        unit: item.unit,
+        purchaseUnit: item.purchaseUnit,
+        purchaseConversionFactor: item.purchaseConversionFactor,
+        quantity,
+        parStockLevel: item.parStockLevel,
+        nextProcurementDate: nextProcDate?.toISOString() ?? null,
+        procurementFrequency: item.procurementFrequency ?? null,
+      });
+    }
+  }
 
+  // ── Backward-compat lowStock = critical (for dashboard + email) ──────────
+  const lowStock = critical.map((c) => ({
+    itemId: c.itemId,
+    itemName: c.itemName,
+    unit: c.unit,
+    purchaseUnit: c.purchaseUnit,
+    purchaseConversionFactor: c.purchaseConversionFactor,
+    quantity: c.quantity,
+    minStockLevel: c.criticalStockLevel,
+  }));
+
+  // ── Notifications + email (unchanged pattern) ────────────────────────────
   const dayStart = new Date(now);
   dayStart.setHours(0, 0, 0, 0);
   const dayEnd = new Date(dayStart);
@@ -141,7 +292,8 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), as
   await generateAlertNotifications({
     workspaceId,
     userId,
-    lowStock,
+    critical,
+    reorderDue,
     expiringSoon,
     expired,
     now,
@@ -184,7 +336,11 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), as
   }
 
   return res.json({
-    lowStock,
+    lowStock,       // backward-compat: critical items
+    critical,
+    reorderDue,
+    belowPar,
+    awaitingReceiving,
     expiringSoon,
     expired,
   });
@@ -194,81 +350,46 @@ function getExpiryAlertDays(value: number | null | undefined) {
   return typeof value === "number" && value >= 0 ? value : 7;
 }
 
-interface AlertNotificationInput {
-  workspaceId: string;
-  userId: string;
-  lowStock: Array<{
-    itemId: string;
-    itemName: string;
-    unit: string;
-    quantity: number;
-    minStockLevel: number;
-  }>;
-  expiringSoon: Array<{
-    id: string;
-    remainingQuantity: number;
-    expiryDate: Date | null;
-    batchNo: string | null;
-    item: {
-      id: string;
-      name: string;
-      unit: string;
-    };
-  }>;
-  expired: Array<{
-    id: string;
-    remainingQuantity: number;
-    expiryDate: Date | null;
-    batchNo: string | null;
-    item: {
-      id: string;
-      name: string;
-      unit: string;
-    };
-  }>;
-  now: Date;
-  dayStart: Date;
-  dayEnd: Date;
-  preferences: {
-    notifyLowStock: boolean;
-    notifyExpiringSoon: boolean;
-    notifyExpired: boolean;
-  };
-}
-
-interface NotificationCandidate {
-  type: string;
-  title: string;
-  message: string;
-  entity: string;
-  entityId: string;
-}
-
-interface AlertNotificationResult {
-  hasNewLowStock: boolean;
-  hasNewExpiringSoon: boolean;
-  hasNewExpired: boolean;
-}
-
 async function generateAlertNotifications({
   workspaceId,
   userId,
-  lowStock,
+  critical,
+  reorderDue,
   expiringSoon,
   expired,
   dayStart,
   dayEnd,
   preferences,
-}: AlertNotificationInput): Promise<AlertNotificationResult> {
-  const candidates: NotificationCandidate[] = [
+}: {
+  workspaceId: string;
+  userId: string;
+  critical: Array<{ itemId: string; itemName: string; unit: string; quantity: number; criticalStockLevel: number }>;
+  reorderDue: Array<{ itemId: string; itemName: string; nextProcurementDate: string; daysOverdue: number }>;
+  expiringSoon: Array<{ id: string; remainingQuantity: number; expiryDate: Date | null; batchNo: string | null; item: { id: string; name: string; unit: string } }>;
+  expired: Array<{ id: string; remainingQuantity: number; expiryDate: Date | null; batchNo: string | null; item: { id: string; name: string; unit: string } }>;
+  now: Date;
+  dayStart: Date;
+  dayEnd: Date;
+  preferences: { notifyLowStock: boolean; notifyExpiringSoon: boolean; notifyExpired: boolean };
+}): Promise<void> {
+  const candidates: Array<{ type: string; title: string; message: string; entity: string; entityId: string }> = [
     ...(preferences.notifyLowStock
-      ? lowStock.map((item) => ({
-          type: "LOW_STOCK",
-          title: "Low stock detected",
-          message: `${item.itemName} is at ${formatQuantity(item.quantity)} ${item.unit}, below or equal to the minimum of ${formatQuantity(item.minStockLevel)}.`,
-          entity: "Item",
-          entityId: item.itemId,
-        }))
+      ? [
+          ...critical.map((item) => ({
+            type: "CRITICAL_STOCK",
+            title: "Critical stock level reached",
+            message: `${item.itemName} is at ${formatQuantity(item.quantity)} ${item.unit} — at or below the critical level of ${formatQuantity(item.criticalStockLevel)}.`,
+            entity: "Item",
+            entityId: item.itemId,
+          })),
+          ...reorderDue.map((item) => ({
+            type: "REORDER_DUE",
+            title: "Reorder due",
+            message: `${item.itemName} procurement is due${item.daysOverdue > 0 ? ` (${item.daysOverdue} day${item.daysOverdue !== 1 ? "s" : ""} overdue)` : ""}.`,
+            entity: "Item",
+            entityId: item.itemId,
+          })),
+        ]
       : []),
     ...(preferences.notifyExpiringSoon
       ? expiringSoon.map((batch) => ({
@@ -290,11 +411,7 @@ async function generateAlertNotifications({
       : []),
   ];
 
-  if (candidates.length === 0) {
-    return { hasNewLowStock: false, hasNewExpiringSoon: false, hasNewExpired: false };
-  }
-
-  const newByType = { LOW_STOCK: false, EXPIRY_SOON: false, EXPIRED_STOCK: false };
+  if (candidates.length === 0) return;
 
   await Promise.all(
     candidates.map(async (candidate) => {
@@ -305,16 +422,11 @@ async function generateAlertNotifications({
           type: candidate.type,
           entity: candidate.entity,
           entityId: candidate.entityId,
-          createdAt: {
-            gte: dayStart,
-            lt: dayEnd,
-          },
+          createdAt: { gte: dayStart, lt: dayEnd },
         },
         select: { id: true },
       });
-
       if (existing) return;
-
       await prisma.notification.create({
         data: {
           workspaceId,
@@ -326,18 +438,8 @@ async function generateAlertNotifications({
           entityId: candidate.entityId,
         },
       });
-
-      if (candidate.type === "LOW_STOCK") newByType.LOW_STOCK = true;
-      else if (candidate.type === "EXPIRY_SOON") newByType.EXPIRY_SOON = true;
-      else if (candidate.type === "EXPIRED_STOCK") newByType.EXPIRED_STOCK = true;
     }),
   );
-
-  return {
-    hasNewLowStock: newByType.LOW_STOCK,
-    hasNewExpiringSoon: newByType.EXPIRY_SOON,
-    hasNewExpired: newByType.EXPIRED_STOCK,
-  };
 }
 
 async function getWorkspaceEmailEligibility(
@@ -347,7 +449,7 @@ async function getWorkspaceEmailEligibility(
 ): Promise<{ lowStockUnsent: boolean; expiringSoonUnsent: boolean; expiredUnsent: boolean }> {
   const [lowStockCount, expiringSoonCount, expiredCount] = await Promise.all([
     prisma.notification.count({
-      where: { workspaceId, type: "LOW_STOCK", createdAt: { gte: dayStart, lt: dayEnd } },
+      where: { workspaceId, type: { in: ["LOW_STOCK", "CRITICAL_STOCK"] }, createdAt: { gte: dayStart, lt: dayEnd } },
     }),
     prisma.notification.count({
       where: { workspaceId, type: "EXPIRY_SOON", createdAt: { gte: dayStart, lt: dayEnd } },

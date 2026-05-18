@@ -386,6 +386,12 @@ export interface Item {
   unit: string;
   category: string | null;
   minStockLevel: number;
+  criticalStockLevel: number | null;
+  parStockLevel: number | null;
+  procurementFrequency: string | null;
+  customFrequencyDays: number | null;
+  procurementLeadTimeDays: number | null;
+  lastReceivedDate: string | null;
   trackExpiry: boolean;
   sku: string | null;
   barcode: string | null;
@@ -476,6 +482,11 @@ export interface CreateItemInput {
   sku?: string;
   barcode?: string;
   minStockLevel: number;
+  criticalStockLevel?: number | null;
+  parStockLevel?: number | null;
+  procurementFrequency?: string | null;
+  customFrequencyDays?: number | null;
+  procurementLeadTimeDays?: number | null;
   trackExpiry: boolean;
   purchaseUnit?: string | null;
   purchaseConversionFactor?: number | null;
@@ -685,6 +696,54 @@ export interface LowStockAlert {
   minStockLevel: number;
 }
 
+export interface CriticalStockAlert {
+  itemId: string;
+  itemName: string;
+  unit: string;
+  purchaseUnit: string | null;
+  purchaseConversionFactor: number | null;
+  quantity: number;
+  criticalStockLevel: number;
+  minStockLevel: number;
+}
+
+export interface ReorderDueAlert {
+  itemId: string;
+  itemName: string;
+  unit: string;
+  purchaseUnit: string | null;
+  purchaseConversionFactor: number | null;
+  quantity: number;
+  parStockLevel: number | null;
+  nextProcurementDate: string;
+  procurementFrequency: string;
+  daysOverdue: number;
+}
+
+export interface BelowParAlert {
+  itemId: string;
+  itemName: string;
+  unit: string;
+  purchaseUnit: string | null;
+  purchaseConversionFactor: number | null;
+  quantity: number;
+  parStockLevel: number;
+  nextProcurementDate: string | null;
+  procurementFrequency: string | null;
+}
+
+export interface AwaitingReceivingAlert {
+  itemId: string;
+  itemName: string;
+  unit: string;
+  purchaseUnit: string | null;
+  purchaseConversionFactor: number | null;
+  quantity: number;
+  purchaseId: string;
+  poStatus: string;
+  criticalStockLevel: number | null;
+}
+
 export interface ExpiryAlert {
   id: string;
   remainingQuantity: number;
@@ -699,6 +758,10 @@ export interface ExpiryAlert {
 
 export interface AlertsResponse {
   lowStock: LowStockAlert[];
+  critical: CriticalStockAlert[];
+  reorderDue: ReorderDueAlert[];
+  belowPar: BelowParAlert[];
+  awaitingReceiving: AwaitingReceivingAlert[];
   expiringSoon: ExpiryAlert[];
   expired: ExpiryAlert[];
 }

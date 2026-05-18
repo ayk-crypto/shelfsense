@@ -1520,6 +1520,11 @@ function AddItemModal({
     category: categoryOptions[0] ?? FALLBACK_CATEGORY_OPTIONS[0],
     barcode: prefillBarcode ?? "",
     minStockLevel: 0,
+    criticalStockLevel: null,
+    parStockLevel: null,
+    procurementFrequency: null,
+    customFrequencyDays: null,
+    procurementLeadTimeDays: null,
     trackExpiry: false,
     purchaseUnit: null,
     purchaseConversionFactor: null,
@@ -1662,6 +1667,99 @@ function AddItemModal({
           />
           <p className="form-helper">Alert triggers when stock is at or below this quantity. Set it based on how fast this item is used.</p>
         </div>
+
+        <div className="item-units-section">
+          <div className="item-units-section__title">Procurement Planning</div>
+          <div className="form-row-2col">
+            <div className="form-group">
+              <label className="form-label">Critical Stock Level</label>
+              <input
+                className="form-input"
+                type="number"
+                min={0}
+                step="any"
+                placeholder="e.g. 5"
+                value={form.criticalStockLevel ?? ""}
+                onChange={(e) => setForm({ ...form, criticalStockLevel: e.target.value === "" ? null : Number(e.target.value) })}
+              />
+              <p className="form-helper">Emergency threshold — triggers a red critical alert.</p>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Par (Target) Stock Level</label>
+              <input
+                className="form-input"
+                type="number"
+                min={0}
+                step="any"
+                placeholder="e.g. 50"
+                value={form.parStockLevel ?? ""}
+                onChange={(e) => setForm({ ...form, parStockLevel: e.target.value === "" ? null : Number(e.target.value) })}
+              />
+              <p className="form-helper">Ideal stock level to maintain.</p>
+            </div>
+          </div>
+          <div className="form-row-2col">
+            <div className="form-group">
+              <label className="form-label">Procurement Frequency</label>
+              <select
+                className="form-select"
+                value={form.procurementFrequency ?? ""}
+                onChange={(e) => setForm({ ...form, procurementFrequency: e.target.value || null, customFrequencyDays: e.target.value !== "custom" ? null : form.customFrequencyDays })}
+              >
+                <option value="">— none —</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="biweekly">Bi-weekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="custom">Custom</option>
+              </select>
+            </div>
+            {form.procurementFrequency === "custom" ? (
+              <div className="form-group">
+                <label className="form-label">Custom Interval (days)</label>
+                <input
+                  className="form-input"
+                  type="number"
+                  min={1}
+                  step={1}
+                  placeholder="e.g. 10"
+                  value={form.customFrequencyDays ?? ""}
+                  onChange={(e) => setForm({ ...form, customFrequencyDays: e.target.value === "" ? null : Number(e.target.value) })}
+                />
+              </div>
+            ) : (
+              <div className="form-group">
+                <label className="form-label">Procurement Lead Time (days)</label>
+                <input
+                  className="form-input"
+                  type="number"
+                  min={0}
+                  step={1}
+                  placeholder="e.g. 3"
+                  value={form.procurementLeadTimeDays ?? ""}
+                  onChange={(e) => setForm({ ...form, procurementLeadTimeDays: e.target.value === "" ? null : Number(e.target.value) })}
+                />
+                <p className="form-helper">Days before due date to trigger reorder alert.</p>
+              </div>
+            )}
+          </div>
+          {form.procurementFrequency === "custom" && (
+            <div className="form-group">
+              <label className="form-label">Procurement Lead Time (days)</label>
+              <input
+                className="form-input"
+                type="number"
+                min={0}
+                step={1}
+                placeholder="e.g. 3"
+                value={form.procurementLeadTimeDays ?? ""}
+                onChange={(e) => setForm({ ...form, procurementLeadTimeDays: e.target.value === "" ? null : Number(e.target.value) })}
+              />
+              <p className="form-helper">Days before due date to trigger reorder alert.</p>
+            </div>
+          )}
+        </div>
+
         <div className="form-group">
           <label className="form-label">Barcode</label>
           <div className="barcode-input-row">
@@ -1733,6 +1831,11 @@ function EditItemModal({
     sku: item.sku ?? "",
     barcode: item.barcode ?? "",
     minStockLevel: item.minStockLevel,
+    criticalStockLevel: item.criticalStockLevel ?? null,
+    parStockLevel: item.parStockLevel ?? null,
+    procurementFrequency: item.procurementFrequency ?? null,
+    customFrequencyDays: item.customFrequencyDays ?? null,
+    procurementLeadTimeDays: item.procurementLeadTimeDays ?? null,
     trackExpiry: item.trackExpiry,
     purchaseUnit: item.purchaseUnit ?? null,
     purchaseConversionFactor: item.purchaseConversionFactor ?? null,
@@ -1893,6 +1996,108 @@ function EditItemModal({
           />
           <p className="form-helper">Alert triggers when stock is at or below this quantity. Set it based on how fast this item is used.</p>
         </div>
+
+        <div className="item-units-section">
+          <div className="item-units-section__title">Procurement Planning</div>
+          {item.lastReceivedDate && (
+            <div className="form-group">
+              <label className="form-label">Last Received</label>
+              <div className="form-input form-input--readonly">
+                {new Date(item.lastReceivedDate).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}
+              </div>
+              <p className="form-helper">Auto-updated when stock is received from a purchase order.</p>
+            </div>
+          )}
+          <div className="form-row-2col">
+            <div className="form-group">
+              <label className="form-label">Critical Stock Level</label>
+              <input
+                className="form-input"
+                type="number"
+                min={0}
+                step="any"
+                placeholder="e.g. 5"
+                value={form.criticalStockLevel ?? ""}
+                onChange={(e) => setForm({ ...form, criticalStockLevel: e.target.value === "" ? null : Number(e.target.value) })}
+              />
+              <p className="form-helper">Emergency threshold — triggers a red critical alert.</p>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Par (Target) Stock Level</label>
+              <input
+                className="form-input"
+                type="number"
+                min={0}
+                step="any"
+                placeholder="e.g. 50"
+                value={form.parStockLevel ?? ""}
+                onChange={(e) => setForm({ ...form, parStockLevel: e.target.value === "" ? null : Number(e.target.value) })}
+              />
+              <p className="form-helper">Ideal stock level to maintain.</p>
+            </div>
+          </div>
+          <div className="form-row-2col">
+            <div className="form-group">
+              <label className="form-label">Procurement Frequency</label>
+              <select
+                className="form-select"
+                value={form.procurementFrequency ?? ""}
+                onChange={(e) => setForm({ ...form, procurementFrequency: e.target.value || null, customFrequencyDays: e.target.value !== "custom" ? null : form.customFrequencyDays })}
+              >
+                <option value="">— none —</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="biweekly">Bi-weekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="custom">Custom</option>
+              </select>
+            </div>
+            {form.procurementFrequency === "custom" ? (
+              <div className="form-group">
+                <label className="form-label">Custom Interval (days)</label>
+                <input
+                  className="form-input"
+                  type="number"
+                  min={1}
+                  step={1}
+                  placeholder="e.g. 10"
+                  value={form.customFrequencyDays ?? ""}
+                  onChange={(e) => setForm({ ...form, customFrequencyDays: e.target.value === "" ? null : Number(e.target.value) })}
+                />
+              </div>
+            ) : (
+              <div className="form-group">
+                <label className="form-label">Lead Time (days)</label>
+                <input
+                  className="form-input"
+                  type="number"
+                  min={0}
+                  step={1}
+                  placeholder="e.g. 3"
+                  value={form.procurementLeadTimeDays ?? ""}
+                  onChange={(e) => setForm({ ...form, procurementLeadTimeDays: e.target.value === "" ? null : Number(e.target.value) })}
+                />
+                <p className="form-helper">Days before due date to trigger reorder alert.</p>
+              </div>
+            )}
+          </div>
+          {form.procurementFrequency === "custom" && (
+            <div className="form-group">
+              <label className="form-label">Lead Time (days)</label>
+              <input
+                className="form-input"
+                type="number"
+                min={0}
+                step={1}
+                placeholder="e.g. 3"
+                value={form.procurementLeadTimeDays ?? ""}
+                onChange={(e) => setForm({ ...form, procurementLeadTimeDays: e.target.value === "" ? null : Number(e.target.value) })}
+              />
+              <p className="form-helper">Days before due date to trigger reorder alert.</p>
+            </div>
+          )}
+        </div>
+
         <div className="form-group">
           <label className="form-label">Barcode</label>
           <input

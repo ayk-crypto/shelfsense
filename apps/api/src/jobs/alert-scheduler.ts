@@ -55,6 +55,7 @@ async function runLowStockJob(): Promise<void> {
             name: true,
             unit: true,
             minStockLevel: true,
+            criticalStockLevel: true,
             stockBatches: {
               where: { workspaceId: workspace.id, remainingQuantity: { gt: 0 } },
               select: { remainingQuantity: true },
@@ -67,9 +68,9 @@ async function runLowStockJob(): Promise<void> {
             itemName: item.name,
             unit: item.unit,
             quantity: item.stockBatches.reduce((sum, b) => sum + b.remainingQuantity, 0),
-            minStockLevel: item.minStockLevel,
+            minStockLevel: item.criticalStockLevel ?? item.minStockLevel,
           }))
-          .filter((item) => item.quantity <= item.minStockLevel);
+          .filter((item) => item.minStockLevel > 0 && item.quantity <= item.minStockLevel);
 
         if (lowStock.length === 0) continue;
 

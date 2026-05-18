@@ -81,6 +81,10 @@ function computeTrend(thisWeek: number, lastWeek: number): Trend {
 
 const EMPTY_ALERTS: AlertsResponse = {
   lowStock: [],
+  critical: [],
+  reorderDue: [],
+  belowPar: [],
+  awaitingReceiving: [],
   expiringSoon: [],
   expired: [],
 };
@@ -300,15 +304,19 @@ export function DashboardPage() {
 
   const totalValue = summary.reduce((acc, item) => acc + item.totalValue, 0);
   const totalItems = summary.length;
-  const lowStockCount = alerts.lowStock.length;
+  const criticalCount = (alerts.critical ?? alerts.lowStock).length;
+  const reorderDueCount = (alerts.reorderDue ?? []).length;
+  const belowParCount = (alerts.belowPar ?? []).length;
+  const awaitingCount = (alerts.awaitingReceiving ?? []).length;
+  const stockAlertCount = criticalCount + reorderDueCount + belowParCount + awaitingCount;
   const expiringSoonCount = alerts.expiringSoon.length;
   const expiredCount = alerts.expired.length;
-  const totalAlertCount = lowStockCount + expiringSoonCount + expiredCount;
+  const totalAlertCount = stockAlertCount + expiringSoonCount + expiredCount;
   const wastageTrend = computeTrend(wastageWeek, wastageLastWeek);
   const summaryByItemId = new Map(summary.map((item) => [item.itemId, item]));
-  const lowStockIds = new Set(alerts.lowStock.map((item) => item.itemId));
+  const criticalIds = new Set((alerts.critical ?? alerts.lowStock).map((item) => item.itemId));
   const reorderSuggestions = summary
-    .filter((item) => item.totalQuantity <= item.minStockLevel || lowStockIds.has(item.itemId))
+    .filter((item) => item.totalQuantity <= item.minStockLevel || criticalIds.has(item.itemId))
     .map((item) => ({
       ...item,
       suggestedQuantity: getSuggestedReorderQuantity(
@@ -377,14 +385,15 @@ export function DashboardPage() {
 
         <div className="db-kpi-divider" />
 
-        <div className={`db-kpi-item${lowStockCount > 0 ? " db-kpi-item--warn" : ""}`}>
-          <div className={`db-kpi-icon${lowStockCount > 0 ? " db-kpi-icon--orange" : " db-kpi-icon--gray"}`}>
+        <div className={`db-kpi-item${stockAlertCount > 0 ? " db-kpi-item--warn" : ""}`}>
+          <div className={`db-kpi-icon${criticalCount > 0 ? " db-kpi-icon--red" : stockAlertCount > 0 ? " db-kpi-icon--orange" : " db-kpi-icon--gray"}`}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
           </div>
           <div className="db-kpi-body">
-            <span className="db-kpi-label">Low Stock</span>
-            <span className="db-kpi-value">{lowStockCount}</span>
-            {lowStockCount > 0 && <span className="db-kpi-sub">needs reorder</span>}
+            <span className="db-kpi-label">Stock Alerts</span>
+            <span className="db-kpi-value">{stockAlertCount}</span>
+            {criticalCount > 0 && <span className="db-kpi-sub db-kpi-sub--bad">{criticalCount} critical</span>}
+            {criticalCount === 0 && reorderDueCount > 0 && <span className="db-kpi-sub">{reorderDueCount} reorder due</span>}
           </div>
         </div>
 
@@ -493,32 +502,54 @@ export function DashboardPage() {
               ) : (
                 <>
                   <div className="db-alert-counts">
-                    <span className="badge badge--yellow">{lowStockCount} low</span>
-                    <span className="badge badge--orange">{expiringSoonCount} expiring</span>
-                    <span className="badge badge--red">{expiredCount} expired</span>
+                    {criticalCount > 0 && <span className="badge badge--red">{criticalCount} critical</span>}
+                    {reorderDueCount > 0 && <span className="badge badge--yellow">{reorderDueCount} reorder due</span>}
+                    {belowParCount > 0 && <span className="badge badge--blue">{belowParCount} below par</span>}
+                    {awaitingCount > 0 && <span className="badge badge--purple">{awaitingCount} awaiting PO</span>}
+                    {expiringSoonCount > 0 && <span className="badge badge--orange">{expiringSoonCount} expiring</span>}
+                    {expiredCount > 0 && <span className="badge badge--red">{expiredCount} expired</span>}
                   </div>
 
-                  {lowStockCount > 0 && (
+                  {criticalCount > 0 && (
                     <div className="db-expiry-list">
-                      <p className="db-list-label">Low stock</p>
-                      {alerts.lowStock.slice(0, 2).map((item) => {
-                        const shortage = item.minStockLevel - item.quantity;
+                      <p className="db-list-label db-list-label--critical">Critical stock</p>
+                      {alerts.critical.slice(0, 2).map((item) => {
+                        const level = item.criticalStockLevel;
+                        const shortage = level - item.quantity;
                         return (
                           <div key={item.itemId} className="db-expiry-row">
                             <div className="db-expiry-info">
                               <span className="db-expiry-name">{item.itemName}</span>
                               <span className="db-expiry-meta">
-                                {formatNumber(item.quantity)} on hand · min {formatNumber(item.minStockLevel)} {item.unit}
+                                {formatNumber(item.quantity)} on hand · critical {formatNumber(level)} {item.unit}
                               </span>
                             </div>
-                            <span className="db-lowstock-pill">
+                            <span className="db-lowstock-pill db-lowstock-pill--critical">
                               {formatNumber(shortage)} short
                             </span>
                           </div>
                         );
                       })}
-                      {lowStockCount > 2 && (
-                        <p className="db-see-more">+{lowStockCount - 2} more low-stock items</p>
+                      {criticalCount > 2 && (
+                        <p className="db-see-more">+{criticalCount - 2} more critical items</p>
+                      )}
+                    </div>
+                  )}
+
+                  {reorderDueCount > 0 && (
+                    <div className="db-expiry-list">
+                      <p className="db-list-label db-list-label--reorder">Reorder due</p>
+                      {(alerts.reorderDue ?? []).slice(0, 2).map((item) => (
+                        <div key={item.itemId} className="db-expiry-row">
+                          <div className="db-expiry-info">
+                            <span className="db-expiry-name">{item.itemName}</span>
+                            <span className="db-expiry-meta">{item.daysOverdue > 0 ? `${item.daysOverdue}d overdue` : "Due today"}</span>
+                          </div>
+                          <span className="db-lowstock-pill db-lowstock-pill--reorder">Reorder</span>
+                        </div>
+                      ))}
+                      {reorderDueCount > 2 && (
+                        <p className="db-see-more">+{reorderDueCount - 2} more reorder items</p>
                       )}
                     </div>
                   )}

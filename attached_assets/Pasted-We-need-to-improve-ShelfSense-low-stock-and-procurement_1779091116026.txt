@@ -1,0 +1,177 @@
+We need to improve ShelfSense low stock and procurement alert logic so it works properly for SaaS restaurant inventory operations.
+
+Current problem:
+The system currently uses a simple “Low Qty Alert” threshold. Example: if an item has low stock alert set to 50 and the stock drops to 48 after normal usage, the system immediately shows a low stock alert again, even though procurement was recently completed. This is not practical because some users use 50 as their monthly target stock / par level, not as a critical shortage level.
+
+We need to refactor this into a smarter procurement planning model.
+
+Required changes:
+
+1. Separate stock planning fields
+
+Do not treat one field as everything. Add/support these concepts for each inventory item:
+
+* Critical Stock Level:
+  The minimum emergency level where the item is genuinely at risk and should trigger an urgent low stock alert.
+
+* Par Stock / Target Stock Level:
+  The ideal stock level the business wants to maintain. This should be used to suggest PO quantities, not to continuously trigger urgent alerts.
+
+* Procurement Frequency:
+  How often the item is normally procured. Options should include:
+
+  * Daily
+  * Weekly
+  * Bi-weekly
+  * Monthly
+  * Custom number of days
+
+* Last Received Date:
+  The date when this item was last received through PO Receiving / GRN.
+
+* Procurement Lead Time:
+  Number of days normally required from ordering to receiving.
+
+2. Update alert logic
+
+The system should no longer trigger urgent low stock alerts just because current stock is below par stock.
+
+Alert logic should work like this:
+
+A. Critical Low Stock Alert
+Trigger only when:
+currentStock <= criticalStockLevel
+
+Example:
+Current stock = 8
+Critical stock level = 10
+Show urgent alert: “Critical stock level reached. Immediate procurement required.”
+
+B. Reorder Due Alert
+Trigger when the item’s procurement cycle is due based on procurement frequency and last received date.
+
+Example:
+Procurement frequency = Monthly
+Last received date = 14 May
+Next procurement due date = 14 June
+
+The system should show a reorder reminder close to or on the next due date, not immediately after stock drops slightly below par.
+
+C. Stock Below Par
+If currentStock < parStock but currentStock > criticalStockLevel and procurement is not yet due, show it only as informational, not an urgent low stock alert.
+
+Example:
+“Stock is below target level, but procurement is not due yet. Next planned procurement date: 14 June.”
+
+D. Open PO Suppression
+If an item already has an open PO with status such as Generated, Ordered, Partially Received, or Awaiting Delivery, do not keep showing repeated low stock alerts for the same item.
+
+Instead, show:
+“PO already created/ordered. Awaiting receiving.”
+
+3. PO quantity suggestion logic
+
+When generating a PO, suggested quantity should be based on par stock, current stock, expected consumption, and procurement frequency.
+
+Basic formula:
+suggestedOrderQty = parStock - currentStock
+
+Enhanced formula if average consumption exists:
+suggestedOrderQty = expectedConsumptionUntilNextCycle + safetyStock - currentStock
+
+The system should not suggest negative quantities. If calculated quantity is less than or equal to zero, do not suggest ordering.
+
+4. Procurement date calculation
+
+When stock is received through PO Receiving / GRN, update the item’s lastReceivedDate.
+
+Then calculate:
+nextProcurementDueDate = lastReceivedDate + procurementFrequency
+
+Example:
+If procurement frequency is 1 month and stock was received on 14 May, next due date should be 14 June, not 1 June.
+
+This is important. The reminder should be based on the last actual receiving/procurement date, not the start of the calendar month.
+
+5. UI changes
+
+Inventory item form should include:
+
+* Critical Stock Level
+* Par Stock / Target Stock Level
+* Procurement Frequency
+* Custom Frequency Days if custom is selected
+* Procurement Lead Time Days
+* Last Received Date, read-only if auto-updated from receiving
+
+Alerts page should separate alerts into sections:
+
+* Critical Low Stock
+* Reorder Due
+* Stock Below Par
+* Open PO / Awaiting Receiving
+* Expiry Alerts
+
+6. Dashboard behavior
+
+Dashboard should prioritize critical alerts first.
+
+Do not show “Stock Below Par” as a red urgent warning unless it is below critical stock level.
+
+Suggested color logic:
+
+* Critical Low Stock: Red
+* Reorder Due: Orange
+* Stock Below Par: Blue/Grey informational
+* Open PO Awaiting Receiving: Purple/Neutral
+* Normal Stock: Green
+
+7. Backward compatibility
+
+If existing items only have Low Qty Alert configured, migrate or map it carefully:
+
+Option A:
+Rename existing Low Qty Alert to Critical Stock Level only if it was being used as true minimum stock.
+
+Option B:
+Better approach:
+Keep existing value but allow users to reclassify it during item edit:
+
+* Use as Critical Level
+* Use as Par Stock
+
+For now, to avoid breaking existing data, show both fields and pre-fill:
+
+* Critical Stock Level = existing lowQtyAlert
+* Par Stock = existing lowQtyAlert
+
+But allow the user to update them separately.
+
+8. SaaS requirement
+
+This should be built generically for all restaurant/workspace tenants, not hardcoded for Salted Grills.
+
+Each workspace should be able to configure procurement frequency and stock planning per item.
+
+9. Expected result
+
+After this change:
+
+Example:
+Item XYZ
+Par Stock = 50
+Critical Stock = 10
+Procurement Frequency = Monthly
+Last Received Date = 14 May
+Current Stock = 48
+
+The system should NOT show urgent low stock alert.
+
+It should show either no alert or only an informational message:
+“Stock is below target level. Next procurement due on 14 June.”
+
+If current stock drops to 10 or below, then show urgent critical low stock alert.
+
+If 14 June arrives, show reorder due alert.
+
+If PO is already ordered, show awaiting receiving instead of repeated low stock alert.

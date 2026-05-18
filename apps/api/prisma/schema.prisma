@@ -441,6 +441,12 @@ model Item {
   unit                     String
   category                 String?
   minStockLevel            Float           @default(0)
+  criticalStockLevel       Float?
+  parStockLevel            Float?
+  procurementFrequency     String?
+  customFrequencyDays      Int?
+  procurementLeadTimeDays  Int?
+  lastReceivedDate         DateTime?
   trackExpiry              Boolean         @default(false)
   isActive                 Boolean         @default(true)
   archivedAt               DateTime?

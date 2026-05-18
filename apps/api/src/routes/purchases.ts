@@ -452,6 +452,21 @@ purchasesRouter.post("/:id/receive", requireRole([Role.OWNER, Role.MANAGER]), as
         receivedQuantity += line.receivedQuantity!;
       }
 
+      // Update lastReceivedDate on each unique item received in this GRN
+      const receivedItemIds = [...new Set(input.lines.map((l) => {
+        const pi = purchaseItemById.get(l.purchaseItemId!);
+        return pi?.itemId ?? null;
+      }).filter(Boolean) as string[])];
+      const receivedNow = new Date();
+      await Promise.all(
+        receivedItemIds.map((itemId) =>
+          tx.item.update({
+            where: { id: itemId },
+            data: { lastReceivedDate: receivedNow },
+          }),
+        ),
+      );
+
       const freshItems = await tx.purchaseItem.findMany({
         where: { purchaseId: purchase.id },
         select: { quantity: true, receivedQuantity: true },
