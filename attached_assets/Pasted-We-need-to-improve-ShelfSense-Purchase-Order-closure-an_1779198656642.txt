@@ -1,0 +1,333 @@
+We need to improve ShelfSense Purchase Order closure and partial receiving workflow.
+
+Current issue:
+If a PO has multiple items and some items are not supplied by the supplier, the PO remains open/partially received forever. This causes incorrect Awaiting PO alerts and makes old POs keep affecting the inventory dashboard.
+
+Example:
+PO has 10 items.
+Supplier provides only 8 items.
+2 items are not supplied.
+The user receives the 8 supplied items.
+The system currently keeps the PO open because 2 items are pending.
+
+This is not correct operationally. We need a proper PO closure process with reason and audit trail.
+
+====================================================
+GOAL
+====================================================
+
+A PO should be allowed to close even if not all items are received, as long as the user selects a closure action/reason for the pending items.
+
+The system must support partial receiving, pending item handling, and closure with variance.
+
+====================================================
+PO LINE RECEIVING LOGIC
+====================================================
+
+For each PO line:
+
+orderedQty = quantity originally ordered
+receivedQty = total received through GRN/receiving records
+pendingQty = orderedQty - receivedQty
+
+Line status logic:
+
+If receivedQty == 0:
+lineStatus = AWAITING_RECEIVING
+
+If receivedQty > 0 and receivedQty < orderedQty:
+lineStatus = PARTIALLY_RECEIVED
+
+If receivedQty == orderedQty:
+lineStatus = FULLY_RECEIVED
+
+If receivedQty > orderedQty:
+lineStatus = OVER_RECEIVED
+
+Important:
+If receivedQty >= orderedQty, the line must not remain partially received.
+
+====================================================
+PO HEADER STATUS LOGIC
+====================================================
+
+PO status should be calculated from line statuses and closure status.
+
+Recommended statuses:
+
+- DRAFT
+- ORDERED
+- PARTIALLY_RECEIVED
+- RECEIVED
+- RECEIVED_WITH_VARIANCE
+- BACKORDERED
+- CLOSED_SHORT
+- CANCELLED
+
+Rules:
+
+1. If PO is cancelled:
+status = CANCELLED
+
+2. If all lines are fully received:
+status = RECEIVED
+
+3. If all lines are received but one or more are over-received:
+status = RECEIVED_WITH_VARIANCE
+
+4. If some lines are received and some are pending:
+status = PARTIALLY_RECEIVED
+
+5. If user closes PO with pending quantities:
+status = CLOSED_SHORT or RECEIVED_WITH_VARIANCE depending on selected closure type
+
+6. If remaining quantities are moved to a backorder:
+status = BACKORDERED or CLOSED_WITH_BACKORDER
+
+====================================================
+NEW FEATURE: CLOSE PO WITH PENDING ITEMS
+====================================================
+
+Add a “Close PO” action on PO detail page.
+
+When user clicks Close PO and there are pending quantities, show a closure modal/page:
+
+Title:
+Close Purchase Order
+
+Message:
+This PO still has pending items. Please choose how to handle the remaining quantities.
+
+Show pending items table:
+
+Columns:
+- Item
+- Ordered Qty
+- Received Qty
+- Pending Qty
+- Unit
+- Supplier
+- Closure Action
+
+Closure actions per pending line:
+
+1. Keep Pending
+Use when supplier will deliver later.
+Result:
+PO remains open/partially received.
+Item remains in Awaiting PO.
+
+2. Close Short
+Use when supplier will not supply the remaining quantity.
+Result:
+Pending quantity is marked as short closed.
+PO can be closed.
+Item must not remain in Awaiting PO.
+
+3. Cancel Remaining
+Use when business no longer needs the remaining quantity.
+Result:
+Pending quantity is cancelled.
+PO can be closed.
+Item must not remain in Awaiting PO.
+
+4. Backorder Remaining
+Use when supplier will provide later but it should be tracked separately.
+Result:
+Create a backorder record or new linked PO for remaining quantity.
+Original PO can be closed/backordered.
+Original PO should not remain as normal Awaiting PO.
+
+5. Create New PO for Remaining Items
+Use when missing items will be purchased from another supplier.
+Result:
+Close pending lines on original PO and create a new purchase draft containing the remaining items.
+Original PO should not remain in Awaiting PO.
+
+====================================================
+CLOSURE REASON AND AUDIT TRAIL
+====================================================
+
+When closing a PO with pending quantities, require:
+
+- closureType
+- closureReason
+- optional notes
+- closedBy
+- closedAt
+
+Example closure reasons:
+- Supplier did not provide item
+- Supplier out of stock
+- Item no longer required
+- Price changed
+- Quality issue
+- Ordered from another supplier
+- Delivery delayed beyond acceptable time
+- Other
+
+Store closure details at both:
+- PO header level
+- PO line level where applicable
+
+For each short-closed line, store:
+
+- orderedQty
+- receivedQty
+- shortQty
+- closureAction
+- closureReason
+- notes
+- closedBy
+- closedAt
+
+====================================================
+AWAITING PO ALERT LOGIC
+====================================================
+
+Update Awaiting PO alerts.
+
+An item should appear in Awaiting PO only if:
+
+- It belongs to an active/open PO
+AND
+- receivedQty < orderedQty
+AND
+- the pending quantity has not been closed short
+AND
+- the pending quantity has not been cancelled
+AND
+- the PO is not closed/cancelled/received
+
+Do NOT show items in Awaiting PO if:
+
+- PO status = RECEIVED
+- PO status = RECEIVED_WITH_VARIANCE
+- PO status = CLOSED_SHORT
+- PO status = CANCELLED
+- pending quantity was cancelled
+- pending quantity was short closed
+- remaining quantity was moved to another PO/backorder
+
+====================================================
+BACKORDER / NEW PO BEHAVIOR
+====================================================
+
+If user selects Backorder Remaining:
+
+Option A:
+Create a linked backorder record.
+
+Option B:
+Create a new linked PO draft for remaining quantities.
+
+For MVP, prefer Option B:
+Create New Purchase Draft from remaining quantities.
+
+The new PO should include:
+- original PO reference
+- only remaining items/qty
+- supplier can be same or changed
+- status = DRAFT
+
+Original PO should be marked:
+CLOSED_WITH_BACKORDER or BACKORDERED
+
+====================================================
+UI REQUIREMENTS
+====================================================
+
+On PO detail page, show:
+
+PO Summary:
+- Total ordered items
+- Fully received items
+- Partially received items
+- Pending items
+- Over-received items
+- Short-closed items
+- Cancelled remaining items
+
+For each PO line, show:
+
+- Ordered Qty
+- Received Qty
+- Pending Qty
+- Status
+- Closure Action, if any
+- Closure Reason, if any
+
+Add actions:
+
+- Receive Items
+- Close PO
+- Cancel PO
+- Create PO for Remaining Items, if applicable
+
+When closing PO with pending items, show warning:
+
+“This PO has pending items. Closing it will stop these items from appearing in Awaiting PO alerts. Please select a reason for audit trail.”
+
+====================================================
+ACCEPTANCE TEST CASES
+====================================================
+
+Test Case 1:
+PO has 10 items.
+All 10 fully received.
+Expected:
+PO status = RECEIVED
+No Awaiting PO alerts.
+
+Test Case 2:
+PO has 10 items.
+8 fully received.
+2 not received.
+User selects Keep Pending.
+Expected:
+PO status = PARTIALLY_RECEIVED
+2 items remain in Awaiting PO.
+
+Test Case 3:
+PO has 10 items.
+8 fully received.
+2 not received.
+User selects Close Short for pending items.
+Expected:
+PO status = CLOSED_SHORT or RECEIVED_WITH_VARIANCE
+Pending items do not appear in Awaiting PO.
+Short qty is recorded with reason.
+
+Test Case 4:
+PO line orderedQty = 5.
+receivedQty = 8.
+Expected:
+Line status = OVER_RECEIVED
+PO should not remain partially received because receivedQty >= orderedQty.
+
+Test Case 5:
+PO has pending items.
+User selects Create New PO for Remaining Items.
+Expected:
+Original PO status = CLOSED_WITH_BACKORDER or BACKORDERED
+New PO draft created with only remaining items.
+Original PO no longer appears in Awaiting PO.
+
+Test Case 6:
+PO has pending items.
+User closes PO without selecting reason.
+Expected:
+System blocks closure and asks for closure reason.
+
+====================================================
+EXPECTED RESULT
+====================================================
+
+After this change:
+
+- POs will not remain open forever when suppliers fail to provide some items.
+- Users can close POs with missing items using proper reason and audit trail.
+- Awaiting PO alerts will only show genuinely active pending procurement.
+- Old partially received POs will stop polluting alerts.
+- Over-received items will be handled correctly.
+- ShelfSense procurement workflow will become much more practical for restaurants and SaaS users.

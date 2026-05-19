@@ -522,6 +522,43 @@ purchasesRouter.post("/:id/receive", requireRole([Role.OWNER, Role.MANAGER]), as
   }
 }));
 
+// Close a PO manually — marks it RECEIVED even if some lines have variance.
+// Closed POs no longer appear in Awaiting PO alerts.
+purchasesRouter.post("/:id/close", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
+  const workspaceId = getWorkspaceId(req);
+  if (!workspaceId) return res.status(403).json({ error: "Workspace access required" });
+
+  const purchase = await prisma.purchase.findFirst({
+    where: { id: req.params.id, workspaceId },
+    select: { id: true, status: true, supplier: { select: { name: true } } },
+  });
+
+  if (!purchase) return res.status(404).json({ error: "Purchase not found" });
+  if (
+    purchase.status !== PurchaseStatus.ORDERED &&
+    purchase.status !== PurchaseStatus.PARTIALLY_RECEIVED
+  ) {
+    return res.status(400).json({
+      error: "Only ordered or partially received purchase orders can be closed.",
+    });
+  }
+
+  await prisma.purchase.update({
+    where: { id: purchase.id },
+    data: {
+      status: PurchaseStatus.RECEIVED,
+      receivedAt: new Date(),
+    },
+  });
+
+  await logPurchaseAction(req, workspaceId, "PURCHASE_MANUAL_CLOSE", purchase.id, {
+    reference: `PO-${purchase.id.slice(-8).toUpperCase()}`,
+    supplierName: purchase.supplier.name,
+  });
+
+  return res.json({ success: true });
+}));
+
 purchasesRouter.delete("/:id", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
   const workspaceId = getWorkspaceId(req);
   if (!workspaceId) return res.status(403).json({ error: "Workspace access required" });

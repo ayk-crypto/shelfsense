@@ -12730,6 +12730,30 @@ tr.row--wastage td:first-child {
 .alv-row-action--blue:hover { background: #dbeafe; border-color: #93c5fd; }
 .alv-row-action--purple { color: #7c3aed; border-color: #ddd6fe; background: #f5f3ff; }
 .alv-row-action--purple:hover { background: #ede9fe; border-color: #c4b5fd; }
+.alv-row-action--ghost { color: #6b7280; border-color: #e5e7eb; background: #f9fafb; }
+.alv-row-action--ghost:hover { background: #f3f4f6; border-color: #d1d5db; }
+.alv-row-action--ghost:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── PO-in-progress link ── */
+.alv-po-inprogress {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 500;
+  color: #7c3aed; text-decoration: none;
+  padding: 2px 7px; border-radius: 4px;
+  background: #f5f3ff; border: 1px solid #ddd6fe;
+  transition: background 0.15s;
+}
+.alv-po-inprogress:hover { background: #ede9fe; }
+
+/* ── PO reference link ── */
+.alv-po-ref {
+  font-size: 12px; font-weight: 600; font-family: monospace;
+  color: #5b21b6; text-decoration: none; letter-spacing: 0.02em;
+}
+.alv-po-ref:hover { text-decoration: underline; }
+
+/* ── Action cell with gap for multiple buttons ── */
+.alv-td-action--gap { display: flex; align-items: center; gap: 6px; }
 
 /* ── Numeric value colours ── */
 .alv-num--red    { color: #dc2626; }

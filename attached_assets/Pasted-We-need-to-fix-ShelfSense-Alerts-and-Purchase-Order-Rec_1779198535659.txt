@@ -1,0 +1,337 @@
+We need to fix ShelfSense Alerts and Purchase Order Receiving status logic. The current UI now has alert categories such as Critical, Reorder Due, Below Par, Awaiting PO, Expiring, and Expired, but the numbers and item classification are not correct.
+
+Current observed issues:
+
+1. Critical Stock tab seems to show items with zero quantity. This is acceptable if they are actually below their Critical Stock Level.
+
+2. Reorder Due tab shows 0 even though items should become due based on procurement frequency and last received date. This means reorder due logic is either missing, disconnected, or not correctly calculated.
+
+3. Awaiting PO is showing many items incorrectly. Items are flagged as awaiting PO or partially received even when they were already received. Example: if PO ordered quantity was 5 and received quantity was 8, the item should NOT remain partially received. It should be treated as fully received or over-received.
+
+We need to correct the alert and PO receiving logic properly.
+
+====================================================
+PART 1 — FIX PO LINE RECEIVING STATUS LOGIC
+====================================================
+
+For every PO line item, calculate received quantity from actual receiving/GRN records linked to that PO line.
+
+Use this logic:
+
+- If receivedQty == 0:
+  lineStatus = "AWAITING_RECEIVING"
+
+- If receivedQty > 0 AND receivedQty < orderedQty:
+  lineStatus = "PARTIALLY_RECEIVED"
+
+- If receivedQty == orderedQty:
+  lineStatus = "FULLY_RECEIVED"
+
+- If receivedQty > orderedQty:
+  lineStatus = "OVER_RECEIVED"
+
+Important:
+If receivedQty >= orderedQty, the line must NOT remain partially received.
+
+Example:
+orderedQty = 5
+receivedQty = 8
+Correct status = OVER_RECEIVED or FULLY_RECEIVED_WITH_VARIANCE
+Incorrect status = PARTIALLY_RECEIVED
+
+At PO header level, calculate status from line statuses:
+
+- If all lines are AWAITING_RECEIVING:
+  PO status = "ORDERED" or "AWAITING_RECEIVING"
+
+- If some lines are received and some are not:
+  PO status = "PARTIALLY_RECEIVED"
+
+- If all lines are FULLY_RECEIVED:
+  PO status = "RECEIVED" or "CLOSED"
+
+- If all lines are received but one or more lines are over-received:
+  PO status = "RECEIVED_WITH_VARIANCE" or "CLOSED_WITH_VARIANCE"
+
+- If PO is cancelled:
+  PO status = "CANCELLED"
+
+Also add a safe mechanism to close old POs:
+- Allow user to manually close a PO after receiving, even if there is minor variance.
+- Closed POs should not appear in Awaiting PO alerts.
+
+====================================================
+PART 2 — FIX AWAITING PO ALERT LOGIC
+====================================================
+
+The Awaiting PO alert should only show items that have an active/open PO where receiving is still pending.
+
+Show item in Awaiting PO only if:
+- PO status is GENERATED, DRAFT, ORDERED, or PARTIALLY_RECEIVED
+AND
+- receivedQty < orderedQty for that item
+AND
+- PO is not closed/cancelled
+AND
+- PO is not fully received or over-received
+
+Do NOT show an item in Awaiting PO if:
+- receivedQty >= orderedQty
+- PO is closed
+- PO is cancelled
+- PO status is RECEIVED
+- PO status is CLOSED
+- PO status is RECEIVED_WITH_VARIANCE
+- item was over-received
+
+If an item has multiple old POs, only consider active/open POs. Old completed POs must not keep affecting alerts.
+
+====================================================
+PART 3 — FIX REORDER DUE LOGIC
+====================================================
+
+Reorder Due should not be based only on stock quantity.
+
+It should be calculated using procurement planning fields:
+
+- procurementFrequencyType:
+  DAILY, WEEKLY, BIWEEKLY, MONTHLY, CUSTOM_DAYS
+
+- customFrequencyDays:
+  number, only required when frequency type is CUSTOM_DAYS
+
+- lastReceivedDate:
+  updated automatically when stock is received through PO Receiving / GRN
+
+- procurementLeadTimeDays:
+  optional, used to notify before due date
+
+Calculate next procurement due date:
+
+If frequency = DAILY:
+nextDueDate = lastReceivedDate + 1 day
+
+If frequency = WEEKLY:
+nextDueDate = lastReceivedDate + 7 days
+
+If frequency = BIWEEKLY:
+nextDueDate = lastReceivedDate + 14 days
+
+If frequency = MONTHLY:
+nextDueDate = lastReceivedDate + 1 calendar month
+
+If frequency = CUSTOM_DAYS:
+nextDueDate = lastReceivedDate + customFrequencyDays
+
+Important:
+If stock was received on 14 May and frequency is monthly, next due date should be 14 June, not 1 June.
+
+An item should show in Reorder Due only if:
+
+currentDate >= nextDueDate - procurementLeadTimeDays
+
+AND the item does not already have an active/open PO.
+
+If an item already has an active PO, show it under Awaiting PO instead of Reorder Due.
+
+If lastReceivedDate is missing:
+- Do not incorrectly show the item as reorder due by default.
+- Either show it as “Procurement setup incomplete” or calculate from item creation date only if business rules require.
+
+====================================================
+PART 4 — FIX BELOW PAR LOGIC
+====================================================
+
+Below Par should be informational only.
+
+Show item in Below Par if:
+
+currentStock < parStock
+AND currentStock > criticalStockLevel
+AND item is not reorder due
+AND item does not already have an active/open PO
+
+Below Par should NOT be counted as critical.
+Below Par should NOT trigger urgent red alert.
+Below Par should NOT automatically mean reorder due.
+
+====================================================
+PART 5 — FIX CRITICAL STOCK LOGIC
+====================================================
+
+Critical Stock should show only when:
+
+currentStock <= criticalStockLevel
+
+This should be urgent.
+
+However, if an active PO already exists for that item, still show critical stock but also display:
+“PO already created / awaiting receiving”
+
+This helps the user understand the shortage is known and procurement is already in progress.
+
+====================================================
+PART 6 — FIX DASHBOARD REORDER ITEMS
+====================================================
+
+The main dashboard should not show “Reorder Items” based only on below-par quantity.
+
+Dashboard reorder count should come only from actual Reorder Due logic:
+
+Reorder Due = items where procurement due date has arrived or is within lead time window, and no active PO already exists.
+
+Do not include:
+- below par items
+- critical items already counted separately
+- items with active POs
+- items from old closed/received POs
+
+Dashboard cards should be consistent with Alerts page numbers.
+
+If Alerts page says Reorder Due = 0, dashboard should not show reorder items unless using the exact same backend query.
+
+====================================================
+PART 7 — DATA CLEANUP / BACKFILL REQUIRED
+====================================================
+
+We need a one-time cleanup script or migration to fix old PO statuses.
+
+For all existing PO lines:
+- recalculate receivedQty from actual receiving records
+- compare receivedQty with orderedQty
+- update line status using the new logic
+
+Then for all PO headers:
+- recalculate PO status based on line statuses
+
+Also update old POs:
+- If all lines have receivedQty >= orderedQty, mark PO as RECEIVED/CLOSED or RECEIVED_WITH_VARIANCE.
+- These POs must no longer appear in Awaiting PO alerts.
+
+Add this as a safe backend script/admin maintenance function if needed.
+
+====================================================
+PART 8 — UI REQUIREMENTS
+====================================================
+
+On Alerts page:
+
+1. Critical tab:
+Show items below critical level.
+Columns:
+- Item
+- Current Stock
+- Critical Level
+- Shortage
+- Active PO Status, if any
+- Suggested Action
+
+2. Reorder Due tab:
+Show items whose procurement cycle is due.
+Columns:
+- Item
+- Current Stock
+- Par Stock
+- Last Received Date
+- Procurement Frequency
+- Next Due Date
+- Suggested Buy
+
+3. Below Par tab:
+Show informational below-target items.
+Columns:
+- Item
+- Current Stock
+- Par Stock
+- Difference
+- Next Procurement Due Date
+
+4. Awaiting PO tab:
+Show only active PO items where receivedQty < orderedQty.
+Columns:
+- Item
+- PO Number
+- Ordered Qty
+- Received Qty
+- Pending Qty
+- PO Status
+- Expected Delivery Date, if available
+
+If receivedQty > orderedQty, show it as Over Received in PO details, but do not show in Awaiting PO.
+
+====================================================
+PART 9 — ACCEPTANCE TEST CASES
+====================================================
+
+Test Case 1:
+orderedQty = 5
+receivedQty = 0
+Expected line status = AWAITING_RECEIVING
+Should appear in Awaiting PO = Yes
+
+Test Case 2:
+orderedQty = 5
+receivedQty = 2
+Expected line status = PARTIALLY_RECEIVED
+Should appear in Awaiting PO = Yes
+
+Test Case 3:
+orderedQty = 5
+receivedQty = 5
+Expected line status = FULLY_RECEIVED
+Should appear in Awaiting PO = No
+
+Test Case 4:
+orderedQty = 5
+receivedQty = 8
+Expected line status = OVER_RECEIVED or RECEIVED_WITH_VARIANCE
+Should appear in Awaiting PO = No
+
+Test Case 5:
+Item currentStock = 48
+parStock = 50
+criticalStock = 10
+lastReceivedDate = 14 May
+procurementFrequency = Monthly
+currentDate = 16 May
+Expected:
+Critical = No
+Reorder Due = No
+Below Par = Yes, informational only
+Awaiting PO = No, unless active PO exists
+
+Test Case 6:
+Item currentStock = 8
+criticalStock = 10
+Expected:
+Critical = Yes
+
+Test Case 7:
+lastReceivedDate = 14 May
+procurementFrequency = Monthly
+currentDate = 14 June
+No active PO exists
+Expected:
+Reorder Due = Yes
+
+Test Case 8:
+lastReceivedDate = 14 May
+procurementFrequency = Monthly
+currentDate = 14 June
+Active PO already exists
+Expected:
+Reorder Due = No
+Awaiting PO = Yes, if receivedQty < orderedQty
+
+====================================================
+EXPECTED RESULT
+====================================================
+
+After this fix:
+
+- Critical count should only show genuinely critical items.
+- Reorder Due should show items based on procurement cycle due date, not just low stock.
+- Below Par should be informational.
+- Awaiting PO should only show active/open POs with pending quantities.
+- Items fully received or over-received must not remain partially received.
+- Dashboard reorder count and Alerts reorder count must match because both should use the same backend logic/query.

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getAlerts } from "../api/alerts";
+import { closePurchase } from "../api/purchases";
 import { useLocation } from "../context/LocationContext";
 import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
 import type {
@@ -349,7 +350,14 @@ export function AlertsPage() {
 
       {/* ── Awaiting receiving ── */}
       {showAwaiting && (
-        <AwaitingTable items={filteredAwaiting} showSectionHead={tab === "all"} />
+        <AwaitingTable
+          items={filteredAwaiting}
+          showSectionHead={tab === "all"}
+          onClose={async (purchaseId) => {
+            await closePurchase(purchaseId);
+            await load();
+          }}
+        />
       )}
       {tab === "awaiting" && counts.awaiting === 0 && (
         <EmptyTab icon="purple" message="No items awaiting a pending purchase order." />
@@ -410,6 +418,7 @@ function CriticalTable({ items, multiplier, showSectionHead }: { items: Critical
               <th className="alv-th-r">Critical Level</th>
               <th className="alv-th-r">Shortage</th>
               <th className="alv-th-r">Suggested Buy</th>
+              <th>Procurement</th>
               <th className="alv-th-action"></th>
             </tr>
           </thead>
@@ -455,13 +464,34 @@ function CriticalTable({ items, multiplier, showSectionHead }: { items: Critical
                       ? <><span className="alv-num">{buyPU}</span><span className="alv-unit"> {item.purchaseUnit}</span></>
                       : <span className="alv-dash">—</span>}
                   </td>
+                  <td>
+                    {item.activePo
+                      ? (
+                        <Link to={`/purchases/${item.activePo.purchaseId}`} className="alv-po-inprogress">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 17H5a2 2 0 0 0-2 2"/><path d="M13 17h6"/><rect x="1" y="3" width="15" height="13" rx="2"/><path d="m19 10 3 3-3 3"/></svg>
+                          PO in progress
+                        </Link>
+                      )
+                      : <span className="alv-dash">—</span>}
+                  </td>
                   <td className="alv-td-action">
-                    <Link to="/reorder-suggestions" className="alv-row-action alv-row-action--red">
-                      Reorder
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-                      </svg>
-                    </Link>
+                    {item.activePo
+                      ? (
+                        <Link to={`/purchases/${item.activePo.purchaseId}`} className="alv-row-action alv-row-action--purple">
+                          View PO
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+                          </svg>
+                        </Link>
+                      )
+                      : (
+                        <Link to="/reorder-suggestions" className="alv-row-action alv-row-action--red">
+                          Reorder
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+                          </svg>
+                        </Link>
+                      )}
                   </td>
                 </tr>
               );
@@ -626,11 +656,32 @@ function BelowParTable({ items, showSectionHead }: { items: BelowParAlert[]; sho
 
 /* ── Awaiting Receiving Table ─────────────────────────────────────────────── */
 
-function AwaitingTable({ items, showSectionHead }: { items: AwaitingReceivingAlert[]; showSectionHead: boolean }) {
+function AwaitingTable({
+  items,
+  showSectionHead,
+  onClose,
+}: {
+  items: AwaitingReceivingAlert[];
+  showSectionHead: boolean;
+  onClose: (purchaseId: string) => Promise<void>;
+}) {
+  const [closing, setClosing] = useState<string | null>(null);
+
   const poStatusLabel: Record<string, string> = {
     ORDERED: "Ordered",
-    PARTIALLY_RECEIVED: "Partially Received",
+    PARTIALLY_RECEIVED: "Partial",
   };
+
+  async function handleClose(purchaseId: string) {
+    if (!window.confirm("Close this PO? It will be marked as received and removed from alerts.")) return;
+    setClosing(purchaseId);
+    try {
+      await onClose(purchaseId);
+    } finally {
+      setClosing(null);
+    }
+  }
+
   return (
     <section className="alv-section">
       {showSectionHead && (
@@ -655,15 +706,19 @@ function AwaitingTable({ items, showSectionHead }: { items: AwaitingReceivingAle
           <thead>
             <tr>
               <th>Item</th>
-              <th className="alv-th-r">Current Stock</th>
-              <th className="alv-th-r">Critical Level</th>
+              <th>PO Reference</th>
+              <th className="alv-th-r">Ordered</th>
+              <th className="alv-th-r">Received</th>
+              <th className="alv-th-r">Pending</th>
               <th>PO Status</th>
+              <th>Expected By</th>
               <th className="alv-th-action"></th>
             </tr>
           </thead>
           <tbody>
             {items.map((item) => {
               const isCritical = item.criticalStockLevel != null && item.quantity <= item.criticalStockLevel;
+              const isClosing = closing === item.purchaseId;
               return (
                 <tr key={item.itemId} className="alv-tr alv-tr--awaiting">
                   <td className="alv-td-name">
@@ -673,27 +728,49 @@ function AwaitingTable({ items, showSectionHead }: { items: AwaitingReceivingAle
                       {isCritical && <span className="alv-pill alv-pill--danger">Critical</span>}
                     </div>
                   </td>
+                  <td>
+                    <Link to={`/purchases/${item.purchaseId}`} className="alv-po-ref">
+                      {item.poReference}
+                    </Link>
+                  </td>
                   <td className="alv-td-r">
-                    <span className={`alv-num ${isCritical ? "alv-num--danger" : "alv-num--purple"}`}>{fmtN(item.quantity)}</span>
+                    <span className="alv-num">{fmtN(item.orderedQty)}</span>
                     <span className="alv-unit"> {item.unit}</span>
                   </td>
                   <td className="alv-td-r">
-                    {item.criticalStockLevel != null
-                      ? <><span className="alv-num">{fmtN(item.criticalStockLevel)}</span><span className="alv-unit"> {item.unit}</span></>
-                      : <span className="alv-dash">—</span>}
+                    <span className="alv-num alv-num--purple">{fmtN(item.receivedQty)}</span>
+                    <span className="alv-unit"> {item.unit}</span>
+                  </td>
+                  <td className="alv-td-r">
+                    <span className="alv-num alv-num--amber">{fmtN(item.pendingQty)}</span>
+                    <span className="alv-unit"> {item.unit}</span>
                   </td>
                   <td>
-                    <span className="alv-pill alv-pill--purple">
+                    <span className={`alv-pill ${item.poStatus === "ORDERED" ? "alv-pill--caution" : "alv-pill--purple"}`}>
                       {poStatusLabel[item.poStatus] ?? item.poStatus}
                     </span>
                   </td>
-                  <td className="alv-td-action">
+                  <td>
+                    {item.expectedDeliveryDate
+                      ? <span className="alv-date">{fmtDate(item.expectedDeliveryDate)}</span>
+                      : <span className="alv-dash">—</span>}
+                  </td>
+                  <td className="alv-td-action alv-td-action--gap">
                     <Link to={`/purchases/${item.purchaseId}`} className="alv-row-action alv-row-action--purple">
                       View PO
                       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
                       </svg>
                     </Link>
+                    <button
+                      type="button"
+                      className="alv-row-action alv-row-action--ghost"
+                      onClick={() => void handleClose(item.purchaseId)}
+                      disabled={isClosing}
+                      title="Mark PO as closed (removes from alerts)"
+                    >
+                      {isClosing ? "Closing…" : "Close PO"}
+                    </button>
                   </td>
                 </tr>
               );

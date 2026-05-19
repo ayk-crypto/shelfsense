@@ -705,6 +705,7 @@ export interface CriticalStockAlert {
   quantity: number;
   criticalStockLevel: number;
   minStockLevel: number;
+  activePo: { purchaseId: string; poStatus: string; poReference: string } | null;
 }
 
 export interface ReorderDueAlert {
@@ -741,6 +742,11 @@ export interface AwaitingReceivingAlert {
   quantity: number;
   purchaseId: string;
   poStatus: string;
+  poReference: string;
+  orderedQty: number;
+  receivedQty: number;
+  pendingQty: number;
+  expectedDeliveryDate: string | null;
   criticalStockLevel: number | null;
 }
 

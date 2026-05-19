@@ -59,3 +59,7 @@ export async function deletePurchase(id: string): Promise<{ success: boolean }> 
 export async function bulkDeletePurchases(ids: string[]): Promise<{ deletedCount: number }> {
   return apiClient.post<{ deletedCount: number }>("/purchases/bulk-delete", { ids }, true);
 }
+
+export async function closePurchase(id: string): Promise<{ success: boolean }> {
+  return apiClient.post<{ success: boolean }>(`/purchases/${id}/close`, {}, true);
+}

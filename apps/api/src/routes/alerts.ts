@@ -13,7 +13,7 @@ alertsRouter.use(requireAuth);
 
 const OPEN_PO_STATUSES = [PurchaseStatus.ORDERED, PurchaseStatus.PARTIALLY_RECEIVED];
 
-/** Convert a procurement frequency to calendar-aware lead-adjusted trigger day */
+/** Convert a procurement frequency to calendar-aware next due date */
 function calcNextProcurementDate(
   lastReceivedDate: Date,
   frequency: string,
@@ -102,12 +102,13 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), as
       },
     }),
 
-    // Items that have an open/pending PO
+    // Open POs with line-level received quantities and expected delivery date
     prisma.purchase.findMany({
       where: { workspaceId, status: { in: OPEN_PO_STATUSES } },
       select: {
         id: true,
         status: true,
+        expectedDeliveryDate: true,
         purchaseItems: {
           select: { itemId: true, quantity: true, receivedQuantity: true },
         },
@@ -151,12 +152,36 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), as
     }),
   ]);
 
-  // Build set of itemIds that have open POs, and map to PO info
-  const itemOpenPo = new Map<string, { purchaseId: string; status: string }>();
+  // ── Build line-level pending PO map ───────────────────────────────────────
+  // An item is "awaiting" only if its OWN line in an open PO has receivedQty < orderedQty.
+  // Over-received or fully-received lines do NOT count as pending.
+  type PendingPoInfo = {
+    purchaseId: string;
+    poStatus: string;
+    orderedQty: number;
+    receivedQty: number;
+    pendingQty: number;
+    expectedDeliveryDate: Date | null;
+    poReference: string;
+  };
+
+  const itemPendingPo = new Map<string, PendingPoInfo>();
   for (const po of openPurchases) {
     for (const line of po.purchaseItems) {
-      if (!itemOpenPo.has(line.itemId)) {
-        itemOpenPo.set(line.itemId, { purchaseId: po.id, status: po.status });
+      // Skip lines where this item's quantity is already fully or over-received
+      if (line.receivedQuantity >= line.quantity) continue;
+
+      const pendingQty = line.quantity - line.receivedQuantity;
+      if (!itemPendingPo.has(line.itemId)) {
+        itemPendingPo.set(line.itemId, {
+          purchaseId: po.id,
+          poStatus: po.status,
+          orderedQty: line.quantity,
+          receivedQty: line.receivedQuantity,
+          pendingQty,
+          expectedDeliveryDate: po.expectedDeliveryDate,
+          poReference: `PO-${po.id.slice(-8).toUpperCase()}`,
+        });
       }
     }
   }
@@ -166,6 +191,7 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), as
     itemId: string; itemName: string; unit: string;
     purchaseUnit: string | null; purchaseConversionFactor: number | null;
     quantity: number; criticalStockLevel: number; minStockLevel: number;
+    activePo: { purchaseId: string; poStatus: string; poReference: string } | null;
   };
   type ReorderDueAlert = {
     itemId: string; itemName: string; unit: string;
@@ -184,6 +210,9 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), as
     itemId: string; itemName: string; unit: string;
     purchaseUnit: string | null; purchaseConversionFactor: number | null;
     quantity: number; purchaseId: string; poStatus: string;
+    poReference: string;
+    orderedQty: number; receivedQty: number; pendingQty: number;
+    expectedDeliveryDate: string | null;
     criticalStockLevel: number | null;
   };
 
@@ -213,22 +242,12 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), as
       : null;
     const isReorderDue = triggerDate !== null && now >= triggerDate;
 
-    const openPo = itemOpenPo.get(item.id);
+    const pendingPo = itemPendingPo.get(item.id);
 
-    if (openPo) {
-      // Open PO suppresses reorder/par alerts — show awaiting instead
-      awaitingReceiving.push({
-        itemId: item.id,
-        itemName: item.name,
-        unit: item.unit,
-        purchaseUnit: item.purchaseUnit,
-        purchaseConversionFactor: item.purchaseConversionFactor,
-        quantity,
-        purchaseId: openPo.purchaseId,
-        poStatus: openPo.status,
-        criticalStockLevel: effectiveCritical > 0 ? effectiveCritical : null,
-      });
-    } else if (effectiveCritical > 0 && quantity <= effectiveCritical) {
+    // ── RULE 1: Critical stock (always show, regardless of open PO) ──────────
+    // Per spec: if critical AND has open PO, show in critical WITH "PO in progress" badge.
+    // The item should NOT appear in Awaiting PO in this case.
+    if (effectiveCritical > 0 && quantity <= effectiveCritical) {
       critical.push({
         itemId: item.id,
         itemName: item.name,
@@ -238,7 +257,31 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), as
         quantity,
         criticalStockLevel: effectiveCritical,
         minStockLevel: item.minStockLevel,
+        activePo: pendingPo
+          ? { purchaseId: pendingPo.purchaseId, poStatus: pendingPo.poStatus, poReference: pendingPo.poReference }
+          : null,
       });
+
+    // ── RULE 2: Awaiting receiving (open PO with genuinely pending lines) ────
+    } else if (pendingPo) {
+      awaitingReceiving.push({
+        itemId: item.id,
+        itemName: item.name,
+        unit: item.unit,
+        purchaseUnit: item.purchaseUnit,
+        purchaseConversionFactor: item.purchaseConversionFactor,
+        quantity,
+        purchaseId: pendingPo.purchaseId,
+        poStatus: pendingPo.poStatus,
+        poReference: pendingPo.poReference,
+        orderedQty: pendingPo.orderedQty,
+        receivedQty: pendingPo.receivedQty,
+        pendingQty: pendingPo.pendingQty,
+        expectedDeliveryDate: pendingPo.expectedDeliveryDate?.toISOString() ?? null,
+        criticalStockLevel: effectiveCritical > 0 ? effectiveCritical : null,
+      });
+
+    // ── RULE 3: Reorder due (procurement cycle has elapsed, no open PO) ──────
     } else if (isReorderDue && nextProcDate) {
       const diffMs = now.getTime() - nextProcDate.getTime();
       reorderDue.push({
@@ -253,6 +296,8 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), as
         procurementFrequency: item.procurementFrequency!,
         daysOverdue: Math.max(0, Math.round(diffMs / 86_400_000)),
       });
+
+    // ── RULE 4: Below par (informational, no urgent action required) ─────────
     } else if (item.parStockLevel !== null && quantity < item.parStockLevel) {
       belowPar.push({
         itemId: item.id,
@@ -279,7 +324,7 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), as
     minStockLevel: c.criticalStockLevel,
   }));
 
-  // ── Notifications + email (unchanged pattern) ────────────────────────────
+  // ── Notifications + email ────────────────────────────────────────────────
   const dayStart = new Date(now);
   dayStart.setHours(0, 0, 0, 0);
   const dayEnd = new Date(dayStart);
@@ -336,7 +381,7 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), as
   }
 
   return res.json({
-    lowStock,       // backward-compat: critical items
+    lowStock,
     critical,
     reorderDue,
     belowPar,
