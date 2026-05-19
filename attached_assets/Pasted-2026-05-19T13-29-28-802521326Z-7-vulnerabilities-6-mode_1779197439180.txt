@@ -1,0 +1,50 @@
+2026-05-19T13:29:28.802521326Z 7 vulnerabilities (6 moderate, 1 high)
+2026-05-19T13:29:28.802525955Z 
+2026-05-19T13:29:28.802530926Z To address issues that do not require attention, run:
+2026-05-19T13:29:28.802534726Z   npm audit fix
+2026-05-19T13:29:28.802538266Z 
+2026-05-19T13:29:28.802542026Z To address all issues (including breaking changes), run:
+2026-05-19T13:29:28.802546356Z   npm audit fix --force
+2026-05-19T13:29:28.802550096Z 
+2026-05-19T13:29:28.802555027Z Run `npm audit` for details.
+2026-05-19T13:29:30.126977353Z Loaded Prisma config from prisma.config.ts.
+2026-05-19T13:29:30.127000614Z 
+2026-05-19T13:29:30.240147093Z Prisma schema loaded from prisma/schema.prisma.
+2026-05-19T13:29:31.021748366Z 
+2026-05-19T13:29:31.021777377Z ✔ Generated Prisma Client (7.8.0) to ./src/generated/prisma in 448ms
+2026-05-19T13:29:31.021782347Z 
+2026-05-19T13:29:31.261429533Z 
+2026-05-19T13:29:31.261460904Z > @shelfsense/api@0.1.0 build
+2026-05-19T13:29:31.261466864Z > prisma generate && tsc -b
+2026-05-19T13:29:31.261471624Z 
+2026-05-19T13:29:31.975344071Z Loaded Prisma config from prisma.config.ts.
+2026-05-19T13:29:31.975364662Z 
+2026-05-19T13:29:32.127619635Z Prisma schema loaded from prisma/schema.prisma.
+2026-05-19T13:29:32.933304506Z 
+2026-05-19T13:29:32.933327156Z ✔ Generated Prisma Client (7.8.0) to ./src/generated/prisma in 458ms
+2026-05-19T13:29:32.933330836Z 
+2026-05-19T13:29:38.566710258Z src/routes/receiving.ts(4,20): error TS7016: Could not find a declaration file for module 'multer'. '/opt/render/project/src/node_modules/multer/index.js' implicitly has an 'any' type.
+2026-05-19T13:29:38.566733378Z   Try `npm i --save-dev @types/multer` if it exists or add a new declaration (.d.ts) file containing `declare module 'multer';`
+2026-05-19T13:29:38.566825831Z src/routes/receiving.ts(18,17): error TS7006: Parameter '_req' implicitly has an 'any' type.
+2026-05-19T13:29:38.566832441Z src/routes/receiving.ts(18,23): error TS7006: Parameter '_file' implicitly has an 'any' type.
+2026-05-19T13:29:38.566854002Z src/routes/receiving.ts(18,30): error TS7006: Parameter 'cb' implicitly has an 'any' type.
+2026-05-19T13:29:38.566873733Z src/routes/receiving.ts(19,14): error TS7006: Parameter '_req' implicitly has an 'any' type.
+2026-05-19T13:29:38.566881053Z src/routes/receiving.ts(19,20): error TS7006: Parameter 'file' implicitly has an 'any' type.
+2026-05-19T13:29:38.566891003Z src/routes/receiving.ts(19,26): error TS7006: Parameter 'cb' implicitly has an 'any' type.
+2026-05-19T13:29:38.566914974Z src/routes/receiving.ts(29,16): error TS7006: Parameter '_req' implicitly has an 'any' type.
+2026-05-19T13:29:38.566998566Z src/routes/receiving.ts(29,22): error TS7006: Parameter 'file' implicitly has an 'any' type.
+2026-05-19T13:29:38.567065008Z src/routes/receiving.ts(29,28): error TS7006: Parameter 'cb' implicitly has an 'any' type.
+2026-05-19T13:29:38.567101069Z src/routes/receiving.ts(120,14): error TS2339: Property 'file' does not exist on type 'Request<ParamsDictionary, any, any, ParsedQs, Record<string, any>>'.
+2026-05-19T13:29:38.567136721Z src/routes/receiving.ts(132,23): error TS2339: Property 'file' does not exist on type 'Request<ParamsDictionary, any, any, ParsedQs, Record<string, any>>'.
+2026-05-19T13:29:38.567143491Z src/routes/receiving.ts(133,23): error TS2339: Property 'file' does not exist on type 'Request<ParamsDictionary, any, any, ParsedQs, Record<string, any>>'.
+2026-05-19T13:29:38.567192342Z src/routes/receiving.ts(134,23): error TS2339: Property 'file' does not exist on type 'Request<ParamsDictionary, any, any, ParsedQs, Record<string, any>>'.
+2026-05-19T13:29:38.567196482Z src/routes/receiving.ts(135,23): error TS2339: Property 'file' does not exist on type 'Request<ParamsDictionary, any, any, ParsedQs, Record<string, any>>'.
+2026-05-19T13:29:38.632497357Z npm error Lifecycle script `build` failed with error:
+2026-05-19T13:29:38.632583259Z npm error code 2
+2026-05-19T13:29:38.632686062Z npm error path /opt/render/project/src/apps/api
+2026-05-19T13:29:38.632782585Z npm error workspace @shelfsense/api@0.1.0
+2026-05-19T13:29:38.632845537Z npm error location /opt/render/project/src/apps/api
+2026-05-19T13:29:38.632962141Z npm error command failed
+2026-05-19T13:29:38.633133596Z npm error command sh -c prisma generate && tsc -b
+2026-05-19T13:29:38.673655882Z ==> Build failed 😞
+2026-05-19T13:29:38.673674173Z ==> Common ways to troubleshoot your deploy: https://render.com/docs/troubleshooting-deploys

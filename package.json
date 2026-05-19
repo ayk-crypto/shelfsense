@@ -28,7 +28,8 @@
     "verify": "npm run ops:check && npm run build && npm test"
   },
   "devDependencies": {
-    "concurrently": "^9.1.2"
+    "concurrently": "^9.1.2",
+    "@types/multer": "^2.1.0"
   },
   "dependencies": {
     "xlsx": "^0.18.5"
