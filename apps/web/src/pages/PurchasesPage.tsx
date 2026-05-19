@@ -5,12 +5,14 @@ import { usePlanFeatures } from "../context/PlanFeaturesContext";
 import {
   bulkDeletePurchases,
   cancelPurchase,
+  closePurchaseWithVariance,
   createPurchase,
   deletePurchase,
   getPurchase,
   getPurchases,
   orderPurchase,
   patchPurchaseSupplier,
+  type ClosePurchaseVarianceLine,
 } from "../api/purchases";
 import { getItems } from "../api/items";
 import { getLocations } from "../api/locations";
@@ -30,13 +32,25 @@ import type {
 import { formatCurrency } from "../utils/currency";
 import { hasPurchaseUnit, fmtQty } from "../utils/purchaseUnits";
 
-const STATUSES: PurchaseStatus[] = ["DRAFT", "ORDERED", "PARTIALLY_RECEIVED", "RECEIVED", "CANCELLED"];
+const STATUSES: PurchaseStatus[] = [
+  "DRAFT",
+  "ORDERED",
+  "PARTIALLY_RECEIVED",
+  "RECEIVED",
+  "RECEIVED_WITH_VARIANCE",
+  "CLOSED_SHORT",
+  "BACKORDERED",
+  "CANCELLED",
+];
 
 const STATUS_LABEL: Record<PurchaseStatus, string> = {
   DRAFT: "Draft",
   ORDERED: "Ordered",
   PARTIALLY_RECEIVED: "Partially Received",
   RECEIVED: "Received",
+  RECEIVED_WITH_VARIANCE: "Received (Variance)",
+  CLOSED_SHORT: "Closed (Short)",
+  BACKORDERED: "Backordered",
   CANCELLED: "Cancelled",
 };
 
@@ -114,6 +128,7 @@ export function PurchasesPage() {
   const [deleteTarget, setDeleteTarget] = useState<Purchase | null>(null);
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [closePOTarget, setClosePOTarget] = useState<Purchase | null>(null);
 
   function showToast(msg: string, type: "success" | "error") {
     const id = ++toastSeq;
@@ -249,6 +264,10 @@ export function PurchasesPage() {
     } finally {
       setCancelling(false);
     }
+  }
+
+  function handleClosePO(purchase: Purchase) {
+    setClosePOTarget(purchase);
   }
 
   function handleDeleteDraft(purchase: Purchase) {
@@ -519,9 +538,30 @@ export function PurchasesPage() {
           onClose={() => setDetailPurchase(null)}
           onOrder={handleOrder}
           onCancel={handleCancel}
+          onClosePO={handleClosePO}
           onReceive={(purchase) => {
             setDetailPurchase(null);
             navigate(`/stock-in?mode=po&poId=${purchase.id}`);
+          }}
+        />
+      )}
+
+      {closePOTarget && (
+        <ClosePOModal
+          purchase={closePOTarget}
+          currency={currency}
+          onClose={() => setClosePOTarget(null)}
+          onSuccess={(updated, newDraftId) => {
+            setClosePOTarget(null);
+            setDetailPurchase(updated);
+            if (updated.status === "BACKORDERED" && newDraftId) {
+              showToast(`PO backordered — new draft PO-${newDraftId.slice(-8).toUpperCase()} created.`, "success");
+            } else if (updated.status === "CLOSED_SHORT") {
+              showToast("Purchase order closed (short).", "success");
+            } else {
+              showToast("Partial closure saved — PO remains open for kept items.", "success");
+            }
+            void load(filters);
           }}
         />
       )}
@@ -1154,6 +1194,7 @@ function PurchaseDetailModal({
   onClose,
   onOrder,
   onCancel,
+  onClosePO,
   onReceive,
 }: {
   purchase: Purchase;
@@ -1163,11 +1204,13 @@ function PurchaseDetailModal({
   onClose: () => void;
   onOrder: (purchase: Purchase) => void;
   onCancel: (purchase: Purchase) => void;
+  onClosePO: (purchase: Purchase) => void;
   onReceive: (purchase: Purchase) => void;
 }) {
   const canOrder = purchase.status === "DRAFT";
   const canReceive = purchase.status === "ORDERED" || purchase.status === "PARTIALLY_RECEIVED";
   const canCancel = purchase.status === "DRAFT" || purchase.status === "ORDERED" || purchase.status === "PARTIALLY_RECEIVED";
+  const canClosePO = purchase.status === "ORDERED" || purchase.status === "PARTIALLY_RECEIVED";
   const receivedPct = purchase.orderedQuantity > 0
     ? Math.min(100, Math.round((purchase.receivedQuantity / purchase.orderedQuantity) * 100))
     : 0;
@@ -1300,6 +1343,23 @@ function PurchaseDetailModal({
             </div>
           )}
 
+          {/* Closure info (CLOSED_SHORT / BACKORDERED) */}
+          {(purchase.status === "CLOSED_SHORT" || purchase.status === "BACKORDERED") && (
+            <div className="pod-closure-alert">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              </svg>
+              <div>
+                <div>
+                  <strong>{purchase.status === "BACKORDERED" ? "Backordered" : "Closed short"}</strong>
+                  {purchase.closedAt && <span style={{ opacity: 0.75, marginLeft: 6 }}>{fmtDate(purchase.closedAt)}</span>}
+                </div>
+                {purchase.closureReason && <div style={{ marginTop: 3, opacity: 0.85 }}>{purchase.closureReason}</div>}
+                {purchase.closureNotes && <div style={{ marginTop: 3, opacity: 0.75 }}>{purchase.closureNotes}</div>}
+              </div>
+            </div>
+          )}
+
           {/* Line items */}
           <div className="pod-items-heading">
             <span>Line items</span>
@@ -1329,10 +1389,15 @@ function PurchaseDetailModal({
                     <td>
                       <span className="td-name">{line.item.name}</span>
                       <span className="td-unit"> / {displayUnit}</span>
+                      {line.closureAction && line.closureAction !== "KEEP_PENDING" && (
+                        <span className={`po-line-status po-line-status--${line.closureAction === "CLOSE_SHORT" ? "closed-short" : "cancel"}`} style={{ marginLeft: 6 }}>
+                          {line.closureAction === "CLOSE_SHORT" ? "Closed short" : "Cancelled"}
+                        </span>
+                      )}
                     </td>
                     <td className="text-right td-num">{dQty(line.orderedQuantity)}</td>
                     <td className="text-right td-num">{dQty(line.receivedQuantity)}</td>
-                    <td className={`text-right td-num${line.remainingQuantity > 0 ? " pod-remaining--active" : ""}`}>{dQty(line.remainingQuantity)}</td>
+                    <td className={`text-right td-num${line.remainingQuantity > 0 && !line.closureAction ? " pod-remaining--active" : line.closureAction && line.closureAction !== "KEEP_PENDING" ? " close-variance-pending--actioned" : ""}`}>{dQty(line.remainingQuantity)}</td>
                     <td className="text-right td-num">{fmt(dCost, currency)}</td>
                     <td className="text-right td-num">{fmt(line.orderedValue, currency)}</td>
                   </tr>
@@ -1372,6 +1437,11 @@ function PurchaseDetailModal({
                 Cancel PO
               </button>
             )}
+            {canClosePO && (
+              <button type="button" className="btn btn--secondary" onClick={() => onClosePO(purchase)}>
+                Close PO
+              </button>
+            )}
             {canOrder && (
               <button type="button" className="btn btn--secondary" onClick={() => onOrder(purchase)}>
                 Mark as Ordered
@@ -1383,6 +1453,239 @@ function PurchaseDetailModal({
               </button>
             )}
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const CLOSURE_REASONS = [
+  "Supplier did not provide item",
+  "Supplier out of stock",
+  "Item no longer required",
+  "Price changed",
+  "Quality issue",
+  "Ordered from another supplier",
+  "Delivery delayed beyond acceptable time",
+  "Other",
+];
+
+function ClosePOModal({
+  purchase,
+  currency,
+  onClose,
+  onSuccess,
+}: {
+  purchase: Purchase;
+  currency: string;
+  onClose: () => void;
+  onSuccess: (updated: Purchase, newDraftId: string | null) => void;
+}) {
+  const pendingLines = purchase.purchaseItems.filter((l) => l.remainingQuantity > 0 && !l.closureAction);
+  const [lineActions, setLineActions] = useState<Record<string, "KEEP_PENDING" | "CLOSE_SHORT" | "CANCEL">>(
+    Object.fromEntries(pendingLines.map((l) => [l.id, "KEEP_PENDING"])),
+  );
+  const [globalReason, setGlobalReason] = useState("");
+  const [closureNotes, setClosureNotes] = useState("");
+  const [createNewDraft, setCreateNewDraft] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const anyActioned = Object.values(lineActions).some((a) => a !== "KEEP_PENDING");
+  const anyKeptPending = pendingLines.some((l) => lineActions[l.id] === "KEEP_PENDING");
+  const reasonRequired = anyActioned;
+  const canSubmit = (anyActioned || (createNewDraft && anyKeptPending)) && (!reasonRequired || globalReason.trim().length > 0);
+
+  let summaryMsg = "";
+  if (!anyActioned && createNewDraft && anyKeptPending) {
+    summaryMsg = "A new draft PO will be created for all pending items. This PO will be marked as Backordered.";
+  } else if (anyActioned && !anyKeptPending) {
+    summaryMsg = "All pending items will be closed. This PO will be marked as Closed (Short).";
+  } else if (anyActioned && anyKeptPending && createNewDraft) {
+    summaryMsg = "Actioned items will be closed. A new draft PO will be created for items kept pending. This PO will be marked as Backordered.";
+  } else if (anyActioned && anyKeptPending && !createNewDraft) {
+    summaryMsg = "Actioned items will be closed. This PO will stay open for items kept pending.";
+  }
+
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", h);
+    return () => document.removeEventListener("keydown", h);
+  }, [onClose]);
+
+  async function handleSubmit() {
+    if (!canSubmit || submitting) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const result = await closePurchaseWithVariance(purchase.id, {
+        lines: pendingLines.map((l): ClosePurchaseVarianceLine => ({
+          purchaseItemId: l.id,
+          action: lineActions[l.id] ?? "KEEP_PENDING",
+          reason: globalReason.trim() || undefined,
+        })),
+        globalReason: globalReason.trim() || undefined,
+        closureNotes: closureNotes.trim() || undefined,
+        createNewDraft,
+      });
+      onSuccess(result.purchase, result.newDraftId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to close purchase order");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (pendingLines.length === 0) {
+    return (
+      <div className="modal-overlay" onClick={onClose}>
+        <div className="modal" style={{ maxWidth: 440 }} onClick={(e) => e.stopPropagation()}>
+          <div className="modal-header">
+            <h2 className="modal-title">Close Purchase Order</h2>
+            <button type="button" className="modal-close" onClick={onClose} aria-label="Close">
+              <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"/></svg>
+            </button>
+          </div>
+          <div className="modal-body" style={{ fontSize: 13, color: "#374151" }}>
+            All items in this PO have already been closed or received. No pending items remain.
+          </div>
+          <div className="modal-footer">
+            <button type="button" className="btn btn--ghost" onClick={onClose}>Close</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal modal--wide" style={{ maxWidth: 780 }} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2 className="modal-title">Close Purchase Order</h2>
+          <button type="button" className="modal-close" onClick={onClose} aria-label="Close">
+            <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"/></svg>
+          </button>
+        </div>
+        <div className="modal-body">
+          <div className="close-variance-warning">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <div>
+              <p><strong>{pendingLines.length} pending item{pendingLines.length !== 1 ? "s" : ""}</strong> on this PO have not been fully received.</p>
+              <p>Choose how to handle each item to close this PO. Items left as "Keep Pending" will keep the PO open unless you create a new draft.</p>
+            </div>
+          </div>
+
+          {/* Per-line actions */}
+          <div className="table-wrap close-variance-table">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th className="text-right">Ordered</th>
+                  <th className="text-right">Received</th>
+                  <th className="text-right">Pending</th>
+                  <th className="text-right">Unit cost</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingLines.map((line) => {
+                  const hasUop = hasPurchaseUnit(line.item.purchaseUnit, line.item.purchaseConversionFactor);
+                  const factor = line.item.purchaseConversionFactor ?? 1;
+                  const displayUnit = hasUop ? (line.item.purchaseUnit ?? line.item.unit) : line.item.unit;
+                  const dQty = (n: number) => hasUop ? fmtQty(n / factor) : fmtQty(n);
+                  const dCost = hasUop ? line.unitCost * factor : line.unitCost;
+                  const action = lineActions[line.id] ?? "KEEP_PENDING";
+                  return (
+                    <tr key={line.id}>
+                      <td>
+                        <span className="td-name">{line.item.name}</span>
+                        <span className="td-unit"> / {displayUnit}</span>
+                      </td>
+                      <td className="text-right td-num">{dQty(line.orderedQuantity)}</td>
+                      <td className="text-right td-num">{dQty(line.receivedQuantity)}</td>
+                      <td className={`text-right td-num ${action !== "KEEP_PENDING" ? "close-variance-pending--actioned" : "close-variance-pending--active"}`}>
+                        {dQty(line.remainingQuantity)}
+                      </td>
+                      <td className="text-right td-num">{fmt(dCost, currency)}</td>
+                      <td>
+                        <select
+                          className="close-variance-action-select"
+                          value={action}
+                          onChange={(e) =>
+                            setLineActions((prev) => ({
+                              ...prev,
+                              [line.id]: e.target.value as "KEEP_PENDING" | "CLOSE_SHORT" | "CANCEL",
+                            }))
+                          }
+                        >
+                          <option value="KEEP_PENDING">Keep Pending</option>
+                          <option value="CLOSE_SHORT">Close Short</option>
+                          <option value="CANCEL">Cancel Remaining</option>
+                        </select>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Create new draft for kept items */}
+          {anyKeptPending && (
+            <label className="close-variance-option">
+              <input
+                type="checkbox"
+                checked={createNewDraft}
+                onChange={(e) => setCreateNewDraft(e.target.checked)}
+              />
+              Create a new draft purchase order for items kept pending
+            </label>
+          )}
+
+          {/* Closure reason (required when any line is actioned) */}
+          {anyActioned && (
+            <div className="close-variance-reason-wrap">
+              <label>Closure reason *</label>
+              <select
+                className="close-variance-reason-select"
+                value={globalReason}
+                onChange={(e) => setGlobalReason(e.target.value)}
+              >
+                <option value="">Select a reason…</option>
+                {CLOSURE_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+          )}
+
+          {/* Notes */}
+          <div className="close-variance-reason-wrap">
+            <label>Notes <span style={{ fontWeight: 400, color: "#94a3b8" }}>(optional)</span></label>
+            <textarea
+              className="close-variance-notes"
+              value={closureNotes}
+              onChange={(e) => setClosureNotes(e.target.value)}
+              placeholder="Any additional context about this closure…"
+            />
+          </div>
+
+          {/* Outcome summary */}
+          {summaryMsg && <div className="close-variance-summary">{summaryMsg}</div>}
+          {error && <div className="close-variance-error">{error}</div>}
+        </div>
+
+        <div className="modal-footer">
+          <button type="button" className="btn btn--ghost" onClick={onClose} disabled={submitting}>Cancel</button>
+          <button
+            type="button"
+            className="btn btn--primary"
+            disabled={submitting || !canSubmit}
+            onClick={() => void handleSubmit()}
+          >
+            {submitting ? "Closing…" : "Close PO"}
+          </button>
         </div>
       </div>
     </div>

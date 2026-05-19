@@ -473,8 +473,11 @@ purchasesRouter.post("/:id/receive", requireRole([Role.OWNER, Role.MANAGER]), as
       });
       const allReceived = freshItems.every((item) => item.receivedQuantity >= item.quantity);
       const anyReceived = freshItems.some((item) => item.receivedQuantity > 0);
+      const anyOverReceived = freshItems.some((item) => item.receivedQuantity > item.quantity);
       const nextStatus = allReceived
-        ? PurchaseStatus.RECEIVED
+        ? anyOverReceived
+          ? PurchaseStatus.RECEIVED_WITH_VARIANCE
+          : PurchaseStatus.RECEIVED
         : anyReceived
           ? PurchaseStatus.PARTIALLY_RECEIVED
           : purchase.status;
@@ -522,15 +525,21 @@ purchasesRouter.post("/:id/receive", requireRole([Role.OWNER, Role.MANAGER]), as
   }
 }));
 
-// Close a PO manually — marks it RECEIVED even if some lines have variance.
-// Closed POs no longer appear in Awaiting PO alerts.
+// Simple force-close: closes a PO immediately regardless of pending quantities.
+// Pending lines get closureAction=CLOSE_SHORT (no per-line reason required).
+// Used by the Alerts page "Close PO" button for a fast, no-modal closure.
 purchasesRouter.post("/:id/close", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
   const workspaceId = getWorkspaceId(req);
   if (!workspaceId) return res.status(403).json({ error: "Workspace access required" });
 
   const purchase = await prisma.purchase.findFirst({
     where: { id: req.params.id, workspaceId },
-    select: { id: true, status: true, supplier: { select: { name: true } } },
+    select: {
+      id: true,
+      status: true,
+      supplier: { select: { name: true } },
+      purchaseItems: { select: { id: true, quantity: true, receivedQuantity: true } },
+    },
   });
 
   if (!purchase) return res.status(404).json({ error: "Purchase not found" });
@@ -543,20 +552,202 @@ purchasesRouter.post("/:id/close", requireRole([Role.OWNER, Role.MANAGER]), asyn
     });
   }
 
+  const now = new Date();
+  const pendingLines = purchase.purchaseItems.filter((l) => l.receivedQuantity < l.quantity);
+  const allReceived = pendingLines.length === 0;
+  const newStatus = allReceived ? PurchaseStatus.RECEIVED : PurchaseStatus.CLOSED_SHORT;
+
+  if (pendingLines.length > 0) {
+    await prisma.purchaseItem.updateMany({
+      where: { id: { in: pendingLines.map((l) => l.id) } },
+      data: {
+        closureAction: "CLOSE_SHORT",
+        closureReason: "Force closed",
+        closedAt: now,
+      },
+    });
+    // Update shortQty per-line (updateMany can't compute per-row)
+    await Promise.all(
+      pendingLines.map((l) =>
+        prisma.purchaseItem.update({
+          where: { id: l.id },
+          data: { shortQty: l.quantity - l.receivedQuantity },
+        }),
+      ),
+    );
+  }
+
   await prisma.purchase.update({
     where: { id: purchase.id },
     data: {
-      status: PurchaseStatus.RECEIVED,
-      receivedAt: new Date(),
+      status: newStatus,
+      receivedAt: allReceived ? now : null,
+      closureType: allReceived ? null : "CLOSE_SHORT",
+      closureReason: allReceived ? null : "Force closed",
+      closedAt: allReceived ? null : now,
+      closedById: allReceived ? null : req.user!.userId,
     },
   });
 
   await logPurchaseAction(req, workspaceId, "PURCHASE_MANUAL_CLOSE", purchase.id, {
     reference: `PO-${purchase.id.slice(-8).toUpperCase()}`,
     supplierName: purchase.supplier.name,
+    newStatus,
+    pendingLinesClosed: pendingLines.length,
   });
 
   return res.json({ success: true });
+}));
+
+// Close a PO with per-line closure actions and optional backorder draft creation.
+purchasesRouter.post("/:id/close-with-variance", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
+  const workspaceId = getWorkspaceId(req);
+  if (!workspaceId) return res.status(403).json({ error: "Workspace access required" });
+
+  const {
+    lines = [],
+    globalReason = "",
+    closureNotes,
+    createNewDraft = false,
+  } = req.body as {
+    lines: Array<{ purchaseItemId: string; action: string; reason?: string }>;
+    globalReason?: string;
+    closureNotes?: string;
+    createNewDraft?: boolean;
+  };
+
+  if (!Array.isArray(lines)) {
+    return res.status(400).json({ error: "lines must be an array" });
+  }
+
+  const purchase = await prisma.purchase.findFirst({
+    where: { id: req.params.id, workspaceId },
+    include: {
+      ...purchaseInclude,
+    },
+  });
+
+  if (!purchase) return res.status(404).json({ error: "Purchase not found" });
+  if (
+    purchase.status !== PurchaseStatus.ORDERED &&
+    purchase.status !== PurchaseStatus.PARTIALLY_RECEIVED
+  ) {
+    return res.status(400).json({
+      error: "Only ordered or partially received purchase orders can be closed.",
+    });
+  }
+
+  const lineActionMap = new Map(lines.map((l) => [l.purchaseItemId, l]));
+  const now = new Date();
+
+  // Apply closure actions to non-KEEP_PENDING pending lines
+  const actionedLines = purchase.purchaseItems.filter((pi) => {
+    const remaining = pi.quantity - pi.receivedQuantity;
+    if (remaining <= 0) return false;
+    const la = lineActionMap.get(pi.id);
+    return la && la.action !== "KEEP_PENDING";
+  });
+
+  if (actionedLines.length > 0) {
+    await Promise.all(
+      actionedLines.map((pi) => {
+        const la = lineActionMap.get(pi.id)!;
+        return prisma.purchaseItem.update({
+          where: { id: pi.id },
+          data: {
+            closureAction: la.action,
+            closureReason: (la.reason ?? globalReason) || null,
+            shortQty: pi.quantity - pi.receivedQuantity,
+            closedAt: now,
+          },
+        });
+      }),
+    );
+  }
+
+  // Determine which lines are still genuinely pending (no closure action applied)
+  const stillPendingLines = purchase.purchaseItems.filter((pi) => {
+    const remaining = pi.quantity - pi.receivedQuantity;
+    if (remaining <= 0) return false;
+    const la = lineActionMap.get(pi.id);
+    return !la || la.action === "KEEP_PENDING";
+  });
+
+  const anyActioned = actionedLines.length > 0;
+
+  if (!anyActioned && !createNewDraft) {
+    return res.status(400).json({
+      error: "Select a closure action for at least one pending item, or choose to create a new draft.",
+    });
+  }
+
+  let newStatus: PurchaseStatus;
+  let newDraftId: string | null = null;
+
+  if (createNewDraft && stillPendingLines.length > 0) {
+    // Create new DRAFT for still-pending items
+    const newDraftTotalAmount = stillPendingLines.reduce(
+      (sum, pi) => sum + (pi.quantity - pi.receivedQuantity) * pi.unitCost,
+      0,
+    );
+    const newDraft = await prisma.purchase.create({
+      data: {
+        workspaceId: purchase.workspaceId,
+        supplierId: purchase.supplierId,
+        locationId: purchase.locationId,
+        date: now,
+        status: PurchaseStatus.DRAFT,
+        totalAmount: newDraftTotalAmount,
+        purchaseItems: {
+          create: stillPendingLines.map((pi) => ({
+            itemId: pi.itemId,
+            quantity: pi.quantity - pi.receivedQuantity,
+            receivedQuantity: 0,
+            unitCost: pi.unitCost,
+            total: (pi.quantity - pi.receivedQuantity) * pi.unitCost,
+          })),
+        },
+      },
+    });
+    newDraftId = newDraft.id;
+    newStatus = PurchaseStatus.BACKORDERED;
+  } else if (stillPendingLines.length === 0) {
+    newStatus = PurchaseStatus.CLOSED_SHORT;
+  } else {
+    // Some lines kept pending, no new draft — PO stays open
+    newStatus = PurchaseStatus.PARTIALLY_RECEIVED;
+  }
+
+  const isClosed = newStatus !== PurchaseStatus.PARTIALLY_RECEIVED;
+
+  const updatedPurchase = await prisma.purchase.update({
+    where: { id: purchase.id },
+    data: {
+      status: newStatus,
+      closureType: isClosed ? (createNewDraft && newDraftId ? "BACKORDER" : "CLOSE_SHORT") : null,
+      closureReason: isClosed ? (globalReason || null) : null,
+      closureNotes: isClosed ? (closureNotes ?? null) : null,
+      closedAt: isClosed ? now : null,
+      closedById: isClosed ? req.user!.userId : null,
+    },
+    include: purchaseInclude,
+  });
+
+  await logPurchaseAction(req, workspaceId, "PURCHASE_CLOSE_WITH_VARIANCE", purchase.id, {
+    reference: `PO-${purchase.id.slice(-8).toUpperCase()}`,
+    supplierName: purchase.supplier.name,
+    newStatus,
+    globalReason,
+    actionedCount: actionedLines.length,
+    stillPendingCount: stillPendingLines.length,
+    createNewDraft,
+    newDraftId,
+  });
+
+  return res.json({
+    purchase: mapPurchaseRecord(updatedPurchase),
+    newDraftId,
+  });
 }));
 
 purchasesRouter.delete("/:id", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {

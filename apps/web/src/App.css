@@ -14297,6 +14297,97 @@ body {
   color: #b91c1c;
 }
 
+.purchase-status--received-with-variance {
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.purchase-status--closed-short {
+  background: #fdf4ff;
+  color: #7e22ce;
+}
+
+.purchase-status--backordered {
+  background: #fff7ed;
+  color: #9a3412;
+  border: 1px solid #fed7aa;
+}
+
+/* ── Close PO with variance modal ── */
+.close-variance-warning {
+  display: flex; align-items: flex-start; gap: 10px;
+  background: #fffbeb; border: 1px solid #fcd34d; border-radius: 8px;
+  padding: 12px 14px; margin-bottom: 16px; color: #92400e; font-size: 13px;
+}
+.close-variance-warning svg { flex-shrink: 0; margin-top: 1px; color: #d97706; }
+.close-variance-warning p + p { margin-top: 4px; }
+
+.close-variance-table { margin-bottom: 16px; }
+.close-variance-table th, .close-variance-table td { padding: 8px 10px; }
+.close-variance-table th { font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; color: #64748b; }
+.close-variance-pending--active { color: #dc2626; font-weight: 600; }
+.close-variance-pending--actioned { color: #94a3b8; text-decoration: line-through; }
+
+.close-variance-action-select {
+  font-size: 12px; padding: 4px 8px; border: 1px solid #e2e8f0;
+  border-radius: 6px; background: #fff; color: #1e293b; cursor: pointer;
+  min-width: 160px;
+}
+.close-variance-action-select:focus { outline: none; border-color: #818cf8; }
+
+.close-variance-option {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: #374151; cursor: pointer;
+  padding: 10px 12px; background: #f8fafc; border: 1px solid #e2e8f0;
+  border-radius: 8px; margin-bottom: 12px; user-select: none;
+}
+.close-variance-option input[type="checkbox"] { width: 15px; height: 15px; cursor: pointer; }
+
+.close-variance-reason-wrap { margin-bottom: 12px; }
+.close-variance-reason-wrap label {
+  display: block; font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 6px;
+}
+.close-variance-reason-select, .close-variance-notes {
+  width: 100%; font-size: 13px; padding: 8px 10px;
+  border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; color: #1e293b;
+}
+.close-variance-reason-select:focus, .close-variance-notes:focus {
+  outline: none; border-color: #818cf8; box-shadow: 0 0 0 3px #e0e7ff;
+}
+.close-variance-notes { resize: vertical; min-height: 64px; }
+
+.close-variance-summary {
+  font-size: 12px; color: #475569;
+  background: #f1f5f9; border-radius: 8px; padding: 10px 12px;
+  margin-top: 12px; border: 1px solid #e2e8f0;
+}
+
+.close-variance-error {
+  font-size: 13px; color: #b91c1c;
+  background: #fef2f2; border: 1px solid #fecaca;
+  border-radius: 8px; padding: 10px 12px; margin-top: 8px;
+}
+
+/* ── Line status chip in PO detail ── */
+.po-line-status {
+  display: inline-block; font-size: 10px; font-weight: 600;
+  padding: 2px 7px; border-radius: 999px; line-height: 1.4;
+}
+.po-line-status--closed-short { background: #fdf4ff; color: #7e22ce; }
+.po-line-status--cancel { background: #fef2f2; color: #b91c1c; }
+.po-line-status--pending { background: #fff7ed; color: #c2410c; }
+.po-line-status--received { background: #ecfdf5; color: #047857; }
+.po-line-status--over { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+
+/* ── Closure info box in PO detail ── */
+.pod-closure-alert {
+  display: flex; align-items: flex-start; gap: 10px;
+  background: #fdf4ff; border: 1px solid #e9d5ff; border-radius: 8px;
+  padding: 12px 14px; color: #6b21a8; font-size: 13px; margin-bottom: 16px;
+}
+.pod-closure-alert svg { flex-shrink: 0; margin-top: 1px; }
+
 .purchase-progress,
 .purchase-lifecycle-dates {
   display: flex;

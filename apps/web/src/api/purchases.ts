@@ -63,3 +63,27 @@ export async function bulkDeletePurchases(ids: string[]): Promise<{ deletedCount
 export async function closePurchase(id: string): Promise<{ success: boolean }> {
   return apiClient.post<{ success: boolean }>(`/purchases/${id}/close`, {}, true);
 }
+
+export interface ClosePurchaseVarianceLine {
+  purchaseItemId: string;
+  action: "KEEP_PENDING" | "CLOSE_SHORT" | "CANCEL";
+  reason?: string;
+}
+
+export interface ClosePurchaseWithVarianceInput {
+  lines: ClosePurchaseVarianceLine[];
+  globalReason?: string;
+  closureNotes?: string;
+  createNewDraft?: boolean;
+}
+
+export async function closePurchaseWithVariance(
+  id: string,
+  data: ClosePurchaseWithVarianceInput,
+): Promise<{ purchase: import("../types").Purchase; newDraftId: string | null }> {
+  return apiClient.post<{ purchase: import("../types").Purchase; newDraftId: string | null }>(
+    `/purchases/${id}/close-with-variance`,
+    data,
+    true,
+  );
+}

@@ -11,7 +11,11 @@ export const alertsRouter = Router();
 
 alertsRouter.use(requireAuth);
 
-const OPEN_PO_STATUSES = [PurchaseStatus.ORDERED, PurchaseStatus.PARTIALLY_RECEIVED];
+const OPEN_PO_STATUSES = [
+  PurchaseStatus.ORDERED,
+  PurchaseStatus.PARTIALLY_RECEIVED,
+  // Explicitly exclude CLOSED_SHORT, BACKORDERED, RECEIVED_WITH_VARIANCE, RECEIVED, CANCELLED
+];
 
 /** Convert a procurement frequency to calendar-aware next due date */
 function calcNextProcurementDate(

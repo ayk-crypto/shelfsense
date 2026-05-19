@@ -813,6 +813,9 @@ export type PurchaseStatus =
   | "ORDERED"
   | "PARTIALLY_RECEIVED"
   | "RECEIVED"
+  | "RECEIVED_WITH_VARIANCE"
+  | "CLOSED_SHORT"
+  | "BACKORDERED"
   | "CANCELLED";
 
 export interface PurchaseItemLine {
@@ -829,6 +832,10 @@ export interface PurchaseItemLine {
   receivedValue: number;
   expiryDate: string | null;
   batchNo: string | null;
+  closureAction: string | null;
+  closureReason: string | null;
+  shortQty: number | null;
+  closedAt: string | null;
   item: {
     id: string;
     name: string;
@@ -851,6 +858,10 @@ export interface Purchase {
   receivedAt: string | null;
   cancelledAt: string | null;
   cancelReason: string | null;
+  closureType: string | null;
+  closureReason: string | null;
+  closureNotes: string | null;
+  closedAt: string | null;
   totalAmount: number;
   orderedQuantity: number;
   receivedQuantity: number;
