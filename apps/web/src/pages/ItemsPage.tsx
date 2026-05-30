@@ -281,7 +281,7 @@ export function ItemsPage() {
       const map = new Map(res.summary.map((s) => [s.itemId, s]));
       setSummaryMap(map);
     } catch {
-      /* non-blocking Ã¢â‚¬â€ keep showing stale data */
+      /* non-blocking - keep showing stale data */
     }
   }
 
@@ -463,7 +463,7 @@ export function ItemsPage() {
     return (
       <div className="page-loading">
         <div className="spinner" />
-        <p>Loading itemsÃ¢â‚¬Â¦</p>
+        <p>Loading items...</p>
       </div>
     );
   }
@@ -481,8 +481,8 @@ export function ItemsPage() {
       <div className="page-header">
         <div>
           <p className="eyebrow">Inventory</p>
-          <h1 className="page-title">Inventory command center</h1>
-          <p className="page-subtitle">Search, scan, move stock, and maintain every item from one table-first workspace.</p>
+          <h1 className="page-title">Inventory</h1>
+          <p className="page-subtitle">Manage items, stock levels, suppliers, and expiry from one clean workspace.</p>
         </div>
         <div className="page-header-actions">
           <button className="btn btn--secondary" onClick={() => setScannerOpen(true)} title="Scan a barcode">
@@ -648,7 +648,7 @@ export function ItemsPage() {
       {pendingCommandAction === "stock-in" && (
         <div className="inventory-action-notice" role="status">
           <strong>Stock in:</strong>
-          <span>Search or choose an item below, then use the visible <strong>+ In</strong> row action.</span>
+          <span>Search or choose an item below, then use the visible <strong>Receive</strong> row action.</span>
           <button type="button" className="btn btn--ghost btn--sm" onClick={() => setPendingCommandAction(null)}>
             Dismiss
           </button>
@@ -714,7 +714,7 @@ export function ItemsPage() {
         </div>
       ) : (
         <>
-          {/* Ã¢â€â‚¬Ã¢â€â‚¬ Desktop table (hidden on mobile) Ã¢â€â‚¬Ã¢â€â‚¬ */}
+          {/* Desktop table (hidden on mobile) */}
           <div className="table-wrap items-table-wrap">
             <table className="table">
               <thead>
@@ -809,7 +809,7 @@ export function ItemsPage() {
                           const dispUnit = hasPU && item.purchaseUnit ? item.purchaseUnit : item.unit;
                           const total = hasPU ? toPurchaseQuantity(usage.totalQuantity, factor) : usage.totalQuantity;
                           const avg = hasPU ? toPurchaseQuantity(usage.averageDailyUsage, factor) : usage.averageDailyUsage;
-                          return <span className="usage-hint">7-day usage: {formatNumber(total)} {dispUnit} Ã‚Â· Avg/day: {formatNumber(avg)} {dispUnit}</span>;
+                          return <span className="usage-hint">7-day usage: {formatNumber(total)} {dispUnit} - Avg/day: {formatNumber(avg)} {dispUnit}</span>;
                         })()}
                         {estimatedDaysRemaining !== null && (
                           <span className={`forecast-hint forecast-hint--${getForecastTone(estimatedDaysRemaining)}`}>
@@ -822,10 +822,10 @@ export function ItemsPage() {
                       )}
                       <td className="td-unit">{item.unit}</td>
                       <td className="text-right td-num">
-                        {s !== undefined ? formatNumber(s.totalQuantity) : "Ã¢â‚¬â€"}
+                        {s !== undefined ? formatNumber(s.totalQuantity) : "-"}
                       </td>
                       <td className="text-right td-num td-value">
-                        {s !== undefined ? formatCurrency(s.totalValue, currency) : "Ã¢â‚¬â€"}
+                        {s !== undefined ? formatCurrency(s.totalValue, currency) : "-"}
                       </td>
                       <td>
                         <span className={`badge badge--${status.variant}`}>{status.label}</span>
@@ -837,7 +837,7 @@ export function ItemsPage() {
                             className="btn btn--sm btn--action-in"
                             onClick={() => { setPendingCommandAction(null); setStockInItem(item); }}
                           >
-                            + In
+                            Receive
                           </button>
                         )}
                         {item.isActive && (
@@ -846,7 +846,7 @@ export function ItemsPage() {
                             className="btn btn--sm btn--action-out"
                             onClick={() => setStockOutItem(item)}
                           >
-                            Ã¢Ë†â€™ Out
+                            Use
                           </button>
                         )}
                         <div className="row-action-menu">
@@ -927,7 +927,7 @@ export function ItemsPage() {
             </table>
           </div>
 
-          {/* Ã¢â€â‚¬Ã¢â€â‚¬ Mobile cards (hidden on desktop) Ã¢â€â‚¬Ã¢â€â‚¬ */}
+          {/* Mobile cards (hidden on desktop) */}
           <div className="item-cards">
             {filteredItems.map((item) => {
               const s = summaryMap.get(item.id);
@@ -988,13 +988,13 @@ export function ItemsPage() {
                     <span className="item-card-stat">
                       <span className="item-card-stat-label">In Stock</span>
                       <span className="item-card-stat-value">
-                        {s !== undefined ? `${s.totalQuantity} ${item.unit}` : "Ã¢â‚¬â€"}
+                        {s !== undefined ? `${s.totalQuantity} ${item.unit}` : "-"}
                       </span>
                     </span>
                     <span className="item-card-stat">
                       <span className="item-card-stat-label">Value</span>
                       <span className="item-card-stat-value">
-                        {s !== undefined ? formatCurrency(s.totalValue, currency) : "Ã¢â‚¬â€"}
+                        {s !== undefined ? formatCurrency(s.totalValue, currency) : "-"}
                       </span>
                     </span>
                     <span className="item-card-stat">
@@ -1016,7 +1016,7 @@ export function ItemsPage() {
                     const dispUnit = hasPU && item.purchaseUnit ? item.purchaseUnit : item.unit;
                     const total = hasPU ? toPurchaseQuantity(usage.totalQuantity, factor) : usage.totalQuantity;
                     const avg = hasPU ? toPurchaseQuantity(usage.averageDailyUsage, factor) : usage.averageDailyUsage;
-                    return <p className="usage-hint usage-hint--card">7-day usage: {formatNumber(total)} {dispUnit} Ã‚Â· Avg/day: {formatNumber(avg)} {dispUnit}</p>;
+                    return <p className="usage-hint usage-hint--card">7-day usage: {formatNumber(total)} {dispUnit} - Avg/day: {formatNumber(avg)} {dispUnit}</p>;
                   })()}
                   {estimatedDaysRemaining !== null && (
                     <p className={`forecast-hint forecast-hint--card forecast-hint--${getForecastTone(estimatedDaysRemaining)}`}>
@@ -1030,7 +1030,7 @@ export function ItemsPage() {
                         className="btn btn--sm btn--action-in"
                         onClick={() => setStockInItem(item)}
                       >
-                        + In
+                        Receive
                       </button>
                     )}
                     {item.isActive && (
@@ -1039,7 +1039,7 @@ export function ItemsPage() {
                         className="btn btn--sm btn--action-out"
                         onClick={() => setStockOutItem(item)}
                       >
-                        Ã¢Ë†â€™ Out
+                        Use
                       </button>
                     )}
                     <div className="row-action-menu">
@@ -1317,7 +1317,7 @@ export function ItemsPage() {
                 onClick={() => { void handleConfirmPermanentDelete(); }}
               >
                 {busy.has(deleteItem.id)
-                  ? <><div className="spinner spinner--sm spinner--white" /> DeletingÃ¢â‚¬Â¦</>
+                  ? <><div className="spinner spinner--sm spinner--white" /> Deleting...</>
                   : "Delete permanently"}
               </button>
             </div>
@@ -1502,7 +1502,7 @@ function BulkItemsBar({
       {progress && (
         <div className="bulk-progress">
           Updated {progress.updated} of {progress.total}
-          {progress.failed > 0 ? ` Ã‚Â· ${progress.failed} failed` : ""}
+          {progress.failed > 0 ? ` - ${progress.failed} failed` : ""}
         </div>
       )}
     </div>
@@ -1791,7 +1791,7 @@ function ImportItemsModal({
     <Modal title="Import Items" onClose={onClose}>
       <div className="import-modal">
 
-        {/* Ã¢â€â‚¬Ã¢â€â‚¬ Upload zone Ã¢â€â‚¬Ã¢â€â‚¬ */}
+        {/* Upload zone */}
         <div
           className={`import-drop-zone ${dragging ? "import-drop-zone--over" : ""} ${hasFile && !parseError ? "import-drop-zone--has-file" : ""}`}
           onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
@@ -1814,7 +1814,7 @@ function ImportItemsModal({
           {parsing ? (
             <div className="import-drop-content">
               <div className="spinner" />
-              <p className="import-drop-label">Reading {fileName}Ã¢â‚¬Â¦</p>
+              <p className="import-drop-label">Reading {fileName}...</p>
             </div>
           ) : hasFile && !parseError ? (
             <div className="import-drop-content">
@@ -1841,7 +1841,7 @@ function ImportItemsModal({
           )}
         </div>
 
-        {/* Ã¢â€â‚¬Ã¢â€â‚¬ Template download Ã¢â€â‚¬Ã¢â€â‚¬ */}
+        {/* Template download */}
         <div className="import-template-row">
           <div className="import-columns-hint">
             <span className="import-col import-col--req">name</span>
@@ -1860,7 +1860,7 @@ function ImportItemsModal({
           </button>
         </div>
 
-        {/* Ã¢â€â‚¬Ã¢â€â‚¬ Parse error Ã¢â€â‚¬Ã¢â€â‚¬ */}
+        {/* Parse error */}
         {parseError && (
           <div className="import-parse-error">
             <svg viewBox="0 0 20 20" fill="currentColor" style={{ width: 16, height: 16, flexShrink: 0 }} aria-hidden="true">
@@ -1873,7 +1873,7 @@ function ImportItemsModal({
           </div>
         )}
 
-        {/* Ã¢â€â‚¬Ã¢â€â‚¬ Summary stats Ã¢â€â‚¬Ã¢â€â‚¬ */}
+        {/* Summary stats */}
         {rows.length > 0 && (
           <div className="import-stats-row">
             <div className="import-stat">
@@ -1911,17 +1911,17 @@ function ImportItemsModal({
           </div>
         )}
 
-        {/* Ã¢â€â‚¬Ã¢â€â‚¬ Progress bar Ã¢â€â‚¬Ã¢â€â‚¬ */}
+        {/* Progress bar */}
         {importing && (
           <div className="import-progress-wrap">
             <div className="import-progress-bar">
               <div className="import-progress-fill" style={{ width: `${importProgress}%` }} />
             </div>
-            <span className="import-progress-label">Importing {importedCount} of {pendingValidRows.length + importedCount + apiFailedCount}Ã¢â‚¬Â¦</span>
+            <span className="import-progress-label">Importing {importedCount} of {pendingValidRows.length + importedCount + apiFailedCount}...</span>
           </div>
         )}
 
-        {/* Ã¢â€â‚¬Ã¢â€â‚¬ Preview table Ã¢â€â‚¬Ã¢â€â‚¬ */}
+        {/* Preview table */}
         {rows.length > 0 && (
           <div className="import-preview-wrap">
             <table className="table import-preview-table">
@@ -1942,10 +1942,10 @@ function ImportItemsModal({
                 {rows.map((row) => (
                   <tr key={row.rowNumber} className={row.errors.length > 0 ? "import-row--error" : row.status === "imported" ? "import-row--done" : ""}>
                     <td className="import-cell-num">{row.rowNumber}</td>
-                    <td>{row.name || <span className="import-cell-empty">Ã¢â‚¬â€</span>}</td>
-                    <td>{row.unit || <span className="import-cell-empty">Ã¢â‚¬â€</span>}</td>
-                    <td>{row.category || <span className="import-cell-empty">Ã¢â‚¬â€</span>}</td>
-                    <td>{row.sku || <span className="import-cell-empty">Ã¢â‚¬â€</span>}</td>
+                    <td>{row.name || <span className="import-cell-empty">-</span>}</td>
+                    <td>{row.unit || <span className="import-cell-empty">-</span>}</td>
+                    <td>{row.category || <span className="import-cell-empty">-</span>}</td>
+                    <td>{row.sku || <span className="import-cell-empty">-</span>}</td>
                     <td className="text-right">{row.minStockLevel || 0}</td>
                     <td>{row.trackExpiry ? "Yes" : "No"}</td>
                     <td>
@@ -1959,7 +1959,7 @@ function ImportItemsModal({
                           <svg viewBox="0 0 16 16" fill="currentColor" style={{ width: 12, height: 12 }} aria-hidden="true">
                             <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 11a.75.75 0 110-1.5.75.75 0 010 1.5zm.75-4.5a.75.75 0 01-1.5 0v-3a.75.75 0 011.5 0v3z" />
                           </svg>
-                          {row.errors[0].length > 22 ? `${row.errors[0].slice(0, 22)}Ã¢â‚¬Â¦` : row.errors[0]}
+                          {row.errors[0].length > 22 ? `${row.errors[0].slice(0, 22)}...` : row.errors[0]}
                         </span>
                       ) : row.status === "imported" ? (
                         <span className="import-row-ok-badge">
@@ -1992,7 +1992,7 @@ function ImportItemsModal({
             disabled={!canImport}
           >
             {(() => {
-              if (importing) return <><div className="spinner spinner--sm spinner--white" /> ImportingÃ¢â‚¬Â¦</>;
+              if (importing) return <><div className="spinner spinner--sm spinner--white" /> Importing...</>;
               if (pendingValidRows.length === 0) return rows.length > 0 ? "No valid rows to import" : "Select a file";
               const newCount = pendingValidRows.filter((r) => r.importMode === "new").length;
               const updateCount = pendingValidRows.filter((r) => r.importMode === "update").length;
@@ -2036,13 +2036,13 @@ function BarcodeModal({
     ),
   );
   const preset = BARCODE_LABEL_PRESETS[presetId];
-  const dimensions = `${preset.widthMm}mm Ãƒâ€” ${preset.heightMm}mm`;
+  const dimensions = `${preset.widthMm}mm x ${preset.heightMm}mm`;
   const showItemName = templateId === "name" || templateId === "name-details";
   const detailText = useMemo(() => {
     const parts = [];
     if (item.sku) parts.push(`SKU: ${item.sku}`);
     if (item.unit) parts.push(`Unit: ${item.unit}`);
-    return parts.join(" Ã‚Â· ");
+    return parts.join(" - ");
   }, [item.sku, item.unit]);
   const showDetails = templateId === "name-details" && detailText !== "";
 
@@ -2334,7 +2334,7 @@ function StockInModal({
   }
 
   return (
-    <Modal title={`Stock In Ã¢â‚¬â€ ${item.name}`} onClose={onClose}>
+    <Modal title={`Stock In - ${item.name}`} onClose={onClose}>
       <form onSubmit={(e) => { void handleSubmit(e); }}>
         <div className="form-row">
           <div className="form-group">
@@ -2419,7 +2419,7 @@ function StockInModal({
             className="form-input"
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="Any notesÃ¢â‚¬Â¦"
+            placeholder="Any notes..."
           />
         </div>
         {canSubmit && calculatedUnitCost !== null && (
@@ -2437,7 +2437,7 @@ function StockInModal({
             disabled={saving || !canSubmit}
           >
             {saving ? <span className="btn-spinner" /> : null}
-            {saving ? "SavingÃ¢â‚¬Â¦" : "Add Stock"}
+            {saving ? "Saving..." : "Add Stock"}
           </button>
         </div>
       </form>
@@ -2499,7 +2499,7 @@ function OpeningStockModal({
   }
 
   return (
-    <Modal title={`Opening Stock Ã¢â‚¬â€ ${item.name}`} onClose={onClose}>
+    <Modal title={`Opening Stock - ${item.name}`} onClose={onClose}>
       <form onSubmit={(e) => { void handleSubmit(e); }}>
         <p className="form-hint" style={{ marginBottom: "1rem" }}>
           Record your starting inventory balance for this item. This creates a stock-in movement with reason <strong>opening_balance</strong>.
@@ -2611,7 +2611,7 @@ function OpeningStockModal({
             disabled={saving || !qty || parseFloat(qty) <= 0 || (item.trackExpiry && !expiryDate)}
           >
             {saving ? <span className="btn-spinner" /> : null}
-            {saving ? "SavingÃ¢â‚¬Â¦" : "Record Opening Stock"}
+            {saving ? "Saving..." : "Record Opening Stock"}
           </button>
         </div>
       </form>
@@ -2659,7 +2659,7 @@ function StockOutModal({
   }
 
   return (
-    <Modal title={`Use / Deduct Ã¢â‚¬â€ ${item.name}`} onClose={onClose}>
+    <Modal title={`Use / Deduct - ${item.name}`} onClose={onClose}>
       <form onSubmit={(e) => { void handleSubmit(e); }}>
         <div className="form-group">
           <label className="form-label">Quantity * ({item.unit})</label>
@@ -2693,7 +2693,7 @@ function StockOutModal({
             className="form-input"
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="Any notesÃ¢â‚¬Â¦"
+            placeholder="Any notes..."
           />
         </div>
         <div className="modal-footer">
@@ -2706,7 +2706,7 @@ function StockOutModal({
             disabled={saving || !qty || parseFloat(qty) <= 0}
           >
             {saving ? <span className="btn-spinner" /> : null}
-            {saving ? "DeductingÃ¢â‚¬Â¦" : "Deduct Stock"}
+            {saving ? "Deducting..." : "Deduct Stock"}
           </button>
         </div>
       </form>
@@ -2782,7 +2782,7 @@ function AdjustStockModal({
     : "Set Quantity";
 
   return (
-    <Modal title={`Adjust Stock Ã¢â‚¬â€ ${item.name}`} onClose={onClose}>
+    <Modal title={`Adjust Stock - ${item.name}`} onClose={onClose}>
       <form onSubmit={(e) => { void handleSubmit(e); }}>
         {/* Current stock reference */}
         <div className="adjust-current-stock">
@@ -2835,7 +2835,7 @@ function AdjustStockModal({
             className="form-input"
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="Reason for adjustmentÃ¢â‚¬Â¦"
+            placeholder="Reason for adjustment..."
           />
         </div>
 
@@ -2849,7 +2849,7 @@ function AdjustStockModal({
             disabled={!canSubmit}
           >
             {saving ? <span className="btn-spinner" /> : null}
-            {saving ? "SavingÃ¢â‚¬Â¦" : btnLabel}
+            {saving ? "Saving..." : btnLabel}
           </button>
         </div>
       </form>
@@ -2916,7 +2916,7 @@ function TransferStockModal({
   }
 
   return (
-    <Modal title={`Transfer Stock Ã¢â‚¬â€ ${item.name}`} onClose={onClose}>
+    <Modal title={`Transfer Stock - ${item.name}`} onClose={onClose}>
       <form onSubmit={(e) => { void handleSubmit(e); }}>
         <div className="adjust-current-stock">
           <span className="adjust-current-label">Current branch stock</span>
@@ -3275,16 +3275,16 @@ function formatNumber(value: number) {
 
 function ScannerLoadingOverlay() {
   return (
-    <div className="scanner-overlay" aria-label="Loading scannerÃ¢â‚¬Â¦" aria-busy="true">
+    <div className="scanner-overlay" aria-label="Loading scanner..." aria-busy="true">
       <div className="scanner-loading">
         <div className="spinner scanner-loading-spinner" />
-        <p className="scanner-loading-text">Loading scannerÃ¢â‚¬Â¦</p>
+        <p className="scanner-loading-text">Loading scanner...</p>
       </div>
     </div>
   );
 }
 
-// Ã¢â€â‚¬Ã¢â€â‚¬ Supplier Modal Components Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+// Supplier Modal Components
 
 function SupplierModalShell({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   useEffect(() => {
@@ -3366,7 +3366,7 @@ function BulkAssignSupplierModal({
   }
 
   return (
-    <SupplierModalShell title={`Assign Supplier Ã¢â‚¬â€ ${selectedItemIds.length} item${selectedItemIds.length === 1 ? "" : "s"}`} onClose={onClose}>
+    <SupplierModalShell title={`Assign Supplier - ${selectedItemIds.length} item${selectedItemIds.length === 1 ? "" : "s"}`} onClose={onClose}>
       <form onSubmit={(e) => { void handleSubmit(e); }}>
         <div className="sm-modal-body">
           <div className="sm-form-row">
@@ -3414,14 +3414,14 @@ function BulkAssignSupplierModal({
           {result && result.assigned === 0 && (
             <div className={`sm-result-box ${result.failed > 0 ? "sm-result-box--error" : "sm-result-box--warning"}`}>
               <div className="sm-result-title">No items updated</div>
-              <p>Skipped: {result.skipped} Ã‚Â· Failed: {result.failed}</p>
+              <p>Skipped: {result.skipped} - Failed: {result.failed}</p>
             </div>
           )}
         </div>
         <div className="sm-modal-footer">
           <button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button>
           <button type="submit" className="btn btn--primary" disabled={saving || !supplierId}>
-            {saving ? <><div className="spinner spinner--sm spinner--white" /> AssigningÃ¢â‚¬Â¦</> : `Assign to ${selectedItemIds.length} item${selectedItemIds.length === 1 ? "" : "s"}`}
+            {saving ? <><div className="spinner spinner--sm spinner--white" /> Assigning...</> : `Assign to ${selectedItemIds.length} item${selectedItemIds.length === 1 ? "" : "s"}`}
           </button>
         </div>
       </form>
@@ -3474,7 +3474,7 @@ function BulkRemoveSupplierModal({
   }
 
   return (
-    <SupplierModalShell title={`Remove Supplier Ã¢â‚¬â€ ${selectedItemIds.length} item${selectedItemIds.length === 1 ? "" : "s"}`} onClose={onClose}>
+    <SupplierModalShell title={`Remove Supplier - ${selectedItemIds.length} item${selectedItemIds.length === 1 ? "" : "s"}`} onClose={onClose}>
       <form onSubmit={(e) => { void handleSubmit(e); }}>
         <div className="sm-modal-body">
           <div className="sm-form-row">
@@ -3500,7 +3500,7 @@ function BulkRemoveSupplierModal({
         <div className="sm-modal-footer">
           <button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button>
           <button type="submit" className="btn btn--danger" disabled={saving || !supplierId}>
-            {saving ? <><div className="spinner spinner--sm spinner--white" /> RemovingÃ¢â‚¬Â¦</> : "Remove mapping"}
+            {saving ? <><div className="spinner spinner--sm spinner--white" /> Removing...</> : "Remove mapping"}
           </button>
         </div>
       </form>
@@ -3573,7 +3573,7 @@ function ItemSuppliersModal({
   const availableSuppliers = suppliers.filter((s) => !usedSupplierIds.has(s.id));
 
   return (
-    <SupplierModalShell title={`Manage Suppliers Ã¢â‚¬â€ ${item.name}`} onClose={onClose}>
+    <SupplierModalShell title={`Manage Suppliers - ${item.name}`} onClose={onClose}>
       <div className="sm-modal-body">
         {loadingMappings ? (
           <div style={{ textAlign: "center", padding: "24px 0" }}><div className="spinner" /></div>
@@ -3585,7 +3585,7 @@ function ItemSuppliersModal({
               <div key={m.id} className="sm-mapping-row">
                 <div className="sm-mapping-row-supplier">
                   <span className="sm-mapping-row-supplier-name">{m.supplierName}</span>
-                  {m.supplierItemCode && <span style={{ fontSize: 11, color: "var(--text-muted, #94a3b8)" }}> Ã‚Â· Code: {m.supplierItemCode}</span>}
+                  {m.supplierItemCode && <span style={{ fontSize: 11, color: "var(--text-muted, #94a3b8)" }}> - Code: {m.supplierItemCode}</span>}
                 </div>
                 <span className={`item-supplier-tag item-supplier-tag--${m.role === "PRIMARY" ? "primary" : "alternate"}`}>
                   {m.role === "PRIMARY" ? "Primary" : "Alternate"}

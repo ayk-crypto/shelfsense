@@ -9227,29 +9227,33 @@ tr.row--wastage td:first-child {
   right: auto;
 }
 
-/* ── Inventory action buttons (In / Out) ── */
+/* Inventory action buttons */
 .btn--action-in {
-  background: #f0fdf4;
-  color: #16a34a;
-  border: 1px solid #bbf7d0;
+  min-width: 86px;
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
   font-weight: 700;
+  box-shadow: none;
 }
 .btn--action-in:hover:not(:disabled) {
-  background: #dcfce7;
-  border-color: #86efac;
-  color: #15803d;
+  background: #d1fae5;
+  border-color: #6ee7b7;
+  color: #065f46;
 }
 
 .btn--action-out {
-  background: #fff1f2;
-  color: #e11d48;
-  border: 1px solid #fecdd3;
+  min-width: 86px;
+  background: #f8fafc;
+  color: #334155;
+  border: 1px solid #cbd5e1;
   font-weight: 700;
+  box-shadow: none;
 }
 .btn--action-out:hover:not(:disabled) {
-  background: #ffe4e6;
-  border-color: #fda4af;
-  color: #be123c;
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  color: #0f172a;
 }
 
 /* ── KPI summary pills (clickable) ── */

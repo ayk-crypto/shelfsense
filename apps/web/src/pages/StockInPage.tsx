@@ -644,7 +644,7 @@ export function StockInPage() {
 
     for (const row of rows) {
       if (!isRowValid(row)) {
-        out.push({ rowId: row.rowId, itemName: row.item.name, batchNo: row.batchNo, status: "error", error: "Invalid â€” skipped" });
+        out.push({ rowId: row.rowId, itemName: row.item.name, batchNo: row.batchNo, status: "error", error: "Invalid - skipped" });
         continue;
       }
       const selectedSupplier = suppliers.find((s) => s.id === row.supplierId);
@@ -662,7 +662,7 @@ export function StockInPage() {
           batchNo: row.batchNo || undefined,
           supplierId: row.supplierId || undefined,
           supplierName: selectedSupplier?.name,
-          note: [row.note.trim(), invoiceNumber.trim() ? `Invoice ${invoiceNumber.trim()}` : null, invoiceDate ? `Invoice date ${invoiceDate}` : null, globalNote.trim()].filter(Boolean).join(" · ") || undefined,
+          note: [row.note.trim(), invoiceNumber.trim() ? `Invoice ${invoiceNumber.trim()}` : null, invoiceDate ? `Invoice date ${invoiceDate}` : null, globalNote.trim()].filter(Boolean).join(" - ") || undefined,
           enteredQuantity: isPurchaseUnit ? enteredQty : undefined,
           enteredUnit: isPurchaseUnit ? row.item.purchaseUnit! : undefined,
         });
@@ -696,12 +696,12 @@ export function StockInPage() {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 5v14M5 12l7 7 7-7" />
             </svg>
-            Receive Stock
+            Stock receiving
           </div>
-          <h1 className="page-title">Receive Stock</h1>
+          <h1 className="page-title">Stock receiving</h1>
           <p className="page-subtitle">
             {mode === "direct"
-              ? "Receive stock from an invoice: choose a supplier, add items, enter quantity and total price, then record the receipt."
+              ? "Fast invoice entry: select supplier, add items, enter quantity and total price."
               : "Receive goods against an open Purchase Order. Stock batches are created only when you confirm receipt."}
           </p>
         </div>
@@ -726,21 +726,21 @@ export function StockInPage() {
           className={`stock-entry-mode-btn${mode === "direct" ? " stock-entry-mode-btn--active" : ""}`}
           onClick={() => void switchMode("direct")}
         >
-          Direct Receive
+          Receive invoice
         </button>
         <button
           type="button"
           className={`stock-entry-mode-btn${mode === "po" ? " stock-entry-mode-btn--active" : ""}`}
           onClick={() => void switchMode("po")}
         >
-          Receive Against PO
+          Receive PO
         </button>
       </div>
 
       {mode === "po" ? (
         <div className="po-receive-section">
           {poLoading ? (
-            <div className="po-receive-loading">Loading open purchase ordersâ€¦</div>
+            <div className="po-receive-loading">Loading open purchase orders...</div>
           ) : openPOs.length === 0 ? (
             <div className="po-receive-empty">
               <p>No open purchase orders found.</p>
@@ -751,10 +751,10 @@ export function StockInPage() {
               <div className="form-group po-receive-selector">
                 <label className="form-label">Select Purchase Order</label>
                 <select className="form-input form-select" value={selectedPoId} onChange={(e) => handlePoSelect(e.target.value)}>
-                  <option value="">Choose an open PO to receive againstâ€¦</option>
+                  <option value="">Choose an open PO to receive against...</option>
                   {openPOs.map((po) => (
                     <option key={po.id} value={po.id}>
-                      {po.supplier.name} â€” {po.remainingQuantity} unit{po.remainingQuantity !== 1 ? "s" : ""} remaining (#{po.id.slice(-6).toUpperCase()})
+                      {po.supplier.name} - {po.remainingQuantity} unit{po.remainingQuantity !== 1 ? "s" : ""} remaining (#{po.id.slice(-6).toUpperCase()})
                     </option>
                   ))}
                 </select>
@@ -909,7 +909,7 @@ export function StockInPage() {
                           <p className="po-overreceive-confirm-note">This will add extra inventory beyond the ordered quantity. Do you want to proceed?</p>
                           <div className="po-overreceive-confirm-actions">
                             <button type="button" className="btn btn--primary" onClick={() => { setOverReceiveConfirmed(true); void handlePoReceiveSubmit(true); }} disabled={poSubmitting}>
-                              {poSubmitting ? "Receivingâ€¦" : "Accept & Confirm Receipt"}
+                              {poSubmitting ? "Receiving..." : "Accept & Confirm Receipt"}
                             </button>
                             <button type="button" className="btn btn--ghost" onClick={() => setOverReceiveWarnings([])}>Cancel</button>
                           </div>
@@ -929,7 +929,7 @@ export function StockInPage() {
                           )}
                         </div>
                         <button type="button" className="btn btn--primary" onClick={() => void handlePoReceiveSubmit()} disabled={poSubmitting}>
-                          {poSubmitting ? "Receivingâ€¦" : "Confirm Receipt"}
+                          {poSubmitting ? "Receiving..." : "Confirm Receipt"}
                         </button>
                       </div>
                     )}
@@ -1000,7 +1000,7 @@ export function StockInPage() {
             <input
               ref={searchRef}
               className="stock-entry-search-input"
-              placeholder={loadingItems ? "Loading itemsâ€¦" : "Search by name, SKU, or barcodeâ€¦"}
+              placeholder={loadingItems ? "Loading items..." : "Search by name, SKU, or barcode..."}
               value={search}
               disabled={loadingItems}
               onChange={(e) => { setSearch(e.target.value); setShowDropdown(true); }}
@@ -1015,7 +1015,7 @@ export function StockInPage() {
                   {search
                     ? "No items match your search"
                     : stagedItemIds.size === allItems.length
-                      ? "All items already added â€” use + Add batch on a row to add another batch"
+                      ? "All items already added - use + Add batch on a row to add another batch"
                       : "Start typing to search"}
                 </div>
               ) : (
@@ -1029,9 +1029,9 @@ export function StockInPage() {
                     <div className="stock-entry-dropdown-name">{item.name}</div>
                     <div className="stock-entry-dropdown-meta">
                       {item.unit}
-                      {item.category ? ` Â· ${item.category}` : ""}
-                      {item.sku ? ` Â· ${item.sku}` : ""}
-                      {item.trackExpiry ? " Â· Expiry tracked" : ""}
+                      {item.category ? ` - ${item.category}` : ""}
+                      {item.sku ? ` - ${item.sku}` : ""}
+                      {item.trackExpiry ? " - Expiry tracked" : ""}
                     </div>
                   </button>
                 ))
@@ -1131,7 +1131,7 @@ export function StockInPage() {
                           onChange={(e) => updateRow(row.rowId, "totalPrice", e.target.value)}
                         />
                         <span className="stock-entry-last-price">
-                          Unit cost: {calculatedUnitCost(row) !== null ? `${formatCurrency(calculatedUnitCost(row)!, currency)} / ${row.item.unit}` : "—"}
+                          Unit cost: {calculatedUnitCost(row) !== null ? `${formatCurrency(calculatedUnitCost(row)!, currency)} / ${row.item.unit}` : "-"}
                         </span>
                         {row.lastPrice !== null && !row.metaLoading && (
                           <span className={`stock-entry-last-price ${
@@ -1142,11 +1142,11 @@ export function StockInPage() {
                                 : ""
                           }`}>
                             Last: {formatCurrency(row.lastPrice, currency)}
-                            {calculatedUnitCost(row) !== null && calculatedUnitCost(row)! > row.lastPrice && " ↑"}
-                            {calculatedUnitCost(row) !== null && calculatedUnitCost(row)! < row.lastPrice && " ↓"}
+                            {calculatedUnitCost(row) !== null && calculatedUnitCost(row)! > row.lastPrice && " up"}
+                            {calculatedUnitCost(row) !== null && calculatedUnitCost(row)! < row.lastPrice && " down"}
                           </span>
                         )}
-                        {row.metaLoading && <span className="stock-entry-last-price stock-entry-last-price--loading">Loadingâ€¦</span>}
+                        {row.metaLoading && <span className="stock-entry-last-price stock-entry-last-price--loading">Loading...</span>}
                       </td>
                       <td className="stock-entry-td-expiry">
                         {row.item.trackExpiry ? (
@@ -1157,7 +1157,7 @@ export function StockInPage() {
                             onChange={(e) => updateRow(row.rowId, "expiryDate", e.target.value)}
                           />
                         ) : (
-                          <span className="stock-entry-na">â€”</span>
+                          <span className="stock-entry-na">-</span>
                         )}
                       </td>
                       <td className="stock-entry-td-supplier">
@@ -1202,7 +1202,7 @@ export function StockInPage() {
                           </label>
                           <div className="stock-entry-more-field">
                             <span>Calculated unit cost</span>
-                            <strong>{calculatedUnitCost(row) !== null ? `${formatCurrency(calculatedUnitCost(row)!, currency)} / ${row.item.unit}` : "—"}</strong>
+                            <strong>{calculatedUnitCost(row) !== null ? `${formatCurrency(calculatedUnitCost(row)!, currency)} / ${row.item.unit}` : "-"}</strong>
                           </div>
                           <button
                             type="button"
@@ -1236,7 +1236,7 @@ export function StockInPage() {
               <input
                 className="form-input"
                 type="text"
-                placeholder="e.g. Morning delivery from Metroâ€¦"
+                placeholder="e.g. Morning delivery from Metro..."
                 value={globalNote}
                 onChange={(e) => setGlobalNote(e.target.value)}
               />
