@@ -1,4 +1,4 @@
-import { Role, StockMovementType } from "../generated/prisma/enums.js";
+import { ItemSupplierRole, Role, StockMovementType } from "../generated/prisma/enums.js";
 import { Router, type Request } from "express";
 import { Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../db/prisma.js";
@@ -41,7 +41,7 @@ stockRouter.post("/in", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(as
 
   const item = await prisma.item.findFirst({
     where: { id: itemId, workspaceId, isActive: true },
-    select: { id: true, name: true, unit: true, purchaseUnit: true, purchaseConversionFactor: true },
+    select: { id: true, name: true, unit: true, trackExpiry: true, purchaseUnit: true, purchaseConversionFactor: true },
   });
 
   if (!item) {
@@ -49,6 +49,25 @@ stockRouter.post("/in", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(as
   }
 
   const uomConversion = resolveUomConversion(input.enteredUnit, input.enteredQuantity, item.purchaseUnit, item.purchaseConversionFactor, quantity);
+
+  if (input.totalPrice !== undefined && input.totalPrice <= 0) {
+    return res.status(400).json({ error: "Total price must be greater than zero" });
+  }
+
+  if (item.trackExpiry && !expiryDate) {
+    return res.status(400).json({ error: "Expiry date is required for expiry-tracked items" });
+  }
+
+  const selectedSupplier = input.supplierId
+    ? await prisma.supplier.findFirst({
+        where: { id: input.supplierId, workspaceId },
+        select: { id: true, name: true },
+      })
+    : null;
+
+  if (input.supplierId && !selectedSupplier) {
+    return res.status(404).json({ error: "Supplier not found" });
+  }
 
   try {
     const result = await runSerializableWrite(async (tx) => {
@@ -67,8 +86,11 @@ stockRouter.post("/in", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(as
             select: { unitCost: true },
           })
         : null;
+      const calculatedUnitCost = input.totalPrice !== undefined
+        ? roundCurrency(input.totalPrice / uomConversion.baseQuantity)
+        : undefined;
       // Quick stock-in actions do not send cost, so reuse the latest known cost to keep valuation stable.
-      const effectiveUnitCost = input.unitCost ?? latestPricedBatch?.unitCost ?? null;
+      const effectiveUnitCost = calculatedUnitCost ?? input.unitCost ?? latestPricedBatch?.unitCost ?? null;
 
       const batch = await tx.stockBatch.create({
         data: {
@@ -80,8 +102,8 @@ stockRouter.post("/in", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(as
           unitCost: effectiveUnitCost,
           expiryDate,
           batchNo: input.batchNo,
-          supplierId: input.supplierId ?? null,
-          supplierName: input.supplierName,
+          supplierId: selectedSupplier?.id ?? null,
+          supplierName: selectedSupplier?.name ?? input.supplierName,
           receivedQuantity: uomConversion.enteredQuantity ?? null,
           receivedUnit: uomConversion.enteredUnit ?? null,
         },
@@ -117,6 +139,10 @@ stockRouter.post("/in", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(as
         unit: item.unit,
         quantity,
         locationId,
+        supplierId: selectedSupplier?.id ?? null,
+        supplierName: selectedSupplier?.name ?? input.supplierName,
+        totalPrice: input.totalPrice,
+        unitCost: result.batch.unitCost,
         note: input.note,
       },
     });
@@ -791,6 +817,15 @@ stockRouter.get("/supplier-suggestion", requireRole([Role.OWNER, Role.MANAGER]),
   const itemId = parseOptionalString(req.query.itemId);
   if (!itemId) return res.status(400).json({ error: "itemId is required" });
 
+  const primaryMapping = await prisma.itemSupplier.findFirst({
+    where: { workspaceId, itemId, role: ItemSupplierRole.PRIMARY },
+    include: { supplier: { select: { id: true, name: true } } },
+  });
+
+  if (primaryMapping?.supplier) {
+    return res.json({ suggestion: primaryMapping.supplier });
+  }
+
   const batches = await prisma.stockBatch.findMany({
     where: { workspaceId, itemId, supplierId: { not: null } },
     orderBy: { createdAt: "desc" },
@@ -937,6 +972,7 @@ function parseStockInInput(body: unknown) {
     itemId?: unknown;
     quantity?: unknown;
     unitCost?: unknown;
+    totalPrice?: unknown;
     expiryDate?: unknown;
     batchNo?: unknown;
     supplierId?: unknown;
@@ -950,6 +986,7 @@ function parseStockInInput(body: unknown) {
     itemId: parseOptionalString(input.itemId),
     quantity: parseOptionalNumber(input.quantity),
     unitCost: parseOptionalNumber(input.unitCost),
+    totalPrice: parseOptionalNumber(input.totalPrice),
     expiryDate: parseOptionalDate(input.expiryDate),
     batchNo: parseNullableString(input.batchNo),
     supplierId: parseNullableString(input.supplierId),
@@ -1118,6 +1155,10 @@ function parseNullableString(value: unknown) {
 
 function parseOptionalNumber(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function roundCurrency(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
 function parseOptionalDate(value: unknown) {

@@ -3470,6 +3470,20 @@ body {
   user-select: text;
 }
 
+.form-helper--error {
+  color: var(--color-danger, #dc2626);
+}
+
+.stock-in-live-summary {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 13px;
+  line-height: 1.45;
+  padding: 10px 12px;
+}
+
 .form-input:focus,
 .form-select:focus {
   outline: none;

@@ -492,6 +492,7 @@ export interface CreateItemInput {
   purchaseConversionFactor?: number | null;
   issueUnit?: string | null;
   displayBothUnits?: boolean;
+  supplierId?: string | null;
 }
 
 export interface StockInInput {
@@ -499,6 +500,7 @@ export interface StockInInput {
   quantity: number;
   locationId?: string;
   unitCost?: number;
+  totalPrice?: number;
   expiryDate?: string;
   batchNo?: string;
   supplierId?: string;

@@ -104,6 +104,10 @@ function getStatus(
   return { label: "OK", variant: "green" };
 }
 
+function roundCurrency(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
 export function ItemsPage() {
   const { user } = useAuth();
   const { activeLocationId, locations } = useLocation();
@@ -1117,6 +1121,7 @@ export function ItemsPage() {
       {addItemOpen && (
         <AddItemModal
           prefillBarcode={scanPrefillBarcode}
+          suppliers={suppliersList}
           onClose={() => { setAddItemOpen(false); setScanPrefillBarcode(undefined); }}
           onSuccess={(item) => {
             setItems((prev) => [item, ...prev]);
@@ -1124,6 +1129,7 @@ export function ItemsPage() {
             setScanPrefillBarcode(undefined);
             showToast(`"${item.name}" added successfully`, "success");
             void refreshSummary();
+            void loadAll();
           }}
           onError={(msg) => showToast(msg, "error")}
         />
@@ -1132,12 +1138,14 @@ export function ItemsPage() {
       {editingItem && (
         <EditItemModal
           item={editingItem}
+          suppliers={suppliersList}
           onClose={() => setEditingItem(null)}
           onSuccess={(updatedItem) => {
             setItems((prev) => prev.map((item) => (item.id === updatedItem.id ? updatedItem : item)));
             setEditingItem(null);
             showToast(`"${updatedItem.name}" updated`, "success");
             void refreshSummary();
+            void loadAll();
           }}
           onError={(msg) => showToast(msg, "error")}
         />
@@ -1178,6 +1186,8 @@ export function ItemsPage() {
       {stockInItem && (
         <StockInModal
           item={stockInItem}
+          suppliers={suppliersList}
+          defaultSupplierId={supplierMappingMap.get(stockInItem.id)?.primary?.supplierId ?? ""}
           onClose={() => setStockInItem(null)}
           onSuccess={() => {
             setStockInItem(null);
@@ -1501,11 +1511,13 @@ function BulkItemsBar({
 
 function AddItemModal({
   prefillBarcode,
+  suppliers,
   onClose,
   onSuccess,
   onError,
 }: {
   prefillBarcode?: string;
+  suppliers: Supplier[];
   onClose: () => void;
   onSuccess: (item: Item) => void;
   onError: (msg: string) => void;
@@ -1532,6 +1544,7 @@ function AddItemModal({
     displayBothUnits: false,
   });
   const [saving, setSaving] = useState(false);
+  const [supplierId, setSupplierId] = useState("");
   const firstRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { firstRef.current?.focus(); }, []);
@@ -1545,6 +1558,9 @@ function AddItemModal({
         ...form,
         barcode: form.barcode?.trim() || undefined,
       });
+      if (supplierId) {
+        await putItemSuppliers(res.item.id, [{ supplierId, role: "PRIMARY" }]);
+      }
       onSuccess(res.item);
     } catch (err) {
       onError(err instanceof Error ? err.message : "Failed to create item");
@@ -1666,6 +1682,20 @@ function AddItemModal({
             onChange={(e) => setForm({ ...form, minStockLevel: Number(e.target.value) })}
           />
           <p className="form-helper">Alert triggers when stock is at or below this quantity. Set it based on how fast this item is used.</p>
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">Default Supplier</label>
+          <select
+            className="form-select"
+            value={supplierId}
+            onChange={(e) => setSupplierId(e.target.value)}
+          >
+            <option value="">Select supplier</option>
+            {suppliers.map((supplier) => (
+              <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
+            ))}
+          </select>
         </div>
 
         <div className="item-units-section">
@@ -1811,11 +1841,13 @@ function AddItemModal({
 
 function EditItemModal({
   item,
+  suppliers,
   onClose,
   onSuccess,
   onError,
 }: {
   item: Item;
+  suppliers: Supplier[];
   onClose: () => void;
   onSuccess: (item: Item) => void;
   onError: (msg: string) => void;
@@ -1843,9 +1875,24 @@ function EditItemModal({
     displayBothUnits: item.displayBothUnits ?? false,
   });
   const [saving, setSaving] = useState(false);
+  const [supplierId, setSupplierId] = useState("");
+  const [existingSupplierMappings, setExistingSupplierMappings] = useState<ItemSupplierMapping[]>([]);
   const firstRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { firstRef.current?.focus(); }, []);
+  useEffect(() => {
+    let alive = true;
+    getItemSuppliers(item.id)
+      .then((res) => {
+        if (!alive) return;
+        setExistingSupplierMappings(res.suppliers);
+        setSupplierId(res.suppliers.find((s) => s.role === "PRIMARY")?.supplierId ?? "");
+      })
+      .catch(() => {
+        if (alive) setSupplierId("");
+      });
+    return () => { alive = false; };
+  }, [item.id]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -1860,6 +1907,10 @@ function EditItemModal({
         sku: form.sku?.trim() || null,
         barcode: form.barcode?.trim() || null,
       });
+      const alternateMappings = existingSupplierMappings
+        .filter((mapping) => mapping.role === "ALTERNATE" && mapping.supplierId !== supplierId)
+        .map((mapping) => ({ supplierId: mapping.supplierId, role: "ALTERNATE" as const }));
+      await putItemSuppliers(item.id, supplierId ? [{ supplierId, role: "PRIMARY" }, ...alternateMappings] : alternateMappings);
       onSuccess(res.item);
     } catch (err) {
       onError(err instanceof Error ? err.message : "Failed to update item");
@@ -1995,6 +2046,20 @@ function EditItemModal({
             onChange={(e) => setForm({ ...form, minStockLevel: Number(e.target.value) })}
           />
           <p className="form-helper">Alert triggers when stock is at or below this quantity. Set it based on how fast this item is used.</p>
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">Default Supplier</label>
+          <select
+            className="form-select"
+            value={supplierId}
+            onChange={(e) => setSupplierId(e.target.value)}
+          >
+            <option value="">Select supplier</option>
+            {suppliers.map((supplier) => (
+              <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
+            ))}
+          </select>
         </div>
 
         <div className="item-units-section">
@@ -2744,37 +2809,67 @@ function BarcodeModal({
 
 function StockInModal({
   item,
+  suppliers,
+  defaultSupplierId,
   onClose,
   onSuccess,
   onError,
 }: {
   item: Item;
+  suppliers: Supplier[];
+  defaultSupplierId?: string;
   onClose: () => void;
   onSuccess: () => void;
   onError: (msg: string) => void;
 }) {
+  const navigate = useNavigate();
+  const { settings } = useWorkspaceSettings();
   const [qty, setQty] = useState("");
-  const [unitCost, setUnitCost] = useState("");
+  const [totalPrice, setTotalPrice] = useState("");
   const [expiryDate, setExpiryDate] = useState("");
-  const [supplier, setSupplier] = useState("");
+  const [supplierId, setSupplierId] = useState("");
+  const [supplierSearch, setSupplierSearch] = useState("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const firstRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { firstRef.current?.focus(); }, []);
+  useEffect(() => {
+    const defaultSupplier = suppliers.find((supplier) => supplier.id === defaultSupplierId);
+    if (defaultSupplier) {
+      setSupplierId(defaultSupplier.id);
+      setSupplierSearch(defaultSupplier.name);
+    }
+  }, [defaultSupplierId, suppliers]);
+
+  const quantity = parseFloat(qty);
+  const invoiceTotal = parseFloat(totalPrice);
+  const quantityValid = Number.isFinite(quantity) && quantity > 0;
+  const totalPriceValid = Number.isFinite(invoiceTotal) && invoiceTotal > 0;
+  const calculatedUnitCost = quantityValid && totalPriceValid ? roundCurrency(invoiceTotal / quantity) : null;
+  const selectedSupplier = suppliers.find((supplier) => supplier.id === supplierId) ?? null;
+  const hasInvalidSupplierText = supplierSearch.trim().length > 0 && !selectedSupplier;
+  const expiryValid = !item.trackExpiry || Boolean(expiryDate);
+  const canSubmit = quantityValid && totalPriceValid && expiryValid && !hasInvalidSupplierText;
+
+  function handleSupplierSearch(value: string) {
+    setSupplierSearch(value);
+    const match = suppliers.find((supplier) => supplier.name.toLowerCase() === value.trim().toLowerCase());
+    setSupplierId(match?.id ?? "");
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const quantity = parseFloat(qty);
-    if (!quantity || quantity <= 0) return;
+    if (!canSubmit || calculatedUnitCost === null) return;
     setSaving(true);
     try {
       await stockIn({
         itemId: item.id,
         quantity,
-        unitCost: unitCost ? parseFloat(unitCost) : undefined,
+        totalPrice: invoiceTotal,
+        unitCost: calculatedUnitCost,
         expiryDate: expiryDate || undefined,
-        supplierName: supplier.trim() || undefined,
+        supplierId: supplierId || undefined,
         note: note.trim() || undefined,
       });
       onSuccess();
@@ -2790,7 +2885,7 @@ function StockInModal({
       <form onSubmit={(e) => { void handleSubmit(e); }}>
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">Quantity * ({item.unit})</label>
+            <label className="form-label">Quantity received * ({item.unit})</label>
             <input
               ref={firstRef}
               className="form-input"
@@ -2804,16 +2899,24 @@ function StockInModal({
             />
           </div>
           <div className="form-group">
-            <label className="form-label">Unit Cost</label>
+            <label className="form-label">Total Price *</label>
             <input
               className="form-input"
               type="number"
-              min={0}
+              min={0.01}
               step="any"
-              value={unitCost}
-              onChange={(e) => setUnitCost(e.target.value)}
+              value={totalPrice}
+              onChange={(e) => setTotalPrice(e.target.value)}
               placeholder="0.00"
+              required
             />
+            <p className="form-helper">Enter the total invoice amount for this item.</p>
+          </div>
+        </div>
+        <div className="form-group">
+          <label className="form-label">Calculated Unit Cost</label>
+          <div className="form-input form-input--readonly">
+            {calculatedUnitCost !== null ? `${formatCurrency(calculatedUnitCost, settings.currency)} / ${item.unit}` : "Enter quantity and total price"}
           </div>
         </div>
         {item.trackExpiry && (
@@ -2829,13 +2932,33 @@ function StockInModal({
           </div>
         )}
         <div className="form-group">
-          <label className="form-label">Supplier (optional)</label>
+          <label className="form-label">Supplier</label>
           <input
             className="form-input"
-            value={supplier}
-            onChange={(e) => setSupplier(e.target.value)}
-            placeholder="Supplier name"
+            list={`stock-in-suppliers-${item.id}`}
+            value={supplierSearch}
+            onChange={(e) => handleSupplierSearch(e.target.value)}
+            onBlur={(e) => handleSupplierSearch(e.target.value)}
+            placeholder="Select supplier"
           />
+          <datalist id={`stock-in-suppliers-${item.id}`}>
+            {suppliers.map((supplier) => (
+              <option key={supplier.id} value={supplier.name} />
+            ))}
+          </datalist>
+          {hasInvalidSupplierText && (
+            <p className="form-helper form-helper--error">Choose a supplier from the list.</p>
+          )}
+          <button
+            type="button"
+            className="btn btn--ghost btn--sm"
+            onClick={() => {
+              onClose();
+              navigate("/suppliers");
+            }}
+          >
+            Add new supplier
+          </button>
         </div>
         <div className="form-group">
           <label className="form-label">Note (optional)</label>
@@ -2846,6 +2969,11 @@ function StockInModal({
             placeholder="Any notes…"
           />
         </div>
+        {canSubmit && calculatedUnitCost !== null && (
+          <div className="stock-in-live-summary">
+            Receiving {quantity} {item.unit} of {item.name} from {selectedSupplier?.name ?? "no supplier selected"} at total {formatCurrency(invoiceTotal, settings.currency)}. Calculated unit cost: {formatCurrency(calculatedUnitCost, settings.currency)} / {item.unit}.
+          </div>
+        )}
         <div className="modal-footer">
           <button type="button" className="btn btn--ghost" onClick={onClose}>
             Cancel
@@ -2853,7 +2981,7 @@ function StockInModal({
           <button
             type="submit"
             className="btn btn--primary"
-            disabled={saving || !qty || parseFloat(qty) <= 0}
+            disabled={saving || !canSubmit}
           >
             {saving ? <span className="btn-spinner" /> : null}
             {saving ? "Saving…" : "Add Stock"}
