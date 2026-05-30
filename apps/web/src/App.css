@@ -3484,6 +3484,94 @@ body {
   padding: 10px 12px;
 }
 
+.stock-entry-session {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.4fr) minmax(160px, 1fr) minmax(150px, 0.8fr);
+  gap: 12px;
+  align-items: end;
+  margin: 16px 0;
+}
+
+.stock-entry-row-more {
+  min-width: 170px;
+}
+
+.stock-entry-row-more summary {
+  cursor: pointer;
+  color: var(--color-primary);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.stock-entry-row-more[open] {
+  display: grid;
+  gap: 8px;
+}
+
+.stock-entry-more-field {
+  display: grid;
+  gap: 4px;
+  min-width: 220px;
+}
+
+.stock-entry-more-field span {
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.stock-entry-receipt-summary {
+  display: grid;
+  gap: 4px;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.stock-entry-receipt-summary strong {
+  color: var(--color-text);
+}
+
+@media (max-width: 760px) {
+  .stock-entry-session {
+    grid-template-columns: 1fr;
+  }
+}
+
+.more-settings {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  padding: 10px 12px;
+}
+
+.more-settings summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+  list-style-position: inside;
+}
+
+.more-settings > .form-helper {
+  margin-top: 8px;
+}
+
+.more-settings[open] {
+  display: grid;
+  gap: 12px;
+}
+
+.more-settings-configured {
+  display: inline-block;
+  margin-left: 8px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.item-units-section--compact {
+  margin-top: 0;
+}
+
 .form-input:focus,
 .form-select:focus {
   outline: none;

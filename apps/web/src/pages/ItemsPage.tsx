@@ -281,7 +281,7 @@ export function ItemsPage() {
       const map = new Map(res.summary.map((s) => [s.itemId, s]));
       setSummaryMap(map);
     } catch {
-      /* non-blocking — keep showing stale data */
+      /* non-blocking Ã¢â‚¬â€ keep showing stale data */
     }
   }
 
@@ -463,7 +463,7 @@ export function ItemsPage() {
     return (
       <div className="page-loading">
         <div className="spinner" />
-        <p>Loading items…</p>
+        <p>Loading itemsÃ¢â‚¬Â¦</p>
       </div>
     );
   }
@@ -714,7 +714,7 @@ export function ItemsPage() {
         </div>
       ) : (
         <>
-          {/* ── Desktop table (hidden on mobile) ── */}
+          {/* Ã¢â€â‚¬Ã¢â€â‚¬ Desktop table (hidden on mobile) Ã¢â€â‚¬Ã¢â€â‚¬ */}
           <div className="table-wrap items-table-wrap">
             <table className="table">
               <thead>
@@ -809,7 +809,7 @@ export function ItemsPage() {
                           const dispUnit = hasPU && item.purchaseUnit ? item.purchaseUnit : item.unit;
                           const total = hasPU ? toPurchaseQuantity(usage.totalQuantity, factor) : usage.totalQuantity;
                           const avg = hasPU ? toPurchaseQuantity(usage.averageDailyUsage, factor) : usage.averageDailyUsage;
-                          return <span className="usage-hint">7-day usage: {formatNumber(total)} {dispUnit} · Avg/day: {formatNumber(avg)} {dispUnit}</span>;
+                          return <span className="usage-hint">7-day usage: {formatNumber(total)} {dispUnit} Ã‚Â· Avg/day: {formatNumber(avg)} {dispUnit}</span>;
                         })()}
                         {estimatedDaysRemaining !== null && (
                           <span className={`forecast-hint forecast-hint--${getForecastTone(estimatedDaysRemaining)}`}>
@@ -822,10 +822,10 @@ export function ItemsPage() {
                       )}
                       <td className="td-unit">{item.unit}</td>
                       <td className="text-right td-num">
-                        {s !== undefined ? formatNumber(s.totalQuantity) : "—"}
+                        {s !== undefined ? formatNumber(s.totalQuantity) : "Ã¢â‚¬â€"}
                       </td>
                       <td className="text-right td-num td-value">
-                        {s !== undefined ? formatCurrency(s.totalValue, currency) : "—"}
+                        {s !== undefined ? formatCurrency(s.totalValue, currency) : "Ã¢â‚¬â€"}
                       </td>
                       <td>
                         <span className={`badge badge--${status.variant}`}>{status.label}</span>
@@ -846,7 +846,7 @@ export function ItemsPage() {
                             className="btn btn--sm btn--action-out"
                             onClick={() => setStockOutItem(item)}
                           >
-                            − Out
+                            Ã¢Ë†â€™ Out
                           </button>
                         )}
                         <div className="row-action-menu">
@@ -927,7 +927,7 @@ export function ItemsPage() {
             </table>
           </div>
 
-          {/* ── Mobile cards (hidden on desktop) ── */}
+          {/* Ã¢â€â‚¬Ã¢â€â‚¬ Mobile cards (hidden on desktop) Ã¢â€â‚¬Ã¢â€â‚¬ */}
           <div className="item-cards">
             {filteredItems.map((item) => {
               const s = summaryMap.get(item.id);
@@ -988,13 +988,13 @@ export function ItemsPage() {
                     <span className="item-card-stat">
                       <span className="item-card-stat-label">In Stock</span>
                       <span className="item-card-stat-value">
-                        {s !== undefined ? `${s.totalQuantity} ${item.unit}` : "—"}
+                        {s !== undefined ? `${s.totalQuantity} ${item.unit}` : "Ã¢â‚¬â€"}
                       </span>
                     </span>
                     <span className="item-card-stat">
                       <span className="item-card-stat-label">Value</span>
                       <span className="item-card-stat-value">
-                        {s !== undefined ? formatCurrency(s.totalValue, currency) : "—"}
+                        {s !== undefined ? formatCurrency(s.totalValue, currency) : "Ã¢â‚¬â€"}
                       </span>
                     </span>
                     <span className="item-card-stat">
@@ -1016,7 +1016,7 @@ export function ItemsPage() {
                     const dispUnit = hasPU && item.purchaseUnit ? item.purchaseUnit : item.unit;
                     const total = hasPU ? toPurchaseQuantity(usage.totalQuantity, factor) : usage.totalQuantity;
                     const avg = hasPU ? toPurchaseQuantity(usage.averageDailyUsage, factor) : usage.averageDailyUsage;
-                    return <p className="usage-hint usage-hint--card">7-day usage: {formatNumber(total)} {dispUnit} · Avg/day: {formatNumber(avg)} {dispUnit}</p>;
+                    return <p className="usage-hint usage-hint--card">7-day usage: {formatNumber(total)} {dispUnit} Ã‚Â· Avg/day: {formatNumber(avg)} {dispUnit}</p>;
                   })()}
                   {estimatedDaysRemaining !== null && (
                     <p className={`forecast-hint forecast-hint--card forecast-hint--${getForecastTone(estimatedDaysRemaining)}`}>
@@ -1039,7 +1039,7 @@ export function ItemsPage() {
                         className="btn btn--sm btn--action-out"
                         onClick={() => setStockOutItem(item)}
                       >
-                        − Out
+                        Ã¢Ë†â€™ Out
                       </button>
                     )}
                     <div className="row-action-menu">
@@ -1317,7 +1317,7 @@ export function ItemsPage() {
                 onClick={() => { void handleConfirmPermanentDelete(); }}
               >
                 {busy.has(deleteItem.id)
-                  ? <><div className="spinner spinner--sm spinner--white" /> Deleting…</>
+                  ? <><div className="spinner spinner--sm spinner--white" /> DeletingÃ¢â‚¬Â¦</>
                   : "Delete permanently"}
               </button>
             </div>
@@ -1502,7 +1502,7 @@ function BulkItemsBar({
       {progress && (
         <div className="bulk-progress">
           Updated {progress.updated} of {progress.total}
-          {progress.failed > 0 ? ` · ${progress.failed} failed` : ""}
+          {progress.failed > 0 ? ` Ã‚Â· ${progress.failed} failed` : ""}
         </div>
       )}
     </div>
@@ -1526,41 +1526,25 @@ function AddItemModal({
   const unitOptions = modalSettings.customUnits.length > 0 ? modalSettings.customUnits : FALLBACK_UNIT_OPTIONS;
   const categoryOptions = modalSettings.customCategories.length > 0 ? modalSettings.customCategories : FALLBACK_CATEGORY_OPTIONS;
   const purchaseUnitOptions = modalSettings.customPurchaseUnits ?? [];
-  const [form, setForm] = useState<CreateItemInput>({
-    name: "",
-    unit: unitOptions[0] ?? FALLBACK_UNIT_OPTIONS[0],
-    category: categoryOptions[0] ?? FALLBACK_CATEGORY_OPTIONS[0],
-    barcode: prefillBarcode ?? "",
-    minStockLevel: 0,
-    criticalStockLevel: null,
-    parStockLevel: null,
-    procurementFrequency: null,
-    customFrequencyDays: null,
-    procurementLeadTimeDays: null,
-    trackExpiry: false,
-    purchaseUnit: null,
-    purchaseConversionFactor: null,
-    issueUnit: null,
-    displayBothUnits: false,
-  });
+  const [form, setForm] = useState<CreateItemInput>({ name: "", unit: unitOptions[0] ?? FALLBACK_UNIT_OPTIONS[0], category: "", barcode: prefillBarcode ?? "", minStockLevel: 0, criticalStockLevel: null, parStockLevel: null, procurementFrequency: null, customFrequencyDays: null, procurementLeadTimeDays: null, trackExpiry: false, purchaseUnit: null, purchaseConversionFactor: null, issueUnit: null, displayBothUnits: false });
   const [saving, setSaving] = useState(false);
   const [supplierId, setSupplierId] = useState("");
+  const [usesPurchaseUnit, setUsesPurchaseUnit] = useState(false);
+  const [moreSettingsOpen, setMoreSettingsOpen] = useState(false);
   const firstRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { firstRef.current?.focus(); }, []);
 
+  const purchaseUnitInvalid = usesPurchaseUnit && (!form.purchaseUnit?.trim() || !form.purchaseConversionFactor || form.purchaseConversionFactor <= 0);
+  const canSubmit = !saving && form.name.trim().length > 0 && form.unit.trim().length > 0 && !purchaseUnitInvalid;
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.name.trim() || !form.unit.trim()) return;
+    if (!canSubmit) return;
     setSaving(true);
     try {
-      const res = await createItem({
-        ...form,
-        barcode: form.barcode?.trim() || undefined,
-      });
-      if (supplierId) {
-        await putItemSuppliers(res.item.id, [{ supplierId, role: "PRIMARY" }]);
-      }
+      const res = await createItem({ ...form, category: form.category?.trim() || undefined, barcode: form.barcode?.trim() || undefined, purchaseUnit: usesPurchaseUnit ? form.purchaseUnit?.trim() || null : null, purchaseConversionFactor: usesPurchaseUnit ? form.purchaseConversionFactor ?? null : null, displayBothUnits: usesPurchaseUnit ? form.displayBothUnits : false });
+      if (supplierId) await putItemSuppliers(res.item.id, [{ supplierId, role: "PRIMARY" }]);
       onSuccess(res.item);
     } catch (err) {
       onError(err instanceof Error ? err.message : "Failed to create item");
@@ -1572,268 +1556,23 @@ function AddItemModal({
   return (
     <Modal title="Add Item" onClose={onClose}>
       <form onSubmit={(e) => { void handleSubmit(e); }}>
-        <div className="form-group">
-          <label className="form-label">Name *</label>
-          <input
-            ref={firstRef}
-            className="form-input"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            placeholder="e.g. Chicken Breast"
-            required
-          />
-        </div>
+        <div className="form-group"><label className="form-label">Item Name *</label><input ref={firstRef} className="form-input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Chicken Breast" required /></div>
+        <div className="form-group"><label className="form-label">Stock Unit *</label><select className="form-select" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} required>{unitOptions.map((unit) => <option key={unit} value={unit}>{unit}</option>)}</select></div>
+        <div className="form-group"><label className="form-label">Category</label><input className="form-input" list="add-item-category-options" value={form.category ?? ""} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="Optional category" /><datalist id="add-item-category-options">{categoryOptions.map((category) => <option key={category} value={category}>{category}</option>)}</datalist></div>
+        <div className="form-group"><label className="form-label">Default Supplier</label><select className="form-select" value={supplierId} onChange={(e) => setSupplierId(e.target.value)}><option value="">Select supplier</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></div>
+        <div className="form-group"><label className="form-label">Low Stock Alert</label><input className="form-input" type="number" min={0} step="any" value={form.minStockLevel} onChange={(e) => setForm({ ...form, minStockLevel: e.target.value === "" ? 0 : Number(e.target.value) })} /></div>
+        <div className="form-group form-group--inline"><input id="trackExpiry" type="checkbox" checked={form.trackExpiry} onChange={(e) => setForm({ ...form, trackExpiry: e.target.checked })} /><label htmlFor="trackExpiry" className="form-label form-label--check">Track expiry dates</label></div>
 
-        <div className="item-units-section">
-          <div className="item-units-section__title">Units</div>
-          <div className="form-group">
-            <label className="form-label">Stock Unit *</label>
-            <select
-              className="form-select"
-              value={form.unit}
-              onChange={(e) => setForm({ ...form, unit: e.target.value })}
-              required
-            >
-              {unitOptions.map((unit) => (
-                <option key={unit} value={unit}>{unit}</option>
-              ))}
-            </select>
-            <p className="form-helper">How stock is counted and stored internally.</p>
-          </div>
-          <div className="form-row-2col">
-            <div className="form-group">
-              <label className="form-label">Purchase Unit</label>
-              {purchaseUnitOptions.length > 0 ? (
-                <select
-                  className="form-select"
-                  value={form.purchaseUnit ?? ""}
-                  onChange={(e) => setForm({ ...form, purchaseUnit: e.target.value || null, purchaseConversionFactor: e.target.value ? form.purchaseConversionFactor : null })}
-                >
-                  <option value="">— none —</option>
-                  {purchaseUnitOptions.map((u) => <option key={u} value={u}>{u}</option>)}
-                </select>
-              ) : (
-                <input
-                  className="form-input"
-                  value={form.purchaseUnit ?? ""}
-                  onChange={(e) => setForm({ ...form, purchaseUnit: e.target.value || null })}
-                  placeholder="e.g. Carton"
-                />
-              )}
-              <p className="form-helper">The larger unit you buy in (optional).</p>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Qty per Purchase Unit</label>
-              <input
-                className="form-input"
-                type="number"
-                min={0.0001}
-                step="any"
-                value={form.purchaseConversionFactor ?? ""}
-                onChange={(e) => setForm({ ...form, purchaseConversionFactor: e.target.value ? Number(e.target.value) : null })}
-                placeholder={form.purchaseUnit ? `How many ${form.unit} per ${form.purchaseUnit}` : "e.g. 12"}
-                disabled={!form.purchaseUnit}
-              />
-              <p className="form-helper">
-                {form.purchaseUnit
-                  ? `1 ${form.purchaseUnit} = ? ${form.unit}`
-                  : "Enter a Purchase Unit first"}
-              </p>
-            </div>
-          </div>
-          {form.purchaseUnit && form.purchaseConversionFactor && form.purchaseConversionFactor > 0 && (
-            <p className="uom-hint uom-hint--form">
-              1 {form.purchaseUnit} = {form.purchaseConversionFactor} {form.unit}
-            </p>
-          )}
-          <div className="form-group form-group--inline">
-            <input
-              id="displayBothUnits"
-              type="checkbox"
-              checked={form.displayBothUnits ?? false}
-              onChange={(e) => setForm({ ...form, displayBothUnits: e.target.checked })}
-              disabled={!form.purchaseUnit || !form.purchaseConversionFactor}
-            />
-            <label htmlFor="displayBothUnits" className="form-label form-label--check">
-              Show quantity in both units in inventory
-            </label>
-          </div>
-        </div>
+        <details className="more-settings" open={moreSettingsOpen} onToggle={(e) => setMoreSettingsOpen(e.currentTarget.open)}>
+          <summary>More settings</summary>
+          <p className="form-helper">Optional settings for purchase units, barcode, and reorder planning.</p>
+          <div className="form-group form-group--inline"><input id="addUsesPurchaseUnit" type="checkbox" checked={usesPurchaseUnit} onChange={(e) => { const checked = e.target.checked; setUsesPurchaseUnit(checked); if (!checked) setForm({ ...form, purchaseUnit: null, purchaseConversionFactor: null, displayBothUnits: false }); }} /><label htmlFor="addUsesPurchaseUnit" className="form-label form-label--check">Do you buy this item in a different unit?</label></div>
+          {usesPurchaseUnit && <><div className="form-row-2col"><div className="form-group"><label className="form-label">Purchase Unit *</label>{purchaseUnitOptions.length > 0 ? <select className="form-select" value={form.purchaseUnit ?? ""} onChange={(e) => setForm({ ...form, purchaseUnit: e.target.value || null, purchaseConversionFactor: e.target.value ? form.purchaseConversionFactor : null })} required><option value="">Select purchase unit</option>{purchaseUnitOptions.map((u) => <option key={u} value={u}>{u}</option>)}</select> : <input className="form-input" value={form.purchaseUnit ?? ""} onChange={(e) => setForm({ ...form, purchaseUnit: e.target.value || null })} placeholder="e.g. Carton" required />}</div><div className="form-group"><label className="form-label">How many stock units in one purchase unit? *</label><input className="form-input" type="number" min={0.0001} step="any" value={form.purchaseConversionFactor ?? ""} onChange={(e) => setForm({ ...form, purchaseConversionFactor: e.target.value ? Number(e.target.value) : null })} required /></div></div>{form.purchaseUnit && form.purchaseConversionFactor && form.purchaseConversionFactor > 0 && <p className="uom-hint uom-hint--form">1 {form.purchaseUnit} = {form.purchaseConversionFactor} {form.unit}</p>}<div className="form-group form-group--inline"><input id="displayBothUnits" type="checkbox" checked={form.displayBothUnits ?? false} onChange={(e) => setForm({ ...form, displayBothUnits: e.target.checked })} /><label htmlFor="displayBothUnits" className="form-label form-label--check">Show quantity in both units in inventory</label></div></>}
+          <div className="form-row-2col"><div className="form-group"><label className="form-label">SKU</label><input className="form-input" value={form.sku ?? ""} onChange={(e) => setForm({ ...form, sku: e.target.value })} placeholder="Optional internal SKU" /></div><div className="form-group"><label className="form-label">Barcode</label><div className="barcode-input-row"><input className="form-input" value={form.barcode ?? ""} onChange={(e) => setForm({ ...form, barcode: e.target.value })} placeholder="Scan or enter barcode" /><button type="button" className="btn btn--ghost btn--sm" disabled={Boolean(form.barcode?.trim())} onClick={() => setForm({ ...form, barcode: generateBarcodeValue() })}>Auto-generate</button></div></div></div>
+          <div className="item-units-section item-units-section--compact"><div className="item-units-section__title">Reorder Settings</div><div className="form-row-2col"><div className="form-group"><label className="form-label">Emergency Stock Level</label><input className="form-input" type="number" min={0} step="any" value={form.criticalStockLevel ?? ""} onChange={(e) => setForm({ ...form, criticalStockLevel: e.target.value === "" ? null : Number(e.target.value) })} /></div><div className="form-group"><label className="form-label">Ideal Stock Level</label><input className="form-input" type="number" min={0} step="any" value={form.parStockLevel ?? ""} onChange={(e) => setForm({ ...form, parStockLevel: e.target.value === "" ? null : Number(e.target.value) })} /></div></div><div className="form-row-2col"><div className="form-group"><label className="form-label">Procurement Frequency</label><select className="form-select" value={form.procurementFrequency ?? ""} onChange={(e) => setForm({ ...form, procurementFrequency: e.target.value || null, customFrequencyDays: e.target.value !== "custom" ? null : form.customFrequencyDays })}><option value="">Select frequency</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="biweekly">Bi-weekly</option><option value="monthly">Monthly</option><option value="custom">Custom</option></select></div>{form.procurementFrequency === "custom" ? <div className="form-group"><label className="form-label">Custom Interval (days)</label><input className="form-input" type="number" min={1} step={1} value={form.customFrequencyDays ?? ""} onChange={(e) => setForm({ ...form, customFrequencyDays: e.target.value === "" ? null : Number(e.target.value) })} /></div> : <div className="form-group"><label className="form-label">Supplier Delivery Time (days)</label><input className="form-input" type="number" min={0} step={1} value={form.procurementLeadTimeDays ?? ""} onChange={(e) => setForm({ ...form, procurementLeadTimeDays: e.target.value === "" ? null : Number(e.target.value) })} /></div>}</div>{form.procurementFrequency === "custom" && <div className="form-group"><label className="form-label">Supplier Delivery Time (days)</label><input className="form-input" type="number" min={0} step={1} value={form.procurementLeadTimeDays ?? ""} onChange={(e) => setForm({ ...form, procurementLeadTimeDays: e.target.value === "" ? null : Number(e.target.value) })} /></div>}</div>
+        </details>
 
-        <div className="form-group">
-          <label className="form-label">Category</label>
-          <select
-            className="form-select"
-            value={form.category ?? ""}
-            onChange={(e) => setForm({ ...form, category: e.target.value })}
-          >
-            {categoryOptions.map((category) => (
-              <option key={category} value={category}>{category}</option>
-            ))}
-          </select>
-        </div>
-        <div className="form-group">
-          <label className="form-label">Low Stock Alert Threshold</label>
-          <input
-            className="form-input"
-            type="number"
-            min={0}
-            value={form.minStockLevel}
-            onChange={(e) => setForm({ ...form, minStockLevel: Number(e.target.value) })}
-          />
-          <p className="form-helper">Alert triggers when stock is at or below this quantity. Set it based on how fast this item is used.</p>
-        </div>
-
-        <div className="form-group">
-          <label className="form-label">Default Supplier</label>
-          <select
-            className="form-select"
-            value={supplierId}
-            onChange={(e) => setSupplierId(e.target.value)}
-          >
-            <option value="">Select supplier</option>
-            {suppliers.map((supplier) => (
-              <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
-            ))}
-          </select>
-        </div>
-
-        <div className="item-units-section">
-          <div className="item-units-section__title">Procurement Planning</div>
-          <div className="form-row-2col">
-            <div className="form-group">
-              <label className="form-label">Critical Stock Level</label>
-              <input
-                className="form-input"
-                type="number"
-                min={0}
-                step="any"
-                placeholder="e.g. 5"
-                value={form.criticalStockLevel ?? ""}
-                onChange={(e) => setForm({ ...form, criticalStockLevel: e.target.value === "" ? null : Number(e.target.value) })}
-              />
-              <p className="form-helper">Emergency threshold — triggers a red critical alert.</p>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Par (Target) Stock Level</label>
-              <input
-                className="form-input"
-                type="number"
-                min={0}
-                step="any"
-                placeholder="e.g. 50"
-                value={form.parStockLevel ?? ""}
-                onChange={(e) => setForm({ ...form, parStockLevel: e.target.value === "" ? null : Number(e.target.value) })}
-              />
-              <p className="form-helper">Ideal stock level to maintain.</p>
-            </div>
-          </div>
-          <div className="form-row-2col">
-            <div className="form-group">
-              <label className="form-label">Procurement Frequency</label>
-              <select
-                className="form-select"
-                value={form.procurementFrequency ?? ""}
-                onChange={(e) => setForm({ ...form, procurementFrequency: e.target.value || null, customFrequencyDays: e.target.value !== "custom" ? null : form.customFrequencyDays })}
-              >
-                <option value="">— none —</option>
-                <option value="daily">Daily</option>
-                <option value="weekly">Weekly</option>
-                <option value="biweekly">Bi-weekly</option>
-                <option value="monthly">Monthly</option>
-                <option value="custom">Custom</option>
-              </select>
-            </div>
-            {form.procurementFrequency === "custom" ? (
-              <div className="form-group">
-                <label className="form-label">Custom Interval (days)</label>
-                <input
-                  className="form-input"
-                  type="number"
-                  min={1}
-                  step={1}
-                  placeholder="e.g. 10"
-                  value={form.customFrequencyDays ?? ""}
-                  onChange={(e) => setForm({ ...form, customFrequencyDays: e.target.value === "" ? null : Number(e.target.value) })}
-                />
-              </div>
-            ) : (
-              <div className="form-group">
-                <label className="form-label">Procurement Lead Time (days)</label>
-                <input
-                  className="form-input"
-                  type="number"
-                  min={0}
-                  step={1}
-                  placeholder="e.g. 3"
-                  value={form.procurementLeadTimeDays ?? ""}
-                  onChange={(e) => setForm({ ...form, procurementLeadTimeDays: e.target.value === "" ? null : Number(e.target.value) })}
-                />
-                <p className="form-helper">Days before due date to trigger reorder alert.</p>
-              </div>
-            )}
-          </div>
-          {form.procurementFrequency === "custom" && (
-            <div className="form-group">
-              <label className="form-label">Procurement Lead Time (days)</label>
-              <input
-                className="form-input"
-                type="number"
-                min={0}
-                step={1}
-                placeholder="e.g. 3"
-                value={form.procurementLeadTimeDays ?? ""}
-                onChange={(e) => setForm({ ...form, procurementLeadTimeDays: e.target.value === "" ? null : Number(e.target.value) })}
-              />
-              <p className="form-helper">Days before due date to trigger reorder alert.</p>
-            </div>
-          )}
-        </div>
-
-        <div className="form-group">
-          <label className="form-label">Barcode</label>
-          <div className="barcode-input-row">
-            <input
-              className="form-input"
-              value={form.barcode ?? ""}
-              onChange={(e) => setForm({ ...form, barcode: e.target.value })}
-              placeholder="Scan or enter barcode"
-            />
-            <button
-              type="button"
-              className="btn btn--ghost btn--sm"
-              disabled={Boolean(form.barcode?.trim())}
-              onClick={() => setForm({ ...form, barcode: generateBarcodeValue() })}
-            >
-              Auto-generate
-            </button>
-          </div>
-        </div>
-        <div className="form-group form-group--inline">
-          <input
-            id="trackExpiry"
-            type="checkbox"
-            checked={form.trackExpiry}
-            onChange={(e) => setForm({ ...form, trackExpiry: e.target.checked })}
-          />
-          <label htmlFor="trackExpiry" className="form-label form-label--check">
-            Track expiry dates
-          </label>
-        </div>
-
-        <div className="modal-footer">
-          <button type="button" className="btn btn--ghost" onClick={onClose}>
-            Cancel
-          </button>
-          <button
-            type="submit"
-            className="btn btn--primary"
-            disabled={saving || !form.name.trim() || !form.unit.trim()}
-          >
-            {saving ? <span className="btn-spinner" /> : null}
-            {saving ? "Adding…" : "Add Item"}
-          </button>
-        </div>
+        <div className="modal-footer"><button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button><button type="submit" className="btn btn--primary" disabled={!canSubmit}>{saving ? <span className="btn-spinner" /> : null}{saving ? "Adding..." : "Add Item"}</button></div>
       </form>
     </Modal>
   );
@@ -1856,60 +1595,32 @@ function EditItemModal({
   const unitOptions = editSettings.customUnits.length > 0 ? editSettings.customUnits : FALLBACK_UNIT_OPTIONS;
   const categoryOptions = editSettings.customCategories.length > 0 ? editSettings.customCategories : FALLBACK_CATEGORY_OPTIONS;
   const purchaseUnitOptions = editSettings.customPurchaseUnits ?? [];
-  const [form, setForm] = useState<CreateItemInput>({
-    name: item.name,
-    unit: item.unit,
-    category: item.category ?? "",
-    sku: item.sku ?? "",
-    barcode: item.barcode ?? "",
-    minStockLevel: item.minStockLevel,
-    criticalStockLevel: item.criticalStockLevel ?? null,
-    parStockLevel: item.parStockLevel ?? null,
-    procurementFrequency: item.procurementFrequency ?? null,
-    customFrequencyDays: item.customFrequencyDays ?? null,
-    procurementLeadTimeDays: item.procurementLeadTimeDays ?? null,
-    trackExpiry: item.trackExpiry,
-    purchaseUnit: item.purchaseUnit ?? null,
-    purchaseConversionFactor: item.purchaseConversionFactor ?? null,
-    issueUnit: item.issueUnit ?? null,
-    displayBothUnits: item.displayBothUnits ?? false,
-  });
+  const [form, setForm] = useState<CreateItemInput>({ name: item.name, unit: item.unit, category: item.category ?? "", sku: item.sku ?? "", barcode: item.barcode ?? "", minStockLevel: item.minStockLevel, criticalStockLevel: item.criticalStockLevel ?? null, parStockLevel: item.parStockLevel ?? null, procurementFrequency: item.procurementFrequency ?? null, customFrequencyDays: item.customFrequencyDays ?? null, procurementLeadTimeDays: item.procurementLeadTimeDays ?? null, trackExpiry: item.trackExpiry, purchaseUnit: item.purchaseUnit ?? null, purchaseConversionFactor: item.purchaseConversionFactor ?? null, issueUnit: item.issueUnit ?? null, displayBothUnits: item.displayBothUnits ?? false });
   const [saving, setSaving] = useState(false);
   const [supplierId, setSupplierId] = useState("");
   const [existingSupplierMappings, setExistingSupplierMappings] = useState<ItemSupplierMapping[]>([]);
+  const [usesPurchaseUnit, setUsesPurchaseUnit] = useState(Boolean(item.purchaseUnit || item.purchaseConversionFactor));
+  const [moreSettingsOpen, setMoreSettingsOpen] = useState(false);
   const firstRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { firstRef.current?.focus(); }, []);
   useEffect(() => {
     let alive = true;
-    getItemSuppliers(item.id)
-      .then((res) => {
-        if (!alive) return;
-        setExistingSupplierMappings(res.suppliers);
-        setSupplierId(res.suppliers.find((s) => s.role === "PRIMARY")?.supplierId ?? "");
-      })
-      .catch(() => {
-        if (alive) setSupplierId("");
-      });
+    getItemSuppliers(item.id).then((res) => { if (!alive) return; setExistingSupplierMappings(res.suppliers); setSupplierId(res.suppliers.find((s) => s.role === "PRIMARY")?.supplierId ?? ""); }).catch(() => { if (alive) setSupplierId(""); });
     return () => { alive = false; };
   }, [item.id]);
 
+  const advancedConfigured = Boolean(item.purchaseUnit || item.purchaseConversionFactor || item.displayBothUnits || item.sku || item.barcode || item.criticalStockLevel != null || item.parStockLevel != null || item.procurementFrequency || item.customFrequencyDays != null || item.procurementLeadTimeDays != null);
+  const purchaseUnitInvalid = usesPurchaseUnit && (!form.purchaseUnit?.trim() || !form.purchaseConversionFactor || form.purchaseConversionFactor <= 0);
+  const canSubmit = !saving && form.name.trim().length > 0 && form.unit.trim().length > 0 && !purchaseUnitInvalid;
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.name.trim() || !form.unit.trim()) return;
+    if (!canSubmit) return;
     setSaving(true);
     try {
-      const res = await updateItem(item.id, {
-        ...form,
-        name: form.name.trim(),
-        unit: form.unit.trim(),
-        category: form.category?.trim() || null,
-        sku: form.sku?.trim() || null,
-        barcode: form.barcode?.trim() || null,
-      });
-      const alternateMappings = existingSupplierMappings
-        .filter((mapping) => mapping.role === "ALTERNATE" && mapping.supplierId !== supplierId)
-        .map((mapping) => ({ supplierId: mapping.supplierId, role: "ALTERNATE" as const }));
+      const res = await updateItem(item.id, { ...form, name: form.name.trim(), unit: form.unit.trim(), category: form.category?.trim() || null, sku: form.sku?.trim() || null, barcode: form.barcode?.trim() || null, purchaseUnit: usesPurchaseUnit ? form.purchaseUnit?.trim() || null : null, purchaseConversionFactor: usesPurchaseUnit ? form.purchaseConversionFactor ?? null : null, displayBothUnits: usesPurchaseUnit ? form.displayBothUnits : false });
+      const alternateMappings = existingSupplierMappings.filter((mapping) => mapping.role === "ALTERNATE" && mapping.supplierId !== supplierId).map((mapping) => ({ supplierId: mapping.supplierId, role: "ALTERNATE" as const }));
       await putItemSuppliers(item.id, supplierId ? [{ supplierId, role: "PRIMARY" }, ...alternateMappings] : alternateMappings);
       onSuccess(res.item);
     } catch (err) {
@@ -1922,281 +1633,23 @@ function EditItemModal({
   return (
     <Modal title="Edit Item" onClose={onClose}>
       <form onSubmit={(e) => { void handleSubmit(e); }}>
-        <div className="form-group">
-          <label className="form-label">Name *</label>
-          <input
-            ref={firstRef}
-            className="form-input"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            required
-          />
-        </div>
+        <div className="form-group"><label className="form-label">Item Name *</label><input ref={firstRef} className="form-input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
+        <div className="form-group"><label className="form-label">Stock Unit *</label><select className="form-select" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} required>{unitOptions.map((unit) => <option key={unit} value={unit}>{unit}</option>)}</select></div>
+        <div className="form-group"><label className="form-label">Category</label><input className="form-input" list="edit-item-category-options" value={form.category ?? ""} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="Optional category" /><datalist id="edit-item-category-options">{categoryOptions.map((category) => <option key={category} value={category}>{category}</option>)}</datalist>{item.category && !categoryOptions.includes(item.category) && <p className="form-helper">Current category is preserved unless you edit or clear it.</p>}</div>
+        <div className="form-group"><label className="form-label">Default Supplier</label><select className="form-select" value={supplierId} onChange={(e) => setSupplierId(e.target.value)}><option value="">Select supplier</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></div>
+        <div className="form-group"><label className="form-label">Low Stock Alert</label><input className="form-input" type="number" min={0} step="any" value={form.minStockLevel} onChange={(e) => setForm({ ...form, minStockLevel: e.target.value === "" ? 0 : Number(e.target.value) })} /></div>
+        <div className="form-group form-group--inline"><input id="editTrackExpiry" type="checkbox" checked={form.trackExpiry} onChange={(e) => setForm({ ...form, trackExpiry: e.target.checked })} /><label htmlFor="editTrackExpiry" className="form-label form-label--check">Track expiry dates</label></div>
 
-        <div className="item-units-section">
-          <div className="item-units-section__title">Units</div>
-          <div className="form-group">
-            <label className="form-label">Stock Unit *</label>
-            <select
-              className="form-select"
-              value={form.unit}
-              onChange={(e) => setForm({ ...form, unit: e.target.value })}
-              required
-            >
-              {unitOptions.map((unit) => (
-                <option key={unit} value={unit}>{unit}</option>
-              ))}
-            </select>
-            <p className="form-helper">How stock is counted and stored internally.</p>
-          </div>
-          <div className="form-row-2col">
-            <div className="form-group">
-              <label className="form-label">Purchase Unit</label>
-              {purchaseUnitOptions.length > 0 ? (
-                <select
-                  className="form-select"
-                  value={form.purchaseUnit ?? ""}
-                  onChange={(e) => setForm({ ...form, purchaseUnit: e.target.value || null, purchaseConversionFactor: e.target.value ? form.purchaseConversionFactor : null })}
-                >
-                  <option value="">— none —</option>
-                  {purchaseUnitOptions.map((u) => <option key={u} value={u}>{u}</option>)}
-                </select>
-              ) : (
-                <input
-                  className="form-input"
-                  value={form.purchaseUnit ?? ""}
-                  onChange={(e) => setForm({ ...form, purchaseUnit: e.target.value || null })}
-                  placeholder="e.g. Carton"
-                />
-              )}
-              <p className="form-helper">The larger unit you buy in (optional).</p>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Qty per Purchase Unit</label>
-              <input
-                className="form-input"
-                type="number"
-                min={0.0001}
-                step="any"
-                value={form.purchaseConversionFactor ?? ""}
-                onChange={(e) => setForm({ ...form, purchaseConversionFactor: e.target.value ? Number(e.target.value) : null })}
-                placeholder={form.purchaseUnit ? `How many ${form.unit} per ${form.purchaseUnit}` : "e.g. 12"}
-                disabled={!form.purchaseUnit}
-              />
-              <p className="form-helper">
-                {form.purchaseUnit
-                  ? `1 ${form.purchaseUnit} = ? ${form.unit}`
-                  : "Enter a Purchase Unit first"}
-              </p>
-            </div>
-          </div>
-          {form.purchaseUnit && form.purchaseConversionFactor && form.purchaseConversionFactor > 0 && (
-            <p className="uom-hint uom-hint--form">
-              1 {form.purchaseUnit} = {form.purchaseConversionFactor} {form.unit}
-            </p>
-          )}
-          <div className="form-group form-group--inline">
-            <input
-              id="editDisplayBothUnits"
-              type="checkbox"
-              checked={form.displayBothUnits ?? false}
-              onChange={(e) => setForm({ ...form, displayBothUnits: e.target.checked })}
-              disabled={!form.purchaseUnit || !form.purchaseConversionFactor}
-            />
-            <label htmlFor="editDisplayBothUnits" className="form-label form-label--check">
-              Show quantity in both units in inventory
-            </label>
-          </div>
-        </div>
-
-        <div className="form-group">
-          <label className="form-label">Category</label>
-          <input
-            className="form-input"
-            list="edit-item-category-options"
-            value={form.category ?? ""}
-            onChange={(e) => setForm({ ...form, category: e.target.value })}
-            placeholder="Optional category"
-          />
-          <datalist id="edit-item-category-options">
-            {categoryOptions.map((category) => (
-              <option key={category} value={category}>{category}</option>
-            ))}
-          </datalist>
-          {item.category && !categoryOptions.includes(item.category) && (
-            <p className="form-helper">Current category is preserved unless you edit or clear it.</p>
-          )}
-        </div>
-        <div className="form-group">
-          <label className="form-label">SKU</label>
-          <input
-            className="form-input"
-            value={form.sku ?? ""}
-            onChange={(e) => setForm({ ...form, sku: e.target.value })}
-            placeholder="Optional internal SKU"
-          />
-        </div>
-        <div className="form-group">
-          <label className="form-label">Low Stock Alert Threshold</label>
-          <input
-            className="form-input"
-            type="number"
-            min={0}
-            value={form.minStockLevel}
-            onChange={(e) => setForm({ ...form, minStockLevel: Number(e.target.value) })}
-          />
-          <p className="form-helper">Alert triggers when stock is at or below this quantity. Set it based on how fast this item is used.</p>
-        </div>
-
-        <div className="form-group">
-          <label className="form-label">Default Supplier</label>
-          <select
-            className="form-select"
-            value={supplierId}
-            onChange={(e) => setSupplierId(e.target.value)}
-          >
-            <option value="">Select supplier</option>
-            {suppliers.map((supplier) => (
-              <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
-            ))}
-          </select>
-        </div>
-
-        <div className="item-units-section">
-          <div className="item-units-section__title">Procurement Planning</div>
-          {item.lastReceivedDate && (
-            <div className="form-group">
-              <label className="form-label">Last Received</label>
-              <div className="form-input form-input--readonly">
-                {new Date(item.lastReceivedDate).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}
-              </div>
-              <p className="form-helper">Auto-updated when stock is received from a purchase order.</p>
-            </div>
-          )}
-          <div className="form-row-2col">
-            <div className="form-group">
-              <label className="form-label">Critical Stock Level</label>
-              <input
-                className="form-input"
-                type="number"
-                min={0}
-                step="any"
-                placeholder="e.g. 5"
-                value={form.criticalStockLevel ?? ""}
-                onChange={(e) => setForm({ ...form, criticalStockLevel: e.target.value === "" ? null : Number(e.target.value) })}
-              />
-              <p className="form-helper">Emergency threshold — triggers a red critical alert.</p>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Par (Target) Stock Level</label>
-              <input
-                className="form-input"
-                type="number"
-                min={0}
-                step="any"
-                placeholder="e.g. 50"
-                value={form.parStockLevel ?? ""}
-                onChange={(e) => setForm({ ...form, parStockLevel: e.target.value === "" ? null : Number(e.target.value) })}
-              />
-              <p className="form-helper">Ideal stock level to maintain.</p>
-            </div>
-          </div>
-          <div className="form-row-2col">
-            <div className="form-group">
-              <label className="form-label">Procurement Frequency</label>
-              <select
-                className="form-select"
-                value={form.procurementFrequency ?? ""}
-                onChange={(e) => setForm({ ...form, procurementFrequency: e.target.value || null, customFrequencyDays: e.target.value !== "custom" ? null : form.customFrequencyDays })}
-              >
-                <option value="">— none —</option>
-                <option value="daily">Daily</option>
-                <option value="weekly">Weekly</option>
-                <option value="biweekly">Bi-weekly</option>
-                <option value="monthly">Monthly</option>
-                <option value="custom">Custom</option>
-              </select>
-            </div>
-            {form.procurementFrequency === "custom" ? (
-              <div className="form-group">
-                <label className="form-label">Custom Interval (days)</label>
-                <input
-                  className="form-input"
-                  type="number"
-                  min={1}
-                  step={1}
-                  placeholder="e.g. 10"
-                  value={form.customFrequencyDays ?? ""}
-                  onChange={(e) => setForm({ ...form, customFrequencyDays: e.target.value === "" ? null : Number(e.target.value) })}
-                />
-              </div>
-            ) : (
-              <div className="form-group">
-                <label className="form-label">Lead Time (days)</label>
-                <input
-                  className="form-input"
-                  type="number"
-                  min={0}
-                  step={1}
-                  placeholder="e.g. 3"
-                  value={form.procurementLeadTimeDays ?? ""}
-                  onChange={(e) => setForm({ ...form, procurementLeadTimeDays: e.target.value === "" ? null : Number(e.target.value) })}
-                />
-                <p className="form-helper">Days before due date to trigger reorder alert.</p>
-              </div>
-            )}
-          </div>
-          {form.procurementFrequency === "custom" && (
-            <div className="form-group">
-              <label className="form-label">Lead Time (days)</label>
-              <input
-                className="form-input"
-                type="number"
-                min={0}
-                step={1}
-                placeholder="e.g. 3"
-                value={form.procurementLeadTimeDays ?? ""}
-                onChange={(e) => setForm({ ...form, procurementLeadTimeDays: e.target.value === "" ? null : Number(e.target.value) })}
-              />
-              <p className="form-helper">Days before due date to trigger reorder alert.</p>
-            </div>
-          )}
-        </div>
-
-        <div className="form-group">
-          <label className="form-label">Barcode</label>
-          <input
-            className="form-input"
-            value={form.barcode ?? ""}
-            onChange={(e) => setForm({ ...form, barcode: e.target.value })}
-            placeholder="Scan or enter barcode"
-          />
-        </div>
-        <div className="form-group form-group--inline">
-          <input
-            id="editTrackExpiry"
-            type="checkbox"
-            checked={form.trackExpiry}
-            onChange={(e) => setForm({ ...form, trackExpiry: e.target.checked })}
-          />
-          <label htmlFor="editTrackExpiry" className="form-label form-label--check">
-            Track expiry dates
-          </label>
-        </div>
-
-        <div className="modal-footer">
-          <button type="button" className="btn btn--ghost" onClick={onClose}>
-            Cancel
-          </button>
-          <button
-            type="submit"
-            className="btn btn--primary"
-            disabled={saving || !form.name.trim() || !form.unit.trim()}
-          >
-            {saving ? <span className="btn-spinner" /> : null}
-            {saving ? "Saving..." : "Save changes"}
-          </button>
-        </div>
+        <details className="more-settings" open={moreSettingsOpen} onToggle={(e) => setMoreSettingsOpen(e.currentTarget.open)}>
+          <summary>More settings{advancedConfigured && !moreSettingsOpen && <span className="more-settings-configured">More settings configured</span>}</summary>
+          <p className="form-helper">Optional settings for purchase units, barcode, and reorder planning.</p>
+          {item.lastReceivedDate && <div className="form-group"><label className="form-label">Last Received</label><div className="form-input form-input--readonly">{new Date(item.lastReceivedDate).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}</div></div>}
+          <div className="form-group form-group--inline"><input id="editUsesPurchaseUnit" type="checkbox" checked={usesPurchaseUnit} onChange={(e) => { const checked = e.target.checked; setUsesPurchaseUnit(checked); if (!checked) setForm({ ...form, purchaseUnit: null, purchaseConversionFactor: null, displayBothUnits: false }); }} /><label htmlFor="editUsesPurchaseUnit" className="form-label form-label--check">Do you buy this item in a different unit?</label></div>
+          {usesPurchaseUnit && <><div className="form-row-2col"><div className="form-group"><label className="form-label">Purchase Unit *</label>{purchaseUnitOptions.length > 0 ? <select className="form-select" value={form.purchaseUnit ?? ""} onChange={(e) => setForm({ ...form, purchaseUnit: e.target.value || null, purchaseConversionFactor: e.target.value ? form.purchaseConversionFactor : null })} required><option value="">Select purchase unit</option>{purchaseUnitOptions.map((u) => <option key={u} value={u}>{u}</option>)}</select> : <input className="form-input" value={form.purchaseUnit ?? ""} onChange={(e) => setForm({ ...form, purchaseUnit: e.target.value || null })} placeholder="e.g. Carton" required />}</div><div className="form-group"><label className="form-label">How many stock units in one purchase unit? *</label><input className="form-input" type="number" min={0.0001} step="any" value={form.purchaseConversionFactor ?? ""} onChange={(e) => setForm({ ...form, purchaseConversionFactor: e.target.value ? Number(e.target.value) : null })} required /></div></div>{form.purchaseUnit && form.purchaseConversionFactor && form.purchaseConversionFactor > 0 && <p className="uom-hint uom-hint--form">1 {form.purchaseUnit} = {form.purchaseConversionFactor} {form.unit}</p>}<div className="form-group form-group--inline"><input id="editDisplayBothUnits" type="checkbox" checked={form.displayBothUnits ?? false} onChange={(e) => setForm({ ...form, displayBothUnits: e.target.checked })} /><label htmlFor="editDisplayBothUnits" className="form-label form-label--check">Show quantity in both units in inventory</label></div></>}
+          <div className="form-row-2col"><div className="form-group"><label className="form-label">SKU</label><input className="form-input" value={form.sku ?? ""} onChange={(e) => setForm({ ...form, sku: e.target.value })} placeholder="Optional internal SKU" /></div><div className="form-group"><label className="form-label">Barcode</label><input className="form-input" value={form.barcode ?? ""} onChange={(e) => setForm({ ...form, barcode: e.target.value })} placeholder="Scan or enter barcode" /></div></div>
+          <div className="item-units-section item-units-section--compact"><div className="item-units-section__title">Reorder Settings</div><div className="form-row-2col"><div className="form-group"><label className="form-label">Emergency Stock Level</label><input className="form-input" type="number" min={0} step="any" value={form.criticalStockLevel ?? ""} onChange={(e) => setForm({ ...form, criticalStockLevel: e.target.value === "" ? null : Number(e.target.value) })} /></div><div className="form-group"><label className="form-label">Ideal Stock Level</label><input className="form-input" type="number" min={0} step="any" value={form.parStockLevel ?? ""} onChange={(e) => setForm({ ...form, parStockLevel: e.target.value === "" ? null : Number(e.target.value) })} /></div></div><div className="form-row-2col"><div className="form-group"><label className="form-label">Procurement Frequency</label><select className="form-select" value={form.procurementFrequency ?? ""} onChange={(e) => setForm({ ...form, procurementFrequency: e.target.value || null, customFrequencyDays: e.target.value !== "custom" ? null : form.customFrequencyDays })}><option value="">Select frequency</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="biweekly">Bi-weekly</option><option value="monthly">Monthly</option><option value="custom">Custom</option></select></div>{form.procurementFrequency === "custom" ? <div className="form-group"><label className="form-label">Custom Interval (days)</label><input className="form-input" type="number" min={1} step={1} value={form.customFrequencyDays ?? ""} onChange={(e) => setForm({ ...form, customFrequencyDays: e.target.value === "" ? null : Number(e.target.value) })} /></div> : <div className="form-group"><label className="form-label">Supplier Delivery Time (days)</label><input className="form-input" type="number" min={0} step={1} value={form.procurementLeadTimeDays ?? ""} onChange={(e) => setForm({ ...form, procurementLeadTimeDays: e.target.value === "" ? null : Number(e.target.value) })} /></div>}</div>{form.procurementFrequency === "custom" && <div className="form-group"><label className="form-label">Supplier Delivery Time (days)</label><input className="form-input" type="number" min={0} step={1} value={form.procurementLeadTimeDays ?? ""} onChange={(e) => setForm({ ...form, procurementLeadTimeDays: e.target.value === "" ? null : Number(e.target.value) })} /></div>}</div>
+        </details>
+        <div className="modal-footer"><button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button><button type="submit" className="btn btn--primary" disabled={!canSubmit}>{saving ? <span className="btn-spinner" /> : null}{saving ? "Saving..." : "Save changes"}</button></div>
       </form>
     </Modal>
   );
@@ -2338,7 +1791,7 @@ function ImportItemsModal({
     <Modal title="Import Items" onClose={onClose}>
       <div className="import-modal">
 
-        {/* ── Upload zone ── */}
+        {/* Ã¢â€â‚¬Ã¢â€â‚¬ Upload zone Ã¢â€â‚¬Ã¢â€â‚¬ */}
         <div
           className={`import-drop-zone ${dragging ? "import-drop-zone--over" : ""} ${hasFile && !parseError ? "import-drop-zone--has-file" : ""}`}
           onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
@@ -2361,7 +1814,7 @@ function ImportItemsModal({
           {parsing ? (
             <div className="import-drop-content">
               <div className="spinner" />
-              <p className="import-drop-label">Reading {fileName}…</p>
+              <p className="import-drop-label">Reading {fileName}Ã¢â‚¬Â¦</p>
             </div>
           ) : hasFile && !parseError ? (
             <div className="import-drop-content">
@@ -2388,7 +1841,7 @@ function ImportItemsModal({
           )}
         </div>
 
-        {/* ── Template download ── */}
+        {/* Ã¢â€â‚¬Ã¢â€â‚¬ Template download Ã¢â€â‚¬Ã¢â€â‚¬ */}
         <div className="import-template-row">
           <div className="import-columns-hint">
             <span className="import-col import-col--req">name</span>
@@ -2407,7 +1860,7 @@ function ImportItemsModal({
           </button>
         </div>
 
-        {/* ── Parse error ── */}
+        {/* Ã¢â€â‚¬Ã¢â€â‚¬ Parse error Ã¢â€â‚¬Ã¢â€â‚¬ */}
         {parseError && (
           <div className="import-parse-error">
             <svg viewBox="0 0 20 20" fill="currentColor" style={{ width: 16, height: 16, flexShrink: 0 }} aria-hidden="true">
@@ -2420,7 +1873,7 @@ function ImportItemsModal({
           </div>
         )}
 
-        {/* ── Summary stats ── */}
+        {/* Ã¢â€â‚¬Ã¢â€â‚¬ Summary stats Ã¢â€â‚¬Ã¢â€â‚¬ */}
         {rows.length > 0 && (
           <div className="import-stats-row">
             <div className="import-stat">
@@ -2458,17 +1911,17 @@ function ImportItemsModal({
           </div>
         )}
 
-        {/* ── Progress bar ── */}
+        {/* Ã¢â€â‚¬Ã¢â€â‚¬ Progress bar Ã¢â€â‚¬Ã¢â€â‚¬ */}
         {importing && (
           <div className="import-progress-wrap">
             <div className="import-progress-bar">
               <div className="import-progress-fill" style={{ width: `${importProgress}%` }} />
             </div>
-            <span className="import-progress-label">Importing {importedCount} of {pendingValidRows.length + importedCount + apiFailedCount}…</span>
+            <span className="import-progress-label">Importing {importedCount} of {pendingValidRows.length + importedCount + apiFailedCount}Ã¢â‚¬Â¦</span>
           </div>
         )}
 
-        {/* ── Preview table ── */}
+        {/* Ã¢â€â‚¬Ã¢â€â‚¬ Preview table Ã¢â€â‚¬Ã¢â€â‚¬ */}
         {rows.length > 0 && (
           <div className="import-preview-wrap">
             <table className="table import-preview-table">
@@ -2489,10 +1942,10 @@ function ImportItemsModal({
                 {rows.map((row) => (
                   <tr key={row.rowNumber} className={row.errors.length > 0 ? "import-row--error" : row.status === "imported" ? "import-row--done" : ""}>
                     <td className="import-cell-num">{row.rowNumber}</td>
-                    <td>{row.name || <span className="import-cell-empty">—</span>}</td>
-                    <td>{row.unit || <span className="import-cell-empty">—</span>}</td>
-                    <td>{row.category || <span className="import-cell-empty">—</span>}</td>
-                    <td>{row.sku || <span className="import-cell-empty">—</span>}</td>
+                    <td>{row.name || <span className="import-cell-empty">Ã¢â‚¬â€</span>}</td>
+                    <td>{row.unit || <span className="import-cell-empty">Ã¢â‚¬â€</span>}</td>
+                    <td>{row.category || <span className="import-cell-empty">Ã¢â‚¬â€</span>}</td>
+                    <td>{row.sku || <span className="import-cell-empty">Ã¢â‚¬â€</span>}</td>
                     <td className="text-right">{row.minStockLevel || 0}</td>
                     <td>{row.trackExpiry ? "Yes" : "No"}</td>
                     <td>
@@ -2506,7 +1959,7 @@ function ImportItemsModal({
                           <svg viewBox="0 0 16 16" fill="currentColor" style={{ width: 12, height: 12 }} aria-hidden="true">
                             <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 11a.75.75 0 110-1.5.75.75 0 010 1.5zm.75-4.5a.75.75 0 01-1.5 0v-3a.75.75 0 011.5 0v3z" />
                           </svg>
-                          {row.errors[0].length > 22 ? `${row.errors[0].slice(0, 22)}…` : row.errors[0]}
+                          {row.errors[0].length > 22 ? `${row.errors[0].slice(0, 22)}Ã¢â‚¬Â¦` : row.errors[0]}
                         </span>
                       ) : row.status === "imported" ? (
                         <span className="import-row-ok-badge">
@@ -2539,7 +1992,7 @@ function ImportItemsModal({
             disabled={!canImport}
           >
             {(() => {
-              if (importing) return <><div className="spinner spinner--sm spinner--white" /> Importing…</>;
+              if (importing) return <><div className="spinner spinner--sm spinner--white" /> ImportingÃ¢â‚¬Â¦</>;
               if (pendingValidRows.length === 0) return rows.length > 0 ? "No valid rows to import" : "Select a file";
               const newCount = pendingValidRows.filter((r) => r.importMode === "new").length;
               const updateCount = pendingValidRows.filter((r) => r.importMode === "update").length;
@@ -2583,13 +2036,13 @@ function BarcodeModal({
     ),
   );
   const preset = BARCODE_LABEL_PRESETS[presetId];
-  const dimensions = `${preset.widthMm}mm × ${preset.heightMm}mm`;
+  const dimensions = `${preset.widthMm}mm Ãƒâ€” ${preset.heightMm}mm`;
   const showItemName = templateId === "name" || templateId === "name-details";
   const detailText = useMemo(() => {
     const parts = [];
     if (item.sku) parts.push(`SKU: ${item.sku}`);
     if (item.unit) parts.push(`Unit: ${item.unit}`);
-    return parts.join(" · ");
+    return parts.join(" Ã‚Â· ");
   }, [item.sku, item.unit]);
   const showDetails = templateId === "name-details" && detailText !== "";
 
@@ -2881,7 +2334,7 @@ function StockInModal({
   }
 
   return (
-    <Modal title={`Stock In — ${item.name}`} onClose={onClose}>
+    <Modal title={`Stock In Ã¢â‚¬â€ ${item.name}`} onClose={onClose}>
       <form onSubmit={(e) => { void handleSubmit(e); }}>
         <div className="form-row">
           <div className="form-group">
@@ -2966,7 +2419,7 @@ function StockInModal({
             className="form-input"
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="Any notes…"
+            placeholder="Any notesÃ¢â‚¬Â¦"
           />
         </div>
         {canSubmit && calculatedUnitCost !== null && (
@@ -2984,7 +2437,7 @@ function StockInModal({
             disabled={saving || !canSubmit}
           >
             {saving ? <span className="btn-spinner" /> : null}
-            {saving ? "Saving…" : "Add Stock"}
+            {saving ? "SavingÃ¢â‚¬Â¦" : "Add Stock"}
           </button>
         </div>
       </form>
@@ -3046,7 +2499,7 @@ function OpeningStockModal({
   }
 
   return (
-    <Modal title={`Opening Stock — ${item.name}`} onClose={onClose}>
+    <Modal title={`Opening Stock Ã¢â‚¬â€ ${item.name}`} onClose={onClose}>
       <form onSubmit={(e) => { void handleSubmit(e); }}>
         <p className="form-hint" style={{ marginBottom: "1rem" }}>
           Record your starting inventory balance for this item. This creates a stock-in movement with reason <strong>opening_balance</strong>.
@@ -3158,7 +2611,7 @@ function OpeningStockModal({
             disabled={saving || !qty || parseFloat(qty) <= 0 || (item.trackExpiry && !expiryDate)}
           >
             {saving ? <span className="btn-spinner" /> : null}
-            {saving ? "Saving…" : "Record Opening Stock"}
+            {saving ? "SavingÃ¢â‚¬Â¦" : "Record Opening Stock"}
           </button>
         </div>
       </form>
@@ -3206,7 +2659,7 @@ function StockOutModal({
   }
 
   return (
-    <Modal title={`Use / Deduct — ${item.name}`} onClose={onClose}>
+    <Modal title={`Use / Deduct Ã¢â‚¬â€ ${item.name}`} onClose={onClose}>
       <form onSubmit={(e) => { void handleSubmit(e); }}>
         <div className="form-group">
           <label className="form-label">Quantity * ({item.unit})</label>
@@ -3240,7 +2693,7 @@ function StockOutModal({
             className="form-input"
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="Any notes…"
+            placeholder="Any notesÃ¢â‚¬Â¦"
           />
         </div>
         <div className="modal-footer">
@@ -3253,7 +2706,7 @@ function StockOutModal({
             disabled={saving || !qty || parseFloat(qty) <= 0}
           >
             {saving ? <span className="btn-spinner" /> : null}
-            {saving ? "Deducting…" : "Deduct Stock"}
+            {saving ? "DeductingÃ¢â‚¬Â¦" : "Deduct Stock"}
           </button>
         </div>
       </form>
@@ -3329,7 +2782,7 @@ function AdjustStockModal({
     : "Set Quantity";
 
   return (
-    <Modal title={`Adjust Stock — ${item.name}`} onClose={onClose}>
+    <Modal title={`Adjust Stock Ã¢â‚¬â€ ${item.name}`} onClose={onClose}>
       <form onSubmit={(e) => { void handleSubmit(e); }}>
         {/* Current stock reference */}
         <div className="adjust-current-stock">
@@ -3382,7 +2835,7 @@ function AdjustStockModal({
             className="form-input"
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="Reason for adjustment…"
+            placeholder="Reason for adjustmentÃ¢â‚¬Â¦"
           />
         </div>
 
@@ -3396,7 +2849,7 @@ function AdjustStockModal({
             disabled={!canSubmit}
           >
             {saving ? <span className="btn-spinner" /> : null}
-            {saving ? "Saving…" : btnLabel}
+            {saving ? "SavingÃ¢â‚¬Â¦" : btnLabel}
           </button>
         </div>
       </form>
@@ -3463,7 +2916,7 @@ function TransferStockModal({
   }
 
   return (
-    <Modal title={`Transfer Stock — ${item.name}`} onClose={onClose}>
+    <Modal title={`Transfer Stock Ã¢â‚¬â€ ${item.name}`} onClose={onClose}>
       <form onSubmit={(e) => { void handleSubmit(e); }}>
         <div className="adjust-current-stock">
           <span className="adjust-current-label">Current branch stock</span>
@@ -3822,16 +3275,16 @@ function formatNumber(value: number) {
 
 function ScannerLoadingOverlay() {
   return (
-    <div className="scanner-overlay" aria-label="Loading scanner…" aria-busy="true">
+    <div className="scanner-overlay" aria-label="Loading scannerÃ¢â‚¬Â¦" aria-busy="true">
       <div className="scanner-loading">
         <div className="spinner scanner-loading-spinner" />
-        <p className="scanner-loading-text">Loading scanner…</p>
+        <p className="scanner-loading-text">Loading scannerÃ¢â‚¬Â¦</p>
       </div>
     </div>
   );
 }
 
-// ── Supplier Modal Components ──────────────────────────────────────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬ Supplier Modal Components Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 function SupplierModalShell({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   useEffect(() => {
@@ -3913,7 +3366,7 @@ function BulkAssignSupplierModal({
   }
 
   return (
-    <SupplierModalShell title={`Assign Supplier — ${selectedItemIds.length} item${selectedItemIds.length === 1 ? "" : "s"}`} onClose={onClose}>
+    <SupplierModalShell title={`Assign Supplier Ã¢â‚¬â€ ${selectedItemIds.length} item${selectedItemIds.length === 1 ? "" : "s"}`} onClose={onClose}>
       <form onSubmit={(e) => { void handleSubmit(e); }}>
         <div className="sm-modal-body">
           <div className="sm-form-row">
@@ -3961,14 +3414,14 @@ function BulkAssignSupplierModal({
           {result && result.assigned === 0 && (
             <div className={`sm-result-box ${result.failed > 0 ? "sm-result-box--error" : "sm-result-box--warning"}`}>
               <div className="sm-result-title">No items updated</div>
-              <p>Skipped: {result.skipped} · Failed: {result.failed}</p>
+              <p>Skipped: {result.skipped} Ã‚Â· Failed: {result.failed}</p>
             </div>
           )}
         </div>
         <div className="sm-modal-footer">
           <button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button>
           <button type="submit" className="btn btn--primary" disabled={saving || !supplierId}>
-            {saving ? <><div className="spinner spinner--sm spinner--white" /> Assigning…</> : `Assign to ${selectedItemIds.length} item${selectedItemIds.length === 1 ? "" : "s"}`}
+            {saving ? <><div className="spinner spinner--sm spinner--white" /> AssigningÃ¢â‚¬Â¦</> : `Assign to ${selectedItemIds.length} item${selectedItemIds.length === 1 ? "" : "s"}`}
           </button>
         </div>
       </form>
@@ -4021,7 +3474,7 @@ function BulkRemoveSupplierModal({
   }
 
   return (
-    <SupplierModalShell title={`Remove Supplier — ${selectedItemIds.length} item${selectedItemIds.length === 1 ? "" : "s"}`} onClose={onClose}>
+    <SupplierModalShell title={`Remove Supplier Ã¢â‚¬â€ ${selectedItemIds.length} item${selectedItemIds.length === 1 ? "" : "s"}`} onClose={onClose}>
       <form onSubmit={(e) => { void handleSubmit(e); }}>
         <div className="sm-modal-body">
           <div className="sm-form-row">
@@ -4047,7 +3500,7 @@ function BulkRemoveSupplierModal({
         <div className="sm-modal-footer">
           <button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button>
           <button type="submit" className="btn btn--danger" disabled={saving || !supplierId}>
-            {saving ? <><div className="spinner spinner--sm spinner--white" /> Removing…</> : "Remove mapping"}
+            {saving ? <><div className="spinner spinner--sm spinner--white" /> RemovingÃ¢â‚¬Â¦</> : "Remove mapping"}
           </button>
         </div>
       </form>
@@ -4120,7 +3573,7 @@ function ItemSuppliersModal({
   const availableSuppliers = suppliers.filter((s) => !usedSupplierIds.has(s.id));
 
   return (
-    <SupplierModalShell title={`Manage Suppliers — ${item.name}`} onClose={onClose}>
+    <SupplierModalShell title={`Manage Suppliers Ã¢â‚¬â€ ${item.name}`} onClose={onClose}>
       <div className="sm-modal-body">
         {loadingMappings ? (
           <div style={{ textAlign: "center", padding: "24px 0" }}><div className="spinner" /></div>
@@ -4132,7 +3585,7 @@ function ItemSuppliersModal({
               <div key={m.id} className="sm-mapping-row">
                 <div className="sm-mapping-row-supplier">
                   <span className="sm-mapping-row-supplier-name">{m.supplierName}</span>
-                  {m.supplierItemCode && <span style={{ fontSize: 11, color: "var(--text-muted, #94a3b8)" }}> · Code: {m.supplierItemCode}</span>}
+                  {m.supplierItemCode && <span style={{ fontSize: 11, color: "var(--text-muted, #94a3b8)" }}> Ã‚Â· Code: {m.supplierItemCode}</span>}
                 </div>
                 <span className={`item-supplier-tag item-supplier-tag--${m.role === "PRIMARY" ? "primary" : "alternate"}`}>
                   {m.role === "PRIMARY" ? "Primary" : "Alternate"}

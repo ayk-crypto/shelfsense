@@ -17,10 +17,12 @@ interface BatchRow {
   rowId: string;
   item: Item;
   qty: string;
+  totalPrice: string;
   unitCost: string;
   expiryDate: string;
   batchNo: string;
   supplierId: string;
+  supplierEdited: boolean;
   note: string;
   lastPrice: number | null;
   metaLoading: boolean;
@@ -30,6 +32,34 @@ interface BatchRow {
 
 function fmtQty(n: number) {
   return new Intl.NumberFormat(undefined, { maximumFractionDigits: 4 }).format(n);
+}
+
+function roundCurrency(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function hasDifferentPurchaseUnit(item: Item) {
+  return Boolean(
+    item.purchaseUnit &&
+    item.purchaseConversionFactor &&
+    item.purchaseConversionFactor > 0 &&
+    item.purchaseUnit.trim().toLowerCase() !== item.unit.trim().toLowerCase(),
+  );
+}
+
+function rowBaseQuantity(row: BatchRow) {
+  const qty = parseFloat(row.qty);
+  if (!Number.isFinite(qty) || qty <= 0) return null;
+  return row.enteredUnit === "purchase" && hasDifferentPurchaseUnit(row.item)
+    ? qty * row.item.purchaseConversionFactor!
+    : qty;
+}
+
+function calculatedUnitCost(row: BatchRow) {
+  const baseQty = rowBaseQuantity(row);
+  const total = parseFloat(row.totalPrice);
+  if (!baseQty || !Number.isFinite(total) || total <= 0) return null;
+  return roundCurrency(total / baseQty);
 }
 
 interface RowResult {
@@ -110,6 +140,9 @@ export function StockInPage() {
   const [search, setSearch] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const [rows, setRows] = useState<BatchRow[]>([]);
+  const [sessionSupplierId, setSessionSupplierId] = useState("");
+  const [invoiceNumber, setInvoiceNumber] = useState("");
+  const [invoiceDate, setInvoiceDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [globalNote, setGlobalNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [results, setResults] = useState<RowResult[] | null>(null);
@@ -206,15 +239,17 @@ export function StockInPage() {
             rowId,
             item: preselected,
             qty: "",
+            totalPrice: "",
             unitCost: "",
             expiryDate: "",
             batchNo,
             supplierId: "",
+            supplierEdited: false,
             note: "",
             lastPrice: null,
             metaLoading: true,
             suggested: false,
-            enteredUnit: preselected.purchaseUnit ? "purchase" : "base",
+            enteredUnit: hasDifferentPurchaseUnit(preselected) ? "purchase" : "base",
           }]);
           setSearch("");
           setShowDropdown(false);
@@ -271,15 +306,17 @@ export function StockInPage() {
       rowId,
       item,
       qty: "",
+      totalPrice: "",
       unitCost: "",
       expiryDate: "",
       batchNo,
-      supplierId: "",
+      supplierId: sessionSupplierId,
+      supplierEdited: Boolean(sessionSupplierId),
       note: "",
       lastPrice: null,
       metaLoading: true,
       suggested: false,
-      enteredUnit: item.purchaseUnit ? "purchase" : "base",
+      enteredUnit: hasDifferentPurchaseUnit(item) ? "purchase" : "base",
     };
     setRows((prev) => [...prev, newRow]);
     setSearch("");
@@ -301,8 +338,8 @@ export function StockInPage() {
             ? r
             : {
                 ...r,
-                supplierId: suggRes.suggestion?.id ?? "",
-                suggested: !!suggRes.suggestion,
+                supplierId: r.supplierId || r.supplierEdited ? r.supplierId : suggRes.suggestion?.id ?? "",
+                suggested: !r.supplierId && !r.supplierEdited && !!suggRes.suggestion,
                 lastPrice: priceRes.history[0]?.unitCost ?? null,
                 metaLoading: false,
               },
@@ -323,10 +360,12 @@ export function StockInPage() {
         rowId: crypto.randomUUID(),
         item: source.item,
         qty: "",
+        totalPrice: "",
         unitCost: source.unitCost,
         expiryDate: "",
         batchNo,
         supplierId: source.supplierId,
+        supplierEdited: source.supplierEdited,
         note: "",
         lastPrice: source.lastPrice,
         metaLoading: false,
@@ -343,12 +382,30 @@ export function StockInPage() {
     setRows((prev) => prev.filter((r) => r.rowId !== rowId));
   }
 
-  function updateRow(rowId: string, field: keyof Omit<BatchRow, "rowId" | "item" | "lastPrice" | "metaLoading" | "suggested">, value: string) {
+  function updateRow(rowId: string, field: keyof Omit<BatchRow, "rowId" | "item" | "lastPrice" | "metaLoading" | "suggested" | "supplierEdited">, value: string) {
     setRows((prev) => prev.map((r) => (r.rowId === rowId ? { ...r, [field]: value } : r)));
+  }
+
+  function updateRowSupplier(rowId: string, supplierId: string) {
+    setRows((prev) => prev.map((r) => (r.rowId === rowId ? { ...r, supplierId, supplierEdited: true, suggested: false } : r)));
+  }
+
+  function handleSessionSupplierChange(supplierId: string) {
+    setSessionSupplierId(supplierId);
+    setRows((prev) =>
+      prev.map((row) =>
+        !row.supplierEdited || !row.supplierId
+          ? { ...row, supplierId, supplierEdited: Boolean(supplierId), suggested: false }
+          : row,
+      ),
+    );
   }
 
   function clearAll() {
     setRows([]);
+    setSessionSupplierId("");
+    setInvoiceNumber("");
+    setInvoiceDate(new Date().toISOString().slice(0, 10));
     setGlobalNote("");
     setResults(null);
     setTouched(false);
@@ -565,13 +622,18 @@ export function StockInPage() {
   }
 
   function isRowValid(row: BatchRow) {
-    const qty = parseFloat(row.qty);
-    if (!qty || qty <= 0) return false;
+    const qty = rowBaseQuantity(row);
+    const totalPrice = parseFloat(row.totalPrice);
+    if (!qty || !Number.isFinite(qty) || qty <= 0) return false;
+    if (!Number.isFinite(totalPrice) || totalPrice <= 0) return false;
     if (row.item.trackExpiry && !row.expiryDate) return false;
     return true;
   }
 
   const validRowCount = rows.filter(isRowValid).length;
+  const receiptTotal = rows.reduce((sum, row) => sum + (isRowValid(row) ? parseFloat(row.totalPrice) : 0), 0);
+  const expiryTrackedReadyCount = rows.filter((row) => isRowValid(row) && row.item.trackExpiry).length;
+  const selectedSessionSupplier = suppliers.find((s) => s.id === sessionSupplierId) ?? null;
 
   async function handleSubmit() {
     setTouched(true);
@@ -582,23 +644,25 @@ export function StockInPage() {
 
     for (const row of rows) {
       if (!isRowValid(row)) {
-        out.push({ rowId: row.rowId, itemName: row.item.name, batchNo: row.batchNo, status: "error", error: "Invalid — skipped" });
+        out.push({ rowId: row.rowId, itemName: row.item.name, batchNo: row.batchNo, status: "error", error: "Invalid â€” skipped" });
         continue;
       }
       const selectedSupplier = suppliers.find((s) => s.id === row.supplierId);
       const enteredQty = parseFloat(row.qty);
-      const isPurchaseUnit = row.enteredUnit === "purchase" && !!row.item.purchaseUnit && !!row.item.purchaseConversionFactor;
-      const baseQty = isPurchaseUnit ? enteredQty * row.item.purchaseConversionFactor! : enteredQty;
+      const isPurchaseUnit = row.enteredUnit === "purchase" && hasDifferentPurchaseUnit(row.item);
+      const baseQty = rowBaseQuantity(row) ?? enteredQty;
+      const unitCost = calculatedUnitCost(row);
       try {
         await stockIn({
           itemId: row.item.id,
           quantity: baseQty,
-          unitCost: row.unitCost ? parseFloat(row.unitCost) : undefined,
+          totalPrice: parseFloat(row.totalPrice),
+          unitCost: unitCost ?? undefined,
           expiryDate: row.expiryDate || undefined,
           batchNo: row.batchNo || undefined,
           supplierId: row.supplierId || undefined,
           supplierName: selectedSupplier?.name,
-          note: [row.note.trim(), globalNote.trim()].filter(Boolean).join(" · ") || undefined,
+          note: [row.note.trim(), invoiceNumber.trim() ? `Invoice ${invoiceNumber.trim()}` : null, invoiceDate ? `Invoice date ${invoiceDate}` : null, globalNote.trim()].filter(Boolean).join(" · ") || undefined,
           enteredQuantity: isPurchaseUnit ? enteredQty : undefined,
           enteredUnit: isPurchaseUnit ? row.item.purchaseUnit! : undefined,
         });
@@ -618,7 +682,7 @@ export function StockInPage() {
     setSubmitting(false);
     const failedIds = new Set(out.filter((r) => r.status === "error").map((r) => r.rowId));
     setRows((prev) => prev.filter((r) => failedIds.has(r.rowId)));
-    if (failedIds.size === 0) setGlobalNote("");
+    if (failedIds.size === 0) { setGlobalNote(""); setInvoiceNumber(""); }
   }
 
   const successCount = results?.filter((r) => r.status === "success").length ?? 0;
@@ -637,7 +701,7 @@ export function StockInPage() {
           <h1 className="page-title">Receive Stock</h1>
           <p className="page-subtitle">
             {mode === "direct"
-              ? <>Add items directly to stock with batch numbers, costs, expiry dates, and supplier info. Use <strong>+ Add batch</strong> on any row to record multiple batches.</>
+              ? "Receive stock from an invoice: choose a supplier, add items, enter quantity and total price, then record the receipt."
               : "Receive goods against an open Purchase Order. Stock batches are created only when you confirm receipt."}
           </p>
         </div>
@@ -676,7 +740,7 @@ export function StockInPage() {
       {mode === "po" ? (
         <div className="po-receive-section">
           {poLoading ? (
-            <div className="po-receive-loading">Loading open purchase orders…</div>
+            <div className="po-receive-loading">Loading open purchase ordersâ€¦</div>
           ) : openPOs.length === 0 ? (
             <div className="po-receive-empty">
               <p>No open purchase orders found.</p>
@@ -687,10 +751,10 @@ export function StockInPage() {
               <div className="form-group po-receive-selector">
                 <label className="form-label">Select Purchase Order</label>
                 <select className="form-input form-select" value={selectedPoId} onChange={(e) => handlePoSelect(e.target.value)}>
-                  <option value="">Choose an open PO to receive against…</option>
+                  <option value="">Choose an open PO to receive againstâ€¦</option>
                   {openPOs.map((po) => (
                     <option key={po.id} value={po.id}>
-                      {po.supplier.name} — {po.remainingQuantity} unit{po.remainingQuantity !== 1 ? "s" : ""} remaining (#{po.id.slice(-6).toUpperCase()})
+                      {po.supplier.name} â€” {po.remainingQuantity} unit{po.remainingQuantity !== 1 ? "s" : ""} remaining (#{po.id.slice(-6).toUpperCase()})
                     </option>
                   ))}
                 </select>
@@ -845,7 +909,7 @@ export function StockInPage() {
                           <p className="po-overreceive-confirm-note">This will add extra inventory beyond the ordered quantity. Do you want to proceed?</p>
                           <div className="po-overreceive-confirm-actions">
                             <button type="button" className="btn btn--primary" onClick={() => { setOverReceiveConfirmed(true); void handlePoReceiveSubmit(true); }} disabled={poSubmitting}>
-                              {poSubmitting ? "Receiving…" : "Accept & Confirm Receipt"}
+                              {poSubmitting ? "Receivingâ€¦" : "Accept & Confirm Receipt"}
                             </button>
                             <button type="button" className="btn btn--ghost" onClick={() => setOverReceiveWarnings([])}>Cancel</button>
                           </div>
@@ -865,7 +929,7 @@ export function StockInPage() {
                           )}
                         </div>
                         <button type="button" className="btn btn--primary" onClick={() => void handlePoReceiveSubmit()} disabled={poSubmitting}>
-                          {poSubmitting ? "Receiving…" : "Confirm Receipt"}
+                          {poSubmitting ? "Receivingâ€¦" : "Confirm Receipt"}
                         </button>
                       </div>
                     )}
@@ -906,6 +970,26 @@ export function StockInPage() {
         </div>
       )}
 
+      <div className="stock-entry-session">
+        <div className="form-group">
+          <label className="form-label">Receiving from supplier</label>
+          <select className="form-select" value={sessionSupplierId} onChange={(e) => handleSessionSupplierChange(e.target.value)}>
+            <option value="">Select supplier</option>
+            {suppliers.map((supplier) => (
+              <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
+            ))}
+          </select>
+        </div>
+        <div className="form-group">
+          <label className="form-label">Invoice number</label>
+          <input className="form-input" value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} placeholder="Optional" />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Invoice date</label>
+          <input className="form-input" type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} />
+        </div>
+      </div>
+
       <div className="stock-entry-search-section">
         <label className="stock-entry-search-label">Search and add items</label>
         <div className="stock-entry-search-wrap" ref={dropdownRef}>
@@ -916,7 +1000,7 @@ export function StockInPage() {
             <input
               ref={searchRef}
               className="stock-entry-search-input"
-              placeholder={loadingItems ? "Loading items…" : "Search by name, SKU, or barcode…"}
+              placeholder={loadingItems ? "Loading itemsâ€¦" : "Search by name, SKU, or barcodeâ€¦"}
               value={search}
               disabled={loadingItems}
               onChange={(e) => { setSearch(e.target.value); setShowDropdown(true); }}
@@ -931,7 +1015,7 @@ export function StockInPage() {
                   {search
                     ? "No items match your search"
                     : stagedItemIds.size === allItems.length
-                      ? "All items already added — use + Add batch on a row to add another batch"
+                      ? "All items already added â€” use + Add batch on a row to add another batch"
                       : "Start typing to search"}
                 </div>
               ) : (
@@ -945,9 +1029,9 @@ export function StockInPage() {
                     <div className="stock-entry-dropdown-name">{item.name}</div>
                     <div className="stock-entry-dropdown-meta">
                       {item.unit}
-                      {item.category ? ` · ${item.category}` : ""}
-                      {item.sku ? ` · ${item.sku}` : ""}
-                      {item.trackExpiry ? " · Expiry tracked" : ""}
+                      {item.category ? ` Â· ${item.category}` : ""}
+                      {item.sku ? ` Â· ${item.sku}` : ""}
+                      {item.trackExpiry ? " Â· Expiry tracked" : ""}
                     </div>
                   </button>
                 ))
@@ -964,13 +1048,11 @@ export function StockInPage() {
               <thead>
                 <tr>
                   <th>Item</th>
-                  <th>Batch #</th>
                   <th>Qty <span className="stock-entry-th-req">*</span></th>
-                  <th>Unit Cost</th>
+                  <th>Total Price <span className="stock-entry-th-req">*</span></th>
                   <th>Expiry Date</th>
                   <th>Supplier</th>
-                  <th>Note</th>
-                  <th className="stock-entry-th-actions"></th>
+                  <th className="stock-entry-th-actions">More</th>
                 </tr>
               </thead>
               <tbody>
@@ -1004,17 +1086,8 @@ export function StockInPage() {
                           </>
                         )}
                       </td>
-                      <td className="stock-entry-td-batch">
-                        <input
-                          className="stock-entry-input stock-entry-input--batch"
-                          type="text"
-                          value={row.batchNo}
-                          onChange={(e) => updateRow(row.rowId, "batchNo", e.target.value)}
-                          placeholder="Auto"
-                        />
-                      </td>
                       <td className="stock-entry-td-qty">
-                        {row.item.purchaseUnit && (
+                        {hasDifferentPurchaseUnit(row.item) && (
                           <div className="uom-toggle">
                             <button
                               type="button"
@@ -1041,36 +1114,39 @@ export function StockInPage() {
                           value={row.qty}
                           onChange={(e) => updateRow(row.rowId, "qty", e.target.value)}
                         />
-                        {row.enteredUnit === "purchase" && row.item.purchaseUnit && row.item.purchaseConversionFactor && row.qty && parseFloat(row.qty) > 0 && (
+                        {row.enteredUnit === "purchase" && hasDifferentPurchaseUnit(row.item) && row.qty && parseFloat(row.qty) > 0 && (
                           <div className="uom-hint">
-                            = {fmtQty(parseFloat(row.qty) * row.item.purchaseConversionFactor)} {row.item.unit}
+                            = {fmtQty(parseFloat(row.qty) * row.item.purchaseConversionFactor!)} {row.item.unit}
                           </div>
                         )}
                       </td>
                       <td className="stock-entry-td-cost">
                         <input
-                          className="stock-entry-input"
+                          className={`stock-entry-input ${touched && (!Number.isFinite(parseFloat(row.totalPrice)) || parseFloat(row.totalPrice) <= 0) ? "stock-entry-input--error" : ""}`}
                           type="number"
-                          min={0}
+                          min={0.01}
                           step="any"
                           placeholder="0.00"
-                          value={row.unitCost}
-                          onChange={(e) => updateRow(row.rowId, "unitCost", e.target.value)}
+                          value={row.totalPrice}
+                          onChange={(e) => updateRow(row.rowId, "totalPrice", e.target.value)}
                         />
+                        <span className="stock-entry-last-price">
+                          Unit cost: {calculatedUnitCost(row) !== null ? `${formatCurrency(calculatedUnitCost(row)!, currency)} / ${row.item.unit}` : "—"}
+                        </span>
                         {row.lastPrice !== null && !row.metaLoading && (
                           <span className={`stock-entry-last-price ${
-                            row.unitCost && parseFloat(row.unitCost) > row.lastPrice
+                            calculatedUnitCost(row) !== null && calculatedUnitCost(row)! > row.lastPrice
                               ? "stock-entry-last-price--up"
-                              : row.unitCost && parseFloat(row.unitCost) < row.lastPrice
+                              : calculatedUnitCost(row) !== null && calculatedUnitCost(row)! < row.lastPrice
                                 ? "stock-entry-last-price--down"
                                 : ""
                           }`}>
                             Last: {formatCurrency(row.lastPrice, currency)}
-                            {row.unitCost && parseFloat(row.unitCost) > row.lastPrice && " ↑"}
-                            {row.unitCost && parseFloat(row.unitCost) < row.lastPrice && " ↓"}
+                            {calculatedUnitCost(row) !== null && calculatedUnitCost(row)! > row.lastPrice && " ↑"}
+                            {calculatedUnitCost(row) !== null && calculatedUnitCost(row)! < row.lastPrice && " ↓"}
                           </span>
                         )}
-                        {row.metaLoading && <span className="stock-entry-last-price stock-entry-last-price--loading">Loading…</span>}
+                        {row.metaLoading && <span className="stock-entry-last-price stock-entry-last-price--loading">Loadingâ€¦</span>}
                       </td>
                       <td className="stock-entry-td-expiry">
                         {row.item.trackExpiry ? (
@@ -1081,7 +1157,7 @@ export function StockInPage() {
                             onChange={(e) => updateRow(row.rowId, "expiryDate", e.target.value)}
                           />
                         ) : (
-                          <span className="stock-entry-na">—</span>
+                          <span className="stock-entry-na">â€”</span>
                         )}
                       </td>
                       <td className="stock-entry-td-supplier">
@@ -1089,11 +1165,9 @@ export function StockInPage() {
                           <select
                             className="stock-entry-select"
                             value={row.supplierId}
-                            onChange={(e) => {
-                              setRows((prev) => prev.map((r) => r.rowId === row.rowId ? { ...r, supplierId: e.target.value, suggested: false } : r));
-                            }}
+                            onChange={(e) => updateRowSupplier(row.rowId, e.target.value)}
                           >
-                            <option value="">No supplier</option>
+                            <option value="">Select supplier</option>
                             {suppliers.map((s) => (
                               <option key={s.id} value={s.id}>{s.name}</option>
                             ))}
@@ -1103,28 +1177,41 @@ export function StockInPage() {
                           )}
                         </div>
                       </td>
-                      <td className="stock-entry-td-note">
-                        <input
-                          className="stock-entry-input"
-                          type="text"
-                          placeholder="Optional…"
-                          value={row.note}
-                          onChange={(e) => updateRow(row.rowId, "note", e.target.value)}
-                        />
-                      </td>
                       <td className="stock-entry-td-actions">
-                        <button
-                          type="button"
-                          className="stock-entry-add-batch-btn"
-                          onClick={() => addBatch(row.rowId)}
-                          title="Add another batch for this item"
-                        >
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                            <line x1="12" y1="5" x2="12" y2="19" />
-                            <line x1="5" y1="12" x2="19" y2="12" />
-                          </svg>
-                          <span>Batch</span>
-                        </button>
+                        <details className="stock-entry-row-more">
+                          <summary>More</summary>
+                          <label className="stock-entry-more-field">
+                            <span>Batch #</span>
+                            <input
+                              className="stock-entry-input stock-entry-input--batch"
+                              type="text"
+                              value={row.batchNo}
+                              onChange={(e) => updateRow(row.rowId, "batchNo", e.target.value)}
+                              placeholder="Auto"
+                            />
+                          </label>
+                          <label className="stock-entry-more-field">
+                            <span>Note</span>
+                            <input
+                              className="stock-entry-input"
+                              type="text"
+                              placeholder="Optional..."
+                              value={row.note}
+                              onChange={(e) => updateRow(row.rowId, "note", e.target.value)}
+                            />
+                          </label>
+                          <div className="stock-entry-more-field">
+                            <span>Calculated unit cost</span>
+                            <strong>{calculatedUnitCost(row) !== null ? `${formatCurrency(calculatedUnitCost(row)!, currency)} / ${row.item.unit}` : "—"}</strong>
+                          </div>
+                          <button
+                            type="button"
+                            className="stock-entry-add-batch-btn"
+                            onClick={() => addBatch(row.rowId)}
+                          >
+                            Add another batch for this item
+                          </button>
+                        </details>
                         <button
                           type="button"
                           className="stock-entry-remove-btn"
@@ -1149,10 +1236,16 @@ export function StockInPage() {
               <input
                 className="form-input"
                 type="text"
-                placeholder="e.g. Morning delivery from Metro…"
+                placeholder="e.g. Morning delivery from Metroâ€¦"
                 value={globalNote}
                 onChange={(e) => setGlobalNote(e.target.value)}
               />
+            </div>
+            <div className="stock-entry-receipt-summary">
+              <strong>{validRowCount} item{validRowCount !== 1 ? "s" : ""} ready</strong>
+              <span>Total receipt value: {formatCurrency(receiptTotal, currency)}</span>
+              <span>Supplier: {selectedSessionSupplier?.name ?? "Mixed / not selected"}</span>
+              <span>Expiry-tracked items: {expiryTrackedReadyCount}</span>
             </div>
             <div className="stock-entry-footer-actions">
               <button type="button" className="btn btn--ghost" onClick={clearAll} disabled={submitting}>
@@ -1162,14 +1255,14 @@ export function StockInPage() {
                 type="button"
                 className="btn btn--stock-in"
                 onClick={() => void handleSubmit()}
-                disabled={submitting || rows.length === 0}
+                disabled={submitting || rows.length === 0 || validRowCount !== rows.length}
               >
                 {submitting ? <span className="btn-spinner" /> : (
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{width:15,height:15}}>
                     <path d="M12 5v14M5 12l7 7 7-7" />
                   </svg>
                 )}
-                {submitting ? "Recording…" : `Record Receipt (${validRowCount} batch${validRowCount !== 1 ? "es" : ""})`}
+                {submitting ? "Recording..." : `Record Receipt (${validRowCount} item${validRowCount !== 1 ? "s" : ""})`}
               </button>
             </div>
           </div>
