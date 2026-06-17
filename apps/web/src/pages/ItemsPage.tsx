@@ -814,7 +814,7 @@ export function ItemsPage() {
                             Unit conversion required
                           </button>
                         )}
-                        {s?.reorder?.calculationAvailable && (s.reorder.suggestedBuyingQuantity ?? 0) > 0 && (() => {
+                        {item.replenishmentMode !== "DAYS_BASED" && s?.reorder?.calculationAvailable && (s.reorder.suggestedBuyingQuantity ?? 0) > 0 && (() => {
                           const unit = unitConfig.buyingUnit;
                           return <span className="reorder-hint">Suggested reorder: {formatQuantityWithUnit(s.reorder!.suggestedBuyingQuantity!, unit, 0)}</span>;
                         })()}
@@ -1103,7 +1103,7 @@ export function ItemsPage() {
                       Unit conversion required
                     </button>
                   )}
-                  {s?.reorder?.calculationAvailable && (s.reorder.suggestedBuyingQuantity ?? 0) > 0 && (() => {
+                  {item.replenishmentMode !== "DAYS_BASED" && s?.reorder?.calculationAvailable && (s.reorder.suggestedBuyingQuantity ?? 0) > 0 && (() => {
                     return <p className="reorder-hint reorder-hint--card">Suggested reorder: {formatQuantityWithUnit(s.reorder!.suggestedBuyingQuantity!, unitConfig.buyingUnit, 0)}</p>;
                   })()}
                   {supplierFilter !== "all" && s?.reorder?.incomingBaseQuantity !== null && s?.reorder?.incomingBaseQuantity !== undefined && s.reorder.incomingBaseQuantity > 0 && (

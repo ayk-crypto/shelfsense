@@ -854,7 +854,7 @@ async function findDuplicateBarcode(
   });
 }
 
-function parseItemInput(body: unknown) {
+export function parseItemInput(body: unknown) {
   const input = body as {
     name?: unknown;
     sku?: unknown;
@@ -889,13 +889,15 @@ function parseItemInput(body: unknown) {
   })();
 
   const parseNullablePositiveFloat = (v: unknown) => {
-    if (v === null || v === undefined) return null;
+    if (v === undefined) return undefined;
+    if (v === null) return null;
     const n = Number(v);
     return Number.isFinite(n) && n >= 0 ? n : undefined;
   };
 
   const parseNullablePositiveInt = (v: unknown) => {
-    if (v === null || v === undefined) return null;
+    if (v === undefined) return undefined;
+    if (v === null) return null;
     const n = Number(v);
     return Number.isInteger(n) && n >= 0 ? n : undefined;
   };

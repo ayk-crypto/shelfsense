@@ -12,6 +12,7 @@ import {
   buildPurchaseLineSnapshot,
   parseQuantityUnit,
 } from "../src/lib/purchase-unit-snapshots.js";
+import { parseItemInput } from "../src/routes/items.js";
 
 describe("inventory unit conversion", () => {
   it("handles exact carton conversion", () => {
@@ -309,6 +310,34 @@ describe("operational replenishment", () => {
     expect(result.suggestedBuyingQty).toBe(4);
   });
 
+  it("calculates the 500 MP days-based replenishment case without manual overrides", () => {
+    const incoming = summarizeIncomingPurchaseLines([], baseConfig, today);
+    const result = calculateReplenishment({
+      mode: "DAYS_BASED",
+      currentStockBaseQty: 5,
+      averageDailyUsageBaseQty: 0.571428,
+      hasUsageHistory: true,
+      supplierLeadTimeDays: 8,
+      safetyStockDays: 7,
+      reviewPeriodDays: 30,
+      lowStockThresholdBaseQty: 0,
+      manualReorderPointBaseQty: null,
+      manualTargetStockBaseQty: null,
+      purchaseUnit: "carton",
+      baseUnit: "packet",
+      purchaseConversionFactor: 5,
+      allowFractionalPurchaseUnit: false,
+      incoming,
+      today,
+    });
+
+    expect(result.reorderPointBaseQty).toBeCloseTo(8.57142, 5);
+    expect(result.targetStockBaseQty).toBeCloseTo(25.71426, 5);
+    expect(result.requiredBaseQty).toBeCloseTo(20.71426, 5);
+    expect(result.suggestedBuyingQty).toBe(5);
+    expect(result.status).toBe("REORDER_REQUIRED");
+  });
+
   it("suggests additional quantity with a partial incoming PO", () => {
     const incoming = summarizeIncomingPurchaseLines([{
       purchaseId: "purchase-00000001",
@@ -534,5 +563,32 @@ describe("purchase order unit snapshots", () => {
     expect(snapshot).toEqual({
       error: "quantityUnit PURCHASE_UNIT requires the item to have a purchase unit and positive conversion factor",
     });
+  });
+});
+
+describe("item replenishment payload parsing", () => {
+  it("does not map reviewPeriodDays into manual reorder or target overrides", () => {
+    const parsed = parseItemInput({
+      replenishmentMode: "DAYS_BASED",
+      procurementLeadTimeDays: 8,
+      safetyStockDays: 7,
+      reviewPeriodDays: 30,
+      manualReorderPointBaseQty: null,
+      manualTargetStockBaseQty: null,
+    });
+
+    expect(parsed.reviewPeriodDays).toBe(30);
+    expect(parsed.manualReorderPointBaseQty).toBeNull();
+    expect(parsed.manualTargetStockBaseQty).toBeNull();
+  });
+
+  it("keeps omitted manual override fields undefined on partial updates", () => {
+    const parsed = parseItemInput({
+      reviewPeriodDays: 30,
+    });
+
+    expect(parsed.reviewPeriodDays).toBe(30);
+    expect(parsed.manualReorderPointBaseQty).toBeUndefined();
+    expect(parsed.manualTargetStockBaseQty).toBeUndefined();
   });
 });
