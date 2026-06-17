@@ -356,10 +356,42 @@ export interface StockSummaryItem {
   isLowStock: boolean;
   totalValue: number;
   nearestExpiryDate: string | null;
+  stock?: StockUnitBreakdown;
+  reorder?: ReorderMetrics;
+  unitConversion?: UnitConversionSummary;
 }
 
 export interface StockSummaryResponse {
   summary: StockSummaryItem[];
+}
+
+export interface StockUnitBreakdown {
+  baseQuantity: number;
+  baseUnit: string;
+  buyingUnit: string;
+  conversionFactor: number;
+  buyingQuantity: number;
+  fullBuyingUnits: number;
+  remainingBaseUnits: number;
+  usesBuyingUnit: boolean;
+  conversionRequired: boolean;
+}
+
+export interface ReorderMetrics {
+  targetBaseQuantity: number;
+  requiredBaseQuantity: number | null;
+  incomingBaseQuantity: number | null;
+  incomingBuyingQuantity: number | null;
+  suggestedBuyingQuantity: number | null;
+  suggestedBaseQuantity: number | null;
+  calculationAvailable: boolean;
+}
+
+export interface UnitConversionSummary {
+  baseUnit: string;
+  buyingUnit: string;
+  conversionFactor: number;
+  conversionRequired: boolean;
 }
 
 export interface ExpiringBatch {
@@ -568,6 +600,9 @@ export interface StockMovement {
   item: {
     id: string;
     name: string;
+    unit?: string;
+    purchaseUnit?: string | null;
+    purchaseConversionFactor?: number | null;
   };
 }
 

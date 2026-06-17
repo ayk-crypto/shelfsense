@@ -1,4 +1,4 @@
-import { ItemSupplierRole, Role, StockMovementType } from "../generated/prisma/enums.js";
+import { ItemSupplierRole, PurchaseStatus, Role, StockMovementType } from "../generated/prisma/enums.js";
 import { Router, type Request } from "express";
 import { Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../db/prisma.js";
@@ -6,6 +6,7 @@ import { requireActiveWorkspace, requireAuth, requireRole } from "../middleware/
 import { asyncHandler } from "../utils/async-handler.js";
 import { logAction } from "../utils/audit-log.js";
 import { assertActiveLocation, assertActiveLocations, getActiveLocationId } from "../utils/locations.js";
+import { buildStockBreakdown, calculateReorder } from "../lib/inventory-units.js";
 
 export const stockRouter = Router();
 
@@ -624,6 +625,7 @@ stockRouter.get("/summary", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR
       purchaseUnit: true,
       purchaseConversionFactor: true,
       minStockLevel: true,
+      isActive: true,
       stockBatches: {
         where: {
           workspaceId,
@@ -634,6 +636,19 @@ stockRouter.get("/summary", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR
           remainingQuantity: true,
           unitCost: true,
           expiryDate: true,
+        },
+      },
+      purchaseItems: {
+        where: {
+          purchase: {
+            workspaceId,
+            locationId,
+            status: { in: [PurchaseStatus.ORDERED, PurchaseStatus.PARTIALLY_RECEIVED, PurchaseStatus.BACKORDERED] },
+          },
+        },
+        select: {
+          quantity: true,
+          receivedQuantity: true,
         },
       },
     },
@@ -652,6 +667,23 @@ stockRouter.get("/summary", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR
       .map((batch) => batch.expiryDate)
       .filter((expiryDate): expiryDate is Date => expiryDate !== null)
       .sort((first, second) => first.getTime() - second.getTime())[0] ?? null;
+    const stock = buildStockBreakdown(totalQuantity, {
+      baseUnit: item.unit,
+      buyingUnit: item.purchaseUnit,
+      conversionFactor: item.purchaseConversionFactor,
+    });
+    const incomingBuyingQuantity = item.purchaseItems.reduce(
+      (total, line) => total + Math.max(0, line.quantity - line.receivedQuantity),
+      0,
+    );
+    const reorder = calculateReorder(item.minStockLevel, totalQuantity, incomingBuyingQuantity, {
+      baseUnit: item.unit,
+      buyingUnit: item.purchaseUnit,
+      conversionFactor: item.purchaseConversionFactor,
+    }, {
+      isActive: item.isActive,
+      requiresReplenishment: item.minStockLevel > 0,
+    });
 
     return {
       itemId: item.id,
@@ -664,6 +696,14 @@ stockRouter.get("/summary", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR
       isLowStock: item.minStockLevel !== null && totalQuantity <= item.minStockLevel,
       totalValue,
       nearestExpiryDate,
+      stock,
+      reorder,
+      unitConversion: {
+        baseUnit: stock.baseUnit,
+        buyingUnit: stock.buyingUnit,
+        conversionFactor: stock.conversionFactor,
+        conversionRequired: stock.conversionRequired,
+      },
     };
   });
 
@@ -723,6 +763,9 @@ stockRouter.get("/movements", requireRole([Role.OWNER, Role.MANAGER, Role.OPERAT
         select: {
           id: true,
           name: true,
+          unit: true,
+          purchaseUnit: true,
+          purchaseConversionFactor: true,
         },
       },
     },

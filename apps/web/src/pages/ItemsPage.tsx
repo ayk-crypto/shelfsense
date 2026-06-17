@@ -14,14 +14,19 @@ import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
 import type { BulkAssignSupplierRequest, CreateItemInput, Item, ItemSupplierInfo, ItemSupplierMapping, Location, StockMovement, StockSummaryItem, Supplier } from "../types";
 import { formatCurrency } from "../utils/currency";
 import { DEFAULT_CATEGORY_OPTIONS, DEFAULT_UNIT_OPTIONS } from "../utils/inventoryDefaults";
-import { getSuggestedReorderQuantity } from "../utils/reorder";
 import {
   getEstimatedDaysRemaining,
   getForecastTone,
   getLastSevenDaysRange,
   getUsageInsights,
 } from "../utils/usage";
-import { hasPurchaseUnit, getSuggestedPurchaseQty, toPurchaseQuantity } from "../utils/purchaseUnits";
+import {
+  formatDaysRemaining,
+  formatQty,
+  getStockDisplayLines,
+  normalizeUnitConfig,
+  toPurchaseQuantity,
+} from "../utils/purchaseUnits";
 
 const BarcodeScanner = lazy(() =>
   import("../components/BarcodeScanner").then((m) => ({ default: m.BarcodeScanner })),
@@ -90,10 +95,15 @@ interface BulkProgress {
 
 function getStatus(
   s: StockSummaryItem | undefined,
+  item: Item,
   trackExpiry: boolean,
   expiryAlertDays: number,
 ): StatusInfo {
   if (!s) return { label: "No data", variant: "gray" };
+  const config = normalizeUnitConfig(item.unit, item.purchaseUnit, item.purchaseConversionFactor);
+  if (config.conversionRequired) return { label: "Conversion Required", variant: "orange" };
+  if (s.totalQuantity < 0) return { label: "Stock Issue", variant: "red" };
+  if (s.totalQuantity === 0) return { label: "Out of Stock", variant: "red" };
   const now = Date.now();
   if (trackExpiry && s.nearestExpiryDate) {
     const exp = new Date(s.nearestExpiryDate).getTime();
@@ -176,7 +186,7 @@ export function ItemsPage() {
     const query = searchTerm.trim().toLowerCase();
     const filtered = items.filter((item) => {
       const summary = summaryMap.get(item.id);
-      const status = getStatus(summary, item.trackExpiry, settings.expiryAlertDays);
+      const status = getStatus(summary, item, item.trackExpiry, settings.expiryAlertDays);
       const matchesSearch =
         !query ||
         item.name.toLowerCase().includes(query) ||
@@ -743,11 +753,13 @@ export function ItemsPage() {
                 {filteredItems.map((item) => {
                   const s = summaryMap.get(item.id);
                   const usage = usageMap.get(item.id);
-                  const estimatedDaysRemaining = s && usage && usage.averageDailyUsage > 0
+                  const unitConfig = normalizeUnitConfig(item.unit, item.purchaseUnit, item.purchaseConversionFactor);
+                  const estimatedDaysRemaining = s && !unitConfig.conversionRequired && usage && usage.averageDailyUsage > 0
                     ? getEstimatedDaysRemaining(s.totalQuantity, usage.averageDailyUsage)
                     : null;
-                  const status = getStatus(s, item.trackExpiry, settings.expiryAlertDays);
+                  const status = getStatus(s, item, item.trackExpiry, settings.expiryAlertDays);
                   const selected = selectedItemIds.has(item.id);
+                  const stockDisplay = s ? getStockDisplayLines(s.totalQuantity, item.unit, item.purchaseUnit, item.purchaseConversionFactor) : null;
                   return (
                     <tr key={item.id} className={`${s?.isLowStock ? "row--warn" : ""} ${selected ? "row--selected" : ""} ${!item.isActive ? "is-muted" : ""}`}>
                       {canManageStock && (
@@ -795,25 +807,54 @@ export function ItemsPage() {
                             </span>
                           );
                         })()}
-                        {s?.isLowStock && (() => {
-                          const shortage = getSuggestedReorderQuantity(s.totalQuantity, s.minStockLevel, settings.lowStockMultiplier);
-                          const hasPU = hasPurchaseUnit(item.purchaseUnit, item.purchaseConversionFactor);
-                          const dispQty = hasPU && item.purchaseConversionFactor ? getSuggestedPurchaseQty(shortage, item.purchaseConversionFactor) : shortage;
-                          if (dispQty <= 0) return null;
-                          const dispUnit = hasPU && item.purchaseUnit ? item.purchaseUnit : item.unit;
-                          return <span className="reorder-hint">Suggested reorder: {formatNumber(dispQty)} {dispUnit}</span>;
+                        {stockDisplay?.conversionRequired && (
+                          <button type="button" className="unit-config-link" onClick={() => setEditingItem(item)}>
+                            Unit conversion required
+                          </button>
+                        )}
+                        {s?.reorder?.calculationAvailable && (s.reorder.suggestedBuyingQuantity ?? 0) > 0 && (() => {
+                          const unit = unitConfig.buyingUnit;
+                          return <span className="reorder-hint">Suggested reorder: {formatQty(s.reorder!.suggestedBuyingQuantity!, 0)} {unit}</span>;
                         })()}
+                        {supplierFilter !== "all" && s?.reorder?.incomingBaseQuantity !== null && s?.reorder?.incomingBaseQuantity !== undefined && s.reorder.incomingBaseQuantity > 0 && (
+                          <span className="incoming-hint">
+                            Incoming: {formatQty(s.reorder.incomingBuyingQuantity ?? 0, 2)} {unitConfig.buyingUnit} / {formatQty(s.reorder.incomingBaseQuantity, 2)} {item.unit}
+                          </span>
+                        )}
                         {usage && (() => {
-                          const hasPU = hasPurchaseUnit(item.purchaseUnit, item.purchaseConversionFactor);
-                          const factor = item.purchaseConversionFactor ?? 1;
-                          const dispUnit = hasPU && item.purchaseUnit ? item.purchaseUnit : item.unit;
-                          const total = hasPU ? toPurchaseQuantity(usage.totalQuantity, factor) : usage.totalQuantity;
-                          const avg = hasPU ? toPurchaseQuantity(usage.averageDailyUsage, factor) : usage.averageDailyUsage;
-                          return <span className="usage-hint">7-day usage: {formatNumber(total)} {dispUnit} - Avg/day: {formatNumber(avg)} {dispUnit}</span>;
+                          if (unitConfig.conversionRequired) {
+                            return <span className="usage-hint">Usage: {formatQty(usage.totalQuantity, 2)} {item.unit} in 7 days</span>;
+                          }
+                          const totalBuying = toPurchaseQuantity(usage.totalQuantity, unitConfig.conversionFactor);
+                          const avgBuying = toPurchaseQuantity(usage.averageDailyUsage, unitConfig.conversionFactor);
+                          return (
+                            <span className="usage-hint">
+                              7-day usage: {formatQty(totalBuying, 2)} {unitConfig.buyingUnit} / {formatQty(usage.totalQuantity, 2)} {item.unit}
+                              {" - "}Avg/day: {formatQty(avgBuying, 4)} {unitConfig.buyingUnit} / {formatQty(usage.averageDailyUsage, 4)} {item.unit}
+                            </span>
+                          );
                         })()}
-                        {estimatedDaysRemaining !== null && (
+                        {s && !usage && !unitConfig.conversionRequired && (
+                          <span className="forecast-hint forecast-hint--normal">No usage data</span>
+                        )}
+                        {s && usage && usage.averageDailyUsage <= 0 && !unitConfig.conversionRequired && (
+                          <span className="forecast-hint forecast-hint--normal">No recent usage</span>
+                        )}
+                        {unitConfig.conversionRequired && (
+                          <span className="forecast-hint forecast-hint--warning">Conversion required</span>
+                        )}
+                        {estimatedDaysRemaining !== null && s && usage && (
                           <span className={`forecast-hint forecast-hint--${getForecastTone(estimatedDaysRemaining)}`}>
-                            Est. remaining: {formatNumber(estimatedDaysRemaining)} days
+                            Est. remaining: {formatDaysRemaining(estimatedDaysRemaining)} days
+                            <details className="cover-details">
+                              <summary>How calculated</summary>
+                              <span>Available stock: {formatQty(s.totalQuantity, 2)} {item.unit}</span>
+                              <span>Average daily usage: {formatQty(usage.averageDailyUsage, 6)} {item.unit}/day</span>
+                              <span>Calculation: {formatQty(s.totalQuantity, 2)} / {formatQty(usage.averageDailyUsage, 6)} = {formatDaysRemaining(estimatedDaysRemaining)} days</span>
+                              {unitConfig.usesBuyingUnit && (
+                                <span>{formatQty(s.totalQuantity, 2)} {item.unit} = {formatQty(toPurchaseQuantity(s.totalQuantity, unitConfig.conversionFactor), 2)} {unitConfig.buyingUnit}; 1 {unitConfig.buyingUnit} = {formatQty(unitConfig.conversionFactor, 2)} {item.unit}</span>
+                              )}
+                            </details>
                           </span>
                         )}
                       </td>
@@ -822,7 +863,13 @@ export function ItemsPage() {
                       )}
                       <td className="td-unit">{item.unit}</td>
                       <td className="text-right td-num">
-                        {s !== undefined ? formatNumber(s.totalQuantity) : "-"}
+                        {stockDisplay ? (
+                          <span className="stock-display">
+                            <strong>{stockDisplay.primary}</strong>
+                            {stockDisplay.secondary && <span>{stockDisplay.secondary}</span>}
+                            {stockDisplay.conversion && <span>{stockDisplay.conversion}</span>}
+                          </span>
+                        ) : "-"}
                       </td>
                       <td className="text-right td-num td-value">
                         {s !== undefined ? formatCurrency(s.totalValue, currency) : "-"}
@@ -932,11 +979,13 @@ export function ItemsPage() {
             {filteredItems.map((item) => {
               const s = summaryMap.get(item.id);
               const usage = usageMap.get(item.id);
-              const estimatedDaysRemaining = s && usage && usage.averageDailyUsage > 0
+              const unitConfig = normalizeUnitConfig(item.unit, item.purchaseUnit, item.purchaseConversionFactor);
+              const estimatedDaysRemaining = s && !unitConfig.conversionRequired && usage && usage.averageDailyUsage > 0
                 ? getEstimatedDaysRemaining(s.totalQuantity, usage.averageDailyUsage)
                 : null;
-              const status = getStatus(s, item.trackExpiry, settings.expiryAlertDays);
+              const status = getStatus(s, item, item.trackExpiry, settings.expiryAlertDays);
               const selected = selectedItemIds.has(item.id);
+              const stockDisplay = s ? getStockDisplayLines(s.totalQuantity, item.unit, item.purchaseUnit, item.purchaseConversionFactor) : null;
               return (
                 <div key={item.id} className={`item-card ${selected ? "item-card--selected" : ""} ${!item.isActive ? "is-muted" : ""}`}>
                   <div className="item-card-header">
@@ -988,7 +1037,13 @@ export function ItemsPage() {
                     <span className="item-card-stat">
                       <span className="item-card-stat-label">In Stock</span>
                       <span className="item-card-stat-value">
-                        {s !== undefined ? `${s.totalQuantity} ${item.unit}` : "-"}
+                        {stockDisplay ? (
+                          <span className="stock-display stock-display--card">
+                            <strong>{stockDisplay.primary}</strong>
+                            {stockDisplay.secondary && <span>{stockDisplay.secondary}</span>}
+                            {stockDisplay.conversion && <span>{stockDisplay.conversion}</span>}
+                          </span>
+                        ) : "-"}
                       </span>
                     </span>
                     <span className="item-card-stat">
@@ -1002,25 +1057,44 @@ export function ItemsPage() {
                       <span className="item-card-stat-value">{item.minStockLevel} {item.unit}</span>
                     </span>
                   </div>
-                  {s?.isLowStock && (() => {
-                    const shortage = getSuggestedReorderQuantity(s.totalQuantity, s.minStockLevel, settings.lowStockMultiplier);
-                    const hasPU = hasPurchaseUnit(item.purchaseUnit, item.purchaseConversionFactor);
-                    const dispQty = hasPU && item.purchaseConversionFactor ? getSuggestedPurchaseQty(shortage, item.purchaseConversionFactor) : shortage;
-                    if (dispQty <= 0) return null;
-                    const dispUnit = hasPU && item.purchaseUnit ? item.purchaseUnit : item.unit;
-                    return <p className="reorder-hint reorder-hint--card">Suggested reorder: {formatNumber(dispQty)} {dispUnit}</p>;
+                  {stockDisplay?.conversionRequired && (
+                    <button type="button" className="unit-config-link" onClick={() => setEditingItem(item)}>
+                      Unit conversion required
+                    </button>
+                  )}
+                  {s?.reorder?.calculationAvailable && (s.reorder.suggestedBuyingQuantity ?? 0) > 0 && (() => {
+                    return <p className="reorder-hint reorder-hint--card">Suggested reorder: {formatQty(s.reorder!.suggestedBuyingQuantity!, 0)} {unitConfig.buyingUnit}</p>;
                   })()}
+                  {supplierFilter !== "all" && s?.reorder?.incomingBaseQuantity !== null && s?.reorder?.incomingBaseQuantity !== undefined && s.reorder.incomingBaseQuantity > 0 && (
+                    <p className="incoming-hint incoming-hint--card">
+                      Incoming: {formatQty(s.reorder.incomingBuyingQuantity ?? 0, 2)} {unitConfig.buyingUnit} / {formatQty(s.reorder.incomingBaseQuantity, 2)} {item.unit}
+                    </p>
+                  )}
                   {usage && (() => {
-                    const hasPU = hasPurchaseUnit(item.purchaseUnit, item.purchaseConversionFactor);
-                    const factor = item.purchaseConversionFactor ?? 1;
-                    const dispUnit = hasPU && item.purchaseUnit ? item.purchaseUnit : item.unit;
-                    const total = hasPU ? toPurchaseQuantity(usage.totalQuantity, factor) : usage.totalQuantity;
-                    const avg = hasPU ? toPurchaseQuantity(usage.averageDailyUsage, factor) : usage.averageDailyUsage;
-                    return <p className="usage-hint usage-hint--card">7-day usage: {formatNumber(total)} {dispUnit} - Avg/day: {formatNumber(avg)} {dispUnit}</p>;
+                    if (unitConfig.conversionRequired) {
+                      return <p className="usage-hint usage-hint--card">Usage: {formatQty(usage.totalQuantity, 2)} {item.unit} in 7 days</p>;
+                    }
+                    const totalBuying = toPurchaseQuantity(usage.totalQuantity, unitConfig.conversionFactor);
+                    const avgBuying = toPurchaseQuantity(usage.averageDailyUsage, unitConfig.conversionFactor);
+                    return (
+                      <p className="usage-hint usage-hint--card">
+                        7-day usage: {formatQty(totalBuying, 2)} {unitConfig.buyingUnit} / {formatQty(usage.totalQuantity, 2)} {item.unit}
+                        {" - "}Avg/day: {formatQty(avgBuying, 4)} {unitConfig.buyingUnit} / {formatQty(usage.averageDailyUsage, 4)} {item.unit}
+                      </p>
+                    );
                   })()}
-                  {estimatedDaysRemaining !== null && (
+                  {estimatedDaysRemaining !== null && s && usage && (
                     <p className={`forecast-hint forecast-hint--card forecast-hint--${getForecastTone(estimatedDaysRemaining)}`}>
-                      Est. remaining: {formatNumber(estimatedDaysRemaining)} days
+                      Est. remaining: {formatDaysRemaining(estimatedDaysRemaining)} days
+                      <details className="cover-details">
+                        <summary>How calculated</summary>
+                        <span>Available stock: {formatQty(s.totalQuantity, 2)} {item.unit}</span>
+                        <span>Average daily usage: {formatQty(usage.averageDailyUsage, 6)} {item.unit}/day</span>
+                        <span>Calculation: {formatQty(s.totalQuantity, 2)} / {formatQty(usage.averageDailyUsage, 6)} = {formatDaysRemaining(estimatedDaysRemaining)} days</span>
+                        {unitConfig.usesBuyingUnit && (
+                          <span>{formatQty(s.totalQuantity, 2)} {item.unit} = {formatQty(toPurchaseQuantity(s.totalQuantity, unitConfig.conversionFactor), 2)} {unitConfig.buyingUnit}; 1 {unitConfig.buyingUnit} = {formatQty(unitConfig.conversionFactor, 2)} {item.unit}</span>
+                        )}
+                      </details>
                     </p>
                   )}
                   <div className="item-card-actions">

@@ -2583,6 +2583,14 @@ body {
   color: var(--color-text-muted);
 }
 
+.incoming-hint {
+  display: block;
+  margin-top: 3px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
 .usage-hint--card {
   margin: -4px 0 0;
 }
@@ -2592,6 +2600,66 @@ body {
   margin-top: 3px;
   font-size: 12px;
   font-weight: 600;
+}
+
+.stock-display {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  line-height: 1.25;
+}
+
+.stock-display strong {
+  font-size: 13px;
+  color: var(--color-text, #0f172a);
+}
+
+.stock-display span {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-muted, #64748b);
+}
+
+.stock-display--card {
+  align-items: flex-start;
+}
+
+.cover-details {
+  margin-top: 3px;
+  font-weight: 500;
+  color: var(--color-text-muted, #64748b);
+}
+
+.cover-details summary {
+  cursor: pointer;
+  font-size: 11px;
+  color: inherit;
+}
+
+.cover-details span {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.unit-config-link {
+  display: block;
+  margin-top: 3px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #d97706;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.unit-config-link:hover {
+  text-decoration: underline;
 }
 
 .forecast-hint--card {

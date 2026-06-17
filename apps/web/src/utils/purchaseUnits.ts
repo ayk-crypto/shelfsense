@@ -5,6 +5,14 @@ export interface PurchaseUnitBreakdown {
   baseUnit: string;
 }
 
+export interface NormalizedUnitConfig {
+  baseUnit: string;
+  buyingUnit: string;
+  conversionFactor: number;
+  usesBuyingUnit: boolean;
+  conversionRequired: boolean;
+}
+
 export function hasPurchaseUnit(
   purchaseUnit: string | null | undefined,
   conversionFactor: number | null | undefined,
@@ -14,6 +22,25 @@ export function hasPurchaseUnit(
     typeof conversionFactor === "number" &&
     conversionFactor > 0
   );
+}
+
+export function normalizeUnitConfig(
+  baseUnit: string,
+  purchaseUnit: string | null | undefined,
+  conversionFactor: number | null | undefined,
+): NormalizedUnitConfig {
+  const cleanBaseUnit = baseUnit.trim();
+  const buyingUnit = purchaseUnit?.trim() || cleanBaseUnit;
+  const usesBuyingUnit = buyingUnit.toLowerCase() !== cleanBaseUnit.toLowerCase();
+  const conversionRequired = usesBuyingUnit && (typeof conversionFactor !== "number" || conversionFactor <= 0);
+
+  return {
+    baseUnit: cleanBaseUnit,
+    buyingUnit,
+    conversionFactor: conversionRequired ? 1 : (usesBuyingUnit ? conversionFactor! : 1),
+    usesBuyingUnit,
+    conversionRequired,
+  };
 }
 
 export function toPurchaseQuantity(baseQty: number, conversionFactor: number): number {
@@ -50,6 +77,48 @@ export function formatPurchaseBreakdown(breakdown: PurchaseUnitBreakdown): strin
   if (whole === 0) return `${fmtQty(remainder)} ${baseUnit}`;
   if (remainder === 0) return `${whole} ${purchaseUnit}`;
   return `${whole} ${purchaseUnit} + ${fmtQty(remainder)} ${baseUnit}`;
+}
+
+export function getStockDisplayLines(
+  baseQty: number,
+  baseUnit: string,
+  purchaseUnit: string | null | undefined,
+  conversionFactor: number | null | undefined,
+) {
+  const config = normalizeUnitConfig(baseUnit, purchaseUnit, conversionFactor);
+  if (config.conversionRequired) {
+    return {
+      primary: `${fmtQty(baseQty)} ${config.baseUnit}`,
+      secondary: "Unit conversion required",
+      conversion: null as string | null,
+      conversionRequired: true,
+    };
+  }
+  if (!config.usesBuyingUnit) {
+    return {
+      primary: `${fmtQty(baseQty)} ${config.baseUnit}`,
+      secondary: null as string | null,
+      conversion: null as string | null,
+      conversionRequired: false,
+    };
+  }
+
+  const breakdown = getPurchaseBreakdown(baseQty, config.conversionFactor, config.buyingUnit, config.baseUnit);
+  return {
+    primary: formatPurchaseBreakdown(breakdown),
+    secondary: `${fmtQty(baseQty)} ${config.baseUnit} total`,
+    conversion: `1 ${config.buyingUnit} = ${fmtQty(config.conversionFactor)} ${config.baseUnit}`,
+    conversionRequired: false,
+  };
+}
+
+export function formatQty(value: number, maximumFractionDigits: number) {
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits }).format(value);
+}
+
+export function formatDaysRemaining(value: number) {
+  const maxDigits = Math.abs(value) < 10 ? 2 : 1;
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: maxDigits }).format(value);
 }
 
 export function fmtQty(value: number): string {
