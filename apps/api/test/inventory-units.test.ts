@@ -12,7 +12,11 @@ import {
   buildPurchaseLineSnapshot,
   parseQuantityUnit,
 } from "../src/lib/purchase-unit-snapshots.js";
-import { parseItemInput } from "../src/routes/items.js";
+import {
+  mergeItemInputForValidation,
+  parseItemInput,
+  validateItemInput,
+} from "../src/routes/items.js";
 import { buildEditItemPayload } from "../../web/src/utils/itemPayload.ts";
 import type { CreateItemInput, Item } from "../../web/src/types.ts";
 
@@ -692,5 +696,57 @@ describe("edit item replenishment payload serialization", () => {
     expect(result.targetStockBaseQty).toBeCloseTo(25.71426, 5);
     expect(result.suggestedBuyingQty).toBe(5);
     expect(result.status).toBe("REORDER_REQUIRED");
+  });
+
+  it("maps Supplier Delivery Time to procurementLeadTimeDays in the edit payload", () => {
+    const item = baseItem({ procurementLeadTimeDays: 8 });
+    const form: CreateItemInput = {
+      name: item.name,
+      unit: item.unit,
+      category: item.category,
+      sku: item.sku,
+      barcode: item.barcode,
+      minStockLevel: item.minStockLevel,
+      criticalStockLevel: item.criticalStockLevel,
+      parStockLevel: item.parStockLevel,
+      procurementFrequency: item.procurementFrequency,
+      customFrequencyDays: item.customFrequencyDays,
+      procurementLeadTimeDays: 9,
+      replenishmentMode: item.replenishmentMode,
+      safetyStockDays: item.safetyStockDays,
+      reviewPeriodDays: item.reviewPeriodDays,
+      manualReorderPointBaseQty: item.manualReorderPointBaseQty,
+      manualTargetStockBaseQty: item.manualTargetStockBaseQty,
+      allowFractionalPurchaseUnit: item.allowFractionalPurchaseUnit,
+      trackExpiry: item.trackExpiry,
+      purchaseUnit: item.purchaseUnit,
+      purchaseConversionFactor: item.purchaseConversionFactor,
+      issueUnit: item.issueUnit,
+      displayBothUnits: item.displayBothUnits,
+    };
+
+    const payload = buildEditItemPayload(form, item, true);
+    expect(payload.procurementLeadTimeDays).toBe(9);
+    expect("supplierLeadTimeDays" in payload).toBe(false);
+    expect("supplierDeliveryTime" in payload).toBe(false);
+    expect("leadTimeDays" in payload).toBe(false);
+  });
+
+  it("validates a DAYS_BASED partial update against persisted lead-time settings", () => {
+    const item = baseItem({
+      procurementLeadTimeDays: 8,
+      safetyStockDays: 7,
+      reviewPeriodDays: 30,
+      manualReorderPointBaseQty: 30,
+    });
+    const incoming = parseItemInput({ manualReorderPointBaseQty: null });
+    const effective = mergeItemInputForValidation(incoming, item);
+
+    expect(incoming.procurementLeadTimeDays).toBeUndefined();
+    expect(effective.procurementLeadTimeDays).toBe(8);
+    expect(effective.safetyStockDays).toBe(7);
+    expect(effective.reviewPeriodDays).toBe(30);
+    expect(effective.manualReorderPointBaseQty).toBeNull();
+    expect(validateItemInput(effective)).toBeNull();
   });
 });

@@ -608,7 +608,38 @@ itemsRouter.patch("/:id", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(
     return res.status(400).json({ error: "Name and unit cannot be empty" });
   }
 
-  const validationError = validateItemInput(data);
+  const existingItem = await prisma.item.findFirst({
+    where: { id: req.params.id, workspaceId },
+    select: {
+      name: true,
+      sku: true,
+      barcode: true,
+      unit: true,
+      category: true,
+      minStockLevel: true,
+      criticalStockLevel: true,
+      parStockLevel: true,
+      procurementFrequency: true,
+      customFrequencyDays: true,
+      procurementLeadTimeDays: true,
+      replenishmentMode: true,
+      safetyStockDays: true,
+      reviewPeriodDays: true,
+      manualReorderPointBaseQty: true,
+      manualTargetStockBaseQty: true,
+      allowFractionalPurchaseUnit: true,
+      trackExpiry: true,
+      purchaseUnit: true,
+      purchaseConversionFactor: true,
+      issueUnit: true,
+      displayBothUnits: true,
+    },
+  });
+  if (!existingItem) {
+    return res.status(404).json({ error: "Item not found" });
+  }
+
+  const validationError = validateItemInput(mergeItemInputForValidation(data, existingItem));
   if (validationError) {
     return res.status(400).json({ error: validationError });
   }
@@ -625,14 +656,6 @@ itemsRouter.patch("/:id", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(
         error: "Barcode already exists for another item.",
       });
     }
-  }
-
-  const existingItem = await prisma.item.findFirst({
-    where: { id: req.params.id, workspaceId },
-    select: { purchaseUnit: true, purchaseConversionFactor: true },
-  });
-  if (!existingItem) {
-    return res.status(404).json({ error: "Item not found" });
   }
 
   const result = await prisma.item.updateMany({
@@ -944,6 +967,42 @@ export function parseItemInput(body: unknown) {
   };
 }
 
+type ParsedItemInput = ReturnType<typeof parseItemInput>;
+
+type ItemValidationSnapshot = {
+  [K in keyof ParsedItemInput]-?: NonNullable<ParsedItemInput[K]> | null;
+};
+
+export function mergeItemInputForValidation(
+  input: ParsedItemInput,
+  existing: ItemValidationSnapshot,
+): ParsedItemInput {
+  return {
+    name: input.name !== undefined ? input.name : existing.name ?? undefined,
+    sku: input.sku !== undefined ? input.sku : existing.sku,
+    barcode: input.barcode !== undefined ? input.barcode : existing.barcode,
+    unit: input.unit !== undefined ? input.unit : existing.unit ?? undefined,
+    category: input.category !== undefined ? input.category : existing.category,
+    minStockLevel: input.minStockLevel !== undefined ? input.minStockLevel : existing.minStockLevel ?? undefined,
+    criticalStockLevel: input.criticalStockLevel !== undefined ? input.criticalStockLevel : existing.criticalStockLevel,
+    parStockLevel: input.parStockLevel !== undefined ? input.parStockLevel : existing.parStockLevel,
+    procurementFrequency: input.procurementFrequency !== undefined ? input.procurementFrequency : existing.procurementFrequency,
+    customFrequencyDays: input.customFrequencyDays !== undefined ? input.customFrequencyDays : existing.customFrequencyDays,
+    procurementLeadTimeDays: input.procurementLeadTimeDays !== undefined ? input.procurementLeadTimeDays : existing.procurementLeadTimeDays,
+    replenishmentMode: input.replenishmentMode !== undefined ? input.replenishmentMode : existing.replenishmentMode ?? undefined,
+    safetyStockDays: input.safetyStockDays !== undefined ? input.safetyStockDays : existing.safetyStockDays,
+    reviewPeriodDays: input.reviewPeriodDays !== undefined ? input.reviewPeriodDays : existing.reviewPeriodDays,
+    manualReorderPointBaseQty: input.manualReorderPointBaseQty !== undefined ? input.manualReorderPointBaseQty : existing.manualReorderPointBaseQty,
+    manualTargetStockBaseQty: input.manualTargetStockBaseQty !== undefined ? input.manualTargetStockBaseQty : existing.manualTargetStockBaseQty,
+    allowFractionalPurchaseUnit: input.allowFractionalPurchaseUnit !== undefined ? input.allowFractionalPurchaseUnit : existing.allowFractionalPurchaseUnit ?? undefined,
+    trackExpiry: input.trackExpiry !== undefined ? input.trackExpiry : existing.trackExpiry ?? undefined,
+    purchaseUnit: input.purchaseUnit !== undefined ? input.purchaseUnit : existing.purchaseUnit,
+    purchaseConversionFactor: input.purchaseConversionFactor !== undefined ? input.purchaseConversionFactor : existing.purchaseConversionFactor,
+    issueUnit: input.issueUnit !== undefined ? input.issueUnit : existing.issueUnit,
+    displayBothUnits: input.displayBothUnits !== undefined ? input.displayBothUnits : existing.displayBothUnits ?? undefined,
+  };
+}
+
 function parseOptionalString(value: unknown) {
   return typeof value === "string" ? value.trim() : undefined;
 }
@@ -988,7 +1047,7 @@ function getExpiryStatus(
   return "HEALTHY";
 }
 
-function validateItemInput(input: ReturnType<typeof parseItemInput>) {
+export function validateItemInput(input: ReturnType<typeof parseItemInput>) {
   if (input.name && input.name.length > MAX_ITEM_NAME_LENGTH) {
     return "Item name must be 160 characters or fewer";
   }
