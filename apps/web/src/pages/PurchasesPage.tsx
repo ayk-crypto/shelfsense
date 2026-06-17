@@ -96,6 +96,29 @@ function toDateInput(value: string | null | undefined) {
   return value ? value.slice(0, 10) : "";
 }
 
+function getPurchaseLineDisplay(line: Purchase["purchaseItems"][number]) {
+  const snapshot = line.unitSnapshot;
+  const factor = snapshot?.conversionFactor && snapshot.conversionFactor > 0 ? snapshot.conversionFactor : null;
+  const purchaseUnit = snapshot?.purchaseUnit ?? null;
+  const baseUnit = snapshot?.baseUnit ?? line.baseUnitSnapshot ?? line.item.unit;
+  const hasSnapshotUnit = Boolean(purchaseUnit && factor);
+  const displayUnit = hasSnapshotUnit ? purchaseUnit! : baseUnit;
+  const toDisplayQuantity = (n: number) => hasSnapshotUnit ? n / factor! : n;
+  const toDisplay = (n: number) => fmtQty(toDisplayQuantity(n));
+  const displayCost = hasSnapshotUnit ? line.unitCost * factor! : line.unitCost;
+  return {
+    hasSnapshotUnit,
+    displayUnit,
+    baseUnit,
+    purchaseUnit,
+    factor,
+    toDisplayQuantity,
+    toDisplay,
+    displayCost,
+    conversionText: hasSnapshotUnit ? `1 ${purchaseUnit} = ${fmtQty(factor!)} ${baseUnit}` : snapshot?.message,
+  };
+}
+
 function numberValue(value: string) {
   const parsed = Number.parseFloat(value);
   return Number.isFinite(parsed) ? parsed : undefined;
@@ -621,11 +644,10 @@ function downloadPurchaseOrder(
 
   // ── per-line helpers ─────────────────────────────────────────────────────
   function lineHelpers(line: (typeof purchase.purchaseItems)[0]) {
-    const hasUop = hasPurchaseUnit(line.item.purchaseUnit, line.item.purchaseConversionFactor);
-    const factor = line.item.purchaseConversionFactor ?? 1;
-    const displayUnit = hasUop ? (line.item.purchaseUnit ?? line.item.unit) : line.item.unit;
-    const toDisplay = (n: number) => fmtQty(hasUop ? n / factor : n);
-    const dCostPerPU = hasUop ? line.unitCost * factor : line.unitCost;
+    const display = getPurchaseLineDisplay(line);
+    const displayUnit = display.displayUnit;
+    const toDisplay = display.toDisplay;
+    const dCostPerPU = display.displayCost;
     const costStr = dCostPerPU > 0 ? fmt(dCostPerPU, currency) : "—";
     const totalStr = dCostPerPU > 0 ? fmt(line.orderedValue, currency) : "—";
     return { displayUnit, toDisplay, costStr, totalStr };
@@ -635,12 +657,11 @@ function downloadPurchaseOrder(
   let sumOrdered = 0, sumReceived = 0, sumRemaining = 0;
   let allCostsMissing = true;
   for (const line of purchase.purchaseItems) {
-    const hasUop = hasPurchaseUnit(line.item.purchaseUnit, line.item.purchaseConversionFactor);
-    const factor = line.item.purchaseConversionFactor ?? 1;
-    sumOrdered   += hasUop ? line.orderedQuantity / factor : line.orderedQuantity;
-    sumReceived  += hasUop ? line.receivedQuantity / factor : line.receivedQuantity;
-    sumRemaining += hasUop ? line.remainingQuantity / factor : line.remainingQuantity;
-    const dCost = hasUop ? line.unitCost * factor : line.unitCost;
+    const display = getPurchaseLineDisplay(line);
+    sumOrdered += display.toDisplayQuantity(line.orderedQuantity);
+    sumReceived += display.toDisplayQuantity(line.receivedQuantity);
+    sumRemaining += display.toDisplayQuantity(line.remainingQuantity);
+    const dCost = display.displayCost;
     if (dCost > 0) allCostsMissing = false;
   }
   const estValueStr = allCostsMissing ? "Pricing not set" : fmt(purchase.totalAmount, currency);
@@ -1224,11 +1245,10 @@ function PurchaseDetailModal({
   // Sum quantities in purchase units so KPI strip matches what the table shows
   const poQtys = purchase.purchaseItems.reduce(
     (acc, line) => {
-      const hasUop = hasPurchaseUnit(line.item.purchaseUnit, line.item.purchaseConversionFactor);
-      const factor = line.item.purchaseConversionFactor ?? 1;
-      acc.ordered   += hasUop ? line.orderedQuantity   / factor : line.orderedQuantity;
-      acc.received  += hasUop ? line.receivedQuantity  / factor : line.receivedQuantity;
-      acc.remaining += hasUop ? line.remainingQuantity / factor : line.remainingQuantity;
+      const display = getPurchaseLineDisplay(line);
+      acc.ordered += display.toDisplayQuantity(line.orderedQuantity);
+      acc.received += display.toDisplayQuantity(line.receivedQuantity);
+      acc.remaining += display.toDisplayQuantity(line.remainingQuantity);
       return acc;
     },
     { ordered: 0, received: 0, remaining: 0 },
@@ -1379,16 +1399,16 @@ function PurchaseDetailModal({
               </thead>
               <tbody>
                 {purchase.purchaseItems.map((line) => {
-                  const hasUop = hasPurchaseUnit(line.item.purchaseUnit, line.item.purchaseConversionFactor);
-                  const factor = line.item.purchaseConversionFactor ?? 1;
-                  const displayUnit = hasUop ? (line.item.purchaseUnit ?? line.item.unit) : line.item.unit;
-                  const dQty = (n: number) => hasUop ? fmtQty(n / factor) : fmtQty(n);
-                  const dCost = hasUop ? line.unitCost * factor : line.unitCost;
+                  const display = getPurchaseLineDisplay(line);
+                  const displayUnit = display.displayUnit;
+                  const dQty = display.toDisplay;
+                  const dCost = display.displayCost;
                   return (
                   <tr key={line.id}>
                     <td>
                       <span className="td-name">{line.item.name}</span>
                       <span className="td-unit"> / {displayUnit}</span>
+                      {display.conversionText && <span className="td-unit"> · {display.conversionText}</span>}
                       {line.closureAction && line.closureAction !== "KEEP_PENDING" && (
                         <span className={`po-line-status po-line-status--${line.closureAction === "CLOSE_SHORT" ? "closed-short" : "cancel"}`} style={{ marginLeft: 6 }}>
                           {line.closureAction === "CLOSE_SHORT" ? "Closed short" : "Cancelled"}
@@ -1592,11 +1612,10 @@ function ClosePOModal({
               </thead>
               <tbody>
                 {pendingLines.map((line) => {
-                  const hasUop = hasPurchaseUnit(line.item.purchaseUnit, line.item.purchaseConversionFactor);
-                  const factor = line.item.purchaseConversionFactor ?? 1;
-                  const displayUnit = hasUop ? (line.item.purchaseUnit ?? line.item.unit) : line.item.unit;
-                  const dQty = (n: number) => hasUop ? fmtQty(n / factor) : fmtQty(n);
-                  const dCost = hasUop ? line.unitCost * factor : line.unitCost;
+                  const display = getPurchaseLineDisplay(line);
+                  const displayUnit = display.displayUnit;
+                  const dQty = display.toDisplay;
+                  const dCost = display.displayCost;
                   const action = lineActions[line.id] ?? "KEEP_PENDING";
                   return (
                     <tr key={line.id}>
@@ -1789,9 +1808,10 @@ function NewPurchaseModal({
         return {
           itemId: line.itemId,
           // Convert purchase units → base units before sending
-          quantity: hasUnit && factor ? purchaseQty * factor : purchaseQty,
+          quantity: purchaseQty,
+          quantityUnit: hasUnit ? "PURCHASE_UNIT" : "BASE_UNIT",
           // Convert per-purchase-unit cost → per-base-unit cost before sending
-          unitCost: hasUnit && factor && purchaseCost > 0 ? purchaseCost / factor : purchaseCost,
+          unitCost: purchaseCost,
         };
       }),
     };

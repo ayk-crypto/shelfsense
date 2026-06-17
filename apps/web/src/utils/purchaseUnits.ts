@@ -73,10 +73,10 @@ export function getPurchaseBreakdown(
 
 export function formatPurchaseBreakdown(breakdown: PurchaseUnitBreakdown): string {
   const { whole, remainder, purchaseUnit, baseUnit } = breakdown;
-  if (whole === 0 && remainder === 0) return `0 ${baseUnit}`;
-  if (whole === 0) return `${fmtQty(remainder)} ${baseUnit}`;
-  if (remainder === 0) return `${whole} ${purchaseUnit}`;
-  return `${whole} ${purchaseUnit} + ${fmtQty(remainder)} ${baseUnit}`;
+  if (whole === 0 && remainder === 0) return formatQuantityWithUnit(0, baseUnit);
+  if (whole === 0) return `${formatQuantityWithUnit(0, purchaseUnit, 0)} + ${formatQuantityWithUnit(remainder, baseUnit)}`;
+  if (remainder === 0) return formatQuantityWithUnit(whole, purchaseUnit);
+  return `${formatQuantityWithUnit(whole, purchaseUnit)} + ${formatQuantityWithUnit(remainder, baseUnit)}`;
 }
 
 export function getStockDisplayLines(
@@ -88,7 +88,7 @@ export function getStockDisplayLines(
   const config = normalizeUnitConfig(baseUnit, purchaseUnit, conversionFactor);
   if (config.conversionRequired) {
     return {
-      primary: `${fmtQty(baseQty)} ${config.baseUnit}`,
+      primary: formatQuantityWithUnit(baseQty, config.baseUnit),
       secondary: "Unit conversion required",
       conversion: null as string | null,
       conversionRequired: true,
@@ -96,7 +96,7 @@ export function getStockDisplayLines(
   }
   if (!config.usesBuyingUnit) {
     return {
-      primary: `${fmtQty(baseQty)} ${config.baseUnit}`,
+      primary: formatQuantityWithUnit(baseQty, config.baseUnit),
       secondary: null as string | null,
       conversion: null as string | null,
       conversionRequired: false,
@@ -106,8 +106,8 @@ export function getStockDisplayLines(
   const breakdown = getPurchaseBreakdown(baseQty, config.conversionFactor, config.buyingUnit, config.baseUnit);
   return {
     primary: formatPurchaseBreakdown(breakdown),
-    secondary: `${fmtQty(baseQty)} ${config.baseUnit} total`,
-    conversion: `1 ${config.buyingUnit} = ${fmtQty(config.conversionFactor)} ${config.baseUnit}`,
+    secondary: `${formatQuantityWithUnit(baseQty, config.baseUnit)} total`,
+    conversion: `${formatQuantityWithUnit(1, config.buyingUnit)} = ${formatQuantityWithUnit(config.conversionFactor, config.baseUnit)}`,
     conversionRequired: false,
   };
 }
@@ -119,6 +119,33 @@ export function formatQty(value: number, maximumFractionDigits: number) {
 export function formatDaysRemaining(value: number) {
   const maxDigits = Math.abs(value) < 10 ? 2 : 1;
   return new Intl.NumberFormat(undefined, { maximumFractionDigits: maxDigits }).format(value);
+}
+
+export function formatQuantityWithUnit(value: number, unit: string, maximumFractionDigits = 2) {
+  return `${formatQty(value, maximumFractionDigits)} ${getUnitLabel(unit, value)}`;
+}
+
+export function formatRateUnit(unit: string) {
+  return `${singularizeUnit(unit)}/day`;
+}
+
+export function getUnitLabel(unit: string, quantity: number) {
+  return quantity === 1 ? singularizeUnit(unit) : pluralizeUnit(unit);
+}
+
+export function singularizeUnit(unit: string) {
+  const trimmed = unit.trim();
+  if (/ies$/i.test(trimmed)) return `${trimmed.slice(0, -3)}y`;
+  if (/(ches|shes|xes|ses|zes)$/i.test(trimmed)) return trimmed.slice(0, -2);
+  if (/s$/i.test(trimmed) && !/ss$/i.test(trimmed)) return trimmed.slice(0, -1);
+  return trimmed;
+}
+
+export function pluralizeUnit(unit: string) {
+  const singular = singularizeUnit(unit);
+  if (/[^aeiou]y$/i.test(singular)) return `${singular.slice(0, -1)}ies`;
+  if (/(ch|sh|x|s|z)$/i.test(singular)) return `${singular}es`;
+  return `${singular}s`;
 }
 
 export function fmtQty(value: number): string {

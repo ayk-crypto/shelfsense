@@ -358,6 +358,9 @@ export interface StockSummaryItem {
   nearestExpiryDate: string | null;
   stock?: StockUnitBreakdown;
   reorder?: ReorderMetrics;
+  usage?: UsageMetrics;
+  coverage?: CoverageMetrics;
+  replenishment?: ReplenishmentMetrics;
   unitConversion?: UnitConversionSummary;
 }
 
@@ -394,6 +397,71 @@ export interface UnitConversionSummary {
   conversionRequired: boolean;
 }
 
+export interface UsageMetrics {
+  last7DaysBaseQuantity: number | null;
+  last7DaysBuyingQuantity: number | null;
+  averageDailyBaseQuantity: number | null;
+  averageDailyBuyingQuantity: number | null;
+  hasUsageHistory: boolean;
+}
+
+export interface CoverageMetrics {
+  daysRemaining: number | null;
+  status: string;
+  calculationAvailable: boolean;
+  message: string | null;
+}
+
+export type ReplenishmentStatus =
+  | "HEALTHY"
+  | "REORDER_REQUIRED"
+  | "ON_ORDER_COVERED"
+  | "ON_ORDER_SHORTAGE_RISK"
+  | "ADDITIONAL_QTY_REQUIRED"
+  | "OVERDUE_DELIVERY"
+  | "NO_USAGE_DATA"
+  | "CONFIGURATION_REQUIRED";
+
+export interface ReplenishmentMetrics {
+  mode: "MANUAL_THRESHOLD" | "DAYS_BASED";
+  averageDailyUsageBaseQty: number | null;
+  supplierLeadTimeDays: number | null;
+  safetyStockDays: number | null;
+  reviewPeriodDays: number | null;
+  reorderPointBaseQty: number | null;
+  targetStockBaseQty: number | null;
+  currentStockBaseQty: number;
+  incomingBaseQty: number;
+  incomingBuyingQty: number;
+  projectedStockAtDeliveryBaseQty: number | null;
+  daysUntilStockout: number | null;
+  expectedStockoutDate: string | null;
+  earliestExpectedDeliveryDate: string | null;
+  requiredBaseQty: number | null;
+  suggestedBuyingQty: number | null;
+  suggestedBaseQty: number | null;
+  additionalSuggestedBuyingQty: number | null;
+  status: ReplenishmentStatus;
+  statusLabel: string;
+  configurationIssues: string[];
+  purchaseOrders: Array<{
+    purchaseId: string;
+    poReference: string;
+    supplierName: string | null;
+    status: string;
+    orderedBaseQty: number;
+    receivedBaseQty: number;
+    baseUnitSnapshot?: string | null;
+    purchaseUnitSnapshot?: string | null;
+    purchaseConversionFactorSnapshot?: number | null;
+    unitSnapshotSource?: string | null;
+    outstandingBuyingQty: number | null;
+    outstandingBaseQty: number;
+    conversionUnavailable?: boolean;
+    expectedDeliveryDate: string | null;
+  }>;
+}
+
 export interface ExpiringBatch {
   id: string;
   quantity: number;
@@ -423,6 +491,12 @@ export interface Item {
   procurementFrequency: string | null;
   customFrequencyDays: number | null;
   procurementLeadTimeDays: number | null;
+  replenishmentMode: "MANUAL_THRESHOLD" | "DAYS_BASED";
+  safetyStockDays: number | null;
+  reviewPeriodDays: number | null;
+  manualReorderPointBaseQty: number | null;
+  manualTargetStockBaseQty: number | null;
+  allowFractionalPurchaseUnit: boolean;
   lastReceivedDate: string | null;
   trackExpiry: boolean;
   sku: string | null;
@@ -519,6 +593,12 @@ export interface CreateItemInput {
   procurementFrequency?: string | null;
   customFrequencyDays?: number | null;
   procurementLeadTimeDays?: number | null;
+  replenishmentMode?: "MANUAL_THRESHOLD" | "DAYS_BASED";
+  safetyStockDays?: number | null;
+  reviewPeriodDays?: number | null;
+  manualReorderPointBaseQty?: number | null;
+  manualTargetStockBaseQty?: number | null;
+  allowFractionalPurchaseUnit?: boolean;
   trackExpiry: boolean;
   purchaseUnit?: string | null;
   purchaseConversionFactor?: number | null;
@@ -787,6 +867,16 @@ export interface AwaitingReceivingAlert {
   criticalStockLevel: number | null;
 }
 
+export interface ReplenishmentAlert {
+  itemId: string;
+  itemName: string;
+  unit: string;
+  purchaseUnit: string | null;
+  purchaseConversionFactor: number | null;
+  quantity: number;
+  replenishment: ReplenishmentMetrics;
+}
+
 export interface ExpiryAlert {
   id: string;
   remainingQuantity: number;
@@ -805,6 +895,7 @@ export interface AlertsResponse {
   reorderDue: ReorderDueAlert[];
   belowPar: BelowParAlert[];
   awaitingReceiving: AwaitingReceivingAlert[];
+  replenishmentAlerts: ReplenishmentAlert[];
   expiringSoon: ExpiryAlert[];
   expired: ExpiryAlert[];
 }
@@ -865,6 +956,34 @@ export interface PurchaseItemLine {
   remainingQuantity: number;
   unitCost: number;
   total: number;
+  baseUnitSnapshot: string | null;
+  purchaseUnitSnapshot: string | null;
+  purchaseConversionFactorSnapshot: number | null;
+  enteredQuantity: number | null;
+  enteredUnitSnapshot: string | null;
+  storedBaseQuantitySnapshot: number | null;
+  unitSnapshotSource: "ORIGINAL" | "INFERRED" | "UNKNOWN";
+  enteredUnit: string | null;
+  baseQuantity: number;
+  baseUnit: string | null;
+  conversionFactor: number | null;
+  unitSnapshot: {
+    source: "ORIGINAL" | "INFERRED" | "UNKNOWN";
+    baseUnit: string;
+    purchaseUnit: string | null;
+    conversionFactor: number | null;
+    enteredQuantity: number | null;
+    enteredUnit: string | null;
+    storedBaseQuantity: number;
+    orderedBaseQuantity: number;
+    receivedBaseQuantity: number;
+    remainingBaseQuantity: number;
+    orderedPurchaseQuantity: number | null;
+    receivedPurchaseQuantity: number | null;
+    remainingPurchaseQuantity: number | null;
+    conversionUnavailable: boolean;
+    message: string | null;
+  };
   orderedValue: number;
   receivedValue: number;
   expiryDate: string | null;
@@ -925,6 +1044,7 @@ export interface PurchasesResponse {
 export interface CreatePurchaseLineInput {
   itemId: string;
   quantity: number;
+  quantityUnit: "PURCHASE_UNIT" | "BASE_UNIT";
   unitCost: number;
 }
 
@@ -987,6 +1107,7 @@ export interface ReorderSuggestion {
   currentStock: number;
   minStockLevel: number;
   suggestedQuantity: number;
+  replenishment?: ReplenishmentMetrics;
   trackExpiry: boolean;
   location: {
     id: string;

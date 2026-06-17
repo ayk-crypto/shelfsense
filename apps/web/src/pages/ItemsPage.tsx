@@ -22,7 +22,9 @@ import {
 } from "../utils/usage";
 import {
   formatDaysRemaining,
+  formatQuantityWithUnit,
   formatQty,
+  formatRateUnit,
   getStockDisplayLines,
   normalizeUnitConfig,
   toPurchaseQuantity,
@@ -409,7 +411,7 @@ export function ItemsPage() {
   function handleArchiveItem(item: Item) {
     const quantity = summaryMap.get(item.id)?.totalQuantity ?? 0;
     const message = quantity > 0
-      ? `It currently has ${formatNumber(quantity)} ${item.unit} in stock. Stock history will be preserved.`
+      ? `It currently has ${formatQuantityWithUnit(quantity, item.unit)} in stock. Stock history will be preserved.`
       : "This item will be hidden from active inventory. You can restore it later.";
 
     setConfirmOpts({
@@ -742,7 +744,7 @@ export function ItemsPage() {
                   )}
                   <th>Name</th>
                   {hasBarcodes && <th>Barcode</th>}
-                  <th>Unit</th>
+                  <th>Units</th>
                   <th className="text-right">In Stock</th>
                   <th className="text-right">Value</th>
                   <th>Status</th>
@@ -814,23 +816,34 @@ export function ItemsPage() {
                         )}
                         {s?.reorder?.calculationAvailable && (s.reorder.suggestedBuyingQuantity ?? 0) > 0 && (() => {
                           const unit = unitConfig.buyingUnit;
-                          return <span className="reorder-hint">Suggested reorder: {formatQty(s.reorder!.suggestedBuyingQuantity!, 0)} {unit}</span>;
+                          return <span className="reorder-hint">Suggested reorder: {formatQuantityWithUnit(s.reorder!.suggestedBuyingQuantity!, unit, 0)}</span>;
                         })()}
                         {supplierFilter !== "all" && s?.reorder?.incomingBaseQuantity !== null && s?.reorder?.incomingBaseQuantity !== undefined && s.reorder.incomingBaseQuantity > 0 && (
                           <span className="incoming-hint">
-                            Incoming: {formatQty(s.reorder.incomingBuyingQuantity ?? 0, 2)} {unitConfig.buyingUnit} / {formatQty(s.reorder.incomingBaseQuantity, 2)} {item.unit}
+                            Incoming: {formatQuantityWithUnit(s.reorder.incomingBaseQuantity, item.unit)} ({formatQuantityWithUnit(s.reorder.incomingBuyingQuantity ?? 0, unitConfig.buyingUnit)})
+                          </span>
+                        )}
+                        {s?.replenishment && (
+                          <span className={`replenishment-hint replenishment-hint--${s.replenishment.status.toLowerCase().replace(/_/g, "-")}`}>
+                            {s.replenishment.statusLabel}
+                            {s.replenishment.reorderPointBaseQty !== null && s.replenishment.targetStockBaseQty !== null && (
+                              <span>Reorder point: {formatQuantityWithUnit(s.replenishment.reorderPointBaseQty, item.unit)} - Target: {formatQuantityWithUnit(s.replenishment.targetStockBaseQty, item.unit)}</span>
+                            )}
+                            {(s.replenishment.suggestedBuyingQty ?? 0) > 0 && (
+                              <span>Suggested: order {formatQuantityWithUnit(s.replenishment.suggestedBuyingQty!, unitConfig.buyingUnit, 0)}</span>
+                            )}
                           </span>
                         )}
                         {usage && (() => {
                           if (unitConfig.conversionRequired) {
-                            return <span className="usage-hint">Usage: {formatQty(usage.totalQuantity, 2)} {item.unit} in 7 days</span>;
+                            return <span className="usage-hint">7-day usage: {formatQuantityWithUnit(usage.totalQuantity, item.unit)}</span>;
                           }
                           const totalBuying = toPurchaseQuantity(usage.totalQuantity, unitConfig.conversionFactor);
                           const avgBuying = toPurchaseQuantity(usage.averageDailyUsage, unitConfig.conversionFactor);
                           return (
                             <span className="usage-hint">
-                              7-day usage: {formatQty(totalBuying, 2)} {unitConfig.buyingUnit} / {formatQty(usage.totalQuantity, 2)} {item.unit}
-                              {" - "}Avg/day: {formatQty(avgBuying, 4)} {unitConfig.buyingUnit} / {formatQty(usage.averageDailyUsage, 4)} {item.unit}
+                              <span>7-day usage: {formatQuantityWithUnit(usage.totalQuantity, item.unit)} ({formatQuantityWithUnit(totalBuying, unitConfig.buyingUnit)})</span>
+                              <span>Avg/day: {formatQuantityWithUnit(usage.averageDailyUsage, item.unit, 4)} ({formatQuantityWithUnit(avgBuying, unitConfig.buyingUnit, 4)})</span>
                             </span>
                           );
                         })()}
@@ -848,11 +861,23 @@ export function ItemsPage() {
                             Est. remaining: {formatDaysRemaining(estimatedDaysRemaining)} days
                             <details className="cover-details">
                               <summary>How calculated</summary>
-                              <span>Available stock: {formatQty(s.totalQuantity, 2)} {item.unit}</span>
-                              <span>Average daily usage: {formatQty(usage.averageDailyUsage, 6)} {item.unit}/day</span>
-                              <span>Calculation: {formatQty(s.totalQuantity, 2)} / {formatQty(usage.averageDailyUsage, 6)} = {formatDaysRemaining(estimatedDaysRemaining)} days</span>
+                              <span>Available stock: {formatQuantityWithUnit(s.totalQuantity, item.unit)}</span>
+                              <span>Average daily usage: {formatQty(usage.averageDailyUsage, 4)} {formatRateUnit(item.unit)}</span>
+                              <span>Calculation: {formatQty(s.totalQuantity, 2)} ÷ {formatQty(usage.averageDailyUsage, 4)} = {formatDaysRemaining(estimatedDaysRemaining)} days</span>
                               {unitConfig.usesBuyingUnit && (
-                                <span>{formatQty(s.totalQuantity, 2)} {item.unit} = {formatQty(toPurchaseQuantity(s.totalQuantity, unitConfig.conversionFactor), 2)} {unitConfig.buyingUnit}; 1 {unitConfig.buyingUnit} = {formatQty(unitConfig.conversionFactor, 2)} {item.unit}</span>
+                                <span>Buying equivalent: {formatQuantityWithUnit(s.totalQuantity, item.unit)} = {formatQuantityWithUnit(toPurchaseQuantity(s.totalQuantity, unitConfig.conversionFactor), unitConfig.buyingUnit)}</span>
+                              )}
+                              {s.replenishment && (
+                                <>
+                                  <span>Lead time: {s.replenishment.supplierLeadTimeDays ?? "-"} days</span>
+                                  <span>Safety stock: {s.replenishment.safetyStockDays ?? "-"} days</span>
+                                  <span>Review period: {s.replenishment.reviewPeriodDays ?? "-"} days</span>
+                                  {s.replenishment.reorderPointBaseQty !== null && <span>Reorder point: {formatQuantityWithUnit(s.replenishment.reorderPointBaseQty, item.unit)}</span>}
+                                  {s.replenishment.targetStockBaseQty !== null && <span>Target stock: {formatQuantityWithUnit(s.replenishment.targetStockBaseQty, item.unit)}</span>}
+                                  <span>Incoming: {formatQuantityWithUnit(s.replenishment.incomingBaseQty, item.unit)}</span>
+                                  {s.replenishment.requiredBaseQty !== null && <span>Required: {formatQuantityWithUnit(s.replenishment.requiredBaseQty, item.unit)}</span>}
+                                  {s.replenishment.suggestedBuyingQty !== null && <span>Rounded order quantity: {formatQuantityWithUnit(s.replenishment.suggestedBuyingQty, unitConfig.buyingUnit, 0)}</span>}
+                                </>
                               )}
                             </details>
                           </span>
@@ -861,7 +886,13 @@ export function ItemsPage() {
                       {hasBarcodes && (
                         <td className="td-barcode">{item.barcode ?? "-"}</td>
                       )}
-                      <td className="td-unit">{item.unit}</td>
+                      <td className="td-unit">
+                        <span className="unit-pair">
+                          <span>Base: {item.unit}</span>
+                          {unitConfig.usesBuyingUnit && !unitConfig.conversionRequired && <span>Buy: {unitConfig.buyingUnit}</span>}
+                          {unitConfig.conversionRequired && <span>Buy: setup needed</span>}
+                        </span>
+                      </td>
                       <td className="text-right td-num">
                         {stockDisplay ? (
                           <span className="stock-display">
@@ -1035,6 +1066,16 @@ export function ItemsPage() {
                       </span>
                     )}
                     <span className="item-card-stat">
+                      <span className="item-card-stat-label">Units</span>
+                      <span className="item-card-stat-value">
+                        <span className="unit-pair unit-pair--card">
+                          <span>Base: {item.unit}</span>
+                          {unitConfig.usesBuyingUnit && !unitConfig.conversionRequired && <span>Buy: {unitConfig.buyingUnit}</span>}
+                          {unitConfig.conversionRequired && <span>Buy: setup needed</span>}
+                        </span>
+                      </span>
+                    </span>
+                    <span className="item-card-stat">
                       <span className="item-card-stat-label">In Stock</span>
                       <span className="item-card-stat-value">
                         {stockDisplay ? (
@@ -1054,7 +1095,7 @@ export function ItemsPage() {
                     </span>
                     <span className="item-card-stat">
                       <span className="item-card-stat-label">Min Level</span>
-                      <span className="item-card-stat-value">{item.minStockLevel} {item.unit}</span>
+                      <span className="item-card-stat-value">{formatQuantityWithUnit(item.minStockLevel, item.unit)}</span>
                     </span>
                   </div>
                   {stockDisplay?.conversionRequired && (
@@ -1063,23 +1104,34 @@ export function ItemsPage() {
                     </button>
                   )}
                   {s?.reorder?.calculationAvailable && (s.reorder.suggestedBuyingQuantity ?? 0) > 0 && (() => {
-                    return <p className="reorder-hint reorder-hint--card">Suggested reorder: {formatQty(s.reorder!.suggestedBuyingQuantity!, 0)} {unitConfig.buyingUnit}</p>;
+                    return <p className="reorder-hint reorder-hint--card">Suggested reorder: {formatQuantityWithUnit(s.reorder!.suggestedBuyingQuantity!, unitConfig.buyingUnit, 0)}</p>;
                   })()}
                   {supplierFilter !== "all" && s?.reorder?.incomingBaseQuantity !== null && s?.reorder?.incomingBaseQuantity !== undefined && s.reorder.incomingBaseQuantity > 0 && (
                     <p className="incoming-hint incoming-hint--card">
-                      Incoming: {formatQty(s.reorder.incomingBuyingQuantity ?? 0, 2)} {unitConfig.buyingUnit} / {formatQty(s.reorder.incomingBaseQuantity, 2)} {item.unit}
+                      Incoming: {formatQuantityWithUnit(s.reorder.incomingBaseQuantity, item.unit)} ({formatQuantityWithUnit(s.reorder.incomingBuyingQuantity ?? 0, unitConfig.buyingUnit)})
+                    </p>
+                  )}
+                  {s?.replenishment && (
+                    <p className={`replenishment-hint replenishment-hint--card replenishment-hint--${s.replenishment.status.toLowerCase().replace(/_/g, "-")}`}>
+                      <span>{s.replenishment.statusLabel}</span>
+                      {s.replenishment.reorderPointBaseQty !== null && s.replenishment.targetStockBaseQty !== null && (
+                        <span>Reorder point: {formatQuantityWithUnit(s.replenishment.reorderPointBaseQty, item.unit)} - Target: {formatQuantityWithUnit(s.replenishment.targetStockBaseQty, item.unit)}</span>
+                      )}
+                      {(s.replenishment.suggestedBuyingQty ?? 0) > 0 && (
+                        <span>Suggested: order {formatQuantityWithUnit(s.replenishment.suggestedBuyingQty!, unitConfig.buyingUnit, 0)}</span>
+                      )}
                     </p>
                   )}
                   {usage && (() => {
                     if (unitConfig.conversionRequired) {
-                      return <p className="usage-hint usage-hint--card">Usage: {formatQty(usage.totalQuantity, 2)} {item.unit} in 7 days</p>;
+                      return <p className="usage-hint usage-hint--card">7-day usage: {formatQuantityWithUnit(usage.totalQuantity, item.unit)}</p>;
                     }
                     const totalBuying = toPurchaseQuantity(usage.totalQuantity, unitConfig.conversionFactor);
                     const avgBuying = toPurchaseQuantity(usage.averageDailyUsage, unitConfig.conversionFactor);
                     return (
                       <p className="usage-hint usage-hint--card">
-                        7-day usage: {formatQty(totalBuying, 2)} {unitConfig.buyingUnit} / {formatQty(usage.totalQuantity, 2)} {item.unit}
-                        {" - "}Avg/day: {formatQty(avgBuying, 4)} {unitConfig.buyingUnit} / {formatQty(usage.averageDailyUsage, 4)} {item.unit}
+                        <span>7-day usage: {formatQuantityWithUnit(usage.totalQuantity, item.unit)} ({formatQuantityWithUnit(totalBuying, unitConfig.buyingUnit)})</span>
+                        <span>Avg/day: {formatQuantityWithUnit(usage.averageDailyUsage, item.unit, 4)} ({formatQuantityWithUnit(avgBuying, unitConfig.buyingUnit, 4)})</span>
                       </p>
                     );
                   })()}
@@ -1088,11 +1140,23 @@ export function ItemsPage() {
                       Est. remaining: {formatDaysRemaining(estimatedDaysRemaining)} days
                       <details className="cover-details">
                         <summary>How calculated</summary>
-                        <span>Available stock: {formatQty(s.totalQuantity, 2)} {item.unit}</span>
-                        <span>Average daily usage: {formatQty(usage.averageDailyUsage, 6)} {item.unit}/day</span>
-                        <span>Calculation: {formatQty(s.totalQuantity, 2)} / {formatQty(usage.averageDailyUsage, 6)} = {formatDaysRemaining(estimatedDaysRemaining)} days</span>
+                        <span>Available stock: {formatQuantityWithUnit(s.totalQuantity, item.unit)}</span>
+                        <span>Average daily usage: {formatQty(usage.averageDailyUsage, 4)} {formatRateUnit(item.unit)}</span>
+                        <span>Calculation: {formatQty(s.totalQuantity, 2)} ÷ {formatQty(usage.averageDailyUsage, 4)} = {formatDaysRemaining(estimatedDaysRemaining)} days</span>
                         {unitConfig.usesBuyingUnit && (
-                          <span>{formatQty(s.totalQuantity, 2)} {item.unit} = {formatQty(toPurchaseQuantity(s.totalQuantity, unitConfig.conversionFactor), 2)} {unitConfig.buyingUnit}; 1 {unitConfig.buyingUnit} = {formatQty(unitConfig.conversionFactor, 2)} {item.unit}</span>
+                          <span>Buying equivalent: {formatQuantityWithUnit(s.totalQuantity, item.unit)} = {formatQuantityWithUnit(toPurchaseQuantity(s.totalQuantity, unitConfig.conversionFactor), unitConfig.buyingUnit)}</span>
+                        )}
+                        {s.replenishment && (
+                          <>
+                            <span>Lead time: {s.replenishment.supplierLeadTimeDays ?? "-"} days</span>
+                            <span>Safety stock: {s.replenishment.safetyStockDays ?? "-"} days</span>
+                            <span>Review period: {s.replenishment.reviewPeriodDays ?? "-"} days</span>
+                            {s.replenishment.reorderPointBaseQty !== null && <span>Reorder point: {formatQuantityWithUnit(s.replenishment.reorderPointBaseQty, item.unit)}</span>}
+                            {s.replenishment.targetStockBaseQty !== null && <span>Target stock: {formatQuantityWithUnit(s.replenishment.targetStockBaseQty, item.unit)}</span>}
+                            <span>Incoming: {formatQuantityWithUnit(s.replenishment.incomingBaseQty, item.unit)}</span>
+                            {s.replenishment.requiredBaseQty !== null && <span>Required: {formatQuantityWithUnit(s.replenishment.requiredBaseQty, item.unit)}</span>}
+                            {s.replenishment.suggestedBuyingQty !== null && <span>Rounded order quantity: {formatQuantityWithUnit(s.replenishment.suggestedBuyingQty, unitConfig.buyingUnit, 0)}</span>}
+                          </>
                         )}
                       </details>
                     </p>
@@ -1600,7 +1664,7 @@ function AddItemModal({
   const unitOptions = modalSettings.customUnits.length > 0 ? modalSettings.customUnits : FALLBACK_UNIT_OPTIONS;
   const categoryOptions = modalSettings.customCategories.length > 0 ? modalSettings.customCategories : FALLBACK_CATEGORY_OPTIONS;
   const purchaseUnitOptions = modalSettings.customPurchaseUnits ?? [];
-  const [form, setForm] = useState<CreateItemInput>({ name: "", unit: unitOptions[0] ?? FALLBACK_UNIT_OPTIONS[0], category: "", barcode: prefillBarcode ?? "", minStockLevel: 0, criticalStockLevel: null, parStockLevel: null, procurementFrequency: null, customFrequencyDays: null, procurementLeadTimeDays: null, trackExpiry: false, purchaseUnit: null, purchaseConversionFactor: null, issueUnit: null, displayBothUnits: false });
+  const [form, setForm] = useState<CreateItemInput>({ name: "", unit: unitOptions[0] ?? FALLBACK_UNIT_OPTIONS[0], category: "", barcode: prefillBarcode ?? "", minStockLevel: 0, criticalStockLevel: null, parStockLevel: null, procurementFrequency: null, customFrequencyDays: null, procurementLeadTimeDays: null, replenishmentMode: "MANUAL_THRESHOLD", safetyStockDays: null, reviewPeriodDays: null, manualReorderPointBaseQty: null, manualTargetStockBaseQty: null, allowFractionalPurchaseUnit: false, trackExpiry: false, purchaseUnit: null, purchaseConversionFactor: null, issueUnit: null, displayBothUnits: false });
   const [saving, setSaving] = useState(false);
   const [supplierId, setSupplierId] = useState("");
   const [usesPurchaseUnit, setUsesPurchaseUnit] = useState(false);
@@ -1610,7 +1674,15 @@ function AddItemModal({
   useEffect(() => { firstRef.current?.focus(); }, []);
 
   const purchaseUnitInvalid = usesPurchaseUnit && (!form.purchaseUnit?.trim() || !form.purchaseConversionFactor || form.purchaseConversionFactor <= 0);
-  const canSubmit = !saving && form.name.trim().length > 0 && form.unit.trim().length > 0 && !purchaseUnitInvalid;
+  const daysBasedInvalid = form.replenishmentMode === "DAYS_BASED" && (
+    form.procurementLeadTimeDays == null ||
+    form.procurementLeadTimeDays < 0 ||
+    form.safetyStockDays == null ||
+    form.safetyStockDays < 0 ||
+    form.reviewPeriodDays == null ||
+    form.reviewPeriodDays <= 0
+  );
+  const canSubmit = !saving && form.name.trim().length > 0 && form.unit.trim().length > 0 && !purchaseUnitInvalid && !daysBasedInvalid;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -1644,11 +1716,65 @@ function AddItemModal({
           {usesPurchaseUnit && <><div className="form-row-2col"><div className="form-group"><label className="form-label">Purchase Unit *</label>{purchaseUnitOptions.length > 0 ? <select className="form-select" value={form.purchaseUnit ?? ""} onChange={(e) => setForm({ ...form, purchaseUnit: e.target.value || null, purchaseConversionFactor: e.target.value ? form.purchaseConversionFactor : null })} required><option value="">Select purchase unit</option>{purchaseUnitOptions.map((u) => <option key={u} value={u}>{u}</option>)}</select> : <input className="form-input" value={form.purchaseUnit ?? ""} onChange={(e) => setForm({ ...form, purchaseUnit: e.target.value || null })} placeholder="e.g. Carton" required />}</div><div className="form-group"><label className="form-label">How many stock units in one purchase unit? *</label><input className="form-input" type="number" min={0.0001} step="any" value={form.purchaseConversionFactor ?? ""} onChange={(e) => setForm({ ...form, purchaseConversionFactor: e.target.value ? Number(e.target.value) : null })} required /></div></div>{form.purchaseUnit && form.purchaseConversionFactor && form.purchaseConversionFactor > 0 && <p className="uom-hint uom-hint--form">1 {form.purchaseUnit} = {form.purchaseConversionFactor} {form.unit}</p>}<div className="form-group form-group--inline"><input id="displayBothUnits" type="checkbox" checked={form.displayBothUnits ?? false} onChange={(e) => setForm({ ...form, displayBothUnits: e.target.checked })} /><label htmlFor="displayBothUnits" className="form-label form-label--check">Show quantity in both units in inventory</label></div></>}
           <div className="form-row-2col"><div className="form-group"><label className="form-label">SKU</label><input className="form-input" value={form.sku ?? ""} onChange={(e) => setForm({ ...form, sku: e.target.value })} placeholder="Optional internal SKU" /></div><div className="form-group"><label className="form-label">Barcode</label><div className="barcode-input-row"><input className="form-input" value={form.barcode ?? ""} onChange={(e) => setForm({ ...form, barcode: e.target.value })} placeholder="Scan or enter barcode" /><button type="button" className="btn btn--ghost btn--sm" disabled={Boolean(form.barcode?.trim())} onClick={() => setForm({ ...form, barcode: generateBarcodeValue() })}>Auto-generate</button></div></div></div>
           <div className="item-units-section item-units-section--compact"><div className="item-units-section__title">Reorder Settings</div><div className="form-row-2col"><div className="form-group"><label className="form-label">Emergency Stock Level</label><input className="form-input" type="number" min={0} step="any" value={form.criticalStockLevel ?? ""} onChange={(e) => setForm({ ...form, criticalStockLevel: e.target.value === "" ? null : Number(e.target.value) })} /></div><div className="form-group"><label className="form-label">Ideal Stock Level</label><input className="form-input" type="number" min={0} step="any" value={form.parStockLevel ?? ""} onChange={(e) => setForm({ ...form, parStockLevel: e.target.value === "" ? null : Number(e.target.value) })} /></div></div><div className="form-row-2col"><div className="form-group"><label className="form-label">Procurement Frequency</label><select className="form-select" value={form.procurementFrequency ?? ""} onChange={(e) => setForm({ ...form, procurementFrequency: e.target.value || null, customFrequencyDays: e.target.value !== "custom" ? null : form.customFrequencyDays })}><option value="">Select frequency</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="biweekly">Bi-weekly</option><option value="monthly">Monthly</option><option value="custom">Custom</option></select></div>{form.procurementFrequency === "custom" ? <div className="form-group"><label className="form-label">Custom Interval (days)</label><input className="form-input" type="number" min={1} step={1} value={form.customFrequencyDays ?? ""} onChange={(e) => setForm({ ...form, customFrequencyDays: e.target.value === "" ? null : Number(e.target.value) })} /></div> : <div className="form-group"><label className="form-label">Supplier Delivery Time (days)</label><input className="form-input" type="number" min={0} step={1} value={form.procurementLeadTimeDays ?? ""} onChange={(e) => setForm({ ...form, procurementLeadTimeDays: e.target.value === "" ? null : Number(e.target.value) })} /></div>}</div>{form.procurementFrequency === "custom" && <div className="form-group"><label className="form-label">Supplier Delivery Time (days)</label><input className="form-input" type="number" min={0} step={1} value={form.procurementLeadTimeDays ?? ""} onChange={(e) => setForm({ ...form, procurementLeadTimeDays: e.target.value === "" ? null : Number(e.target.value) })} /></div>}</div>
+          <ReplenishmentSettingsFields form={form} setForm={setForm} />
         </details>
 
         <div className="modal-footer"><button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button><button type="submit" className="btn btn--primary" disabled={!canSubmit}>{saving ? <span className="btn-spinner" /> : null}{saving ? "Adding..." : "Add Item"}</button></div>
       </form>
     </Modal>
+  );
+}
+
+function ReplenishmentSettingsFields({
+  form,
+  setForm,
+}: {
+  form: CreateItemInput;
+  setForm: React.Dispatch<React.SetStateAction<CreateItemInput>>;
+}) {
+  return (
+    <div className="item-units-section item-units-section--compact">
+      <div className="item-units-section__title">Replenishment</div>
+      <div className="form-group">
+        <label className="form-label">Mode</label>
+        <select
+          className="form-select"
+          value={form.replenishmentMode ?? "MANUAL_THRESHOLD"}
+          onChange={(e) => setForm({ ...form, replenishmentMode: e.target.value as "MANUAL_THRESHOLD" | "DAYS_BASED" })}
+        >
+          <option value="MANUAL_THRESHOLD">Manual threshold</option>
+          <option value="DAYS_BASED">Days based</option>
+        </select>
+      </div>
+      {form.replenishmentMode === "DAYS_BASED" && (
+        <>
+          <div className="form-row-2col">
+            <div className="form-group">
+              <label className="form-label">Safety stock days *</label>
+              <input className="form-input" type="number" min={0} step="any" value={form.safetyStockDays ?? ""} onChange={(e) => setForm({ ...form, safetyStockDays: e.target.value === "" ? null : Number(e.target.value) })} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Review period days *</label>
+              <input className="form-input" type="number" min={1} step="any" value={form.reviewPeriodDays ?? ""} onChange={(e) => setForm({ ...form, reviewPeriodDays: e.target.value === "" ? null : Number(e.target.value) })} />
+            </div>
+          </div>
+          <div className="form-row-2col">
+            <div className="form-group">
+              <label className="form-label">Manual reorder point</label>
+              <input className="form-input" type="number" min={0} step="any" value={form.manualReorderPointBaseQty ?? ""} onChange={(e) => setForm({ ...form, manualReorderPointBaseQty: e.target.value === "" ? null : Number(e.target.value) })} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Manual target stock</label>
+              <input className="form-input" type="number" min={0} step="any" value={form.manualTargetStockBaseQty ?? ""} onChange={(e) => setForm({ ...form, manualTargetStockBaseQty: e.target.value === "" ? null : Number(e.target.value) })} />
+            </div>
+          </div>
+        </>
+      )}
+      <div className="form-group form-group--inline">
+        <input id="allowFractionalPurchaseUnit" type="checkbox" checked={form.allowFractionalPurchaseUnit ?? false} onChange={(e) => setForm({ ...form, allowFractionalPurchaseUnit: e.target.checked })} />
+        <label htmlFor="allowFractionalPurchaseUnit" className="form-label form-label--check">Allow fractional purchase units</label>
+      </div>
+    </div>
   );
 }
 
@@ -1669,7 +1795,7 @@ function EditItemModal({
   const unitOptions = editSettings.customUnits.length > 0 ? editSettings.customUnits : FALLBACK_UNIT_OPTIONS;
   const categoryOptions = editSettings.customCategories.length > 0 ? editSettings.customCategories : FALLBACK_CATEGORY_OPTIONS;
   const purchaseUnitOptions = editSettings.customPurchaseUnits ?? [];
-  const [form, setForm] = useState<CreateItemInput>({ name: item.name, unit: item.unit, category: item.category ?? "", sku: item.sku ?? "", barcode: item.barcode ?? "", minStockLevel: item.minStockLevel, criticalStockLevel: item.criticalStockLevel ?? null, parStockLevel: item.parStockLevel ?? null, procurementFrequency: item.procurementFrequency ?? null, customFrequencyDays: item.customFrequencyDays ?? null, procurementLeadTimeDays: item.procurementLeadTimeDays ?? null, trackExpiry: item.trackExpiry, purchaseUnit: item.purchaseUnit ?? null, purchaseConversionFactor: item.purchaseConversionFactor ?? null, issueUnit: item.issueUnit ?? null, displayBothUnits: item.displayBothUnits ?? false });
+  const [form, setForm] = useState<CreateItemInput>({ name: item.name, unit: item.unit, category: item.category ?? "", sku: item.sku ?? "", barcode: item.barcode ?? "", minStockLevel: item.minStockLevel, criticalStockLevel: item.criticalStockLevel ?? null, parStockLevel: item.parStockLevel ?? null, procurementFrequency: item.procurementFrequency ?? null, customFrequencyDays: item.customFrequencyDays ?? null, procurementLeadTimeDays: item.procurementLeadTimeDays ?? null, replenishmentMode: item.replenishmentMode ?? "MANUAL_THRESHOLD", safetyStockDays: item.safetyStockDays ?? null, reviewPeriodDays: item.reviewPeriodDays ?? null, manualReorderPointBaseQty: item.manualReorderPointBaseQty ?? null, manualTargetStockBaseQty: item.manualTargetStockBaseQty ?? null, allowFractionalPurchaseUnit: item.allowFractionalPurchaseUnit ?? false, trackExpiry: item.trackExpiry, purchaseUnit: item.purchaseUnit ?? null, purchaseConversionFactor: item.purchaseConversionFactor ?? null, issueUnit: item.issueUnit ?? null, displayBothUnits: item.displayBothUnits ?? false });
   const [saving, setSaving] = useState(false);
   const [supplierId, setSupplierId] = useState("");
   const [existingSupplierMappings, setExistingSupplierMappings] = useState<ItemSupplierMapping[]>([]);
@@ -1684,9 +1810,17 @@ function EditItemModal({
     return () => { alive = false; };
   }, [item.id]);
 
-  const advancedConfigured = Boolean(item.purchaseUnit || item.purchaseConversionFactor || item.displayBothUnits || item.sku || item.barcode || item.criticalStockLevel != null || item.parStockLevel != null || item.procurementFrequency || item.customFrequencyDays != null || item.procurementLeadTimeDays != null);
+  const advancedConfigured = Boolean(item.purchaseUnit || item.purchaseConversionFactor || item.displayBothUnits || item.sku || item.barcode || item.criticalStockLevel != null || item.parStockLevel != null || item.procurementFrequency || item.customFrequencyDays != null || item.procurementLeadTimeDays != null || item.replenishmentMode === "DAYS_BASED" || item.safetyStockDays != null || item.reviewPeriodDays != null || item.manualReorderPointBaseQty != null || item.manualTargetStockBaseQty != null);
   const purchaseUnitInvalid = usesPurchaseUnit && (!form.purchaseUnit?.trim() || !form.purchaseConversionFactor || form.purchaseConversionFactor <= 0);
-  const canSubmit = !saving && form.name.trim().length > 0 && form.unit.trim().length > 0 && !purchaseUnitInvalid;
+  const daysBasedInvalid = form.replenishmentMode === "DAYS_BASED" && (
+    form.procurementLeadTimeDays == null ||
+    form.procurementLeadTimeDays < 0 ||
+    form.safetyStockDays == null ||
+    form.safetyStockDays < 0 ||
+    form.reviewPeriodDays == null ||
+    form.reviewPeriodDays <= 0
+  );
+  const canSubmit = !saving && form.name.trim().length > 0 && form.unit.trim().length > 0 && !purchaseUnitInvalid && !daysBasedInvalid;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -1722,6 +1856,7 @@ function EditItemModal({
           {usesPurchaseUnit && <><div className="form-row-2col"><div className="form-group"><label className="form-label">Purchase Unit *</label>{purchaseUnitOptions.length > 0 ? <select className="form-select" value={form.purchaseUnit ?? ""} onChange={(e) => setForm({ ...form, purchaseUnit: e.target.value || null, purchaseConversionFactor: e.target.value ? form.purchaseConversionFactor : null })} required><option value="">Select purchase unit</option>{purchaseUnitOptions.map((u) => <option key={u} value={u}>{u}</option>)}</select> : <input className="form-input" value={form.purchaseUnit ?? ""} onChange={(e) => setForm({ ...form, purchaseUnit: e.target.value || null })} placeholder="e.g. Carton" required />}</div><div className="form-group"><label className="form-label">How many stock units in one purchase unit? *</label><input className="form-input" type="number" min={0.0001} step="any" value={form.purchaseConversionFactor ?? ""} onChange={(e) => setForm({ ...form, purchaseConversionFactor: e.target.value ? Number(e.target.value) : null })} required /></div></div>{form.purchaseUnit && form.purchaseConversionFactor && form.purchaseConversionFactor > 0 && <p className="uom-hint uom-hint--form">1 {form.purchaseUnit} = {form.purchaseConversionFactor} {form.unit}</p>}<div className="form-group form-group--inline"><input id="editDisplayBothUnits" type="checkbox" checked={form.displayBothUnits ?? false} onChange={(e) => setForm({ ...form, displayBothUnits: e.target.checked })} /><label htmlFor="editDisplayBothUnits" className="form-label form-label--check">Show quantity in both units in inventory</label></div></>}
           <div className="form-row-2col"><div className="form-group"><label className="form-label">SKU</label><input className="form-input" value={form.sku ?? ""} onChange={(e) => setForm({ ...form, sku: e.target.value })} placeholder="Optional internal SKU" /></div><div className="form-group"><label className="form-label">Barcode</label><input className="form-input" value={form.barcode ?? ""} onChange={(e) => setForm({ ...form, barcode: e.target.value })} placeholder="Scan or enter barcode" /></div></div>
           <div className="item-units-section item-units-section--compact"><div className="item-units-section__title">Reorder Settings</div><div className="form-row-2col"><div className="form-group"><label className="form-label">Emergency Stock Level</label><input className="form-input" type="number" min={0} step="any" value={form.criticalStockLevel ?? ""} onChange={(e) => setForm({ ...form, criticalStockLevel: e.target.value === "" ? null : Number(e.target.value) })} /></div><div className="form-group"><label className="form-label">Ideal Stock Level</label><input className="form-input" type="number" min={0} step="any" value={form.parStockLevel ?? ""} onChange={(e) => setForm({ ...form, parStockLevel: e.target.value === "" ? null : Number(e.target.value) })} /></div></div><div className="form-row-2col"><div className="form-group"><label className="form-label">Procurement Frequency</label><select className="form-select" value={form.procurementFrequency ?? ""} onChange={(e) => setForm({ ...form, procurementFrequency: e.target.value || null, customFrequencyDays: e.target.value !== "custom" ? null : form.customFrequencyDays })}><option value="">Select frequency</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="biweekly">Bi-weekly</option><option value="monthly">Monthly</option><option value="custom">Custom</option></select></div>{form.procurementFrequency === "custom" ? <div className="form-group"><label className="form-label">Custom Interval (days)</label><input className="form-input" type="number" min={1} step={1} value={form.customFrequencyDays ?? ""} onChange={(e) => setForm({ ...form, customFrequencyDays: e.target.value === "" ? null : Number(e.target.value) })} /></div> : <div className="form-group"><label className="form-label">Supplier Delivery Time (days)</label><input className="form-input" type="number" min={0} step={1} value={form.procurementLeadTimeDays ?? ""} onChange={(e) => setForm({ ...form, procurementLeadTimeDays: e.target.value === "" ? null : Number(e.target.value) })} /></div>}</div>{form.procurementFrequency === "custom" && <div className="form-group"><label className="form-label">Supplier Delivery Time (days)</label><input className="form-input" type="number" min={0} step={1} value={form.procurementLeadTimeDays ?? ""} onChange={(e) => setForm({ ...form, procurementLeadTimeDays: e.target.value === "" ? null : Number(e.target.value) })} /></div>}</div>
+          <ReplenishmentSettingsFields form={form} setForm={setForm} />
         </details>
         <div className="modal-footer"><button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button><button type="submit" className="btn btn--primary" disabled={!canSubmit}>{saving ? <span className="btn-spinner" /> : null}{saving ? "Saving..." : "Save changes"}</button></div>
       </form>

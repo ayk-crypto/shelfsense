@@ -6,7 +6,15 @@ import { requireActiveWorkspace, requireAuth, requireRole } from "../middleware/
 import { asyncHandler } from "../utils/async-handler.js";
 import { logAction } from "../utils/audit-log.js";
 import { assertActiveLocation, assertActiveLocations, getActiveLocationId } from "../utils/locations.js";
-import { buildStockBreakdown, calculateReorder } from "../lib/inventory-units.js";
+import {
+  buildStockBreakdown,
+  buildUsageMetrics,
+  calculateCoverage,
+  calculateReorder,
+  calculateReplenishment,
+  summarizeIncomingPurchaseLines,
+  type ReplenishmentMode,
+} from "../lib/inventory-units.js";
 
 export const stockRouter = Router();
 
@@ -614,8 +622,13 @@ stockRouter.get("/summary", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR
     return res.status(403).json({ error: "Workspace access required" });
   }
   const locationId = await getActiveLocationId(req, workspaceId);
+  const now = new Date();
+  const usageFromDate = new Date(now);
+  usageFromDate.setDate(now.getDate() - 6);
+  usageFromDate.setHours(0, 0, 0, 0);
 
-  const items = await prisma.item.findMany({
+  const [items, usageMovements] = await Promise.all([
+    prisma.item.findMany({
     where: { workspaceId, isActive: true },
     orderBy: { name: "asc" },
     select: {
@@ -625,6 +638,13 @@ stockRouter.get("/summary", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR
       purchaseUnit: true,
       purchaseConversionFactor: true,
       minStockLevel: true,
+      procurementLeadTimeDays: true,
+      replenishmentMode: true,
+      safetyStockDays: true,
+      reviewPeriodDays: true,
+      manualReorderPointBaseQty: true,
+      manualTargetStockBaseQty: true,
+      allowFractionalPurchaseUnit: true,
       isActive: true,
       stockBatches: {
         where: {
@@ -649,10 +669,40 @@ stockRouter.get("/summary", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR
         select: {
           quantity: true,
           receivedQuantity: true,
+          baseUnitSnapshot: true,
+          purchaseUnitSnapshot: true,
+          purchaseConversionFactorSnapshot: true,
+          unitSnapshotSource: true,
+          purchase: {
+            select: {
+              id: true,
+              status: true,
+              expectedDeliveryDate: true,
+              supplier: { select: { name: true } },
+            },
+          },
         },
       },
     },
-  });
+    }),
+    prisma.stockMovement.findMany({
+      where: {
+        workspaceId,
+        locationId,
+        type: StockMovementType.STOCK_OUT,
+        createdAt: { gte: usageFromDate, lte: now },
+      },
+      select: {
+        itemId: true,
+        quantity: true,
+      },
+    }),
+  ]);
+
+  const usageByItemId = new Map<string, number>();
+  for (const movement of usageMovements) {
+    usageByItemId.set(movement.itemId, (usageByItemId.get(movement.itemId) ?? 0) + movement.quantity);
+  }
 
   const summary = items.map((item) => {
     const totalQuantity = item.stockBatches.reduce(
@@ -684,6 +734,55 @@ stockRouter.get("/summary", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR
       isActive: item.isActive,
       requiresReplenishment: item.minStockLevel > 0,
     });
+    const usageBaseQty = usageByItemId.get(item.id) ?? null;
+    const hasUsageHistory = usageBaseQty !== null;
+    const usage = buildUsageMetrics(usageBaseQty, hasUsageHistory, {
+      baseUnit: item.unit,
+      buyingUnit: item.purchaseUnit,
+      conversionFactor: item.purchaseConversionFactor,
+    });
+    const coverage = calculateCoverage(
+      totalQuantity,
+      usage.averageDailyBaseQuantity,
+      usage.hasUsageHistory,
+      stock.conversionRequired,
+      item.minStockLevel !== null && totalQuantity <= item.minStockLevel,
+    );
+    const incoming = summarizeIncomingPurchaseLines(item.purchaseItems.map((line) => ({
+      purchaseId: line.purchase.id,
+      poReference: `PO-${line.purchase.id.slice(-8).toUpperCase()}`,
+      supplierName: line.purchase.supplier.name,
+      status: line.purchase.status,
+      orderedBaseQty: line.quantity,
+      receivedBaseQty: line.receivedQuantity,
+      baseUnitSnapshot: line.baseUnitSnapshot,
+      purchaseUnitSnapshot: line.purchaseUnitSnapshot,
+      purchaseConversionFactorSnapshot: line.purchaseConversionFactorSnapshot,
+      unitSnapshotSource: line.unitSnapshotSource,
+      expectedDeliveryDate: line.purchase.expectedDeliveryDate,
+    })), {
+      baseUnit: item.unit,
+      buyingUnit: item.purchaseUnit,
+      conversionFactor: item.purchaseConversionFactor,
+    }, now);
+    const replenishment = calculateReplenishment({
+      mode: (item.replenishmentMode === "DAYS_BASED" ? "DAYS_BASED" : "MANUAL_THRESHOLD") as ReplenishmentMode,
+      currentStockBaseQty: totalQuantity,
+      averageDailyUsageBaseQty: usage.averageDailyBaseQuantity,
+      hasUsageHistory: usage.hasUsageHistory,
+      supplierLeadTimeDays: item.procurementLeadTimeDays,
+      safetyStockDays: item.safetyStockDays,
+      reviewPeriodDays: item.reviewPeriodDays,
+      lowStockThresholdBaseQty: item.minStockLevel,
+      manualReorderPointBaseQty: item.manualReorderPointBaseQty,
+      manualTargetStockBaseQty: item.manualTargetStockBaseQty,
+      purchaseUnit: item.purchaseUnit,
+      baseUnit: item.unit,
+      purchaseConversionFactor: item.purchaseConversionFactor,
+      allowFractionalPurchaseUnit: item.allowFractionalPurchaseUnit,
+      incoming,
+      today: now,
+    });
 
     return {
       itemId: item.id,
@@ -697,7 +796,10 @@ stockRouter.get("/summary", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR
       totalValue,
       nearestExpiryDate,
       stock,
+      usage,
+      coverage,
       reorder,
+      replenishment,
       unitConversion: {
         baseUnit: stock.baseUnit,
         buyingUnit: stock.buyingUnit,

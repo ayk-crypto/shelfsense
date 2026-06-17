@@ -10,10 +10,11 @@ import type {
   BelowParAlert,
   CriticalStockAlert,
   ExpiryAlert,
+  ReplenishmentAlert,
   ReorderDueAlert,
 } from "../types";
 import { getSuggestedReorderQuantity } from "../utils/reorder";
-import { hasPurchaseUnit, getSuggestedPurchaseQty } from "../utils/purchaseUnits";
+import { formatQuantityWithUnit, hasPurchaseUnit, getSuggestedPurchaseQty } from "../utils/purchaseUnits";
 
 type AlertTab = "all" | "critical" | "reorder-due" | "below-par" | "awaiting" | "expiring" | "expired";
 
@@ -23,6 +24,7 @@ const EMPTY_ALERTS: AlertsResponse = {
   reorderDue: [],
   belowPar: [],
   awaitingReceiving: [],
+  replenishmentAlerts: [],
   expiringSoon: [],
   expired: [],
 };
@@ -104,6 +106,7 @@ export function AlertsPage() {
   const filteredReorderDue = reorderSorted.filter(i => matches(i.itemName));
   const filteredBelowPar   = alerts.belowPar.filter(i => matches(i.itemName));
   const filteredAwaiting   = alerts.awaitingReceiving.filter(i => matches(i.itemName));
+  const filteredReplenishment = (alerts.replenishmentAlerts ?? []).filter(i => matches(i.itemName));
   const filteredExpiring   = alerts.expiringSoon.filter(b => matches(b.item.name));
   const filteredExpired    = alerts.expired.filter(b => matches(b.item.name));
 
@@ -112,10 +115,11 @@ export function AlertsPage() {
     reorderDue: alerts.reorderDue.length,
     belowPar:   alerts.belowPar.length,
     awaiting:   alerts.awaitingReceiving.length,
+    replenishment: (alerts.replenishmentAlerts ?? []).length,
     expiring:   alerts.expiringSoon.length,
     expired:    alerts.expired.length,
     get all() {
-      return this.critical + this.reorderDue + this.belowPar + this.awaiting + this.expiring + this.expired;
+      return this.critical + this.reorderDue + this.belowPar + this.awaiting + this.replenishment + this.expiring + this.expired;
     },
   };
 
@@ -126,6 +130,7 @@ export function AlertsPage() {
   const showReorderDue = (tab === "all" || tab === "reorder-due") && filteredReorderDue.length > 0;
   const showBelowPar   = (tab === "all" || tab === "below-par")   && filteredBelowPar.length > 0;
   const showAwaiting   = (tab === "all" || tab === "awaiting")    && filteredAwaiting.length > 0;
+  const showReplenishment = tab === "all" && filteredReplenishment.length > 0;
   const showExpiring   = (tab === "all" || tab === "expiring")    && filteredExpiring.length > 0;
   const showExpired    = (tab === "all" || tab === "expired")     && filteredExpired.length > 0;
 
@@ -318,6 +323,10 @@ export function AlertsPage() {
       )}
 
       {/* ── Critical stock ── */}
+      {showReplenishment && (
+        <ReplenishmentTable items={filteredReplenishment} showSectionHead={tab === "all"} />
+      )}
+
       {showCritical && (
         <CriticalTable
           items={filteredCritical}
@@ -387,6 +396,69 @@ export function AlertsPage() {
 }
 
 /* ── Critical Stock Table ────────────────────────────────────────────────── */
+
+function ReplenishmentTable({ items, showSectionHead }: { items: ReplenishmentAlert[]; showSectionHead: boolean }) {
+  return (
+    <section className="alv-section">
+      {showSectionHead && (
+        <div className="alv-sec-head alv-sec-head--amber">
+          <div className="alv-sec-head-left">
+            <div className="alv-sec-icon alv-sec-icon--amber">
+              <svg viewBox="0 0 20 20" fill="currentColor"><path d="M4 2a1 1 0 000 2h1.22l.305 1.222 1.358 5.43-.893.892C3.74 11.846 4.632 14 6.414 14H15a1 1 0 000-2H6.414l1-1H14a1 1 0 00.894-.553l3-6A1 1 0 0017 3H6.28l-.31-1.243A1 1 0 005 1H4z"/></svg>
+            </div>
+            <span className="alv-sec-title">Replenishment</span>
+            <span className="alv-sec-badge alv-sec-badge--amber">{items.length}</span>
+          </div>
+          <Link className="btn btn--ghost btn--sm" to="/reorder-suggestions">Create Purchase Draft</Link>
+        </div>
+      )}
+      <div className="alv-table-wrap">
+        <table className="alv-table">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Status</th>
+              <th className="alv-th-r">Current</th>
+              <th className="alv-th-r">Incoming</th>
+              <th className="alv-th-r">Suggested</th>
+              <th>Expected</th>
+              <th className="alv-th-action"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item) => {
+              const r = item.replenishment;
+              const buyUnit = item.purchaseUnit ?? item.unit;
+              const suggested = r.suggestedBuyingQty ?? r.additionalSuggestedBuyingQty ?? 0;
+              return (
+                <tr key={`${item.itemId}-${r.status}`} className="alv-tr alv-tr--reorder">
+                  <td className="alv-td-name">
+                    <div className="alv-item-name">{item.itemName}</div>
+                    <div className="alv-item-meta"><span className="alv-item-unit">{item.unit}</span></div>
+                  </td>
+                  <td>
+                    <span className={`alv-pill ${r.status === "ON_ORDER_SHORTAGE_RISK" || r.status === "OVERDUE_DELIVERY" ? "alv-pill--danger" : r.status === "CONFIGURATION_REQUIRED" ? "alv-pill--warn" : "alv-pill--caution"}`}>
+                      {r.statusLabel}
+                    </span>
+                  </td>
+                  <td className="alv-td-r">{formatQuantityWithUnit(item.quantity, item.unit)}</td>
+                  <td className="alv-td-r">{r.incomingBaseQty > 0 ? formatQuantityWithUnit(r.incomingBuyingQty, buyUnit) : <span className="alv-dash">-</span>}</td>
+                  <td className="alv-td-r">{suggested > 0 ? formatQuantityWithUnit(suggested, buyUnit, 0) : <span className="alv-dash">-</span>}</td>
+                  <td>{r.earliestExpectedDeliveryDate ? <span className="alv-date">{fmtDate(r.earliestExpectedDeliveryDate)}</span> : <span className="alv-dash">-</span>}</td>
+                  <td className="alv-td-action">
+                    <Link to={r.status === "CONFIGURATION_REQUIRED" ? `/items?q=${encodeURIComponent(item.itemName)}` : "/reorder-suggestions"} className="alv-row-action alv-row-action--amber">
+                      {r.status === "CONFIGURATION_REQUIRED" ? "Review setup" : "Reorder"}
+                    </Link>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
 
 function CriticalTable({ items, multiplier, showSectionHead }: { items: CriticalStockAlert[]; multiplier: number; showSectionHead: boolean }) {
   return (

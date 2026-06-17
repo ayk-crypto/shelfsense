@@ -1,4 +1,4 @@
-import { PurchaseStatus, Role, StockMovementType } from "../generated/prisma/enums.js";
+import { PurchaseStatus, Role, StockMovementType, UnitSnapshotSource } from "../generated/prisma/enums.js";
 import { Router, type Request } from "express";
 import { Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../db/prisma.js";
@@ -7,6 +7,11 @@ import { requirePlanFeature } from "../middleware/require-plan-feature.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { logAction } from "../utils/audit-log.js";
 import { assertActiveLocation, assertActiveLocations, getActiveLocationId } from "../utils/locations.js";
+import {
+  buildPurchaseLineSnapshot,
+  parseQuantityUnit,
+  type PurchaseQuantityUnit,
+} from "../lib/purchase-unit-snapshots.js";
 
 export const purchasesRouter = Router();
 
@@ -63,10 +68,10 @@ purchasesRouter.post("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(
   if (input.items.length === 0) return res.status(400).json({ error: "At least one purchase item is required" });
 
   const invalidLine = input.items.find(
-    (item) => !item.itemId || item.quantity === undefined || item.unitCost === undefined,
+    (item) => !item.itemId || item.quantity === undefined || item.unitCost === undefined || !item.quantityUnit,
   );
   if (invalidLine) {
-    return res.status(400).json({ error: "Each purchase item requires itemId, quantity, and unitCost" });
+    return res.status(400).json({ error: "Each purchase item requires itemId, quantity, quantityUnit, and unitCost" });
   }
 
   const nonPositiveLine = input.items.find((item) => item.quantity! <= 0 || item.unitCost! < 0);
@@ -83,16 +88,42 @@ purchasesRouter.post("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(
   const itemIds = [...new Set(input.items.map((item) => item.itemId!))];
   const items = await prisma.item.findMany({
     where: { id: { in: itemIds }, workspaceId, isActive: true },
-    select: { id: true },
+    select: { id: true, unit: true, purchaseUnit: true, purchaseConversionFactor: true },
   });
   if (items.length !== itemIds.length) return res.status(404).json({ error: "One or more items were not found" });
 
-  const lines = input.items.map((item) => ({
-    itemId: item.itemId!,
-    quantity: item.quantity!,
-    unitCost: item.unitCost!,
-    total: item.quantity! * item.unitCost!,
-  }));
+  const itemById = new Map(items.map((item) => [item.id, item]));
+  const lines: Array<{
+    itemId: string;
+    quantity: number;
+    unitCost: number;
+    total: number;
+    baseUnitSnapshot: string;
+    purchaseUnitSnapshot: string | null;
+    purchaseConversionFactorSnapshot: number | null;
+    enteredQuantity: number;
+    enteredUnitSnapshot: string;
+    storedBaseQuantitySnapshot: number;
+    unitSnapshotSource: UnitSnapshotSource;
+  }> = [];
+  for (const item of input.items) {
+    const dbItem = itemById.get(item.itemId!)!;
+    const snapshot = buildPurchaseLineSnapshot(item.quantity!, item.quantityUnit!, item.unitCost!, dbItem);
+    if ("error" in snapshot) return res.status(400).json({ error: snapshot.error });
+    lines.push({
+      itemId: item.itemId!,
+      quantity: snapshot.storedBaseQuantity,
+      unitCost: snapshot.baseUnitCost,
+      total: snapshot.storedBaseQuantity * snapshot.baseUnitCost,
+      baseUnitSnapshot: snapshot.baseUnitSnapshot,
+      purchaseUnitSnapshot: snapshot.purchaseUnitSnapshot,
+      purchaseConversionFactorSnapshot: snapshot.purchaseConversionFactorSnapshot,
+      enteredQuantity: snapshot.enteredQuantity,
+      enteredUnitSnapshot: snapshot.enteredUnitSnapshot,
+      storedBaseQuantitySnapshot: snapshot.storedBaseQuantity,
+      unitSnapshotSource: UnitSnapshotSource.ORIGINAL,
+    });
+  }
   const totalAmount = lines.reduce((total, line) => total + line.total, 0);
   const purchaseDate = input.date instanceof Date ? input.date : new Date();
 
@@ -116,6 +147,13 @@ purchasesRouter.post("/", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(
             receivedQuantity: 0,
             unitCost: line.unitCost,
             total: line.total,
+            baseUnitSnapshot: line.baseUnitSnapshot,
+            purchaseUnitSnapshot: line.purchaseUnitSnapshot,
+            purchaseConversionFactorSnapshot: line.purchaseConversionFactorSnapshot,
+            enteredQuantity: line.enteredQuantity,
+            enteredUnitSnapshot: line.enteredUnitSnapshot,
+            storedBaseQuantitySnapshot: line.storedBaseQuantitySnapshot,
+            unitSnapshotSource: line.unitSnapshotSource,
           })),
         },
       },
@@ -705,6 +743,13 @@ purchasesRouter.post("/:id/close-with-variance", requireRole([Role.OWNER, Role.M
             receivedQuantity: 0,
             unitCost: pi.unitCost,
             total: (pi.quantity - pi.receivedQuantity) * pi.unitCost,
+            baseUnitSnapshot: pi.baseUnitSnapshot,
+            purchaseUnitSnapshot: pi.purchaseUnitSnapshot,
+            purchaseConversionFactorSnapshot: pi.purchaseConversionFactorSnapshot,
+            enteredQuantity: calculateEnteredQuantityForBaseQty(pi.quantity - pi.receivedQuantity, pi),
+            enteredUnitSnapshot: pi.enteredUnitSnapshot,
+            storedBaseQuantitySnapshot: pi.quantity - pi.receivedQuantity,
+            unitSnapshotSource: pi.unitSnapshotSource,
           })),
         },
       },
@@ -801,12 +846,14 @@ function parsePurchaseItemInput(value: unknown) {
   const input = value as {
     itemId?: unknown;
     quantity?: unknown;
+    quantityUnit?: unknown;
     unitCost?: unknown;
   };
 
   return {
     itemId: parseOptionalString(input.itemId),
     quantity: parseOptionalNumber(input.quantity),
+    quantityUnit: parseQuantityUnit(input.quantityUnit),
     unitCost: parseOptionalNumber(input.unitCost),
   };
 }
@@ -879,12 +926,19 @@ function mapPurchase(purchase: PurchaseRecord) {
 function mapPurchaseRecord(purchase: PurchaseRecord) {
   const purchaseItems = purchase.purchaseItems.map((line) => {
     const remainingQuantity = Math.max(0, line.quantity - line.receivedQuantity);
+    const unitSnapshot = buildPurchaseLineUnitResponse(line, remainingQuantity);
     return {
       ...line,
       orderedQuantity: line.quantity,
       remainingQuantity,
       orderedValue: line.quantity * line.unitCost,
       receivedValue: line.receivedQuantity * line.unitCost,
+      enteredQuantity: unitSnapshot.enteredQuantity,
+      enteredUnit: unitSnapshot.enteredUnit,
+      baseQuantity: line.quantity,
+      baseUnit: unitSnapshot.baseUnit,
+      conversionFactor: unitSnapshot.conversionFactor,
+      unitSnapshot,
     };
   });
   const orderedQuantity = purchaseItems.reduce((total, line) => total + line.orderedQuantity, 0);
@@ -903,6 +957,47 @@ function mapPurchaseRecord(purchase: PurchaseRecord) {
 }
 
 type PurchaseRecord = Prisma.PurchaseGetPayload<{ include: typeof purchaseInclude }>;
+
+function calculateEnteredQuantityForBaseQty(baseQty: number, line: {
+  purchaseUnitSnapshot: string | null;
+  purchaseConversionFactorSnapshot: number | null;
+  baseUnitSnapshot: string | null;
+}) {
+  if (line.purchaseUnitSnapshot && line.purchaseConversionFactorSnapshot && line.purchaseConversionFactorSnapshot > 0) {
+    return baseQty / line.purchaseConversionFactorSnapshot;
+  }
+  return baseQty;
+}
+
+function buildPurchaseLineUnitResponse(line: PurchaseRecord["purchaseItems"][number], remainingQuantity: number) {
+  const factor = line.purchaseConversionFactorSnapshot;
+  const hasSnapshotConversion = Boolean(line.purchaseUnitSnapshot && factor !== null && factor > 0);
+  const baseUnit = line.baseUnitSnapshot ?? line.item.unit;
+  const enteredUnit = line.enteredUnitSnapshot ?? (hasSnapshotConversion ? line.purchaseUnitSnapshot! : baseUnit);
+  const orderedPurchaseQuantity = hasSnapshotConversion ? line.quantity / factor! : null;
+  const receivedPurchaseQuantity = hasSnapshotConversion ? line.receivedQuantity / factor! : null;
+  const remainingPurchaseQuantity = hasSnapshotConversion ? remainingQuantity / factor! : null;
+
+  return {
+    source: line.unitSnapshotSource,
+    baseUnit,
+    purchaseUnit: line.purchaseUnitSnapshot,
+    conversionFactor: factor,
+    enteredQuantity: line.enteredQuantity ?? (hasSnapshotConversion ? orderedPurchaseQuantity : line.quantity),
+    enteredUnit,
+    storedBaseQuantity: line.storedBaseQuantitySnapshot ?? line.quantity,
+    orderedBaseQuantity: line.quantity,
+    receivedBaseQuantity: line.receivedQuantity,
+    remainingBaseQuantity: remainingQuantity,
+    orderedPurchaseQuantity,
+    receivedPurchaseQuantity,
+    remainingPurchaseQuantity,
+    conversionUnavailable: !hasSnapshotConversion && Boolean(line.purchaseUnitSnapshot || line.item.purchaseUnit),
+    message: !hasSnapshotConversion && Boolean(line.purchaseUnitSnapshot || line.item.purchaseUnit)
+      ? "Historical purchase conversion unavailable"
+      : null,
+  };
+}
 
 async function logPurchaseAction(
   req: Express.Request,

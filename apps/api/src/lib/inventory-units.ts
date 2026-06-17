@@ -41,6 +41,88 @@ export interface ReorderMetrics {
   calculationAvailable: boolean;
 }
 
+export type ReplenishmentMode = "MANUAL_THRESHOLD" | "DAYS_BASED";
+
+export type ReplenishmentStatus =
+  | "HEALTHY"
+  | "REORDER_REQUIRED"
+  | "ON_ORDER_COVERED"
+  | "ON_ORDER_SHORTAGE_RISK"
+  | "ADDITIONAL_QTY_REQUIRED"
+  | "OVERDUE_DELIVERY"
+  | "NO_USAGE_DATA"
+  | "CONFIGURATION_REQUIRED";
+
+export interface IncomingPurchaseLine {
+  purchaseId: string;
+  poReference: string;
+  supplierName: string | null;
+  status: string;
+  orderedBaseQty: number;
+  receivedBaseQty: number;
+  baseUnitSnapshot?: string | null;
+  purchaseUnitSnapshot?: string | null;
+  purchaseConversionFactorSnapshot?: number | null;
+  unitSnapshotSource?: string | null;
+  expectedDeliveryDate: Date | null;
+}
+
+export interface IncomingPurchaseSummary {
+  incomingBuyingQty: number;
+  incomingBaseQty: number;
+  earliestExpectedDeliveryDate: Date | null;
+  overdueLines: IncomingPurchaseLine[];
+  lines: Array<IncomingPurchaseLine & {
+    outstandingBuyingQty: number | null;
+    outstandingBaseQty: number;
+    conversionUnavailable: boolean;
+  }>;
+}
+
+export interface ReplenishmentInput {
+  mode: ReplenishmentMode;
+  currentStockBaseQty: number;
+  averageDailyUsageBaseQty: number | null;
+  hasUsageHistory: boolean;
+  supplierLeadTimeDays: number | null;
+  safetyStockDays: number | null;
+  reviewPeriodDays: number | null;
+  lowStockThresholdBaseQty: number;
+  manualReorderPointBaseQty: number | null;
+  manualTargetStockBaseQty: number | null;
+  purchaseUnit: string | null;
+  baseUnit: string;
+  purchaseConversionFactor: number | null;
+  allowFractionalPurchaseUnit: boolean;
+  incoming: IncomingPurchaseSummary;
+  today: Date;
+}
+
+export interface ReplenishmentMetrics {
+  mode: ReplenishmentMode;
+  averageDailyUsageBaseQty: number | null;
+  supplierLeadTimeDays: number | null;
+  safetyStockDays: number | null;
+  reviewPeriodDays: number | null;
+  reorderPointBaseQty: number | null;
+  targetStockBaseQty: number | null;
+  currentStockBaseQty: number;
+  incomingBaseQty: number;
+  incomingBuyingQty: number;
+  projectedStockAtDeliveryBaseQty: number | null;
+  daysUntilStockout: number | null;
+  expectedStockoutDate: string | null;
+  earliestExpectedDeliveryDate: string | null;
+  requiredBaseQty: number | null;
+  suggestedBuyingQty: number | null;
+  suggestedBaseQty: number | null;
+  additionalSuggestedBuyingQty: number | null;
+  status: ReplenishmentStatus;
+  statusLabel: string;
+  configurationIssues: string[];
+  purchaseOrders: IncomingPurchaseSummary["lines"];
+}
+
 export function normalizeUnitConfig(config: UnitConfig) {
   const baseUnit = config.baseUnit.trim();
   const buyingUnit = config.buyingUnit?.trim() || baseUnit;
@@ -177,6 +259,274 @@ export function calculateReorder(
     suggestedBaseQuantity: suggestedBuyingQuantity * factor,
     calculationAvailable: true,
   };
+}
+
+export function summarizeIncomingPurchaseLines(
+  lines: IncomingPurchaseLine[],
+  config: UnitConfig,
+  today = new Date(),
+): IncomingPurchaseSummary {
+  const normalized = normalizeUnitConfig(config);
+  const normalizedLines = normalized.conversionRequired ? [] : lines
+    .map((line) => {
+      const outstandingBaseQty = Math.max(0, line.orderedBaseQty - line.receivedBaseQty);
+      const lineFactor = line.purchaseConversionFactorSnapshot && line.purchaseConversionFactorSnapshot > 0
+        ? line.purchaseConversionFactorSnapshot
+        : null;
+      const fallbackFactor = line.purchaseUnitSnapshot ? null : (normalized.conversionFactor ?? 1);
+      const factor = lineFactor ?? fallbackFactor;
+      return {
+        ...line,
+        outstandingBuyingQty: factor && factor > 0 ? outstandingBaseQty / factor : null,
+        outstandingBaseQty,
+        conversionUnavailable: factor === null || factor <= 0,
+      };
+    })
+    .filter((line) => line.outstandingBaseQty > 0);
+
+  const incomingBaseQty = normalizedLines.reduce((total, line) => total + line.outstandingBaseQty, 0);
+  const incomingBuyingQty = normalizedLines.reduce((total, line) => total + (line.outstandingBuyingQty ?? 0), 0);
+  const earliestExpectedDeliveryDate = normalizedLines
+    .map((line) => line.expectedDeliveryDate)
+    .filter((date): date is Date => date !== null)
+    .sort((a, b) => a.getTime() - b.getTime())[0] ?? null;
+  const dayStart = startOfDay(today);
+  const overdueLines = normalizedLines.filter((line) => line.expectedDeliveryDate !== null && startOfDay(line.expectedDeliveryDate) < dayStart);
+
+  return {
+    incomingBuyingQty,
+    incomingBaseQty,
+    earliestExpectedDeliveryDate,
+    overdueLines,
+    lines: normalizedLines,
+  };
+}
+
+export function calculateReplenishment(input: ReplenishmentInput): ReplenishmentMetrics {
+  const config = normalizeUnitConfig({
+    baseUnit: input.baseUnit,
+    buyingUnit: input.purchaseUnit,
+    conversionFactor: input.purchaseConversionFactor,
+  });
+  const configurationIssues: string[] = [];
+  if (config.conversionRequired) configurationIssues.push("Unit conversion required");
+
+  const factor = config.conversionFactor ?? 1;
+  const hasIncoming = input.incoming.incomingBaseQty > 0;
+  const earliestDelivery = input.incoming.earliestExpectedDeliveryDate;
+  const daysUntilDelivery = earliestDelivery ? Math.max(0, diffDays(input.today, earliestDelivery)) : input.supplierLeadTimeDays;
+  const daysUntilStockout =
+    input.averageDailyUsageBaseQty && input.averageDailyUsageBaseQty > 0
+      ? input.currentStockBaseQty / input.averageDailyUsageBaseQty
+      : null;
+  const expectedStockoutDate =
+    daysUntilStockout !== null ? addDays(input.today, daysUntilStockout).toISOString() : null;
+  const projectedStockAtDeliveryBaseQty =
+    input.averageDailyUsageBaseQty !== null && input.averageDailyUsageBaseQty > 0 && daysUntilDelivery !== null
+      ? input.currentStockBaseQty - input.averageDailyUsageBaseQty * daysUntilDelivery + input.incoming.incomingBaseQty
+      : null;
+
+  if (input.incoming.overdueLines.length > 0) {
+    return buildReplenishmentResult(input, {
+      reorderPointBaseQty: null,
+      targetStockBaseQty: null,
+      requiredBaseQty: null,
+      suggestedBuyingQty: null,
+      suggestedBaseQty: null,
+      projectedStockAtDeliveryBaseQty,
+      daysUntilStockout,
+      expectedStockoutDate,
+      status: "OVERDUE_DELIVERY",
+      configurationIssues,
+    });
+  }
+
+  if (input.mode === "MANUAL_THRESHOLD") {
+    const reorderPointBaseQty = input.manualReorderPointBaseQty ?? input.lowStockThresholdBaseQty;
+    const targetStockBaseQty = input.manualTargetStockBaseQty ?? input.lowStockThresholdBaseQty;
+    const requiredBaseQty = Math.max(0, targetStockBaseQty - input.currentStockBaseQty - input.incoming.incomingBaseQty);
+    const suggestedBuyingQty = toSuggestedBuyingQty(requiredBaseQty, factor, input.allowFractionalPurchaseUnit);
+    const status: ReplenishmentStatus =
+      input.currentStockBaseQty <= reorderPointBaseQty && requiredBaseQty > 0
+        ? hasIncoming ? "ADDITIONAL_QTY_REQUIRED" : "REORDER_REQUIRED"
+        : hasIncoming ? "ON_ORDER_COVERED" : "HEALTHY";
+
+    return buildReplenishmentResult(input, {
+      reorderPointBaseQty,
+      targetStockBaseQty,
+      requiredBaseQty,
+      suggestedBuyingQty,
+      suggestedBaseQty: suggestedBuyingQty === null ? null : suggestedBuyingQty * factor,
+      projectedStockAtDeliveryBaseQty,
+      daysUntilStockout,
+      expectedStockoutDate,
+      status,
+      configurationIssues,
+    });
+  }
+
+  if (!input.hasUsageHistory) {
+    return buildReplenishmentResult(input, {
+      reorderPointBaseQty: null,
+      targetStockBaseQty: null,
+      requiredBaseQty: null,
+      suggestedBuyingQty: null,
+      suggestedBaseQty: null,
+      projectedStockAtDeliveryBaseQty,
+      daysUntilStockout,
+      expectedStockoutDate,
+      status: "NO_USAGE_DATA",
+      configurationIssues,
+    });
+  }
+
+  if (!input.averageDailyUsageBaseQty || input.averageDailyUsageBaseQty <= 0) {
+    configurationIssues.push("Average daily usage is zero");
+  }
+  if (input.supplierLeadTimeDays === null || input.supplierLeadTimeDays < 0) configurationIssues.push("Lead time required");
+  if (input.safetyStockDays === null || input.safetyStockDays < 0) configurationIssues.push("Safety stock days required");
+  if (input.reviewPeriodDays === null || input.reviewPeriodDays <= 0) configurationIssues.push("Review period required");
+
+  if (configurationIssues.length > 0) {
+    return buildReplenishmentResult(input, {
+      reorderPointBaseQty: null,
+      targetStockBaseQty: null,
+      requiredBaseQty: null,
+      suggestedBuyingQty: null,
+      suggestedBaseQty: null,
+      projectedStockAtDeliveryBaseQty,
+      daysUntilStockout,
+      expectedStockoutDate,
+      status: "CONFIGURATION_REQUIRED",
+      configurationIssues,
+    });
+  }
+
+  const avg = input.averageDailyUsageBaseQty!;
+  const lead = input.supplierLeadTimeDays!;
+  const safety = input.safetyStockDays!;
+  const review = input.reviewPeriodDays!;
+  const calculatedReorderPoint = avg * (lead + safety);
+  const calculatedTarget = avg * (lead + safety + review);
+  const reorderPointBaseQty = input.manualReorderPointBaseQty ?? calculatedReorderPoint;
+  const targetStockBaseQty = input.manualTargetStockBaseQty ?? calculatedTarget;
+
+  if (targetStockBaseQty < reorderPointBaseQty) {
+    configurationIssues.push("Target stock must be greater than or equal to reorder point");
+    return buildReplenishmentResult(input, {
+      reorderPointBaseQty,
+      targetStockBaseQty,
+      requiredBaseQty: null,
+      suggestedBuyingQty: null,
+      suggestedBaseQty: null,
+      projectedStockAtDeliveryBaseQty,
+      daysUntilStockout,
+      expectedStockoutDate,
+      status: "CONFIGURATION_REQUIRED",
+      configurationIssues,
+    });
+  }
+
+  const requiredBaseQty = Math.max(0, targetStockBaseQty - input.currentStockBaseQty - input.incoming.incomingBaseQty);
+  const suggestedBuyingQty = toSuggestedBuyingQty(requiredBaseQty, factor, input.allowFractionalPurchaseUnit);
+  const suggestedBaseQty = suggestedBuyingQty === null ? null : suggestedBuyingQty * factor;
+  const stockPositionAtOrBelowReorderPoint = input.currentStockBaseQty + input.incoming.incomingBaseQty <= reorderPointBaseQty;
+  const incomingCoversTarget = input.currentStockBaseQty + input.incoming.incomingBaseQty >= targetStockBaseQty;
+  const shortageRisk = projectedStockAtDeliveryBaseQty !== null && projectedStockAtDeliveryBaseQty <= 0;
+
+  let status: ReplenishmentStatus = "HEALTHY";
+  if (hasIncoming && shortageRisk) status = "ON_ORDER_SHORTAGE_RISK";
+  else if (hasIncoming && !incomingCoversTarget) status = "ADDITIONAL_QTY_REQUIRED";
+  else if (hasIncoming && incomingCoversTarget) status = "ON_ORDER_COVERED";
+  else if (stockPositionAtOrBelowReorderPoint || requiredBaseQty > 0) status = "REORDER_REQUIRED";
+
+  return buildReplenishmentResult(input, {
+    reorderPointBaseQty,
+    targetStockBaseQty,
+    requiredBaseQty,
+    suggestedBuyingQty,
+    suggestedBaseQty,
+    projectedStockAtDeliveryBaseQty,
+    daysUntilStockout,
+    expectedStockoutDate,
+    status,
+    configurationIssues,
+  });
+}
+
+function buildReplenishmentResult(
+  input: ReplenishmentInput,
+  values: {
+    reorderPointBaseQty: number | null;
+    targetStockBaseQty: number | null;
+    requiredBaseQty: number | null;
+    suggestedBuyingQty: number | null;
+    suggestedBaseQty: number | null;
+    projectedStockAtDeliveryBaseQty: number | null;
+    daysUntilStockout: number | null;
+    expectedStockoutDate: string | null;
+    status: ReplenishmentStatus;
+    configurationIssues: string[];
+  },
+): ReplenishmentMetrics {
+  return {
+    mode: input.mode,
+    averageDailyUsageBaseQty: input.averageDailyUsageBaseQty,
+    supplierLeadTimeDays: input.supplierLeadTimeDays,
+    safetyStockDays: input.safetyStockDays,
+    reviewPeriodDays: input.reviewPeriodDays,
+    reorderPointBaseQty: values.reorderPointBaseQty,
+    targetStockBaseQty: values.targetStockBaseQty,
+    currentStockBaseQty: input.currentStockBaseQty,
+    incomingBaseQty: input.incoming.incomingBaseQty,
+    incomingBuyingQty: input.incoming.incomingBuyingQty,
+    projectedStockAtDeliveryBaseQty: values.projectedStockAtDeliveryBaseQty,
+    daysUntilStockout: values.daysUntilStockout,
+    expectedStockoutDate: values.expectedStockoutDate,
+    earliestExpectedDeliveryDate: input.incoming.earliestExpectedDeliveryDate?.toISOString() ?? null,
+    requiredBaseQty: values.requiredBaseQty,
+    suggestedBuyingQty: values.suggestedBuyingQty,
+    suggestedBaseQty: values.suggestedBaseQty,
+    additionalSuggestedBuyingQty: values.suggestedBuyingQty,
+    status: values.status,
+    statusLabel: statusLabel(values.status),
+    configurationIssues: values.configurationIssues,
+    purchaseOrders: input.incoming.lines,
+  };
+}
+
+function toSuggestedBuyingQty(requiredBaseQty: number, factor: number, allowFractional: boolean) {
+  if (requiredBaseQty <= 0) return 0;
+  if (factor <= 0) return null;
+  const raw = requiredBaseQty / factor;
+  return allowFractional ? raw : Math.ceil(raw);
+}
+
+function statusLabel(status: ReplenishmentStatus) {
+  switch (status) {
+    case "REORDER_REQUIRED": return "Reorder required";
+    case "ON_ORDER_COVERED": return "On order";
+    case "ON_ORDER_SHORTAGE_RISK": return "Stockout risk before delivery";
+    case "ADDITIONAL_QTY_REQUIRED": return "Additional quantity required";
+    case "OVERDUE_DELIVERY": return "Delivery overdue";
+    case "NO_USAGE_DATA": return "Usage data required";
+    case "CONFIGURATION_REQUIRED": return "Configuration required";
+    default: return "Healthy";
+  }
+}
+
+function diffDays(from: Date, to: Date) {
+  return (startOfDay(to).getTime() - startOfDay(from).getTime()) / 86_400_000;
+}
+
+function addDays(date: Date, days: number) {
+  return new Date(date.getTime() + days * 86_400_000);
+}
+
+function startOfDay(date: Date) {
+  const copy = new Date(date);
+  copy.setHours(0, 0, 0, 0);
+  return copy;
 }
 
 export function roundQuantity(value: number) {

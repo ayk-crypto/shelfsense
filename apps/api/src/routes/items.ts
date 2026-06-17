@@ -627,6 +627,14 @@ itemsRouter.patch("/:id", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(
     }
   }
 
+  const existingItem = await prisma.item.findFirst({
+    where: { id: req.params.id, workspaceId },
+    select: { purchaseUnit: true, purchaseConversionFactor: true },
+  });
+  if (!existingItem) {
+    return res.status(404).json({ error: "Item not found" });
+  }
+
   const result = await prisma.item.updateMany({
     where: { id: req.params.id, workspaceId },
     data,
@@ -651,7 +659,22 @@ itemsRouter.patch("/:id", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(
     },
   });
 
-  return res.json({ item });
+  const conversionChanged =
+    (
+      data.purchaseUnit !== undefined ||
+      data.purchaseConversionFactor !== undefined
+    ) &&
+    (
+      (data.purchaseUnit !== undefined && data.purchaseUnit !== existingItem.purchaseUnit) ||
+      (data.purchaseConversionFactor !== undefined && data.purchaseConversionFactor !== existingItem.purchaseConversionFactor)
+    );
+
+  return res.json({
+    item,
+    conversionChangeWarning: conversionChanged
+      ? "Purchase unit changes apply only to future purchase orders. Existing and open PO lines keep their original unit snapshots."
+      : null,
+  });
 }));
 
 itemsRouter.delete("/:id", requireRole([Role.OWNER]), asyncHandler(async (req, res) => {
@@ -844,6 +867,12 @@ function parseItemInput(body: unknown) {
     procurementFrequency?: unknown;
     customFrequencyDays?: unknown;
     procurementLeadTimeDays?: unknown;
+    replenishmentMode?: unknown;
+    safetyStockDays?: unknown;
+    reviewPeriodDays?: unknown;
+    manualReorderPointBaseQty?: unknown;
+    manualTargetStockBaseQty?: unknown;
+    allowFractionalPurchaseUnit?: unknown;
     trackExpiry?: unknown;
     purchaseUnit?: unknown;
     purchaseConversionFactor?: unknown;
@@ -891,6 +920,18 @@ function parseItemInput(body: unknown) {
           : undefined,
     customFrequencyDays: parseNullablePositiveInt(input.customFrequencyDays),
     procurementLeadTimeDays: parseNullablePositiveInt(input.procurementLeadTimeDays),
+    replenishmentMode:
+      input.replenishmentMode === "DAYS_BASED" || input.replenishmentMode === "MANUAL_THRESHOLD"
+        ? input.replenishmentMode
+        : input.replenishmentMode === null
+          ? "MANUAL_THRESHOLD"
+          : undefined,
+    safetyStockDays: parseNullablePositiveFloat(input.safetyStockDays),
+    reviewPeriodDays: parseNullablePositiveFloat(input.reviewPeriodDays),
+    manualReorderPointBaseQty: parseNullablePositiveFloat(input.manualReorderPointBaseQty),
+    manualTargetStockBaseQty: parseNullablePositiveFloat(input.manualTargetStockBaseQty),
+    allowFractionalPurchaseUnit:
+      typeof input.allowFractionalPurchaseUnit === "boolean" ? input.allowFractionalPurchaseUnit : undefined,
     trackExpiry:
       typeof input.trackExpiry === "boolean" ? input.trackExpiry : undefined,
     purchaseUnit: parseNullableString(input.purchaseUnit),
@@ -982,6 +1023,42 @@ function validateItemInput(input: ReturnType<typeof parseItemInput>) {
 
   if (input.purchaseUnit && input.purchaseUnit.length > MAX_ITEM_UNIT_LENGTH) {
     return "Purchase unit must be 32 characters or fewer";
+  }
+
+  if (input.replenishmentMode === "DAYS_BASED") {
+    if (input.procurementLeadTimeDays === undefined || input.procurementLeadTimeDays === null) {
+      return "Supplier lead time is required for days-based replenishment";
+    }
+    if (input.procurementLeadTimeDays < 0) {
+      return "Supplier lead time must be zero or greater";
+    }
+    if (input.safetyStockDays === undefined || input.safetyStockDays === null) {
+      return "Safety stock days are required for days-based replenishment";
+    }
+    if (input.safetyStockDays < 0) {
+      return "Safety stock days must be zero or greater";
+    }
+    if (input.reviewPeriodDays === undefined || input.reviewPeriodDays === null || input.reviewPeriodDays <= 0) {
+      return "Review period must be greater than zero for days-based replenishment";
+    }
+  }
+
+  if (input.manualReorderPointBaseQty !== undefined && input.manualReorderPointBaseQty !== null && input.manualReorderPointBaseQty <= 0) {
+    return "Manual reorder point must be greater than zero";
+  }
+
+  if (input.manualTargetStockBaseQty !== undefined && input.manualTargetStockBaseQty !== null && input.manualTargetStockBaseQty <= 0) {
+    return "Manual target stock must be greater than zero";
+  }
+
+  if (
+    input.manualReorderPointBaseQty !== undefined &&
+    input.manualReorderPointBaseQty !== null &&
+    input.manualTargetStockBaseQty !== undefined &&
+    input.manualTargetStockBaseQty !== null &&
+    input.manualTargetStockBaseQty < input.manualReorderPointBaseQty
+  ) {
+    return "Manual target stock must be greater than or equal to the manual reorder point";
   }
 
   if (input.issueUnit && input.issueUnit.length > MAX_ITEM_UNIT_LENGTH) {

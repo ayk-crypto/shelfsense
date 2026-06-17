@@ -2583,12 +2583,44 @@ body {
   color: var(--color-text-muted);
 }
 
+.usage-hint > span {
+  display: block;
+}
+
 .incoming-hint {
   display: block;
   margin-top: 3px;
   font-size: 12px;
   font-weight: 500;
   color: var(--color-text-muted);
+}
+
+.replenishment-hint {
+  display: block;
+  margin-top: 3px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #92400e;
+}
+
+.replenishment-hint span {
+  display: block;
+  font-weight: 500;
+  color: var(--color-text-muted, #64748b);
+}
+
+.replenishment-hint--healthy,
+.replenishment-hint--on-order-covered {
+  color: #15803d;
+}
+
+.replenishment-hint--on-order-shortage-risk,
+.replenishment-hint--overdue-delivery {
+  color: #dc2626;
+}
+
+.replenishment-hint--configuration-required {
+  color: #d97706;
 }
 
 .usage-hint--card {
@@ -2622,6 +2654,21 @@ body {
 }
 
 .stock-display--card {
+  align-items: flex-start;
+}
+
+.unit-pair {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 1px;
+  line-height: 1.2;
+}
+
+.unit-pair span {
+  display: block;
+}
+
+.unit-pair--card {
   align-items: flex-start;
 }
 

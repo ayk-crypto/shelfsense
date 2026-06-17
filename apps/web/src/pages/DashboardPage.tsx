@@ -85,6 +85,7 @@ const EMPTY_ALERTS: AlertsResponse = {
   reorderDue: [],
   belowPar: [],
   awaitingReceiving: [],
+  replenishmentAlerts: [],
   expiringSoon: [],
   expired: [],
 };

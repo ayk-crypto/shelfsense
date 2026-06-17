@@ -34,6 +34,16 @@ function fmtQty(n: number) {
   return new Intl.NumberFormat(undefined, { maximumFractionDigits: 4 }).format(n);
 }
 
+function formatPoLineQty(line: Purchase["purchaseItems"][number], baseQty: number) {
+  const snapshot = line.unitSnapshot;
+  const factor = snapshot?.conversionFactor && snapshot.conversionFactor > 0 ? snapshot.conversionFactor : null;
+  const baseUnit = snapshot?.baseUnit ?? line.baseUnitSnapshot ?? line.item.unit;
+  if (snapshot?.purchaseUnit && factor) {
+    return `${fmtQty(baseQty / factor)} ${snapshot.purchaseUnit} / ${fmtQty(baseQty)} ${baseUnit}`;
+  }
+  return snapshot?.message ?? `${fmtQty(baseQty)} ${baseUnit}`;
+}
+
 function roundCurrency(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
@@ -825,14 +835,14 @@ export function StockInPage() {
                             <div className="por-card-head-left">
                               <span className="por-card-name">{itemLine.item.name}</span>
                               <div className="por-card-meta">
-                                <span className="por-card-stat">Ordered: <strong>{itemLine.orderedQuantity} {itemLine.item.unit}</strong></span>
-                                <span className="por-card-stat">Received: <strong>{itemLine.receivedQuantity} {itemLine.item.unit}</strong></span>
-                                <span className="por-card-stat por-card-stat--rem">Remaining: <strong>{itemLine.remainingQuantity} {itemLine.item.unit}</strong></span>
+                                <span className="por-card-stat">Ordered: <strong>{formatPoLineQty(itemLine, itemLine.orderedQuantity)}</strong></span>
+                                <span className="por-card-stat">Received: <strong>{formatPoLineQty(itemLine, itemLine.receivedQuantity)}</strong></span>
+                                <span className="por-card-stat por-card-stat--rem">Remaining: <strong>{formatPoLineQty(itemLine, itemLine.remainingQuantity)}</strong></span>
                               </div>
                             </div>
                             <div className="por-batch-tally">
                               <span className={`por-batch-total${isOver ? " por-batch-total--over" : batchTotal > 0 ? " por-batch-total--ok" : ""}`}>
-                                {batchTotal > 0 ? `${batchTotal} / ${itemLine.remainingQuantity} ${itemLine.item.unit}` : `0 / ${itemLine.remainingQuantity} ${itemLine.item.unit}`}
+                                {batchTotal > 0 ? `${fmtQty(batchTotal)} / ${formatPoLineQty(itemLine, itemLine.remainingQuantity)}` : `0 / ${formatPoLineQty(itemLine, itemLine.remainingQuantity)}`}
                               </span>
                               {isOver && <span className="por-over-warning">Over by {batchTotal - itemLine.remainingQuantity}</span>}
                             </div>

@@ -1,11 +1,17 @@
 import { Router } from "express";
-import { Role, PurchaseStatus } from "../generated/prisma/enums.js";
+import { Role, PurchaseStatus, StockMovementType } from "../generated/prisma/enums.js";
 import { prisma } from "../db/prisma.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { getActiveLocationId } from "../utils/locations.js";
 import { sendAlertDigestEmail } from "../services/email.js";
 import { logger } from "../lib/logger.js";
+import {
+  calculateReplenishment,
+  summarizeIncomingPurchaseLines,
+  type ReplenishmentMetrics,
+  type ReplenishmentMode,
+} from "../lib/inventory-units.js";
 
 export const alertsRouter = Router();
 
@@ -61,6 +67,9 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), as
   }
   const locationId = await getActiveLocationId(req, workspaceId);
   const now = new Date();
+  const usageFromDate = new Date(now);
+  usageFromDate.setDate(now.getDate() - 6);
+  usageFromDate.setHours(0, 0, 0, 0);
 
   const workspace = await prisma.workspace.findUnique({
     where: { id: workspaceId },
@@ -82,7 +91,7 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), as
   expiryAlertUntil.setDate(now.getDate() + getExpiryAlertDays(workspace?.expiryAlertDays));
 
   // ── Fetch all data in parallel ────────────────────────────────────────────
-  const [items, openPurchases, expiringSoon, expired] = await Promise.all([
+  const [items, openPurchases, usageMovements, expiringSoon, expired] = await Promise.all([
     prisma.item.findMany({
       where: { workspaceId, isActive: true },
       orderBy: { name: "asc" },
@@ -98,6 +107,12 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), as
         procurementFrequency: true,
         customFrequencyDays: true,
         procurementLeadTimeDays: true,
+        replenishmentMode: true,
+        safetyStockDays: true,
+        reviewPeriodDays: true,
+        manualReorderPointBaseQty: true,
+        manualTargetStockBaseQty: true,
+        allowFractionalPurchaseUnit: true,
         lastReceivedDate: true,
         stockBatches: {
           where: { workspaceId, locationId, remainingQuantity: { gt: 0 } },
@@ -113,10 +128,29 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), as
         id: true,
         status: true,
         expectedDeliveryDate: true,
+        supplier: { select: { name: true } },
         purchaseItems: {
-          select: { itemId: true, quantity: true, receivedQuantity: true },
+          select: {
+            itemId: true,
+            quantity: true,
+            receivedQuantity: true,
+            baseUnitSnapshot: true,
+            purchaseUnitSnapshot: true,
+            purchaseConversionFactorSnapshot: true,
+            unitSnapshotSource: true,
+          },
         },
       },
+    }),
+
+    prisma.stockMovement.findMany({
+      where: {
+        workspaceId,
+        locationId,
+        type: StockMovementType.STOCK_OUT,
+        createdAt: { gte: usageFromDate, lte: now },
+      },
+      select: { itemId: true, quantity: true },
     }),
 
     prisma.stockBatch.findMany({
@@ -156,6 +190,11 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), as
     }),
   ]);
 
+  const usageByItemId = new Map<string, number>();
+  for (const movement of usageMovements) {
+    usageByItemId.set(movement.itemId, (usageByItemId.get(movement.itemId) ?? 0) + movement.quantity);
+  }
+
   // ── Build line-level pending PO map ───────────────────────────────────────
   // An item is "awaiting" only if its OWN line in an open PO has receivedQty < orderedQty.
   // Over-received or fully-received lines do NOT count as pending.
@@ -170,12 +209,40 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), as
   };
 
   const itemPendingPo = new Map<string, PendingPoInfo>();
+  const itemOpenPoLines = new Map<string, Array<{
+    purchaseId: string;
+    poReference: string;
+    supplierName: string | null;
+    status: string;
+    orderedBaseQty: number;
+    receivedBaseQty: number;
+    baseUnitSnapshot: string | null;
+    purchaseUnitSnapshot: string | null;
+    purchaseConversionFactorSnapshot: number | null;
+    unitSnapshotSource: string | null;
+    expectedDeliveryDate: Date | null;
+  }>>();
   for (const po of openPurchases) {
     for (const line of po.purchaseItems) {
       // Skip lines where this item's quantity is already fully or over-received
       if (line.receivedQuantity >= line.quantity) continue;
 
       const pendingQty = line.quantity - line.receivedQuantity;
+      const openLines = itemOpenPoLines.get(line.itemId) ?? [];
+      openLines.push({
+        purchaseId: po.id,
+        poReference: `PO-${po.id.slice(-8).toUpperCase()}`,
+        supplierName: po.supplier.name,
+        status: po.status,
+        orderedBaseQty: line.quantity,
+        receivedBaseQty: line.receivedQuantity,
+        baseUnitSnapshot: line.baseUnitSnapshot,
+        purchaseUnitSnapshot: line.purchaseUnitSnapshot,
+        purchaseConversionFactorSnapshot: line.purchaseConversionFactorSnapshot,
+        unitSnapshotSource: line.unitSnapshotSource,
+        expectedDeliveryDate: po.expectedDeliveryDate,
+      });
+      itemOpenPoLines.set(line.itemId, openLines);
       if (!itemPendingPo.has(line.itemId)) {
         itemPendingPo.set(line.itemId, {
           purchaseId: po.id,
@@ -224,9 +291,53 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), as
   const reorderDue: ReorderDueAlert[] = [];
   const belowPar: BelowParAlert[] = [];
   const awaitingReceiving: AwaitingAlert[] = [];
+  const replenishmentAlerts: Array<{
+    itemId: string;
+    itemName: string;
+    unit: string;
+    purchaseUnit: string | null;
+    purchaseConversionFactor: number | null;
+    quantity: number;
+    replenishment: ReplenishmentMetrics;
+  }> = [];
 
   for (const item of items) {
     const quantity = item.stockBatches.reduce((s, b) => s + b.remainingQuantity, 0);
+    const usageBaseQty = usageByItemId.get(item.id) ?? null;
+    const incoming = summarizeIncomingPurchaseLines(itemOpenPoLines.get(item.id) ?? [], {
+      baseUnit: item.unit,
+      buyingUnit: item.purchaseUnit,
+      conversionFactor: item.purchaseConversionFactor,
+    }, now);
+    const replenishment = calculateReplenishment({
+      mode: (item.replenishmentMode === "DAYS_BASED" ? "DAYS_BASED" : "MANUAL_THRESHOLD") as ReplenishmentMode,
+      currentStockBaseQty: quantity,
+      averageDailyUsageBaseQty: usageBaseQty === null ? null : usageBaseQty / 7,
+      hasUsageHistory: usageBaseQty !== null,
+      supplierLeadTimeDays: item.procurementLeadTimeDays,
+      safetyStockDays: item.safetyStockDays,
+      reviewPeriodDays: item.reviewPeriodDays,
+      lowStockThresholdBaseQty: item.minStockLevel,
+      manualReorderPointBaseQty: item.manualReorderPointBaseQty,
+      manualTargetStockBaseQty: item.manualTargetStockBaseQty,
+      purchaseUnit: item.purchaseUnit,
+      baseUnit: item.unit,
+      purchaseConversionFactor: item.purchaseConversionFactor,
+      allowFractionalPurchaseUnit: item.allowFractionalPurchaseUnit,
+      incoming,
+      today: now,
+    });
+    if (replenishment.status !== "HEALTHY" && replenishment.status !== "ON_ORDER_COVERED") {
+      replenishmentAlerts.push({
+        itemId: item.id,
+        itemName: item.name,
+        unit: item.unit,
+        purchaseUnit: item.purchaseUnit,
+        purchaseConversionFactor: item.purchaseConversionFactor,
+        quantity,
+        replenishment,
+      });
+    }
     const effectiveCritical = item.criticalStockLevel ?? item.minStockLevel;
 
     // ── Determine next procurement due date ──
@@ -390,6 +501,7 @@ alertsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]), as
     reorderDue,
     belowPar,
     awaitingReceiving,
+    replenishmentAlerts,
     expiringSoon,
     expired,
   });

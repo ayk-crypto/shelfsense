@@ -130,6 +130,12 @@ enum ItemSupplierRole {
   ALTERNATE
 }
 
+enum UnitSnapshotSource {
+  ORIGINAL
+  INFERRED
+  UNKNOWN
+}
+
 enum OcrStatus {
   NOT_UPLOADED
   UPLOADED
@@ -449,6 +455,12 @@ model Item {
   procurementFrequency     String?
   customFrequencyDays      Int?
   procurementLeadTimeDays  Int?
+  replenishmentMode        String          @default("MANUAL_THRESHOLD")
+  safetyStockDays          Float?
+  reviewPeriodDays         Float?
+  manualReorderPointBaseQty Float?
+  manualTargetStockBaseQty Float?
+  allowFractionalPurchaseUnit Boolean      @default(false)
   lastReceivedDate         DateTime?
   trackExpiry              Boolean         @default(false)
   isActive                 Boolean         @default(true)
@@ -635,26 +647,34 @@ model Purchase {
 }
 
 model PurchaseItem {
-  id               String    @id @default(uuid()) @db.Uuid
-  purchaseId       String    @db.Uuid
-  itemId           String    @db.Uuid
-  quantity         Float
-  receivedQuantity Float     @default(0)
-  unitCost         Float
-  total            Float
-  expiryDate       DateTime?
-  batchNo          String?
-  closureAction    String?
-  closureReason    String?
-  shortQty         Float?
-  closedAt         DateTime?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  purchase         Purchase  @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
-  item             Item      @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  id                               String             @id @default(uuid()) @db.Uuid
+  purchaseId                       String             @db.Uuid
+  itemId                           String             @db.Uuid
+  quantity                         Float
+  receivedQuantity                 Float              @default(0)
+  unitCost                         Float
+  total                            Float
+  baseUnitSnapshot                 String?
+  purchaseUnitSnapshot             String?
+  purchaseConversionFactorSnapshot Float?
+  enteredQuantity                  Float?
+  enteredUnitSnapshot              String?
+  storedBaseQuantitySnapshot       Float?
+  unitSnapshotSource               UnitSnapshotSource @default(UNKNOWN)
+  expiryDate                       DateTime?
+  batchNo                          String?
+  closureAction                    String?
+  closureReason                    String?
+  shortQty                         Float?
+  closedAt                         DateTime?
+  createdAt                        DateTime           @default(now())
+  updatedAt                        DateTime           @updatedAt
+  purchase                         Purchase           @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  item                             Item               @relation(fields: [itemId], references: [id], onDelete: Restrict)
 
   @@index([purchaseId])
   @@index([itemId])
+  @@index([unitSnapshotSource])
 }
 
 model ItemSupplier {
