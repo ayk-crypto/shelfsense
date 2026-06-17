@@ -29,6 +29,7 @@ import {
   normalizeUnitConfig,
   toPurchaseQuantity,
 } from "../utils/purchaseUnits";
+import { buildEditItemPayload } from "../utils/itemPayload";
 
 const BarcodeScanner = lazy(() =>
   import("../components/BarcodeScanner").then((m) => ({ default: m.BarcodeScanner })),
@@ -1827,7 +1828,7 @@ function EditItemModal({
     if (!canSubmit) return;
     setSaving(true);
     try {
-      const res = await updateItem(item.id, { ...form, name: form.name.trim(), unit: form.unit.trim(), category: form.category?.trim() || null, sku: form.sku?.trim() || null, barcode: form.barcode?.trim() || null, purchaseUnit: usesPurchaseUnit ? form.purchaseUnit?.trim() || null : null, purchaseConversionFactor: usesPurchaseUnit ? form.purchaseConversionFactor ?? null : null, displayBothUnits: usesPurchaseUnit ? form.displayBothUnits : false });
+      const res = await updateItem(item.id, buildEditItemPayload(form, item, usesPurchaseUnit));
       const alternateMappings = existingSupplierMappings.filter((mapping) => mapping.role === "ALTERNATE" && mapping.supplierId !== supplierId).map((mapping) => ({ supplierId: mapping.supplierId, role: "ALTERNATE" as const }));
       await putItemSuppliers(item.id, supplierId ? [{ supplierId, role: "PRIMARY" }, ...alternateMappings] : alternateMappings);
       onSuccess(res.item);

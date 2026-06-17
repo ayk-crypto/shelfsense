@@ -13,6 +13,8 @@ import {
   parseQuantityUnit,
 } from "../src/lib/purchase-unit-snapshots.js";
 import { parseItemInput } from "../src/routes/items.js";
+import { buildEditItemPayload } from "../../web/src/utils/itemPayload.ts";
+import type { CreateItemInput, Item } from "../../web/src/types.ts";
 
 describe("inventory unit conversion", () => {
   it("handles exact carton conversion", () => {
@@ -590,5 +592,105 @@ describe("item replenishment payload parsing", () => {
     expect(parsed.reviewPeriodDays).toBe(30);
     expect(parsed.manualReorderPointBaseQty).toBeUndefined();
     expect(parsed.manualTargetStockBaseQty).toBeUndefined();
+  });
+});
+
+describe("edit item replenishment payload serialization", () => {
+  const today = new Date("2026-06-17T00:00:00.000Z");
+
+  function baseItem(overrides: Partial<Item>): Item {
+    return {
+      id: "item-1",
+      workspaceId: "workspace-1",
+      name: "500 MP",
+      unit: "packet",
+      category: "Packaging & Disposables",
+      sku: null,
+      barcode: null,
+      minStockLevel: 0,
+      criticalStockLevel: null,
+      parStockLevel: null,
+      procurementFrequency: null,
+      customFrequencyDays: null,
+      procurementLeadTimeDays: 8,
+      replenishmentMode: "DAYS_BASED",
+      safetyStockDays: 7,
+      reviewPeriodDays: 30,
+      manualReorderPointBaseQty: 30,
+      manualTargetStockBaseQty: null,
+      allowFractionalPurchaseUnit: false,
+      lastReceivedDate: null,
+      trackExpiry: false,
+      purchaseUnit: "carton",
+      purchaseConversionFactor: 5,
+      issueUnit: null,
+      displayBothUnits: true,
+      isActive: true,
+      archivedAt: null,
+      createdAt: "2026-06-17T00:00:00.000Z",
+      updatedAt: "2026-06-17T00:00:00.000Z",
+      ...overrides,
+    };
+  }
+
+  it("loads an existing manual reorder override, clears it as null, and falls back to calculated DAYS_BASED reorder point", () => {
+    const item = baseItem({ manualReorderPointBaseQty: 30 });
+    expect(item.manualReorderPointBaseQty).toBe(30);
+
+    const form: CreateItemInput = {
+      name: item.name,
+      unit: item.unit,
+      category: item.category,
+      sku: item.sku,
+      barcode: item.barcode,
+      minStockLevel: item.minStockLevel,
+      criticalStockLevel: item.criticalStockLevel,
+      parStockLevel: item.parStockLevel,
+      procurementFrequency: item.procurementFrequency,
+      customFrequencyDays: item.customFrequencyDays,
+      procurementLeadTimeDays: item.procurementLeadTimeDays,
+      replenishmentMode: item.replenishmentMode,
+      safetyStockDays: item.safetyStockDays,
+      reviewPeriodDays: item.reviewPeriodDays,
+      manualReorderPointBaseQty: null,
+      manualTargetStockBaseQty: item.manualTargetStockBaseQty,
+      allowFractionalPurchaseUnit: item.allowFractionalPurchaseUnit,
+      trackExpiry: item.trackExpiry,
+      purchaseUnit: item.purchaseUnit,
+      purchaseConversionFactor: item.purchaseConversionFactor,
+      issueUnit: item.issueUnit,
+      displayBothUnits: item.displayBothUnits,
+    };
+
+    const payload = buildEditItemPayload(form, item, true);
+    expect(payload.manualReorderPointBaseQty).toBeNull();
+    expect(payload.manualTargetStockBaseQty).toBeUndefined();
+
+    const parsed = parseItemInput(payload);
+    expect(parsed.manualReorderPointBaseQty).toBeNull();
+
+    const result = calculateReplenishment({
+      mode: "DAYS_BASED",
+      currentStockBaseQty: 5,
+      averageDailyUsageBaseQty: 0.571428,
+      hasUsageHistory: true,
+      supplierLeadTimeDays: 8,
+      safetyStockDays: 7,
+      reviewPeriodDays: 30,
+      lowStockThresholdBaseQty: 0,
+      manualReorderPointBaseQty: parsed.manualReorderPointBaseQty,
+      manualTargetStockBaseQty: parsed.manualTargetStockBaseQty ?? null,
+      purchaseUnit: "carton",
+      baseUnit: "packet",
+      purchaseConversionFactor: 5,
+      allowFractionalPurchaseUnit: false,
+      incoming: summarizeIncomingPurchaseLines([], { baseUnit: "packet", buyingUnit: "carton", conversionFactor: 5 }, today),
+      today,
+    });
+
+    expect(result.reorderPointBaseQty).toBeCloseTo(8.57142, 5);
+    expect(result.targetStockBaseQty).toBeCloseTo(25.71426, 5);
+    expect(result.suggestedBuyingQty).toBe(5);
+    expect(result.status).toBe("REORDER_REQUIRED");
   });
 });
