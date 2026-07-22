@@ -11,6 +11,12 @@ import {
   summarizeIncomingPurchaseLines,
   type ReplenishmentMode,
 } from "../lib/inventory-units.js";
+import {
+  calculateUsageProfile,
+  normalizeReorderAction,
+  REORDER_USAGE_LOOKBACK_DAYS,
+  resolvePlanningCycleDays,
+} from "../lib/reorder-planning.js";
 
 export const reorderSuggestionsRouter = Router();
 
@@ -23,7 +29,7 @@ reorderSuggestionsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OP
   const locationId = await getActiveLocationId(req, workspaceId);
   const now = new Date();
   const usageFromDate = new Date(now);
-  usageFromDate.setDate(now.getDate() - 6);
+  usageFromDate.setDate(now.getDate() - (REORDER_USAGE_LOOKBACK_DAYS - 1));
   usageFromDate.setHours(0, 0, 0, 0);
   const location = await prisma.location.findFirst({
     where: { id: locationId, workspaceId, isActive: true },
@@ -33,62 +39,64 @@ reorderSuggestionsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OP
 
   const [items, usageMovements] = await Promise.all([
     prisma.item.findMany({
-    where: { workspaceId, isActive: true },
-    orderBy: { name: "asc" },
-    select: {
-      id: true,
-      name: true,
-      sku: true,
-      barcode: true,
-      category: true,
-      unit: true,
-      purchaseUnit: true,
-      purchaseConversionFactor: true,
-      minStockLevel: true,
-      procurementLeadTimeDays: true,
-      replenishmentMode: true,
-      safetyStockDays: true,
-      reviewPeriodDays: true,
-      manualReorderPointBaseQty: true,
-      manualTargetStockBaseQty: true,
-      allowFractionalPurchaseUnit: true,
-      trackExpiry: true,
-      stockBatches: {
-        where: { workspaceId, locationId, remainingQuantity: { gt: 0 } },
-        select: { remainingQuantity: true },
-      },
-      purchaseItems: {
-        where: {
-          purchase: {
-            workspaceId,
-            locationId,
-            status: { in: [PurchaseStatus.ORDERED, PurchaseStatus.PARTIALLY_RECEIVED, PurchaseStatus.BACKORDERED] },
-          },
+      where: { workspaceId, isActive: true },
+      orderBy: { name: "asc" },
+      select: {
+        id: true,
+        name: true,
+        sku: true,
+        barcode: true,
+        category: true,
+        unit: true,
+        purchaseUnit: true,
+        purchaseConversionFactor: true,
+        minStockLevel: true,
+        procurementFrequency: true,
+        customFrequencyDays: true,
+        procurementLeadTimeDays: true,
+        replenishmentMode: true,
+        safetyStockDays: true,
+        reviewPeriodDays: true,
+        manualReorderPointBaseQty: true,
+        manualTargetStockBaseQty: true,
+        allowFractionalPurchaseUnit: true,
+        trackExpiry: true,
+        stockBatches: {
+          where: { workspaceId, locationId, remainingQuantity: { gt: 0 } },
+          select: { remainingQuantity: true },
         },
-        select: {
-          quantity: true,
-          receivedQuantity: true,
-          baseUnitSnapshot: true,
-          purchaseUnitSnapshot: true,
-          purchaseConversionFactorSnapshot: true,
-          unitSnapshotSource: true,
-          unitCost: true,
-          purchase: {
-            select: {
-              id: true,
-              status: true,
-              expectedDeliveryDate: true,
-              supplier: { select: { id: true, name: true } },
+        purchaseItems: {
+          where: {
+            purchase: {
+              workspaceId,
+              locationId,
+              status: { in: [PurchaseStatus.ORDERED, PurchaseStatus.PARTIALLY_RECEIVED, PurchaseStatus.BACKORDERED] },
+            },
+          },
+          select: {
+            quantity: true,
+            receivedQuantity: true,
+            baseUnitSnapshot: true,
+            purchaseUnitSnapshot: true,
+            purchaseConversionFactorSnapshot: true,
+            unitSnapshotSource: true,
+            unitCost: true,
+            purchase: {
+              select: {
+                id: true,
+                status: true,
+                expectedDeliveryDate: true,
+                supplier: { select: { id: true, name: true } },
+              },
             },
           },
         },
+        itemSuppliers: {
+          where: { workspaceId, role: ItemSupplierRole.PRIMARY },
+          take: 1,
+          select: { supplier: { select: { id: true, name: true } } },
+        },
       },
-      itemSuppliers: {
-        where: { workspaceId, role: ItemSupplierRole.PRIMARY },
-        take: 1,
-        select: { supplier: { select: { id: true, name: true } } },
-      },
-    },
     }),
     prisma.stockMovement.findMany({
       where: {
@@ -97,19 +105,26 @@ reorderSuggestionsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OP
         type: StockMovementType.STOCK_OUT,
         createdAt: { gte: usageFromDate, lte: now },
       },
-      select: { itemId: true, quantity: true },
+      select: { itemId: true, quantity: true, createdAt: true },
     }),
   ]);
 
-  const usageByItemId = new Map<string, number>();
+  const usageByItemId = new Map<string, Array<{ quantity: number; createdAt: Date }>>();
   for (const movement of usageMovements) {
-    usageByItemId.set(movement.itemId, (usageByItemId.get(movement.itemId) ?? 0) + movement.quantity);
+    const itemUsage = usageByItemId.get(movement.itemId) ?? [];
+    itemUsage.push({ quantity: movement.quantity, createdAt: movement.createdAt });
+    usageByItemId.set(movement.itemId, itemUsage);
   }
 
   const suggestions = items
     .map((item) => {
       const currentStock = item.stockBatches.reduce((sum, batch) => sum + batch.remainingQuantity, 0);
-      const usageBaseQty = usageByItemId.get(item.id) ?? null;
+      const usageProfile = calculateUsageProfile(usageByItemId.get(item.id) ?? [], now);
+      const planningCycleDays = resolvePlanningCycleDays(
+        item.procurementFrequency,
+        item.customFrequencyDays,
+        item.reviewPeriodDays,
+      );
       const incoming = summarizeIncomingPurchaseLines(item.purchaseItems.map((line) => ({
         purchaseId: line.purchase.id,
         poReference: `PO-${line.purchase.id.slice(-8).toUpperCase()}`,
@@ -127,14 +142,14 @@ reorderSuggestionsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OP
         buyingUnit: item.purchaseUnit,
         conversionFactor: item.purchaseConversionFactor,
       }, now);
-      const replenishment = calculateReplenishment({
+      const replenishment = normalizeReorderAction(calculateReplenishment({
         mode: (item.replenishmentMode === "DAYS_BASED" ? "DAYS_BASED" : "MANUAL_THRESHOLD") as ReplenishmentMode,
         currentStockBaseQty: currentStock,
-        averageDailyUsageBaseQty: usageBaseQty === null ? null : usageBaseQty / 7,
-        hasUsageHistory: usageBaseQty !== null,
+        averageDailyUsageBaseQty: usageProfile?.averageDailyUsageBaseQty ?? null,
+        hasUsageHistory: usageProfile !== null,
         supplierLeadTimeDays: item.procurementLeadTimeDays,
         safetyStockDays: item.safetyStockDays,
-        reviewPeriodDays: item.reviewPeriodDays,
+        reviewPeriodDays: planningCycleDays,
         lowStockThresholdBaseQty: item.minStockLevel,
         manualReorderPointBaseQty: item.manualReorderPointBaseQty,
         manualTargetStockBaseQty: item.manualTargetStockBaseQty,
@@ -144,7 +159,7 @@ reorderSuggestionsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OP
         allowFractionalPurchaseUnit: item.allowFractionalPurchaseUnit,
         incoming,
         today: now,
-      });
+      }));
       const suggestedQuantity = replenishment.requiredBaseQty ?? 0;
       const lastPurchase = item.purchaseItems[0] ?? null;
       const primaryMappedSupplier = item.itemSuppliers[0]?.supplier ?? null;
@@ -162,6 +177,10 @@ reorderSuggestionsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OP
         minStockLevel: item.minStockLevel,
         suggestedQuantity,
         replenishment,
+        planningCycleDays,
+        usageHistoryDays: usageProfile?.historyDays ?? 0,
+        averageDailyUsage: usageProfile?.averageDailyUsageBaseQty ?? null,
+        estimatedMonthlyUsage: usageProfile?.estimatedMonthlyUsageBaseQty ?? null,
         trackExpiry: item.trackExpiry,
         location,
         preferredSupplier: primaryMappedSupplier ?? lastPurchase?.purchase.supplier ?? null,
