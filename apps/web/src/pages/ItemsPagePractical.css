@@ -1,0 +1,413 @@
+/* Practical inventory view
+   Keeps the Items page focused on the questions staff answer during daily work:
+   what is the item, how much is available, is there an expiry/stock problem,
+   and what action should be taken. Procurement calculations remain available
+   on the dedicated Reorder Suggestions page. */
+
+.items-page {
+  --inv-border: #e2e8f0;
+  --inv-muted: #64748b;
+  --inv-soft: #f8fafc;
+  --inv-heading: #0f172a;
+}
+
+.items-page .page-header {
+  margin-bottom: 14px;
+  align-items: flex-start;
+}
+
+.items-page .page-subtitle {
+  max-width: 620px;
+}
+
+/* The archived KPI already controls archived visibility, so the duplicate
+   Show archived button inside the filter row is intentionally removed. */
+.items-page .inventory-filters > .btn.btn--secondary {
+  display: none;
+}
+
+.items-page .inventory-command-panel {
+  padding: 12px 14px;
+  border: 1px solid var(--inv-border);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.items-page .inventory-kpis {
+  gap: 7px;
+  margin-bottom: 10px;
+}
+
+.items-page .inv-kpi-pill {
+  min-height: 30px;
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 999px;
+  box-shadow: none;
+}
+
+.items-page .inv-kpi-pill strong {
+  font-size: 12.5px;
+}
+
+.items-page .inventory-filters {
+  display: grid;
+  grid-template-columns: minmax(280px, 2.2fr) repeat(4, minmax(135px, 1fr));
+  gap: 8px;
+  align-items: center;
+}
+
+.items-page .inventory-search,
+.items-page .inventory-filters .form-select,
+.items-page .inventory-filters .btn {
+  min-width: 0;
+}
+
+.items-page .inventory-search .form-input,
+.items-page .inventory-filters .form-select {
+  height: 38px;
+  font-size: 12.5px;
+  border-color: #dbe3ee;
+  background: #fff;
+}
+
+.items-page .inventory-filter-summary {
+  margin-top: 9px;
+  font-size: 11.5px;
+  color: var(--inv-muted);
+}
+
+.items-page .selection-toolbar {
+  min-height: 34px;
+  margin: 10px 0 8px;
+  padding: 0 4px;
+  background: transparent;
+  border: 0;
+}
+
+/* Procurement and demand-planning information belongs on Reorder Suggestions,
+   not inside the stock register. Hiding it here also reduces each row from a
+   multi-line report to a quick inventory record. */
+.items-page .item-supplier-row,
+.items-page .reorder-hint,
+.items-page .incoming-hint,
+.items-page .replenishment-hint,
+.items-page .usage-hint,
+.items-page .forecast-hint {
+  display: none !important;
+}
+
+.items-page .items-table-wrap {
+  border: 1px solid var(--inv-border);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.035);
+}
+
+.items-page .items-table-wrap .table {
+  width: 100%;
+  background: #fff;
+}
+
+.items-page .items-table-wrap .table thead th {
+  height: 38px;
+  padding: 9px 14px;
+  background: #f8fafc;
+  border-bottom: 1px solid var(--inv-border);
+  color: #64748b;
+  font-size: 10.5px;
+  font-weight: 750;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.items-page .items-table-wrap .table tbody tr {
+  height: 68px;
+  background: #fff;
+  transition: background-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.items-page .items-table-wrap .table tbody tr:hover {
+  background: #fbfdff;
+}
+
+.items-page .items-table-wrap .table tbody td {
+  padding: 11px 14px;
+  border-bottom: 1px solid #eef2f7;
+  vertical-align: middle;
+}
+
+.items-page .items-table-wrap .table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* A low-stock row should attract attention without turning the whole worksheet
+   yellow. The status badge and a slim edge marker are enough. */
+.items-page .items-table-wrap .table tbody tr.row--warn,
+.items-page .items-table-wrap .table tbody tr.row--warn td {
+  background: #fff !important;
+}
+
+.items-page .items-table-wrap .table tbody tr.row--warn {
+  box-shadow: inset 3px 0 0 #f59e0b;
+}
+
+.items-page .items-table-wrap .table tbody tr.row--selected,
+.items-page .items-table-wrap .table tbody tr.row--selected td {
+  background: #f5f7ff !important;
+}
+
+.items-page .td-name {
+  min-width: 300px;
+  width: 42%;
+}
+
+.items-page .item-name-line {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 5px;
+}
+
+.items-page .item-name-line strong {
+  color: var(--inv-heading);
+  font-size: 13.5px;
+  font-weight: 750;
+  line-height: 1.25;
+}
+
+.items-page .item-meta-line {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.items-page .cat-badge {
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.35;
+  background: #f1f5f9;
+  color: #475569;
+  border-color: #e2e8f0;
+}
+
+.items-page .item-sku-label {
+  color: #94a3b8;
+  font-size: 10.5px;
+}
+
+.items-page .item-lifecycle-badge {
+  padding: 2px 6px;
+  font-size: 9.5px;
+  letter-spacing: 0.02em;
+}
+
+/* Barcode and unit configuration remain searchable and editable, but do not
+   need permanent columns in the operational inventory register. */
+.items-page .items-table-wrap .td-barcode,
+.items-page .items-table-wrap .td-unit {
+  display: none;
+}
+
+/* Manager/owner with barcode column present: select, name, barcode, units... */
+.items-page .items-table-wrap .table:has(tbody .select-col):has(tbody .td-barcode) thead th:nth-child(3),
+.items-page .items-table-wrap .table:has(tbody .select-col):has(tbody .td-barcode) thead th:nth-child(4) {
+  display: none;
+}
+
+/* Manager/owner with no barcode column: select, name, units... */
+.items-page .items-table-wrap .table:has(tbody .select-col):not(:has(tbody .td-barcode)) thead th:nth-child(3) {
+  display: none;
+}
+
+/* Read-only user with barcode column present: name, barcode, units... */
+.items-page .items-table-wrap .table:not(:has(tbody .select-col)):has(tbody .td-barcode) thead th:nth-child(2),
+.items-page .items-table-wrap .table:not(:has(tbody .select-col)):has(tbody .td-barcode) thead th:nth-child(3) {
+  display: none;
+}
+
+/* Read-only user with no barcode column: name, units... */
+.items-page .items-table-wrap .table:not(:has(tbody .select-col)):not(:has(tbody .td-barcode)) thead th:nth-child(2) {
+  display: none;
+}
+
+.items-page .td-num {
+  min-width: 132px;
+}
+
+.items-page .stock-display {
+  align-items: flex-end;
+  gap: 1px;
+}
+
+.items-page .stock-display strong {
+  color: var(--inv-heading);
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.items-page .stock-display > span {
+  color: #64748b;
+  font-size: 10.5px;
+  line-height: 1.25;
+}
+
+.items-page .td-value {
+  color: #334155;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.items-page .badge {
+  white-space: nowrap;
+}
+
+.items-page .td-actions {
+  min-width: 216px;
+  white-space: nowrap;
+  gap: 6px;
+}
+
+.items-page .td-actions > .btn,
+.items-page .row-action-menu-trigger {
+  min-height: 32px;
+  padding: 5px 12px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.items-page .row-action-menu-trigger {
+  width: 34px;
+  padding: 0;
+}
+
+.items-page .row-action-menu-panel {
+  z-index: 70;
+}
+
+.items-page .unit-config-link {
+  display: inline-flex;
+  margin-top: 5px;
+  font-size: 10.5px;
+}
+
+/* Mobile keeps the same information hierarchy: name/status first, stock and
+   core item facts second, actions last. Detailed planning lines are removed. */
+@media (max-width: 767px) {
+  .items-page .page-header {
+    gap: 12px;
+  }
+
+  .items-page .page-header-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .items-page .page-header-actions .btn {
+    justify-content: center;
+    padding-inline: 8px;
+  }
+
+  .items-page .inventory-command-panel {
+    padding: 10px;
+    border-radius: 12px;
+  }
+
+  .items-page .inventory-filters {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .items-page .inventory-search {
+    grid-column: 1 / -1;
+  }
+
+  .items-page .inventory-filter-summary {
+    margin-bottom: 0;
+  }
+
+  .items-page .item-cards {
+    gap: 9px;
+  }
+
+  .items-page .item-card {
+    padding: 12px;
+    border: 1px solid var(--inv-border);
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.035);
+  }
+
+  .items-page .item-card-header {
+    align-items: flex-start;
+    padding-bottom: 9px;
+    margin-bottom: 9px;
+    border-bottom: 1px solid #eef2f7;
+  }
+
+  .items-page .item-card-name {
+    color: var(--inv-heading);
+    font-size: 14px;
+    font-weight: 750;
+  }
+
+  .items-page .item-card-meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 12px;
+  }
+
+  .items-page .item-card-stat:has(.unit-pair),
+  .items-page .item-card-stat:has(.item-supplier-tag) {
+    display: none;
+  }
+
+  .items-page .item-card-stat-label {
+    font-size: 9.5px;
+    letter-spacing: 0.045em;
+    text-transform: uppercase;
+  }
+
+  .items-page .item-card-stat-value {
+    font-size: 12px;
+  }
+
+  .items-page .stock-display--card strong {
+    font-size: 14px;
+  }
+
+  .items-page .item-card-actions {
+    margin-top: 11px;
+    padding-top: 10px;
+    border-top: 1px solid #eef2f7;
+  }
+
+  .items-page .item-card-actions > .btn {
+    flex: 1;
+    justify-content: center;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1180px) {
+  .items-page .inventory-filters {
+    grid-template-columns: minmax(260px, 2fr) repeat(2, minmax(145px, 1fr));
+  }
+
+  .items-page .inventory-search {
+    grid-column: span 1;
+  }
+
+  .items-page .td-name {
+    width: 38%;
+  }
+
+  .items-page .td-actions {
+    min-width: 205px;
+  }
+}
