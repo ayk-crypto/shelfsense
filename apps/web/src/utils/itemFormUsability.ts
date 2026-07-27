@@ -1,7 +1,6 @@
 type ItemPayloadWithLowStock = {
   name?: string;
   minStockLevel?: number;
-  [key: string]: unknown;
 };
 
 let activeLowStockInput: HTMLInputElement | null = null;
@@ -58,7 +57,7 @@ export function transformItemLowStockForSave<T extends ItemPayloadWithLowStock>(
   }
 
   const form = activeLowStockInput.closest("form");
-  const modal = form?.closest<HTMLElement>(".modal, [role='dialog']");
+  const modal = form?.closest<HTMLElement>(".modal, [role='dialog']") ?? null;
   const itemName = readFieldValue(modal, "Item Name");
   if (!modal || (payload.name && itemName && payload.name.trim() !== itemName.trim())) {
     return payload;
