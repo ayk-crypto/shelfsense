@@ -38,6 +38,7 @@ export function installItemFormUsabilityEnhancements() {
   });
 
   document.addEventListener("change", scheduleEnhancement, true);
+  document.addEventListener("toggle", scheduleEnhancement, true);
   scheduleEnhancement();
 }
 
@@ -192,10 +193,19 @@ function findOpenItemModal() {
   return null;
 }
 
+function normalizeLabelText(value: string) {
+  return value
+    .replace(/\*/g, "")
+    .replace(/[?:]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
 function findLabel(root: ParentNode, labelText: string) {
-  const normalizedTarget = labelText.trim().toLowerCase();
+  const normalizedTarget = normalizeLabelText(labelText);
   return Array.from(root.querySelectorAll<HTMLLabelElement>("label")).find((label) => {
-    const normalized = label.textContent?.replace(/\*/g, "").trim().toLowerCase() ?? "";
+    const normalized = normalizeLabelText(label.textContent ?? "");
     return normalized === normalizedTarget || normalized.startsWith(`${normalizedTarget} `) || normalized.startsWith(`${normalizedTarget} (`);
   }) ?? null;
 }
