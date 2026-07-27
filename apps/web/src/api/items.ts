@@ -1,4 +1,5 @@
 import type { BatchDetailResponse, CreateItemInput, Item, ItemsResponse } from "../types";
+import { transformItemLowStockForSave } from "../utils/itemFormUsability";
 import { apiClient } from "./client";
 
 type UpdateItemInput = Partial<Omit<CreateItemInput, "category" | "sku" | "barcode">> & {
@@ -16,14 +17,14 @@ export async function getItemBatchesDetail(id: string): Promise<BatchDetailRespo
 }
 
 export async function createItem(data: CreateItemInput): Promise<{ item: Item }> {
-  return apiClient.post<{ item: Item }>("/items", data, true);
+  return apiClient.post<{ item: Item }>("/items", transformItemLowStockForSave(data), true);
 }
 
 export async function updateItem(
   id: string,
   data: UpdateItemInput,
 ): Promise<{ item: Item }> {
-  return apiClient.patch<{ item: Item }>(`/items/${id}`, data, true);
+  return apiClient.patch<{ item: Item }>(`/items/${id}`, transformItemLowStockForSave(data), true);
 }
 
 export async function archiveItem(id: string): Promise<void> {
