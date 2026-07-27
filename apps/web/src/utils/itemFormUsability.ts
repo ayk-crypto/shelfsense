@@ -8,11 +8,11 @@ let enhancementInstalled = false;
 let enhancementScheduled = false;
 
 /**
- * Installs lightweight usability improvements for the Add/Edit Item forms.
+ * Installs usability improvements for the Add/Edit Item forms.
  *
- * The API stores minStockLevel in the stock/base unit. The form now presents
- * that threshold in the purchase unit whenever a purchase conversion exists,
- * then transformItemLowStockForSave converts it back before the request is sent.
+ * The API stores minStockLevel in the stock/base unit. The form presents
+ * that threshold in the purchase unit whenever a valid purchase conversion
+ * exists, then transformItemLowStockForSave converts it back before saving.
  */
 export function installItemFormUsabilityEnhancements() {
   if (enhancementInstalled || typeof document === "undefined") return;
@@ -29,14 +29,14 @@ export function installItemFormUsabilityEnhancements() {
     });
   };
 
+  // Observe only structural changes. Watching text mutations caused a feedback
+  // loop because the enhancement itself updates labels and helper text.
   const observer = new MutationObserver(scheduleEnhancement);
   observer.observe(document.body, {
     childList: true,
     subtree: true,
-    characterData: true,
   });
 
-  document.addEventListener("input", scheduleEnhancement, true);
   document.addEventListener("change", scheduleEnhancement, true);
   scheduleEnhancement();
 }
@@ -64,11 +64,9 @@ export function transformItemLowStockForSave<T extends ItemPayloadWithLowStock>(
   }
 
   const factor = readPositiveNumber(activeLowStockInput.dataset.lowStockDisplayFactor) ?? 1;
-  const converted = roundQuantity(payload.minStockLevel * factor);
-
   return {
     ...payload,
-    minStockLevel: converted,
+    minStockLevel: roundQuantity(payload.minStockLevel * factor),
   };
 }
 
@@ -89,10 +87,7 @@ function enhanceOpenItemForm() {
 
   modal.classList.add("item-form--simplified");
 
-  if (isEdit) {
-    hideUnusedReorderSections(modal);
-  }
-
+  if (isEdit) hideUnusedReorderSections(modal);
   updateMoreSettingsDescription(modal);
   enhanceLowStockField(modal);
 }
@@ -124,7 +119,10 @@ function enhanceLowStockField(modal: HTMLElement) {
   input.dataset.lowStockDisplayUnit = displayUnit;
   activeLowStockInput = input;
 
-  lowStockLabel.textContent = `Low Stock Alert (${displayUnit})`;
+  const labelText = `Low Stock Alert (${displayUnit})`;
+  if (lowStockLabel.textContent !== labelText) {
+    lowStockLabel.textContent = labelText;
+  }
   input.setAttribute("aria-describedby", "item-low-stock-helper");
 
   let helper = group.querySelector<HTMLParagraphElement>(".item-low-stock-helper");
@@ -135,9 +133,12 @@ function enhanceLowStockField(modal: HTMLElement) {
     group.appendChild(helper);
   }
 
-  helper.textContent = usesPurchaseUnit
+  const helperText = usesPurchaseUnit
     ? `Alert when stock reaches this purchase quantity. 1 ${purchaseUnit} = ${formatEditableNumber(nextFactor)} ${stockUnit}.`
     : `Alert when stock reaches this quantity. This item is purchased and tracked in ${stockUnit}.`;
+  if (helper.textContent !== helperText) {
+    helper.textContent = helperText;
+  }
 }
 
 function hideUnusedReorderSections(modal: HTMLElement) {
@@ -149,20 +150,8 @@ function hideUnusedReorderSections(modal: HTMLElement) {
   for (const title of titleCandidates) {
     const normalized = title.textContent?.trim().toLowerCase() ?? "";
     if (!hiddenTitles.has(normalized)) continue;
-
     const section = findSectionContainer(title);
-    if (section) {
-      section.hidden = true;
-      section.setAttribute("aria-hidden", "true");
-    }
-  }
-
-  // Fallback for the replenishment block when its title uses a generic div.
-  for (const element of modal.querySelectorAll<HTMLElement>("div, span")) {
-    const normalized = element.textContent?.trim().toLowerCase() ?? "";
-    if (!hiddenTitles.has(normalized)) continue;
-    const section = findSectionContainer(element);
-    if (section) {
+    if (section && !section.hidden) {
       section.hidden = true;
       section.setAttribute("aria-hidden", "true");
     }
@@ -207,7 +196,7 @@ function findLabel(root: ParentNode, labelText: string) {
   const normalizedTarget = labelText.trim().toLowerCase();
   return Array.from(root.querySelectorAll<HTMLLabelElement>("label")).find((label) => {
     const normalized = label.textContent?.replace(/\*/g, "").trim().toLowerCase() ?? "";
-    return normalized === normalizedTarget || normalized.startsWith(`${normalizedTarget} `);
+    return normalized === normalizedTarget || normalized.startsWith(`${normalizedTarget} `) || normalized.startsWith(`${normalizedTarget} (`);
   }) ?? null;
 }
 
@@ -220,8 +209,7 @@ function readFieldValue(root: ParentNode | null, labelText: string) {
 }
 
 function readNumberField(root: ParentNode, labelText: string) {
-  const value = readFieldValue(root, labelText);
-  return readPositiveNumber(value);
+  return readPositiveNumber(readFieldValue(root, labelText));
 }
 
 function readFiniteNumber(value: string | undefined) {
