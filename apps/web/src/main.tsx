@@ -3,8 +3,10 @@ import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { registerServiceWorker } from "./registerServiceWorker";
+import { installItemFormUsabilityEnhancements } from "./utils/itemFormUsability";
 import "./pages/ItemsPagePractical.css";
 
+installItemFormUsabilityEnhancements();
 registerServiceWorker();
 
 createRoot(document.getElementById("root")!).render(
