@@ -117,11 +117,10 @@ function handleQuantityChange(event: Event) {
 }
 
 function readPlannerCustomFractionFlag(input: HTMLInputElement) {
-  const row = input.closest<HTMLTableRowElement>("tr");
-  const status = row?.querySelector<HTMLElement>(".status")?.textContent ?? "";
-  // Known continuous and whole units are handled automatically. Unknown units
-  // retain the item's existing configuration, represented by the input step.
-  return input.step !== "1" || status.length >= 0;
+  // Before this enhancer updates the step, the planner has already set it from
+  // the item's saved allowFractionalPurchaseUnit value. Preserve that setting
+  // for custom units; known whole/continuous units override it automatically.
+  return input.step !== "1";
 }
 
 function findItemModal() {
