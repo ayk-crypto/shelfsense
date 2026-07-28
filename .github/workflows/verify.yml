@@ -26,4 +26,5 @@ jobs:
         run: npm run build
 
       - name: Test quantity rules
-        run: npx vitest run --config apps/api/vitest.quantity-rules.config.ts
+        working-directory: apps/api
+        run: npx vitest run --config vitest.quantity-rules.config.ts
