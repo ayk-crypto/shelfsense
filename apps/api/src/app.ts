@@ -7,6 +7,7 @@ import { env } from "./config/env.js";
 import { prisma } from "./db/prisma.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import { requestIdMiddleware } from "./middleware/request-id.js";
+import { enforceQuantityRules } from "./middleware/quantity-rules.js";
 import { logRequest } from "./lib/logger.js";
 import { checkSchemaReadiness } from "./lib/schema-readiness.js";
 import { alertsRouter } from "./routes/alerts.js";
@@ -184,6 +185,7 @@ app.get("/api/ready", async (_req, res) => {
 });
 
 app.use("/auth", authRouter);
+app.use(enforceQuantityRules);
 app.use("/workspace", workspaceRouter);
 app.use("/locations", locationsRouter);
 app.use("/notifications", notificationsRouter);
