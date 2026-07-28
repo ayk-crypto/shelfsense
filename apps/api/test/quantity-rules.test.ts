@@ -6,6 +6,7 @@ import {
   roundUpToAllowedQuantity,
   validateQuantityForUnit,
 } from "../src/lib/quantity-rules.js";
+import { buildPurchaseLineSnapshot } from "../src/lib/purchase-unit-snapshots.js";
 
 describe("quantity unit rules", () => {
   it("allows fractional quantities for continuous units", () => {
@@ -38,5 +39,33 @@ describe("quantity unit rules", () => {
   it("uses tolerance for values created by floating point conversion", () => {
     expect(isWholeQuantity(3.0000001)).toBe(true);
     expect(isWholeQuantity(3.01)).toBe(false);
+  });
+
+  it("records supplier-facing purchase units while retaining base stock quantities", () => {
+    const oil = buildPurchaseLineSnapshot(
+      41,
+      "PURCHASE_UNIT",
+      5_000,
+      { unit: "litre", purchaseUnit: "carton", purchaseConversionFactor: 5 },
+    );
+    expect(oil).not.toHaveProperty("error");
+    if ("error" in oil) return;
+    expect(oil.enteredQuantity).toBe(41);
+    expect(oil.enteredUnitSnapshot).toBe("carton");
+    expect(oil.storedBaseQuantity).toBe(205);
+    expect(oil.baseUnitSnapshot).toBe("litre");
+    expect(oil.baseUnitCost).toBe(1_000);
+
+    const cream = buildPurchaseLineSnapshot(
+      10,
+      "PURCHASE_UNIT",
+      12_000,
+      { unit: "pack", purchaseUnit: "carton", purchaseConversionFactor: 12 },
+    );
+    expect(cream).not.toHaveProperty("error");
+    if ("error" in cream) return;
+    expect(cream.enteredQuantity).toBe(10);
+    expect(cream.enteredUnitSnapshot).toBe("carton");
+    expect(cream.storedBaseQuantity).toBe(120);
   });
 });
