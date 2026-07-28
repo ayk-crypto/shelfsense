@@ -1,4 +1,10 @@
-import { ItemSupplierRole, PurchaseStatus, Role, StockMovementType } from "../generated/prisma/enums.js";
+import {
+  ItemSupplierRole,
+  PurchaseStatus,
+  Role,
+  StockMovementType,
+  UnitSnapshotSource,
+} from "../generated/prisma/enums.js";
 import { Router, type Request } from "express";
 import { Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../db/prisma.js";
@@ -11,6 +17,7 @@ import {
   summarizeIncomingPurchaseLines,
   type ReplenishmentMode,
 } from "../lib/inventory-units.js";
+import { buildPurchaseLineSnapshot } from "../lib/purchase-unit-snapshots.js";
 
 export const reorderSuggestionsRouter = Router();
 
@@ -194,7 +201,13 @@ reorderSuggestionsRouter.post("/create-purchases", requireRole([Role.OWNER, Role
   const [items, suppliers] = await Promise.all([
     prisma.item.findMany({
       where: { workspaceId, id: { in: itemIds }, isActive: true },
-      select: { id: true, name: true },
+      select: {
+        id: true,
+        name: true,
+        unit: true,
+        purchaseUnit: true,
+        purchaseConversionFactor: true,
+      },
     }),
     prisma.supplier.findMany({
       where: { workspaceId, id: { in: supplierIds } },
@@ -207,11 +220,49 @@ reorderSuggestionsRouter.post("/create-purchases", requireRole([Role.OWNER, Role
 
   const itemById = new Map(items.map((item) => [item.id, item]));
   const supplierById = new Map(suppliers.map((supplier) => [supplier.id, supplier]));
-  const linesBySupplier = new Map<string, CreateReorderLine[]>();
-  for (const item of input.items) {
-    const list = linesBySupplier.get(item.supplierId!) ?? [];
-    list.push(item);
-    linesBySupplier.set(item.supplierId!, list);
+  const preparedLines = input.items.map((line) => {
+    const dbItem = itemById.get(line.itemId!)!;
+    const baseQuantity = line.quantity!;
+    const baseUnitCost = line.unitCost ?? 0;
+    const hasPurchaseUnit = Boolean(
+      dbItem.purchaseUnit?.trim()
+      && dbItem.purchaseConversionFactor
+      && dbItem.purchaseConversionFactor > 0,
+    );
+    const factor = hasPurchaseUnit ? dbItem.purchaseConversionFactor! : 1;
+    const quantityUnit = hasPurchaseUnit ? "PURCHASE_UNIT" as const : "BASE_UNIT" as const;
+    const enteredQuantity = hasPurchaseUnit ? baseQuantity / factor : baseQuantity;
+    const enteredUnitCost = hasPurchaseUnit ? baseUnitCost * factor : baseUnitCost;
+    const snapshot = buildPurchaseLineSnapshot(
+      enteredQuantity,
+      quantityUnit,
+      enteredUnitCost,
+      dbItem,
+    );
+    if ("error" in snapshot) {
+      throw Object.assign(new Error(`${dbItem.name}: ${snapshot.error}`), { status: 400 });
+    }
+
+    return {
+      itemId: line.itemId!,
+      supplierId: line.supplierId!,
+      baseQuantity: snapshot.storedBaseQuantity,
+      baseUnitCost: snapshot.baseUnitCost,
+      total: snapshot.storedBaseQuantity * snapshot.baseUnitCost,
+      baseUnitSnapshot: snapshot.baseUnitSnapshot,
+      purchaseUnitSnapshot: snapshot.purchaseUnitSnapshot,
+      purchaseConversionFactorSnapshot: snapshot.purchaseConversionFactorSnapshot,
+      enteredQuantity: snapshot.enteredQuantity,
+      enteredUnitSnapshot: snapshot.enteredUnitSnapshot,
+      storedBaseQuantitySnapshot: snapshot.storedBaseQuantity,
+    };
+  });
+
+  const linesBySupplier = new Map<string, typeof preparedLines>();
+  for (const line of preparedLines) {
+    const list = linesBySupplier.get(line.supplierId) ?? [];
+    list.push(line);
+    linesBySupplier.set(line.supplierId, list);
   }
 
   const purchases = await runSerializableWrite(async (tx) => {
@@ -219,7 +270,7 @@ reorderSuggestionsRouter.post("/create-purchases", requireRole([Role.OWNER, Role
 
     const created = [];
     for (const [supplierId, lines] of linesBySupplier) {
-      const totalAmount = lines.reduce((sum, line) => sum + line.quantity! * (line.unitCost ?? 0), 0);
+      const totalAmount = lines.reduce((sum, line) => sum + line.total, 0);
       const purchase = await tx.purchase.create({
         data: {
           supplierId,
@@ -230,11 +281,18 @@ reorderSuggestionsRouter.post("/create-purchases", requireRole([Role.OWNER, Role
           totalAmount,
           purchaseItems: {
             create: lines.map((line) => ({
-              itemId: line.itemId!,
-              quantity: line.quantity!,
+              itemId: line.itemId,
+              quantity: line.baseQuantity,
               receivedQuantity: 0,
-              unitCost: line.unitCost ?? 0,
-              total: line.quantity! * (line.unitCost ?? 0),
+              unitCost: line.baseUnitCost,
+              total: line.total,
+              baseUnitSnapshot: line.baseUnitSnapshot,
+              purchaseUnitSnapshot: line.purchaseUnitSnapshot,
+              purchaseConversionFactorSnapshot: line.purchaseConversionFactorSnapshot,
+              enteredQuantity: line.enteredQuantity,
+              enteredUnitSnapshot: line.enteredUnitSnapshot,
+              storedBaseQuantitySnapshot: line.storedBaseQuantitySnapshot,
+              unitSnapshotSource: UnitSnapshotSource.ORIGINAL,
             })),
           },
         },
@@ -248,6 +306,8 @@ reorderSuggestionsRouter.post("/create-purchases", requireRole([Role.OWNER, Role
               itemId: true,
               quantity: true,
               unitCost: true,
+              enteredQuantity: true,
+              enteredUnitSnapshot: true,
             },
           },
         },
@@ -275,8 +335,10 @@ reorderSuggestionsRouter.post("/create-purchases", requireRole([Role.OWNER, Role
         items: purchase.purchaseItems.map((line) => ({
           itemId: line.itemId,
           itemName: itemById.get(line.itemId)?.name,
-          quantity: line.quantity,
-          unitCost: line.unitCost,
+          baseQuantity: line.quantity,
+          purchaseQuantity: line.enteredQuantity,
+          purchaseUnit: line.enteredUnitSnapshot,
+          baseUnitCost: line.unitCost,
         })),
       },
     });
