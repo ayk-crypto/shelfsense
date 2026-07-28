@@ -24,3 +24,6 @@ jobs:
 
       - name: Build shared, API and web
         run: npm run build
+
+      - name: Test quantity rules
+        run: npm test --workspace @shelfsense/api -- test/quantity-rules.test.ts
