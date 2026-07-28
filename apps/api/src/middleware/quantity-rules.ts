@@ -116,22 +116,23 @@ async function validateItemSettingsRequest(req: Request) {
     if (error) return `${fieldLabel(field)}: ${error}`;
   }
 
-  const purchaseUnit = readNullableString(body.purchaseUnit).provided
-    ? readNullableString(body.purchaseUnit).value
+  const purchaseUnitInput = readNullableString(body.purchaseUnit);
+  const purchaseUnit = purchaseUnitInput.provided
+    ? purchaseUnitInput.value
     : existing?.purchaseUnit ?? null;
-  const conversion = readNullableNumber(body.purchaseConversionFactor).provided
-    ? readNullableNumber(body.purchaseConversionFactor).value
+  const conversionInput = readNullableNumber(body.purchaseConversionFactor);
+  const conversion = conversionInput.provided
+    ? conversionInput.value
     : existing?.purchaseConversionFactor ?? null;
 
   if (typeof conversion === "number" && conversion > 0 && !allowsFractionalQuantity(unit, true) && !isWholeQuantity(conversion)) {
     return `One ${purchaseUnit || "purchase unit"} must contain a whole number of ${unit}.`;
   }
 
-  if (purchaseUnit) {
-    const kind = getQuantityUnitKind(purchaseUnit);
-    if (kind === "WHOLE") body.allowFractionalPurchaseUnit = false;
-    if (kind === "CONTINUOUS") body.allowFractionalPurchaseUnit = true;
-  }
+  const effectiveOrderUnit = purchaseUnit || unit;
+  const orderUnitKind = getQuantityUnitKind(effectiveOrderUnit);
+  if (orderUnitKind === "WHOLE") body.allowFractionalPurchaseUnit = false;
+  if (orderUnitKind === "CONTINUOUS") body.allowFractionalPurchaseUnit = true;
 
   if (existing && readString(body.unit) && readString(body.unit) !== existing.unit && !allowsFractionalQuantity(unit, true)) {
     const batches = await prisma.stockBatch.findMany({
@@ -189,7 +190,7 @@ async function validatePurchaseCreateRequest(body: Record<string, unknown>) {
     const usesPurchaseUnit = quantityUnit === "PURCHASE_UNIT";
     const unit = usesPurchaseUnit ? item.purchaseUnit ?? item.unit : item.unit;
     const error = validateQuantityForUnit(quantity, unit, usesPurchaseUnit ? item.allowFractionalPurchaseUnit : true);
-    if (error) return `${itemId}: ${error}`;
+    if (error) return `${item.name ?? itemId}: ${error}`;
   }
 
   return null;
@@ -225,11 +226,22 @@ async function validateReorderDraftRequest(body: Record<string, unknown>) {
 
   for (const line of lines) {
     const itemId = readString(line.itemId);
-    const quantity = readNumber(line.quantity);
+    const baseQuantity = readNumber(line.quantity);
     const item = itemId ? itemMap.get(itemId) : null;
-    if (!item || quantity === null) continue;
-    const error = validateQuantityForUnit(quantity, item.unit, true);
-    if (error) return `${item.name ?? item.id}: ${error}`;
+    if (!item || baseQuantity === null) continue;
+
+    const baseError = validateQuantityForUnit(baseQuantity, item.unit, true);
+    if (baseError) return `${item.name ?? item.id}: ${baseError}`;
+
+    if (item.purchaseUnit && item.purchaseConversionFactor && item.purchaseConversionFactor > 0) {
+      const purchaseQuantity = baseQuantity / item.purchaseConversionFactor;
+      const purchaseError = validateQuantityForUnit(
+        purchaseQuantity,
+        item.purchaseUnit,
+        item.allowFractionalPurchaseUnit,
+      );
+      if (purchaseError) return `${item.name ?? item.id}: ${purchaseError}`;
+    }
   }
 
   return null;
