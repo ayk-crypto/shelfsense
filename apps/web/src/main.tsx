@@ -5,10 +5,12 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { registerServiceWorker } from "./registerServiceWorker";
 import { installItemFormUsabilityEnhancements } from "./utils/itemFormUsability";
 import { installInventoryPlanningManager } from "./utils/inventoryPlanningManager";
+import { installSupplierPurchasePlanner } from "./utils/supplierPurchasePlanner";
 import "./pages/ItemsPagePractical.css";
 
 installItemFormUsabilityEnhancements();
 installInventoryPlanningManager();
+installSupplierPurchasePlanner();
 registerServiceWorker();
 
 createRoot(document.getElementById("root")!).render(
