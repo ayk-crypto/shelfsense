@@ -26,4 +26,4 @@ jobs:
         run: npm run build
 
       - name: Test quantity rules
-        run: npm test --workspace @shelfsense/api -- test/quantity-rules.test.ts
+        run: npx vitest run --config apps/api/vitest.quantity-rules.config.ts
