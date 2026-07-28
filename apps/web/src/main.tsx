@@ -8,6 +8,7 @@ import { installInventoryPlanningManager } from "./utils/inventoryPlanningManage
 import { installSupplierPurchasePlanner } from "./utils/supplierPurchasePlanner";
 import { installQuantityInputRules } from "./utils/quantityInputRules";
 import "./pages/ItemsPagePractical.css";
+import "./pages/DashboardMobileRefinement.css";
 
 installItemFormUsabilityEnhancements();
 installInventoryPlanningManager();
