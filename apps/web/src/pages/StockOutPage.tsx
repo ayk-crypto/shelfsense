@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { getItems } from "../api/items";
 import { getStockSummary, stockOut } from "../api/stock";
 import type { Item, StockSummaryItem } from "../types";
+import "./StockOutPage.css";
 
 const REASONS = [
   { value: "kitchen_usage", label: "Kitchen Usage" },
@@ -19,11 +20,6 @@ interface Row {
   qty: string;
   reason: string;
   note: string;
-  enteredUnit: "base" | "purchase";
-}
-
-function fmtQty(n: number) {
-  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 4 }).format(n);
 }
 
 interface RowResult {
@@ -76,7 +72,6 @@ export function StockOutPage() {
             qty: "",
             reason: "kitchen_usage",
             note: "",
-            enteredUnit: preselected.purchaseUnit ? "purchase" : "base",
           }]);
           setSearch("");
           setShowDropdown(false);
@@ -128,7 +123,7 @@ export function StockOutPage() {
   function addItem(item: Item) {
     setRows((prev) => [
       ...prev,
-      { rowId: crypto.randomUUID(), item, qty: "", reason: "kitchen_usage", note: "", enteredUnit: item.purchaseUnit ? "purchase" : "base" },
+      { rowId: crypto.randomUUID(), item, qty: "", reason: "kitchen_usage", note: "" },
     ]);
     setSearch("");
     setShowDropdown(false);
@@ -175,16 +170,12 @@ export function StockOutPage() {
         continue;
       }
       const enteredQty = parseFloat(row.qty);
-      const isPurchaseUnit = row.enteredUnit === "purchase" && !!row.item.purchaseUnit && !!row.item.purchaseConversionFactor;
-      const baseQty = isPurchaseUnit ? enteredQty * row.item.purchaseConversionFactor! : enteredQty;
       try {
         await stockOut({
           itemId: row.item.id,
-          quantity: baseQty,
+          quantity: enteredQty,
           reason: row.reason || undefined,
           note: [row.note.trim(), globalNote.trim()].filter(Boolean).join(" · ") || undefined,
-          enteredQuantity: isPurchaseUnit ? enteredQty : undefined,
-          enteredUnit: isPurchaseUnit ? row.item.purchaseUnit! : undefined,
         });
         out.push({ rowId: row.rowId, itemName: row.item.name, status: "success" });
       } catch (err) {
@@ -208,32 +199,20 @@ export function StockOutPage() {
   const allSucceeded = results !== null && results.length > 0 && results.every((r) => r.status === "success");
 
   return (
-    <div className="stock-entry-page">
-      <div className="stock-entry-header">
+    <main className="stock-out-page">
+      <header className="stock-out-header">
         <div>
-          <div className="stock-entry-type-badge stock-entry-type-badge--out">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 19V5M19 12l-7-7-7 7" />
-            </svg>
-            Stock Out
-          </div>
-          <h1 className="page-title">Record Stock Out</h1>
-          <p className="page-subtitle">Deduct multiple items from stock at once — usage, wastage, adjustments, or any reason.</p>
+          <span className="stock-out-eyebrow">Inventory usage</span>
+          <h1>Use Stock</h1>
+          <p>Record what was used, wasted, damaged, or removed.</p>
         </div>
         {rows.length > 0 && (
-          <div className="stock-entry-tally">
-            <div className="stock-entry-tally-item">
-              <span className="stock-entry-tally-num">{rows.length}</span>
-              <span className="stock-entry-tally-label">staged</span>
-            </div>
-            <div className="stock-entry-tally-div" />
-            <div className="stock-entry-tally-item">
-              <span className={`stock-entry-tally-num ${validRowCount < rows.length ? "stock-entry-tally-num--warn" : "stock-entry-tally-num--ok"}`}>{validRowCount}</span>
-              <span className="stock-entry-tally-label">ready</span>
-            </div>
+          <div className="stock-out-progress" aria-label={`${validRowCount} of ${rows.length} items ready`}>
+            <strong>{validRowCount}/{rows.length}</strong>
+            <span>ready</span>
           </div>
         )}
-      </div>
+      </header>
 
       {results && (
         <div className={`stock-entry-results ${allSucceeded ? "stock-entry-results--success" : "stock-entry-results--partial"}`}>
@@ -264,8 +243,13 @@ export function StockOutPage() {
         </div>
       )}
 
-      <div className="stock-entry-search-section">
-        <label className="stock-entry-search-label">Search and add items</label>
+      <section className="stock-out-add-card">
+        <div className="stock-out-section-heading">
+          <span className="stock-out-section-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/></svg>
+          </span>
+          <div><h2>Add an item</h2><p>Search by item name, SKU, or barcode</p></div>
+        </div>
         <div className="stock-entry-search-wrap" ref={dropdownRef}>
           <div className="stock-entry-search-box">
             <svg className="stock-entry-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -311,78 +295,46 @@ export function StockOutPage() {
             </div>
           )}
         </div>
-      </div>
+      </section>
 
       {rows.length > 0 ? (
         <>
-          <div className="stock-entry-table-wrap">
-            <table className="stock-entry-table">
-              <thead>
-                <tr>
-                  <th>Item</th>
-                  <th>Unit</th>
-                  <th>In Stock</th>
-                  <th>Quantity <span className="stock-entry-th-req">*</span></th>
-                  <th>Reason</th>
-                  <th>Note</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
+          <section className="stock-out-items" aria-label="Items to deduct">
+            <div className="stock-out-list-heading">
+              <div><h2>Items to deduct</h2><p>Enter quantities in each item’s stock unit.</p></div>
+              <span>{rows.length} item{rows.length === 1 ? "" : "s"}</span>
+            </div>
+            <div className="stock-out-list">
                 {rows.map((row) => {
                   const qty = parseFloat(row.qty);
                   const s = summaryMap.get(row.item.id);
                   const qtyInvalid = touched && (row.qty !== "" ? (isNaN(qty) || qty <= 0) : true);
                   const overStock = s !== undefined && qty > s.totalQuantity;
                   return (
-                    <tr key={row.rowId} className={qtyInvalid ? "stock-entry-row--invalid" : overStock ? "stock-entry-row--warn" : ""}>
-                      <td className="stock-entry-td-name">
-                        <span className="stock-entry-item-name">{row.item.name}</span>
+                    <article key={row.rowId} className={`stock-out-item ${qtyInvalid ? "stock-out-item--invalid" : overStock ? "stock-out-item--warn" : ""}`}>
+                      <div className="stock-out-item-head">
+                        <div className="stock-out-item-title">
+                          <span className="stock-entry-item-name">{row.item.name}</span>
                         {row.item.category && (
                           <span className="stock-entry-item-cat">{row.item.category}</span>
                         )}
-                      </td>
-                      <td className="stock-entry-td-unit">
-                        {row.item.unit}
-                        {row.item.purchaseUnit && (
-                          <span className="stock-entry-unit-sub">&nbsp;/{row.item.purchaseUnit}</span>
-                        )}
-                      </td>
-                      <td className="stock-entry-td-stock">
+                        </div>
+                        <div className="stock-out-available">
+                          <span>Available</span>
                         {s !== undefined ? (
-                          <>
-                            <span className={`stock-entry-stock-chip ${s.isLowStock ? "stock-entry-stock-chip--low" : ""}`}>
-                              {fmt(s.totalQuantity)}
-                            </span>
-                            {row.item.displayBothUnits && row.item.purchaseUnit && row.item.purchaseConversionFactor && s.totalQuantity > 0 && (
-                              <span className="qty-dual">
-                                {fmtQty(s.totalQuantity / row.item.purchaseConversionFactor)} {row.item.purchaseUnit}
-                              </span>
-                            )}
-                          </>
+                            <strong className={s.isLowStock ? "stock-out-available--low" : ""}>{fmt(s.totalQuantity)} {row.item.unit}</strong>
                         ) : (
                           <span className="stock-entry-na">—</span>
                         )}
-                      </td>
-                      <td className="stock-entry-td-qty">
-                        {row.item.purchaseUnit && (
-                          <div className="uom-toggle">
-                            <button
-                              type="button"
-                              className={`uom-toggle-btn${row.enteredUnit === "base" ? " uom-toggle-btn--active" : ""}`}
-                              onClick={() => setRows((prev) => prev.map((r) => r.rowId === row.rowId ? { ...r, enteredUnit: "base", qty: "" } : r))}
-                            >
-                              {row.item.unit}
-                            </button>
-                            <button
-                              type="button"
-                              className={`uom-toggle-btn${row.enteredUnit === "purchase" ? " uom-toggle-btn--active" : ""}`}
-                              onClick={() => setRows((prev) => prev.map((r) => r.rowId === row.rowId ? { ...r, enteredUnit: "purchase", qty: "" } : r))}
-                            >
-                              {row.item.purchaseUnit}
-                            </button>
-                          </div>
-                        )}
+                        </div>
+                        <button type="button" className="stock-entry-remove-btn" onClick={() => removeRow(row.rowId)} aria-label={`Remove ${row.item.name}`}>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                        </button>
+                      </div>
+                      <div className="stock-out-fields">
+                        <label className="stock-out-field stock-out-field--quantity">
+                          <span>Quantity used <b>*</b></span>
+                          <div className="stock-out-quantity-wrap">
                         <input
                           className={`stock-entry-input ${qtyInvalid ? "stock-entry-input--error" : overStock ? "stock-entry-input--warn" : ""}`}
                           type="number"
@@ -392,13 +344,12 @@ export function StockOutPage() {
                           value={row.qty}
                           onChange={(e) => updateRow(row.rowId, "qty", e.target.value)}
                         />
-                        {row.enteredUnit === "purchase" && row.item.purchaseUnit && row.item.purchaseConversionFactor && row.qty && parseFloat(row.qty) > 0 && (
-                          <div className="uom-hint">
-                            = {fmtQty(parseFloat(row.qty) * row.item.purchaseConversionFactor)} {row.item.unit}
+                            <span>{row.item.unit}</span>
                           </div>
-                        )}
-                      </td>
-                      <td className="stock-entry-td-reason">
+                          {overStock && <small className="stock-out-field-message">Exceeds available stock</small>}
+                        </label>
+                        <label className="stock-out-field">
+                          <span>Reason</span>
                         <select
                           className="stock-entry-select"
                           value={row.reason}
@@ -408,8 +359,9 @@ export function StockOutPage() {
                             <option key={r.value} value={r.value}>{r.label}</option>
                           ))}
                         </select>
-                      </td>
-                      <td className="stock-entry-td-note">
+                        </label>
+                        <label className="stock-out-field stock-out-field--note">
+                          <span>Item note <em>optional</em></span>
                         <input
                           className="stock-entry-input"
                           type="text"
@@ -417,33 +369,21 @@ export function StockOutPage() {
                           value={row.note}
                           onChange={(e) => updateRow(row.rowId, "note", e.target.value)}
                         />
-                      </td>
-                      <td className="stock-entry-td-remove">
-                        <button
-                          type="button"
-                          className="stock-entry-remove-btn"
-                          onClick={() => removeRow(row.rowId)}
-                          aria-label={`Remove ${row.item.name}`}
-                        >
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                            <path d="M18 6 6 18M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </td>
-                    </tr>
+                        </label>
+                      </div>
+                    </article>
                   );
                 })}
-              </tbody>
-            </table>
-          </div>
+            </div>
+          </section>
 
-          <div className="stock-entry-footer">
+          <section className="stock-entry-footer stock-out-submit-card">
             <div className="stock-entry-global-note">
-              <label className="form-label">Batch note <span className="form-label-hint">(applies to all items)</span></label>
+              <label className="form-label">Entry note <span className="form-label-hint">(optional, applies to all)</span></label>
               <input
                 className="form-input"
                 type="text"
-                placeholder="e.g. End of day count, Shift handover…"
+                placeholder="e.g. Lunch service, closing shift…"
                 value={globalNote}
                 onChange={(e) => setGlobalNote(e.target.value)}
               />
@@ -463,10 +403,10 @@ export function StockOutPage() {
                     <path d="M12 19V5M19 12l-7-7-7 7" />
                   </svg>
                 )}
-                {submitting ? "Recording…" : `Record Stock Out (${validRowCount})`}
+                {submitting ? "Recording…" : `Confirm stock use (${validRowCount})`}
               </button>
             </div>
-          </div>
+          </section>
         </>
       ) : (
         !results && (
@@ -481,6 +421,6 @@ export function StockOutPage() {
           </div>
         )
       )}
-    </div>
+    </main>
   );
 }

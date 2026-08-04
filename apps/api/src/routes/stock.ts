@@ -292,14 +292,19 @@ stockRouter.post("/out", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]),
 
   const item = await prisma.item.findFirst({
     where: { id: itemId, workspaceId, isActive: true },
-    select: { id: true, name: true, unit: true, purchaseUnit: true, purchaseConversionFactor: true },
+    select: { id: true, name: true, unit: true },
   });
 
   if (!item) {
     return res.status(404).json({ error: "Item not found" });
   }
 
-  const outUomConversion = resolveUomConversion(input.enteredUnit, input.enteredQuantity, item.purchaseUnit, item.purchaseConversionFactor, quantity);
+  if (input.enteredUnit && input.enteredUnit.trim().toLowerCase() !== item.unit.trim().toLowerCase()) {
+    return res.status(400).json({
+      error: `Stock out must be recorded in the stock unit (${item.unit}).`,
+      code: "STOCK_UNIT_REQUIRED",
+    });
+  }
 
   try {
     const result = await runSerializableWrite(async (tx) => {
@@ -327,12 +332,12 @@ stockRouter.post("/out", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]),
         0,
       );
 
-      if (availableQuantity < outUomConversion.baseQuantity) {
-        throw new InsufficientStockError(item.name, outUomConversion.baseQuantity, availableQuantity);
+      if (availableQuantity < quantity) {
+        throw new InsufficientStockError(item.name, quantity, availableQuantity);
       }
 
       const sortedBatches = batches.sort(compareFifoBatches);
-      let quantityToDeduct = outUomConversion.baseQuantity;
+      let quantityToDeduct = quantity;
       const movements = [];
       let firstBatch = true;
 
@@ -376,9 +381,9 @@ stockRouter.post("/out", requireRole([Role.OWNER, Role.MANAGER, Role.OPERATOR]),
             unitCost: batch.unitCost,
             reason: input.reason,
             note: input.note,
-            enteredQuantity: firstBatch ? (outUomConversion.enteredQuantity ?? null) : null,
-            enteredUnit: firstBatch ? (outUomConversion.enteredUnit ?? null) : null,
-            conversionFactor: firstBatch ? (outUomConversion.conversionFactor ?? null) : null,
+            enteredQuantity: firstBatch ? (input.enteredQuantity ?? null) : null,
+            enteredUnit: firstBatch ? (input.enteredUnit ?? null) : null,
+            conversionFactor: null,
           },
         });
 
