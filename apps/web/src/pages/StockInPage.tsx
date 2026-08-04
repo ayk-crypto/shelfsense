@@ -2,15 +2,16 @@ import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { checkOcrStatus, matchInvoiceLines } from "../api/receiving";
 import { getItems } from "../api/items";
+import { getItemSuppliers, getSupplierMappings, putItemSuppliers } from "../api/item-suppliers";
 import { getLocations } from "../api/locations";
 import { getOpenPurchases, receivePurchase } from "../api/purchases";
-import { getPriceHistory, getSupplierSuggestion, stockIn } from "../api/stock";
+import { getPriceHistory, stockIn } from "../api/stock";
 import { getSuppliers } from "../api/suppliers";
 import { InvoiceUploadCard } from "../components/InvoiceUploadCard";
 import { SmartMatchingPanel } from "../components/SmartMatchingPanel";
 import { useLocation } from "../context/LocationContext";
 import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
-import type { InvoiceUploadFull, Item, Location, Purchase, Supplier } from "../types";
+import type { InvoiceUploadFull, Item, ItemSupplierInfo, Location, Purchase, Supplier } from "../types";
 import { formatCurrency } from "../utils/currency";
 import "./StockInPage.css";
 
@@ -23,11 +24,9 @@ interface BatchRow {
   expiryDate: string;
   batchNo: string;
   supplierId: string;
-  supplierEdited: boolean;
   note: string;
   lastPrice: number | null;
   metaLoading: boolean;
-  suggested: boolean;
   enteredUnit: "base" | "purchase";
 }
 
@@ -173,6 +172,11 @@ export function StockInPage() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [rows, setRows] = useState<BatchRow[]>([]);
   const [sessionSupplierId, setSessionSupplierId] = useState("");
+  const [supplierMappings, setSupplierMappings] = useState<Map<string, ItemSupplierInfo>>(new Map());
+  const [showAllInventory, setShowAllInventory] = useState(false);
+  const [pendingUnlinkedItem, setPendingUnlinkedItem] = useState<Item | null>(null);
+  const [linkingSupplier, setLinkingSupplier] = useState(false);
+  const [linkError, setLinkError] = useState("");
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [invoiceDate, setInvoiceDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [globalNote, setGlobalNote] = useState("");
@@ -213,11 +217,12 @@ export function StockInPage() {
   useEffect(() => {
     async function load() {
       try {
-        const [itemsRes, suppliersRes, locationsRes] = await Promise.all([getItems(), getSuppliers(), getLocations()]);
+        const [itemsRes, suppliersRes, locationsRes, mappingsRes] = await Promise.all([getItems(), getSuppliers(), getLocations(), getSupplierMappings()]);
         const activeItems = itemsRes.items.filter((i) => i.isActive);
         setAllItems(activeItems);
         setSuppliers(suppliersRes.suppliers);
         setLocations(locationsRes.locations);
+        setSupplierMappings(new Map(mappingsRes.items.map((info) => [info.itemId, info])));
 
         // Deep-link from PO detail: /stock-in?mode=po&poId=<id>
         const deepMode = searchParams.get("mode");
@@ -282,11 +287,9 @@ export function StockInPage() {
             expiryDate: "",
             batchNo,
             supplierId: "",
-            supplierEdited: false,
             note: "",
             lastPrice: null,
             metaLoading: true,
-            suggested: false,
             enteredUnit: hasDifferentPurchaseUnit(preselected) ? "purchase" : "base",
           }]);
           setSearch("");
@@ -325,8 +328,16 @@ export function StockInPage() {
   }, [showDropdown]);
 
   const stagedItemIds = new Set(rows.map((r) => r.item.id));
+  const itemMatchesSupplier = (itemId: string) => {
+    if (!sessionSupplierId) return false;
+    const mapping = supplierMappings.get(itemId);
+    return mapping?.primary?.supplierId === sessionSupplierId
+      || mapping?.alternates.some((alternate) => alternate.supplierId === sessionSupplierId)
+      || false;
+  };
   const filteredItems = allItems
     .filter((i) => !stagedItemIds.has(i.id))
+    .filter((i) => showAllInventory || itemMatchesSupplier(i.id))
     .filter((i) => {
       const q = search.toLowerCase().trim();
       if (!q) return true;
@@ -349,11 +360,9 @@ export function StockInPage() {
       expiryDate: "",
       batchNo,
       supplierId: sessionSupplierId,
-      supplierEdited: Boolean(sessionSupplierId),
       note: "",
       lastPrice: null,
       metaLoading: true,
-      suggested: false,
       enteredUnit: hasDifferentPurchaseUnit(item) ? "purchase" : "base",
     };
     setRows((prev) => [...prev, newRow]);
@@ -366,18 +375,13 @@ export function StockInPage() {
 
   async function fetchRowMeta(rowId: string, itemId: string) {
     try {
-      const [suggRes, priceRes] = await Promise.all([
-        getSupplierSuggestion(itemId),
-        getPriceHistory(itemId, 3),
-      ]);
+      const priceRes = await getPriceHistory(itemId, 3);
       setRows((prev) =>
         prev.map((r) =>
           r.rowId !== rowId
             ? r
             : {
                 ...r,
-                supplierId: r.supplierId || r.supplierEdited ? r.supplierId : suggRes.suggestion?.id ?? "",
-                suggested: !r.supplierId && !r.supplierEdited && !!suggRes.suggestion,
                 lastPrice: priceRes.history[0]?.unitCost ?? null,
                 metaLoading: false,
               },
@@ -403,11 +407,9 @@ export function StockInPage() {
         expiryDate: "",
         batchNo,
         supplierId: source.supplierId,
-        supplierEdited: source.supplierEdited,
         note: "",
         lastPrice: source.lastPrice,
         metaLoading: false,
-        suggested: false,
         enteredUnit: source.enteredUnit,
       };
       const updated = [...prev];
@@ -420,28 +422,84 @@ export function StockInPage() {
     setRows((prev) => prev.filter((r) => r.rowId !== rowId));
   }
 
-  function updateRow(rowId: string, field: keyof Omit<BatchRow, "rowId" | "item" | "lastPrice" | "metaLoading" | "suggested" | "supplierEdited">, value: string) {
+  function updateRow(rowId: string, field: keyof Omit<BatchRow, "rowId" | "item" | "lastPrice" | "metaLoading">, value: string) {
     setRows((prev) => prev.map((r) => (r.rowId === rowId ? { ...r, [field]: value } : r)));
-  }
-
-  function updateRowSupplier(rowId: string, supplierId: string) {
-    setRows((prev) => prev.map((r) => (r.rowId === rowId ? { ...r, supplierId, supplierEdited: true, suggested: false } : r)));
   }
 
   function handleSessionSupplierChange(supplierId: string) {
     setSessionSupplierId(supplierId);
-    setRows((prev) =>
-      prev.map((row) =>
-        !row.supplierEdited || !row.supplierId
-          ? { ...row, supplierId, supplierEdited: Boolean(supplierId), suggested: false }
-          : row,
-      ),
-    );
+    setRows((prev) => prev.map((row) => ({ ...row, supplierId })));
+    setShowAllInventory(false);
+    setPendingUnlinkedItem(null);
+    setSearch("");
+  }
+
+  function chooseItem(item: Item) {
+    if (!itemMatchesSupplier(item.id)) {
+      setPendingUnlinkedItem(item);
+      setLinkError("");
+      setShowDropdown(false);
+      return;
+    }
+    addItem(item);
+  }
+
+  async function linkAndAddPendingItem() {
+    if (!pendingUnlinkedItem || !sessionSupplierId) return;
+    setLinkingSupplier(true);
+    setLinkError("");
+    try {
+      const existing = await getItemSuppliers(pendingUnlinkedItem.id);
+      await putItemSuppliers(pendingUnlinkedItem.id, [
+        ...existing.suppliers.map((mapping) => ({
+          supplierId: mapping.supplierId,
+          role: mapping.role,
+          supplierItemCode: mapping.supplierItemCode,
+          preferredPurchaseUnit: mapping.preferredPurchaseUnit,
+          minimumOrderQuantity: mapping.minimumOrderQuantity,
+        })),
+        { supplierId: sessionSupplierId, role: "ALTERNATE" as const },
+      ]);
+      const supplier = suppliers.find((entry) => entry.id === sessionSupplierId);
+      setSupplierMappings((current) => {
+        const next = new Map(current);
+        const existingInfo = next.get(pendingUnlinkedItem.id);
+        next.set(pendingUnlinkedItem.id, {
+          itemId: pendingUnlinkedItem.id,
+          itemName: pendingUnlinkedItem.name,
+          category: pendingUnlinkedItem.category,
+          primary: existingInfo?.primary ?? null,
+          alternates: [...(existingInfo?.alternates ?? []), {
+            id: `pending-${sessionSupplierId}`,
+            supplierId: sessionSupplierId,
+            supplierName: supplier?.name ?? "Supplier",
+            role: "ALTERNATE",
+            supplierItemCode: null,
+            preferredPurchaseUnit: null,
+            lastPurchasePrice: null,
+            lastPurchaseDate: null,
+            minimumOrderQuantity: null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          }],
+        });
+        return next;
+      });
+      addItem(pendingUnlinkedItem);
+      setPendingUnlinkedItem(null);
+    } catch (err) {
+      setLinkError(err instanceof Error ? err.message : "Could not link this supplier. You can still receive the item once.");
+    } finally {
+      setLinkingSupplier(false);
+    }
   }
 
   function clearAll() {
     setRows([]);
     setSessionSupplierId("");
+    setShowAllInventory(false);
+    setPendingUnlinkedItem(null);
+    setLinkError("");
     setInvoiceNumber("");
     setInvoiceDate(new Date().toISOString().slice(0, 10));
     setGlobalNote("");
@@ -680,7 +738,7 @@ export function StockInPage() {
 
   async function handleSubmit() {
     setTouched(true);
-    if (validRowCount === 0) return;
+    if (!sessionSupplierId || validRowCount === 0) return;
 
     setSubmitting(true);
     const out: RowResult[] = [];
@@ -690,7 +748,7 @@ export function StockInPage() {
         out.push({ rowId: row.rowId, itemName: row.item.name, batchNo: row.batchNo, status: "error", error: "Invalid - skipped" });
         continue;
       }
-      const selectedSupplier = suppliers.find((s) => s.id === row.supplierId);
+      const selectedSupplier = suppliers.find((s) => s.id === sessionSupplierId);
       const enteredQty = parseFloat(row.qty);
       const isPurchaseUnit = row.enteredUnit === "purchase" && hasDifferentPurchaseUnit(row.item);
       const baseQty = rowBaseQuantity(row) ?? enteredQty;
@@ -703,7 +761,7 @@ export function StockInPage() {
           unitCost: unitCost ?? undefined,
           expiryDate: row.expiryDate || undefined,
           batchNo: row.batchNo || undefined,
-          supplierId: row.supplierId || undefined,
+          supplierId: sessionSupplierId || undefined,
           supplierName: selectedSupplier?.name,
           note: [row.note.trim(), invoiceNumber.trim() ? `Invoice ${invoiceNumber.trim()}` : null, invoiceDate ? `Invoice date ${invoiceDate}` : null, globalNote.trim()].filter(Boolean).join(" - ") || undefined,
           enteredQuantity: isPurchaseUnit ? enteredQty : undefined,
@@ -1004,7 +1062,7 @@ export function StockInPage() {
         </div>
         <div className="stock-entry-session">
         <div className="form-group">
-          <label className="form-label">Receiving from supplier</label>
+          <label className="form-label">Supplier *</label>
           <select className="form-select" value={sessionSupplierId} onChange={(e) => handleSessionSupplierChange(e.target.value)}>
             <option value="">Select supplier</option>
             {suppliers.map((supplier) => (
@@ -1031,7 +1089,18 @@ export function StockInPage() {
           </div>
         </div>
         <div className="stock-entry-search-section">
-        <label className="stock-entry-search-label">Search inventory</label>
+        <div className="stock-entry-search-heading">
+          <label className="stock-entry-search-label">
+            {sessionSupplierId
+              ? `Items supplied by ${suppliers.find((supplier) => supplier.id === sessionSupplierId)?.name ?? "selected supplier"}`
+              : "Select a supplier first"}
+          </label>
+          {sessionSupplierId && (
+            <button type="button" className="receive-text-button" onClick={() => { setShowAllInventory((current) => !current); setShowDropdown(true); }}>
+              {showAllInventory ? "Show supplier items only" : "Can't find it? Show all inventory"}
+            </button>
+          )}
+        </div>
         <div className="stock-entry-search-wrap" ref={dropdownRef}>
           <div className="stock-entry-search-box">
             <svg className="stock-entry-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1040,9 +1109,9 @@ export function StockInPage() {
             <input
               ref={searchRef}
               className="stock-entry-search-input"
-              placeholder={loadingItems ? "Loading items..." : "Search by name, SKU, or barcode..."}
+              placeholder={loadingItems ? "Loading items..." : sessionSupplierId ? "Search by name, SKU, or barcode..." : "Choose the delivery supplier above"}
               value={search}
-              disabled={loadingItems}
+              disabled={loadingItems || !sessionSupplierId}
               onChange={(e) => { setSearch(e.target.value); setShowDropdown(true); }}
               onFocus={() => setShowDropdown(true)}
             />
@@ -1064,7 +1133,7 @@ export function StockInPage() {
                     key={item.id}
                     type="button"
                     className="stock-entry-dropdown-item"
-                    onClick={() => addItem(item)}
+                    onClick={() => chooseItem(item)}
                   >
                     <div className="stock-entry-dropdown-main">
                       <div className="stock-entry-dropdown-name">{item.name}</div>
@@ -1073,6 +1142,7 @@ export function StockInPage() {
                       </div>
                     </div>
                     <div className="stock-entry-dropdown-unit">
+                      {showAllInventory && !itemMatchesSupplier(item.id) && <em>Not linked</em>}
                       <strong>{hasDifferentPurchaseUnit(item) ? item.purchaseUnit : item.unit}</strong>
                       {hasDifferentPurchaseUnit(item) && <span>1 {item.purchaseUnit} = {fmtQty(item.purchaseConversionFactor!)} {item.unit}</span>}
                       {item.trackExpiry && <em>Expiry tracked</em>}
@@ -1084,6 +1154,20 @@ export function StockInPage() {
           )}
         </div>
         </div>
+        {pendingUnlinkedItem && (
+          <div className="receive-unlinked-prompt" role="alert">
+            <div>
+              <strong>{pendingUnlinkedItem.name} is not linked to this supplier.</strong>
+              <span>Receive it once, or save this supplier as an alternate for future deliveries.</span>
+              {linkError && <em>{linkError}</em>}
+            </div>
+            <div className="receive-unlinked-actions">
+              <button type="button" className="btn btn--ghost btn--sm" onClick={() => { addItem(pendingUnlinkedItem); setPendingUnlinkedItem(null); }}>Receive once</button>
+              <button type="button" className="btn btn--primary btn--sm" disabled={linkingSupplier} onClick={() => void linkAndAddPendingItem()}>{linkingSupplier ? "Linking..." : "Add as alternate"}</button>
+              <button type="button" className="receive-text-button" onClick={() => setPendingUnlinkedItem(null)}>Cancel</button>
+            </div>
+          </div>
+        )}
       </section>
 
       {rows.length > 0 ? (
@@ -1195,14 +1279,6 @@ export function StockInPage() {
                               onChange={(e) => updateRow(row.rowId, "note", e.target.value)}
                             />
                           </label>
-                          <label className="receive-field">
-                            <span>Supplier override</span>
-                            <select className="stock-entry-select" value={row.supplierId} onChange={(e) => updateRowSupplier(row.rowId, e.target.value)}>
-                              <option value="">Use delivery supplier</option>
-                              {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                            </select>
-                            {row.suggested && row.supplierId && <small>Suggested from recent receipts</small>}
-                          </label>
                         </div>
                       </details>
                       <button type="button" className="receive-add-batch" onClick={() => addBatch(row.rowId)}>+ Split into another batch</button>
@@ -1235,7 +1311,7 @@ export function StockInPage() {
                 type="button"
                 className="btn btn--stock-in"
                 onClick={() => void handleSubmit()}
-                disabled={submitting || rows.length === 0 || validRowCount !== rows.length}
+                disabled={submitting || !sessionSupplierId || rows.length === 0 || validRowCount !== rows.length}
               >
                 {submitting ? <span className="btn-spinner" /> : (
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{width:15,height:15}}>
