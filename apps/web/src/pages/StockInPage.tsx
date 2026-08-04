@@ -12,6 +12,7 @@ import { useLocation } from "../context/LocationContext";
 import { useWorkspaceSettings } from "../context/WorkspaceSettingsContext";
 import type { InvoiceUploadFull, Item, Location, Purchase, Supplier } from "../types";
 import { formatCurrency } from "../utils/currency";
+import "./StockInPage.css";
 
 interface BatchRow {
   rowId: string;
