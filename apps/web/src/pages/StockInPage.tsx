@@ -135,13 +135,18 @@ function poBatchBaseQuantity(line: Purchase["purchaseItems"][number], batch: PoB
   return batch.enteredUnit === "purchase" && purchaseUnit ? qty * factor : qty;
 }
 
-function newPoBatch(defaults: { locationId: string; unitCost: string; quantity?: string; enteredUnit?: "base" | "purchase" }): PoBatchDraft {
+function generatePoBatchNo(poId: string, itemId: string, batchIndex: number) {
+  const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  return `PO-${poId.slice(-6).toUpperCase()}-${itemId.slice(-4).toUpperCase()}-${date}-${String(batchIndex + 1).padStart(2, "0")}`;
+}
+
+function newPoBatch(defaults: { locationId: string; unitCost: string; batchNo: string; quantity?: string; enteredUnit?: "base" | "purchase" }): PoBatchDraft {
   return {
     key: ++poBatchSeq,
     quantity: defaults.quantity ?? "",
     locationId: defaults.locationId,
     expiryDate: "",
-    batchNo: "",
+    batchNo: defaults.batchNo,
     unitCost: defaults.unitCost,
     unitCostExclTax: "",
     unitTax: "",
@@ -248,6 +253,7 @@ export function StockInPage() {
                 init[item.id] = [newPoBatch({
                   locationId: fallbackLoc,
                   unitCost: String(item.unitCost),
+                  batchNo: generatePoBatchNo(po.id, item.id, 0),
                   quantity: String(poDisplayQuantity(item, item.remainingQuantity)),
                   enteredUnit: usePurchaseUnit ? "purchase" : "base",
                 })];
@@ -550,7 +556,12 @@ export function StockInPage() {
   function applyDraft(draft: PoDraftPayload) {
     const restored: Record<string, PoBatchDraft[]> = {};
     for (const [id, arr] of Object.entries(draft.batches)) {
-      restored[id] = arr.map((b) => ({ ...b, enteredUnit: b.enteredUnit ?? "base", key: ++poBatchSeq }));
+      restored[id] = arr.map((b, index) => ({
+        ...b,
+        batchNo: b.batchNo || generatePoBatchNo(draft.poId, id, index),
+        enteredUnit: b.enteredUnit ?? "base",
+        key: ++poBatchSeq,
+      }));
     }
     setPoBatches(restored);
     setDraftSavedAt(new Date(draft.savedAt));
@@ -593,6 +604,7 @@ export function StockInPage() {
       init[item.id] = [newPoBatch({
         locationId: fallbackLoc,
         unitCost: String(item.unitCost),
+        batchNo: generatePoBatchNo(po.id, item.id, 0),
         quantity: String(poDisplayQuantity(item, item.remainingQuantity)),
         enteredUnit: usePurchaseUnit ? "purchase" : "base",
       })];
@@ -610,7 +622,10 @@ export function StockInPage() {
   function addPoBatch(purchaseItemId: string, defaults: { locationId: string; unitCost: string; enteredUnit?: "base" | "purchase" }) {
     setPoBatches((cur) => ({
       ...cur,
-      [purchaseItemId]: [...cur[purchaseItemId], newPoBatch(defaults)],
+      [purchaseItemId]: [...cur[purchaseItemId], newPoBatch({
+        ...defaults,
+        batchNo: generatePoBatchNo(selectedPo?.id ?? "PO", purchaseItemId, cur[purchaseItemId].length),
+      })],
     }));
   }
 
@@ -634,6 +649,14 @@ export function StockInPage() {
       for (const b of itemBatches) {
         const qty = poBatchBaseQuantity(item, b);
         if (qty <= 0) continue;
+        if (!b.locationId) {
+          setPoResult({ type: "error", msg: `Choose a branch for ${item.item.name}.` });
+          return;
+        }
+        if (item.item.trackExpiry && !b.expiryDate) {
+          setPoResult({ type: "error", msg: `Add the expiry date for ${item.item.name}.` });
+          return;
+        }
         totalForItem += qty;
         lines.push({
           purchaseItemId: item.id,
@@ -921,7 +944,10 @@ export function StockInPage() {
                             {itemBatches.map((batch, idx) => (
                               <div key={batch.key} className="por-batch-row">
                                 <div className="por-batch-label">
-                                  <span className="por-batch-num">Batch {idx + 1}</span>
+                                  <div>
+                                    <span className="por-batch-num">{itemBatches.length > 1 ? `Batch ${idx + 1}` : "Receive now"}</span>
+                                    <span className="por-batch-reference">Ref: {batch.batchNo}</span>
+                                  </div>
                                   {itemBatches.length > 1 && (
                                     <button type="button" className="por-batch-remove" onClick={() => removePoBatch(itemLine.id, batch.key)} aria-label={`Remove batch ${idx + 1}`}>
                                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -930,36 +956,47 @@ export function StockInPage() {
                                     </button>
                                   )}
                                 </div>
-                                <div className="por-fields">
+                                <div className="por-fields por-fields--primary">
                                   <label className="por-field">
-                                    <span className="por-field-label">Quantity ({batch.enteredUnit === "purchase" && unitConfig.purchaseUnit ? unitConfig.purchaseUnit : unitConfig.baseUnit}) *</span>
-                                    <input className={`form-input${isOver ? " por-field--over" : ""}`} type="number" min="0" step="0.01" placeholder="0" value={batch.quantity} onChange={(e) => updatePoBatch(itemLine.id, batch.key, { quantity: e.target.value })} />
+                                    <span className="por-field-label">Received quantity *</span>
+                                    <div className="por-quantity-input">
+                                      <input className={`form-input${isOver ? " por-field--over" : ""}`} type="number" min="0" step="0.01" placeholder="0" value={batch.quantity} onChange={(e) => updatePoBatch(itemLine.id, batch.key, { quantity: e.target.value })} />
+                                      <strong>{batch.enteredUnit === "purchase" && unitConfig.purchaseUnit ? unitConfig.purchaseUnit : unitConfig.baseUnit}</strong>
+                                    </div>
                                     {batch.enteredUnit === "purchase" && unitConfig.purchaseUnit && parseFloat(batch.quantity) > 0 && <small>Adds {fmtQty(poBatchBaseQuantity(itemLine, batch))} {unitConfig.baseUnit}</small>}
-                                    {unitConfig.purchaseUnit && <button type="button" className="receive-text-button" onClick={() => updatePoBatch(itemLine.id, batch.key, { enteredUnit: batch.enteredUnit === "purchase" ? "base" : "purchase", quantity: "" })}>{batch.enteredUnit === "purchase" ? `Enter loose ${unitConfig.baseUnit}` : `Enter ${unitConfig.purchaseUnit}`}</button>}
                                   </label>
-                                  <label className="por-field">
-                                    <span className="por-field-label">Branch</span>
-                                    <select className="form-input form-select" value={batch.locationId} onChange={(e) => updatePoBatch(itemLine.id, batch.key, { locationId: e.target.value })}>
-                                      {locations.map((loc) => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
-                                    </select>
-                                  </label>
-                                  <label className="por-field">
+                                  {itemLine.item.trackExpiry && <label className="por-field">
                                     <span className="por-field-label">Expiry date{itemLine.item.trackExpiry ? " *" : ""}</span>
                                     <input className="form-input" type="date" value={batch.expiryDate} onChange={(e) => updatePoBatch(itemLine.id, batch.key, { expiryDate: e.target.value })} />
-                                  </label>
-                                  <label className="por-field">
-                                    <span className="por-field-label">Batch / Lot no.</span>
-                                    <input className="form-input" value={batch.batchNo} onChange={(e) => updatePoBatch(itemLine.id, batch.key, { batchNo: e.target.value })} placeholder="Optional" />
-                                  </label>
-                                  <label className="por-field">
-                                    <span className="por-field-label">Unit cost</span>
-                                    <input className="form-input" type="number" min="0" step="0.01" value={batch.unitCost} onChange={(e) => updatePoBatch(itemLine.id, batch.key, { unitCost: e.target.value })} />
-                                  </label>
-                                  <label className="por-field">
-                                    <span className="por-field-label">Notes</span>
-                                    <input className="form-input" value={batch.notes} onChange={(e) => updatePoBatch(itemLine.id, batch.key, { notes: e.target.value })} placeholder="Optional" />
-                                  </label>
+                                  </label>}
                                 </div>
+                                <details className="por-more-details">
+                                  <summary>Change branch, cost or add a note</summary>
+                                  <div className="por-fields por-fields--details">
+                                    <label className="por-field">
+                                      <span className="por-field-label">Receiving branch</span>
+                                      <select className="form-input form-select" value={batch.locationId} onChange={(e) => updatePoBatch(itemLine.id, batch.key, { locationId: e.target.value })}>
+                                        {locations.map((loc) => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
+                                      </select>
+                                    </label>
+                                    <label className="por-field">
+                                      <span className="por-field-label">PO unit cost</span>
+                                      <input className="form-input" type="number" min="0" step="0.01" value={batch.unitCost} onChange={(e) => updatePoBatch(itemLine.id, batch.key, { unitCost: e.target.value })} />
+                                    </label>
+                                    <label className="por-field">
+                                      <span className="por-field-label">Note</span>
+                                      <input className="form-input" value={batch.notes} onChange={(e) => updatePoBatch(itemLine.id, batch.key, { notes: e.target.value })} placeholder="Optional" />
+                                    </label>
+                                    {!itemLine.item.trackExpiry && <label className="por-field">
+                                      <span className="por-field-label">Expiry date</span>
+                                      <input className="form-input" type="date" value={batch.expiryDate} onChange={(e) => updatePoBatch(itemLine.id, batch.key, { expiryDate: e.target.value })} />
+                                    </label>}
+                                    {unitConfig.purchaseUnit && <div className="por-field por-unit-option">
+                                      <span className="por-field-label">Quantity unit</span>
+                                      <button type="button" className="receive-text-button" onClick={() => updatePoBatch(itemLine.id, batch.key, { enteredUnit: batch.enteredUnit === "purchase" ? "base" : "purchase", quantity: "" })}>{batch.enteredUnit === "purchase" ? `Enter loose ${unitConfig.baseUnit} instead` : `Enter ${unitConfig.purchaseUnit} instead`}</button>
+                                    </div>}
+                                  </div>
+                                </details>
                               </div>
                             ))}
                           </div>
@@ -968,7 +1005,7 @@ export function StockInPage() {
                               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                 <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
                               </svg>
-                              Add another batch
+                              Split into another batch
                             </button>
                           </div>
                         </div>
@@ -1141,11 +1178,17 @@ export function StockInPage() {
                         {item.category || "Uncategorised"}{item.sku ? ` · ${item.sku}` : ""}
                       </div>
                     </div>
-                    <div className="stock-entry-dropdown-unit">
-                      {showAllInventory && !itemMatchesSupplier(item.id) && <em>Not linked</em>}
-                      <strong>{hasDifferentPurchaseUnit(item) ? item.purchaseUnit : item.unit}</strong>
-                      {hasDifferentPurchaseUnit(item) && <span>1 {item.purchaseUnit} = {fmtQty(item.purchaseConversionFactor!)} {item.unit}</span>}
-                      {item.trackExpiry && <em>Expiry tracked</em>}
+                    <div className="stock-entry-dropdown-details">
+                      <span className="stock-entry-dropdown-unit">
+                        Receive in <strong>{hasDifferentPurchaseUnit(item) ? item.purchaseUnit : item.unit}</strong>
+                      </span>
+                      {hasDifferentPurchaseUnit(item) && (
+                        <span className="stock-entry-dropdown-conversion">
+                          1 {item.purchaseUnit} = {fmtQty(item.purchaseConversionFactor!)} {item.unit}
+                        </span>
+                      )}
+                      {item.trackExpiry && <span className="stock-entry-dropdown-expiry">Expiry tracked</span>}
+                      {showAllInventory && !itemMatchesSupplier(item.id) && <span className="stock-entry-dropdown-unlinked">Not linked to supplier</span>}
                     </div>
                   </button>
                 ))
