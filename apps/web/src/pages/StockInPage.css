@@ -1,7 +1,7 @@
 /* Stock receiving — simple card workflow */
 .receive-panel {
-  margin-bottom: 16px;
-  padding: 18px;
+  margin-bottom: 8px;
+  padding: 16px;
   border: 1px solid #e2e8f0;
   border-radius: 14px;
   background: #fff;
@@ -53,7 +53,7 @@
 .stock-entry-dropdown-unit span { color: #64748b; font-size: 10.5px; }
 .stock-entry-dropdown-unit em { margin-top: 3px; color: #b45309; font-size: 10px; font-style: normal; font-weight: 700; }
 
-.receive-items-list { display: grid; gap: 12px; }
+.receive-items-list { display: grid; gap: 10px; }
 .receive-item-card {
   overflow: hidden;
   border: 1px solid #dfe6ee;
@@ -71,7 +71,7 @@
 .receive-batch-pill,.receive-expiry-pill { padding: 2px 7px; border-radius: 99px; font-size: 9.5px; font-weight: 700; }
 .receive-batch-pill { background: #eef2ff; color: #4f46e5; }
 .receive-expiry-pill { background: #fff7ed; color: #b45309; }
-.receive-item-primary { display: grid; grid-template-columns: minmax(170px, .85fr) minmax(190px, 1fr) minmax(170px, .85fr); gap: 14px; padding: 16px; }
+.receive-item-primary { display: grid; grid-template-columns: minmax(170px, .85fr) minmax(190px, 1fr) minmax(170px, .85fr); gap: 12px; padding: 14px 16px; }
 .receive-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .receive-field > span { color: #475569; font-size: 11.5px; font-weight: 700; }
 .receive-field small { color: #64748b; font-size: 10.5px; line-height: 1.35; }
@@ -91,7 +91,11 @@
 .receive-text-button:hover { text-decoration: underline; }
 .receive-add-batch { margin: 0 16px 13px; padding: 6px 0; border: 0; background: none; color: #15803d; font-size: 11.5px; font-weight: 700; cursor: pointer; }
 
-.stock-entry-footer { position: sticky; bottom: 8px; z-index: 5; margin-top: 16px; border: 1px solid #dbe4ed; border-radius: 14px; box-shadow: 0 8px 24px rgba(15,23,42,.11); }
+.stock-entry-global-note--inline { margin-top: 2px; padding: 14px 16px; border: 1px solid #dfe6ee; border-radius: 12px; background: #fff; }
+.stock-entry-footer { position: sticky; bottom: 8px; z-index: 5; justify-content: space-between; margin-top: 2px; padding: 10px 12px; border: 1px solid #dbe4ed; border-radius: 12px; background: rgba(255,255,255,.96); box-shadow: 0 6px 20px rgba(15,23,42,.10); backdrop-filter: blur(8px); }
+.stock-entry-footer .stock-entry-receipt-summary { display: flex; align-items: baseline; gap: 8px; }
+.stock-entry-footer .stock-entry-receipt-summary strong { font-size: 13px; }
+.stock-entry-footer .stock-entry-receipt-summary span { font-size: 12px; }
 .por-field small { color: #64748b; font-size: 10.5px; }
 .por-field .receive-text-button { margin-top: 3px; }
 
@@ -102,17 +106,25 @@
 }
 
 @media (max-width: 560px) {
-  .receive-panel { padding: 14px; border-radius: 12px; }
+  .stock-entry-page { gap: 12px; padding-bottom: 12px; }
+  .stock-entry-header .page-title { font-size: 26px; }
+  .receive-panel { padding: 12px; border-radius: 12px; }
+  .receive-panel-heading { margin-bottom: 10px; }
+  .receive-panel-heading h2 { font-size: 15px; }
   .receive-panel-heading { align-items: flex-start; }
   .receive-panel-hint { display: none; }
   .stock-entry-session { grid-template-columns: 1fr !important; }
   .stock-entry-dropdown-item { align-items: flex-start; }
   .stock-entry-dropdown-unit span { display: none; }
   .receive-item-primary,.receive-item-details-grid { grid-template-columns: 1fr; }
+  .receive-item-primary { gap: 10px; padding: 12px; }
+  .receive-item-head { padding: 12px; }
   .receive-field--expiry { grid-column: auto; }
   .receive-item-head { align-items: flex-start; }
   .receive-item-title-row { align-items: flex-start; }
-  .stock-entry-footer { bottom: 4px; }
+  .stock-entry-global-note--inline { padding: 12px; }
+  .stock-entry-footer { position: static; margin: 0; padding: 10px; }
+  .stock-entry-footer .stock-entry-receipt-summary { width: 100%; justify-content: space-between; }
   .stock-entry-footer-actions { width: 100%; }
   .stock-entry-footer-actions .btn { flex: 1; }
 }

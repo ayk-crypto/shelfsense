@@ -677,8 +677,6 @@ export function StockInPage() {
 
   const validRowCount = rows.filter(isRowValid).length;
   const receiptTotal = rows.reduce((sum, row) => sum + (isRowValid(row) ? parseFloat(row.totalPrice) : 0), 0);
-  const expiryTrackedReadyCount = rows.filter((row) => isRowValid(row) && row.item.trackExpiry).length;
-  const selectedSessionSupplier = suppliers.find((s) => s.id === sessionSupplierId) ?? null;
 
   async function handleSubmit() {
     setTouched(true);
@@ -737,32 +735,8 @@ export function StockInPage() {
     <div className="stock-entry-page">
       <div className="stock-entry-header">
         <div>
-          <div className="stock-entry-type-badge stock-entry-type-badge--in">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 5v14M5 12l7 7 7-7" />
-            </svg>
-            Stock receiving
-          </div>
           <h1 className="page-title">Stock receiving</h1>
-          <p className="page-subtitle">
-            {mode === "direct"
-              ? "Fast invoice entry: select supplier, add items, enter quantity and total price."
-              : "Receive goods against an open Purchase Order. Stock batches are created only when you confirm receipt."}
-          </p>
         </div>
-        {rows.length > 0 && (
-          <div className="stock-entry-tally">
-            <div className="stock-entry-tally-item">
-              <span className="stock-entry-tally-num">{rows.length}</span>
-              <span className="stock-entry-tally-label">batch{rows.length !== 1 ? "es" : ""}</span>
-            </div>
-            <div className="stock-entry-tally-div" />
-            <div className="stock-entry-tally-item">
-              <span className={`stock-entry-tally-num ${validRowCount < rows.length ? "stock-entry-tally-num--warn" : "stock-entry-tally-num--ok"}`}>{validRowCount}</span>
-              <span className="stock-entry-tally-label">ready</span>
-            </div>
-          </div>
-        )}
       </div>
 
       <div className="stock-entry-mode-toggle">
@@ -1237,22 +1211,21 @@ export function StockInPage() {
                 })}
           </div>
 
+          <div className="stock-entry-global-note stock-entry-global-note--inline">
+            <label className="form-label">Receipt note <span className="form-label-hint">(optional)</span></label>
+            <input
+              className="form-input"
+              type="text"
+              placeholder="Add one note for this receipt..."
+              value={globalNote}
+              onChange={(e) => setGlobalNote(e.target.value)}
+            />
+          </div>
+
           <div className="stock-entry-footer">
-            <div className="stock-entry-global-note">
-              <label className="form-label">Session note <span className="form-label-hint">(applies to all batches)</span></label>
-              <input
-                className="form-input"
-                type="text"
-                placeholder="e.g. Morning delivery from Metro..."
-                value={globalNote}
-                onChange={(e) => setGlobalNote(e.target.value)}
-              />
-            </div>
             <div className="stock-entry-receipt-summary">
-              <strong>{validRowCount} item{validRowCount !== 1 ? "s" : ""} ready</strong>
-              <span>Total receipt value: {formatCurrency(receiptTotal, currency)}</span>
-              <span>Supplier: {selectedSessionSupplier?.name ?? "Mixed / not selected"}</span>
-              <span>Expiry-tracked items: {expiryTrackedReadyCount}</span>
+              <strong>{validRowCount} item{validRowCount !== 1 ? "s" : ""}</strong>
+              <span>{formatCurrency(receiptTotal, currency)}</span>
             </div>
             <div className="stock-entry-footer-actions">
               <button type="button" className="btn btn--ghost" onClick={clearAll} disabled={submitting}>
