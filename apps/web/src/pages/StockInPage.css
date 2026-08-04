@@ -133,6 +133,12 @@
 /* PO receiving: keep the common path short; exceptions stay behind More details. */
 .por-batch-label > div { display: flex; flex-direction: column; gap: 3px; }
 .por-batch-reference { color: #94a3b8; font-size: 9.5px; line-height: 1.2; }
+.por-card-head { align-items: flex-start; padding: 14px 16px; background: #fff; }
+.por-card-name { font-size: 15px; }
+.por-card-progress { color: #64748b; font-size: 11.5px; line-height: 1.35; }
+.por-card-progress strong { color: #166534; font-weight: 750; }
+.por-card-conversion { width: fit-content; padding: 4px 8px; border-radius: 6px; background: #f0fdf4; color: #166534; font-size: 10.5px; line-height: 1.3; }
+.por-over-warning { align-self: center; max-width: 220px; padding: 5px 8px; border: 1px solid #fecaca; border-radius: 6px; background: #fef2f2; text-align: right; }
 .por-fields--primary { grid-template-columns: minmax(180px, .8fr) minmax(180px, .8fr); max-width: 720px; }
 .por-quantity-input { display: flex; align-items: center; overflow: hidden; border: 1px solid #d7dee8; border-radius: 8px; background: #fff; }
 .por-quantity-input:focus-within { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,.1); }
@@ -142,13 +148,14 @@
 .por-more-details summary { padding: 9px 16px; color: #64748b; font-size: 11px; font-weight: 650; cursor: pointer; list-style-position: inside; }
 .por-more-details[open] summary { background: #f8fafc; color: #334155; }
 .por-fields--details { grid-template-columns: repeat(3, minmax(0, 1fr)); padding-top: 12px; background: #f8fafc; }
-.por-unit-option { justify-content: center; }
 
 @media (max-width: 640px) {
   .po-receive-summary { gap: 6px 14px; }
   .por-fields--primary,
   .por-fields--details { grid-template-columns: 1fr; max-width: none; }
   .por-batch-label { padding: 9px 12px 0; }
+  .por-card-head { padding: 12px; }
+  .por-over-warning { align-self: flex-start; max-width: none; text-align: left; }
   .por-fields--primary,
   .por-fields--details { padding: 12px; }
   .por-more-details summary { padding: 10px 12px; }

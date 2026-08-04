@@ -35,13 +35,8 @@ function fmtQty(n: number) {
 }
 
 function formatPoLineQty(line: Purchase["purchaseItems"][number], baseQty: number) {
-  const snapshot = line.unitSnapshot;
-  const factor = snapshot?.conversionFactor && snapshot.conversionFactor > 0 ? snapshot.conversionFactor : null;
-  const baseUnit = snapshot?.baseUnit ?? line.baseUnitSnapshot ?? line.item.unit;
-  if (snapshot?.purchaseUnit && factor) {
-    return `${fmtQty(baseQty / factor)} ${snapshot.purchaseUnit} / ${fmtQty(baseQty)} ${baseUnit}`;
-  }
-  return snapshot?.message ?? `${fmtQty(baseQty)} ${baseUnit}`;
+  const { purchaseUnit, baseUnit } = poUnitConfig(line);
+  return `${fmtQty(poDisplayQuantity(line, baseQty))} ${purchaseUnit ?? baseUnit}`;
 }
 
 function roundCurrency(value: number) {
@@ -556,12 +551,22 @@ export function StockInPage() {
   function applyDraft(draft: PoDraftPayload) {
     const restored: Record<string, PoBatchDraft[]> = {};
     for (const [id, arr] of Object.entries(draft.batches)) {
-      restored[id] = arr.map((b, index) => ({
-        ...b,
-        batchNo: b.batchNo || generatePoBatchNo(draft.poId, id, index),
-        enteredUnit: b.enteredUnit ?? "base",
-        key: ++poBatchSeq,
-      }));
+      const itemLine = selectedPo?.purchaseItems.find((item) => item.id === id);
+      const unitConfig = itemLine ? poUnitConfig(itemLine) : null;
+      restored[id] = arr.map((b, index) => {
+        const wasBaseUnit = (b.enteredUnit ?? "base") === "base";
+        const numericQuantity = parseFloat(b.quantity);
+        const quantity = unitConfig?.purchaseUnit && wasBaseUnit && Number.isFinite(numericQuantity)
+          ? String(numericQuantity / unitConfig.factor)
+          : b.quantity;
+        return {
+          ...b,
+          quantity,
+          batchNo: b.batchNo || generatePoBatchNo(draft.poId, id, index),
+          enteredUnit: unitConfig?.purchaseUnit ? "purchase" : "base",
+          key: ++poBatchSeq,
+        };
+      });
     }
     setPoBatches(restored);
     setDraftSavedAt(new Date(draft.savedAt));
@@ -726,7 +731,7 @@ export function StockInPage() {
         quantity: String(poDisplayQuantity(selectedPo!.purchaseItems.find((i) => i.id === result.purchaseItemId)!, result.qty)),
         locationId: existing[0]?.locationId ?? defaultLocationId ?? "",
         expiryDate: result.expiryDate ?? "",
-        batchNo: result.batchNo ?? "",
+        batchNo: result.batchNo || generatePoBatchNo(selectedPo!.id, result.purchaseItemId, emptyIdx >= 0 ? emptyIdx : existing.length),
         unitCost: String(result.unitCost),
         unitCostExclTax: result.unitCostExclTax != null ? String(result.unitCostExclTax) : "",
         unitTax: result.unitTax != null ? String(result.unitTax) : "",
@@ -921,24 +926,22 @@ export function StockInPage() {
                       const fallbackLoc = defaultLocationId || (locations[0]?.id ?? "");
                       const unitConfig = poUnitConfig(itemLine);
                       const allocatedDisplay = poDisplayQuantity(itemLine, batchTotal);
-                      const remainingDisplay = poDisplayQuantity(itemLine, itemLine.remainingQuantity);
                       return (
                         <div key={itemLine.id} className="por-card">
                           <div className="por-card-head">
                             <div className="por-card-head-left">
                               <span className="por-card-name">{itemLine.item.name}</span>
-                              <div className="por-card-meta">
-                                <span className="por-card-stat">Ordered: <strong>{formatPoLineQty(itemLine, itemLine.orderedQuantity)}</strong></span>
-                                <span className="por-card-stat">Received: <strong>{formatPoLineQty(itemLine, itemLine.receivedQuantity)}</strong></span>
-                                <span className="por-card-stat por-card-stat--rem">Remaining: <strong>{formatPoLineQty(itemLine, itemLine.remainingQuantity)}</strong></span>
+                              <div className="por-card-progress">
+                                <strong>{formatPoLineQty(itemLine, itemLine.receivedQuantity)}</strong> of {formatPoLineQty(itemLine, itemLine.orderedQuantity)} received
+                                {itemLine.receivedQuantity > 0 && <span> · {formatPoLineQty(itemLine, itemLine.remainingQuantity)} remaining</span>}
                               </div>
+                              {unitConfig.purchaseUnit && (
+                                <div className="por-card-conversion">
+                                  {fmtQty(allocatedDisplay)} {unitConfig.purchaseUnit} will add {fmtQty(batchTotal)} {unitConfig.baseUnit} to stock
+                                </div>
+                              )}
                             </div>
-                            <div className="por-batch-tally">
-                              <span className={`por-batch-total${isOver ? " por-batch-total--over" : batchTotal > 0 ? " por-batch-total--ok" : ""}`}>
-                                {fmtQty(allocatedDisplay)} of {fmtQty(remainingDisplay)} {unitConfig.purchaseUnit ?? unitConfig.baseUnit} allocated
-                              </span>
-                              {isOver && <span className="por-over-warning">Over by {fmtQty(poDisplayQuantity(itemLine, batchTotal - itemLine.remainingQuantity))} {unitConfig.purchaseUnit ?? unitConfig.baseUnit}</span>}
-                            </div>
+                            {isOver && <span className="por-over-warning">Over remaining quantity by {fmtQty(poDisplayQuantity(itemLine, batchTotal - itemLine.remainingQuantity))} {unitConfig.purchaseUnit ?? unitConfig.baseUnit}</span>}
                           </div>
                           <div className="por-batches">
                             {itemBatches.map((batch, idx) => (
@@ -961,9 +964,8 @@ export function StockInPage() {
                                     <span className="por-field-label">Received quantity *</span>
                                     <div className="por-quantity-input">
                                       <input className={`form-input${isOver ? " por-field--over" : ""}`} type="number" min="0" step="0.01" placeholder="0" value={batch.quantity} onChange={(e) => updatePoBatch(itemLine.id, batch.key, { quantity: e.target.value })} />
-                                      <strong>{batch.enteredUnit === "purchase" && unitConfig.purchaseUnit ? unitConfig.purchaseUnit : unitConfig.baseUnit}</strong>
+                                      <strong>{unitConfig.purchaseUnit ?? unitConfig.baseUnit}</strong>
                                     </div>
-                                    {batch.enteredUnit === "purchase" && unitConfig.purchaseUnit && parseFloat(batch.quantity) > 0 && <small>Adds {fmtQty(poBatchBaseQuantity(itemLine, batch))} {unitConfig.baseUnit}</small>}
                                   </label>
                                   {itemLine.item.trackExpiry && <label className="por-field">
                                     <span className="por-field-label">Expiry date{itemLine.item.trackExpiry ? " *" : ""}</span>
@@ -991,17 +993,13 @@ export function StockInPage() {
                                       <span className="por-field-label">Expiry date</span>
                                       <input className="form-input" type="date" value={batch.expiryDate} onChange={(e) => updatePoBatch(itemLine.id, batch.key, { expiryDate: e.target.value })} />
                                     </label>}
-                                    {unitConfig.purchaseUnit && <div className="por-field por-unit-option">
-                                      <span className="por-field-label">Quantity unit</span>
-                                      <button type="button" className="receive-text-button" onClick={() => updatePoBatch(itemLine.id, batch.key, { enteredUnit: batch.enteredUnit === "purchase" ? "base" : "purchase", quantity: "" })}>{batch.enteredUnit === "purchase" ? `Enter loose ${unitConfig.baseUnit} instead` : `Enter ${unitConfig.purchaseUnit} instead`}</button>
-                                    </div>}
                                   </div>
                                 </details>
                               </div>
                             ))}
                           </div>
                           <div className="por-add-batch-row">
-                            <button type="button" className="por-add-batch-btn" onClick={() => addPoBatch(itemLine.id, { locationId: lastBatch?.locationId ?? fallbackLoc, unitCost: lastBatch?.unitCost ?? String(itemLine.unitCost), enteredUnit: lastBatch?.enteredUnit ?? (unitConfig.purchaseUnit ? "purchase" : "base") })}>
+                            <button type="button" className="por-add-batch-btn" onClick={() => addPoBatch(itemLine.id, { locationId: lastBatch?.locationId ?? fallbackLoc, unitCost: lastBatch?.unitCost ?? String(itemLine.unitCost), enteredUnit: unitConfig.purchaseUnit ? "purchase" : "base" })}>
                               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                 <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
                               </svg>
