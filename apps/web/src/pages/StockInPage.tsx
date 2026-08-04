@@ -107,6 +107,7 @@ interface PoBatchDraft {
   unitTax: string;
   unitCostInclTax: string;
   notes: string;
+  enteredUnit: "base" | "purchase";
 }
 
 interface PoDraftPayload {
@@ -115,7 +116,26 @@ interface PoDraftPayload {
   batches: Record<string, Omit<PoBatchDraft, "key">[]>;
 }
 
-function newPoBatch(defaults: { locationId: string; unitCost: string; quantity?: string }): PoBatchDraft {
+function poUnitConfig(line: Purchase["purchaseItems"][number]) {
+  const snapshot = line.unitSnapshot;
+  const factor = snapshot?.conversionFactor && snapshot.conversionFactor > 0 ? snapshot.conversionFactor : 1;
+  const baseUnit = snapshot?.baseUnit ?? line.baseUnitSnapshot ?? line.item.unit;
+  const purchaseUnit = snapshot?.purchaseUnit && factor !== 1 ? snapshot.purchaseUnit : null;
+  return { factor, baseUnit, purchaseUnit };
+}
+
+function poDisplayQuantity(line: Purchase["purchaseItems"][number], baseQty: number) {
+  const { factor, purchaseUnit } = poUnitConfig(line);
+  return purchaseUnit ? baseQty / factor : baseQty;
+}
+
+function poBatchBaseQuantity(line: Purchase["purchaseItems"][number], batch: PoBatchDraft) {
+  const qty = parseFloat(batch.quantity) || 0;
+  const { factor, purchaseUnit } = poUnitConfig(line);
+  return batch.enteredUnit === "purchase" && purchaseUnit ? qty * factor : qty;
+}
+
+function newPoBatch(defaults: { locationId: string; unitCost: string; quantity?: string; enteredUnit?: "base" | "purchase" }): PoBatchDraft {
   return {
     key: ++poBatchSeq,
     quantity: defaults.quantity ?? "",
@@ -127,6 +147,7 @@ function newPoBatch(defaults: { locationId: string; unitCost: string; quantity?:
     unitTax: "",
     unitCostInclTax: "",
     notes: "",
+    enteredUnit: defaults.enteredUnit ?? "base",
   };
 }
 
@@ -217,7 +238,13 @@ export function StockInPage() {
               setSelectedPo(po);
               const init: Record<string, PoBatchDraft[]> = {};
               for (const item of po.purchaseItems.filter((i) => i.remainingQuantity > 0)) {
-                init[item.id] = [newPoBatch({ locationId: fallbackLoc, unitCost: String(item.unitCost), quantity: String(item.remainingQuantity) })];
+                const usePurchaseUnit = Boolean(poUnitConfig(item).purchaseUnit);
+                init[item.id] = [newPoBatch({
+                  locationId: fallbackLoc,
+                  unitCost: String(item.unitCost),
+                  quantity: String(poDisplayQuantity(item, item.remainingQuantity)),
+                  enteredUnit: usePurchaseUnit ? "purchase" : "base",
+                })];
               }
               setPoBatches(init);
             }
@@ -464,7 +491,7 @@ export function StockInPage() {
   function applyDraft(draft: PoDraftPayload) {
     const restored: Record<string, PoBatchDraft[]> = {};
     for (const [id, arr] of Object.entries(draft.batches)) {
-      restored[id] = arr.map((b) => ({ ...b, key: ++poBatchSeq }));
+      restored[id] = arr.map((b) => ({ ...b, enteredUnit: b.enteredUnit ?? "base", key: ++poBatchSeq }));
     }
     setPoBatches(restored);
     setDraftSavedAt(new Date(draft.savedAt));
@@ -503,7 +530,13 @@ export function StockInPage() {
     const fallbackLoc = defaultLocationId || (locations[0]?.id ?? "");
     const init: Record<string, PoBatchDraft[]> = {};
     for (const item of po.purchaseItems.filter((i) => i.remainingQuantity > 0)) {
-      init[item.id] = [newPoBatch({ locationId: fallbackLoc, unitCost: String(item.unitCost), quantity: String(item.remainingQuantity) })];
+      const usePurchaseUnit = Boolean(poUnitConfig(item).purchaseUnit);
+      init[item.id] = [newPoBatch({
+        locationId: fallbackLoc,
+        unitCost: String(item.unitCost),
+        quantity: String(poDisplayQuantity(item, item.remainingQuantity)),
+        enteredUnit: usePurchaseUnit ? "purchase" : "base",
+      })];
     }
     setPoBatches(init);
   }
@@ -515,7 +548,7 @@ export function StockInPage() {
     }));
   }
 
-  function addPoBatch(purchaseItemId: string, defaults: { locationId: string; unitCost: string }) {
+  function addPoBatch(purchaseItemId: string, defaults: { locationId: string; unitCost: string; enteredUnit?: "base" | "purchase" }) {
     setPoBatches((cur) => ({
       ...cur,
       [purchaseItemId]: [...cur[purchaseItemId], newPoBatch(defaults)],
@@ -540,7 +573,7 @@ export function StockInPage() {
       const itemBatches = poBatches[item.id] ?? [];
       let totalForItem = 0;
       for (const b of itemBatches) {
-        const qty = parseFloat(b.quantity) || 0;
+        const qty = poBatchBaseQuantity(item, b);
         if (qty <= 0) continue;
         totalForItem += qty;
         lines.push({
@@ -608,7 +641,7 @@ export function StockInPage() {
       const emptyIdx = existing.findIndex((b) => !parseFloat(b.quantity));
       const patch: PoBatchDraft = {
         key: emptyIdx >= 0 ? existing[emptyIdx].key : ++poBatchSeq,
-        quantity: String(result.qty),
+        quantity: String(poDisplayQuantity(selectedPo!.purchaseItems.find((i) => i.id === result.purchaseItemId)!, result.qty)),
         locationId: existing[0]?.locationId ?? defaultLocationId ?? "",
         expiryDate: result.expiryDate ?? "",
         batchNo: result.batchNo ?? "",
@@ -617,6 +650,7 @@ export function StockInPage() {
         unitTax: result.unitTax != null ? String(result.unitTax) : "",
         unitCostInclTax: result.unitCostInclTax != null ? String(result.unitCostInclTax) : "",
         notes: "",
+        enteredUnit: poUnitConfig(selectedPo!.purchaseItems.find((i) => i.id === result.purchaseItemId)!).purchaseUnit ? "purchase" : "base",
       };
       if (emptyIdx >= 0) {
         newBatches[result.purchaseItemId] = [
@@ -736,14 +770,14 @@ export function StockInPage() {
           className={`stock-entry-mode-btn${mode === "direct" ? " stock-entry-mode-btn--active" : ""}`}
           onClick={() => void switchMode("direct")}
         >
-          Receive invoice
+          Receive delivery
         </button>
         <button
           type="button"
           className={`stock-entry-mode-btn${mode === "po" ? " stock-entry-mode-btn--active" : ""}`}
           onClick={() => void switchMode("po")}
         >
-          Receive PO
+          Receive purchase order
         </button>
       </div>
 
@@ -825,10 +859,13 @@ export function StockInPage() {
                   <div className="por-items" style={{ padding: "14px 16px", gap: 12 }}>
                     {selectedPo.purchaseItems.filter((i) => i.remainingQuantity > 0).map((itemLine) => {
                       const itemBatches = poBatches[itemLine.id] ?? [];
-                      const batchTotal = itemBatches.reduce((s, b) => s + (parseFloat(b.quantity) || 0), 0);
-                      const isOver = batchTotal > itemLine.remainingQuantity;
+                      const batchTotal = itemBatches.reduce((s, b) => s + poBatchBaseQuantity(itemLine, b), 0);
+                      const isOver = batchTotal > itemLine.remainingQuantity + 0.000001;
                       const lastBatch = itemBatches[itemBatches.length - 1];
                       const fallbackLoc = defaultLocationId || (locations[0]?.id ?? "");
+                      const unitConfig = poUnitConfig(itemLine);
+                      const allocatedDisplay = poDisplayQuantity(itemLine, batchTotal);
+                      const remainingDisplay = poDisplayQuantity(itemLine, itemLine.remainingQuantity);
                       return (
                         <div key={itemLine.id} className="por-card">
                           <div className="por-card-head">
@@ -842,9 +879,9 @@ export function StockInPage() {
                             </div>
                             <div className="por-batch-tally">
                               <span className={`por-batch-total${isOver ? " por-batch-total--over" : batchTotal > 0 ? " por-batch-total--ok" : ""}`}>
-                                {batchTotal > 0 ? `${fmtQty(batchTotal)} / ${formatPoLineQty(itemLine, itemLine.remainingQuantity)}` : `0 / ${formatPoLineQty(itemLine, itemLine.remainingQuantity)}`}
+                                {fmtQty(allocatedDisplay)} of {fmtQty(remainingDisplay)} {unitConfig.purchaseUnit ?? unitConfig.baseUnit} allocated
                               </span>
-                              {isOver && <span className="por-over-warning">Over by {batchTotal - itemLine.remainingQuantity}</span>}
+                              {isOver && <span className="por-over-warning">Over by {fmtQty(poDisplayQuantity(itemLine, batchTotal - itemLine.remainingQuantity))} {unitConfig.purchaseUnit ?? unitConfig.baseUnit}</span>}
                             </div>
                           </div>
                           <div className="por-batches">
@@ -862,8 +899,10 @@ export function StockInPage() {
                                 </div>
                                 <div className="por-fields">
                                   <label className="por-field">
-                                    <span className="por-field-label">Qty ({itemLine.item.unit}) *</span>
+                                    <span className="por-field-label">Quantity ({batch.enteredUnit === "purchase" && unitConfig.purchaseUnit ? unitConfig.purchaseUnit : unitConfig.baseUnit}) *</span>
                                     <input className={`form-input${isOver ? " por-field--over" : ""}`} type="number" min="0" step="0.01" placeholder="0" value={batch.quantity} onChange={(e) => updatePoBatch(itemLine.id, batch.key, { quantity: e.target.value })} />
+                                    {batch.enteredUnit === "purchase" && unitConfig.purchaseUnit && parseFloat(batch.quantity) > 0 && <small>Adds {fmtQty(poBatchBaseQuantity(itemLine, batch))} {unitConfig.baseUnit}</small>}
+                                    {unitConfig.purchaseUnit && <button type="button" className="receive-text-button" onClick={() => updatePoBatch(itemLine.id, batch.key, { enteredUnit: batch.enteredUnit === "purchase" ? "base" : "purchase", quantity: "" })}>{batch.enteredUnit === "purchase" ? `Enter loose ${unitConfig.baseUnit}` : `Enter ${unitConfig.purchaseUnit}`}</button>}
                                   </label>
                                   <label className="por-field">
                                     <span className="por-field-label">Branch</span>
@@ -892,7 +931,7 @@ export function StockInPage() {
                             ))}
                           </div>
                           <div className="por-add-batch-row">
-                            <button type="button" className="por-add-batch-btn" onClick={() => addPoBatch(itemLine.id, { locationId: lastBatch?.locationId ?? fallbackLoc, unitCost: lastBatch?.unitCost ?? String(itemLine.unitCost) })}>
+                            <button type="button" className="por-add-batch-btn" onClick={() => addPoBatch(itemLine.id, { locationId: lastBatch?.locationId ?? fallbackLoc, unitCost: lastBatch?.unitCost ?? String(itemLine.unitCost), enteredUnit: lastBatch?.enteredUnit ?? (unitConfig.purchaseUnit ? "purchase" : "base") })}>
                               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                 <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
                               </svg>
@@ -980,7 +1019,15 @@ export function StockInPage() {
         </div>
       )}
 
-      <div className="stock-entry-session">
+      <section className="receive-panel receive-panel--delivery">
+        <div className="receive-panel-heading">
+          <div>
+            <span className="receive-step">Delivery details</span>
+            <h2>Who is this delivery from?</h2>
+          </div>
+          <span className="receive-panel-hint">Applies to all items</span>
+        </div>
+        <div className="stock-entry-session">
         <div className="form-group">
           <label className="form-label">Receiving from supplier</label>
           <select className="form-select" value={sessionSupplierId} onChange={(e) => handleSessionSupplierChange(e.target.value)}>
@@ -998,10 +1045,18 @@ export function StockInPage() {
           <label className="form-label">Invoice date</label>
           <input className="form-input" type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} />
         </div>
-      </div>
+        </div>
+      </section>
 
-      <div className="stock-entry-search-section">
-        <label className="stock-entry-search-label">Search and add items</label>
+      <section className="receive-panel receive-panel--search">
+        <div className="receive-panel-heading">
+          <div>
+            <span className="receive-step">Add items</span>
+            <h2>What was delivered?</h2>
+          </div>
+        </div>
+        <div className="stock-entry-search-section">
+        <label className="stock-entry-search-label">Search inventory</label>
         <div className="stock-entry-search-wrap" ref={dropdownRef}>
           <div className="stock-entry-search-box">
             <svg className="stock-entry-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1036,12 +1091,16 @@ export function StockInPage() {
                     className="stock-entry-dropdown-item"
                     onClick={() => addItem(item)}
                   >
-                    <div className="stock-entry-dropdown-name">{item.name}</div>
-                    <div className="stock-entry-dropdown-meta">
-                      {item.unit}
-                      {item.category ? ` - ${item.category}` : ""}
-                      {item.sku ? ` - ${item.sku}` : ""}
-                      {item.trackExpiry ? " - Expiry tracked" : ""}
+                    <div className="stock-entry-dropdown-main">
+                      <div className="stock-entry-dropdown-name">{item.name}</div>
+                      <div className="stock-entry-dropdown-meta">
+                        {item.category || "Uncategorised"}{item.sku ? ` · ${item.sku}` : ""}
+                      </div>
+                    </div>
+                    <div className="stock-entry-dropdown-unit">
+                      <strong>{hasDifferentPurchaseUnit(item) ? item.purchaseUnit : item.unit}</strong>
+                      {hasDifferentPurchaseUnit(item) && <span>1 {item.purchaseUnit} = {fmtQty(item.purchaseConversionFactor!)} {item.unit}</span>}
+                      {item.trackExpiry && <em>Expiry tracked</em>}
                     </div>
                   </button>
                 ))
@@ -1049,74 +1108,48 @@ export function StockInPage() {
             </div>
           )}
         </div>
-      </div>
+        </div>
+      </section>
 
       {rows.length > 0 ? (
         <>
-          <div className="stock-entry-table-wrap">
-            <table className="stock-entry-table stock-entry-table--wide">
-              <thead>
-                <tr>
-                  <th>Item</th>
-                  <th>Qty <span className="stock-entry-th-req">*</span></th>
-                  <th>Total Price <span className="stock-entry-th-req">*</span></th>
-                  <th>Expiry Date</th>
-                  <th>Supplier</th>
-                  <th className="stock-entry-th-actions">More</th>
-                </tr>
-              </thead>
-              <tbody>
+          <div className="receive-items-list">
                 {rows.map((row, idx) => {
                   const qty = parseFloat(row.qty);
                   const qtyInvalid = touched && (row.qty !== "" ? (isNaN(qty) || qty <= 0) : true);
+                  const priceInvalid = touched && (!Number.isFinite(parseFloat(row.totalPrice)) || parseFloat(row.totalPrice) <= 0);
                   const expiryMissing = touched && row.item.trackExpiry && !row.expiryDate;
-                  const prevRow = idx > 0 ? rows[idx - 1] : null;
-                  const isContinuation = prevRow?.item.id === row.item.id;
                   const batchNum = rows.slice(0, idx + 1).filter((r) => r.item.id === row.item.id).length;
+                  const itemBatchCount = rows.filter((r) => r.item.id === row.item.id).length;
+                  const displayUnit = row.enteredUnit === "purchase" && hasDifferentPurchaseUnit(row.item) ? row.item.purchaseUnit! : row.item.unit;
+                  const baseQty = rowBaseQuantity(row);
+                  const unitCost = calculatedUnitCost(row);
 
                   return (
-                    <tr key={row.rowId} className={`${qtyInvalid || expiryMissing ? "stock-entry-row--invalid" : ""} ${isContinuation ? "stock-entry-row--continuation" : ""}`}>
-                      <td className="stock-entry-td-name">
-                        {isContinuation ? (
-                          <span className="stock-entry-batch-indent">
-                            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="stock-entry-batch-arrow">
-                              <path d="M4 4v5h8" />
-                            </svg>
-                            Batch {batchNum}
-                          </span>
-                        ) : (
-                          <>
-                            <span className="stock-entry-item-name">{row.item.name}</span>
-                            {row.item.category && (
-                              <span className="stock-entry-item-cat">{row.item.category}</span>
-                            )}
-                            {row.item.trackExpiry && (
-                              <span className="stock-entry-item-flag stock-entry-item-flag--expiry">Expiry</span>
-                            )}
-                          </>
-                        )}
-                      </td>
-                      <td className="stock-entry-td-qty">
-                        {hasDifferentPurchaseUnit(row.item) && (
-                          <div className="uom-toggle">
-                            <button
-                              type="button"
-                              className={`uom-toggle-btn${row.enteredUnit === "base" ? " uom-toggle-btn--active" : ""}`}
-                              onClick={() => setRows((prev) => prev.map((r) => r.rowId === row.rowId ? { ...r, enteredUnit: "base", qty: "" } : r))}
-                            >
-                              {row.item.unit}
-                            </button>
-                            <button
-                              type="button"
-                              className={`uom-toggle-btn${row.enteredUnit === "purchase" ? " uom-toggle-btn--active" : ""}`}
-                              onClick={() => setRows((prev) => prev.map((r) => r.rowId === row.rowId ? { ...r, enteredUnit: "purchase", qty: "" } : r))}
-                            >
-                              {row.item.purchaseUnit}
-                            </button>
+                    <article key={row.rowId} className={`receive-item-card${qtyInvalid || priceInvalid || expiryMissing ? " receive-item-card--invalid" : ""}`}>
+                      <header className="receive-item-head">
+                        <div className="receive-item-identity">
+                          <div className="receive-item-icon">{row.item.name.slice(0, 1).toUpperCase()}</div>
+                          <div>
+                            <div className="receive-item-title-row">
+                              <h3>{row.item.name}</h3>
+                              {itemBatchCount > 1 && <span className="receive-batch-pill">Batch {batchNum}</span>}
+                              {row.item.trackExpiry && <span className="receive-expiry-pill">Expiry tracked</span>}
+                            </div>
+                            <p>{row.item.category || "Inventory item"}{row.item.sku ? ` · ${row.item.sku}` : ""}</p>
                           </div>
-                        )}
+                        </div>
+                        <button type="button" className="stock-entry-remove-btn" onClick={() => removeRow(row.rowId)} aria-label={`Remove ${row.item.name}`}>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                        </button>
+                      </header>
+
+                      <div className="receive-item-primary">
+                        <label className="receive-field receive-field--quantity">
+                          <span>Quantity received *</span>
+                          <div className={`receive-input-unit${qtyInvalid ? " receive-input-unit--error" : ""}`}>
                         <input
-                          className={`stock-entry-input ${qtyInvalid ? "stock-entry-input--error" : ""}`}
+                          className="stock-entry-input"
                           type="number"
                           min={0.01}
                           step="any"
@@ -1124,15 +1157,17 @@ export function StockInPage() {
                           value={row.qty}
                           onChange={(e) => updateRow(row.rowId, "qty", e.target.value)}
                         />
-                        {row.enteredUnit === "purchase" && hasDifferentPurchaseUnit(row.item) && row.qty && parseFloat(row.qty) > 0 && (
-                          <div className="uom-hint">
-                            = {fmtQty(parseFloat(row.qty) * row.item.purchaseConversionFactor!)} {row.item.unit}
+                            <strong>{displayUnit}</strong>
                           </div>
-                        )}
-                      </td>
-                      <td className="stock-entry-td-cost">
+                          {hasDifferentPurchaseUnit(row.item) && row.enteredUnit === "purchase" && <small>1 {row.item.purchaseUnit} = {fmtQty(row.item.purchaseConversionFactor!)} {row.item.unit}{baseQty ? ` · Adds ${fmtQty(baseQty)} ${row.item.unit}` : ""}</small>}
+                          {qtyInvalid && <em>Enter a quantity greater than zero.</em>}
+                        </label>
+                        <label className="receive-field receive-field--price">
+                          <span>Total purchase price *</span>
+                          <div className={`receive-input-currency${priceInvalid ? " receive-input-currency--error" : ""}`}>
+                            <b>{currency}</b>
                         <input
-                          className={`stock-entry-input ${touched && (!Number.isFinite(parseFloat(row.totalPrice)) || parseFloat(row.totalPrice) <= 0) ? "stock-entry-input--error" : ""}`}
+                          className="stock-entry-input"
                           type="number"
                           min={0.01}
                           step="any"
@@ -1140,68 +1175,43 @@ export function StockInPage() {
                           value={row.totalPrice}
                           onChange={(e) => updateRow(row.rowId, "totalPrice", e.target.value)}
                         />
-                        <span className="stock-entry-last-price">
-                          Unit cost: {calculatedUnitCost(row) !== null ? `${formatCurrency(calculatedUnitCost(row)!, currency)} / ${row.item.unit}` : "-"}
-                        </span>
-                        {row.lastPrice !== null && !row.metaLoading && (
-                          <span className={`stock-entry-last-price ${
-                            calculatedUnitCost(row) !== null && calculatedUnitCost(row)! > row.lastPrice
-                              ? "stock-entry-last-price--up"
-                              : calculatedUnitCost(row) !== null && calculatedUnitCost(row)! < row.lastPrice
-                                ? "stock-entry-last-price--down"
-                                : ""
-                          }`}>
-                            Last: {formatCurrency(row.lastPrice, currency)}
-                            {calculatedUnitCost(row) !== null && calculatedUnitCost(row)! > row.lastPrice && " up"}
-                            {calculatedUnitCost(row) !== null && calculatedUnitCost(row)! < row.lastPrice && " down"}
-                          </span>
-                        )}
-                        {row.metaLoading && <span className="stock-entry-last-price stock-entry-last-price--loading">Loading...</span>}
-                      </td>
-                      <td className="stock-entry-td-expiry">
-                        {row.item.trackExpiry ? (
+                          </div>
+                          <small>{unitCost !== null ? `${formatCurrency(unitCost, currency)} per ${row.item.unit}` : "Unit cost calculates automatically"}{row.lastPrice !== null ? ` · Last ${formatCurrency(row.lastPrice, currency)}` : ""}</small>
+                          {priceInvalid && <em>Enter the total price paid.</em>}
+                        </label>
+                        {row.item.trackExpiry && <label className="receive-field receive-field--expiry">
+                          <span>Expiry date *</span>
                           <input
                             className={`stock-entry-input ${expiryMissing ? "stock-entry-input--error" : ""}`}
                             type="date"
                             value={row.expiryDate}
                             onChange={(e) => updateRow(row.rowId, "expiryDate", e.target.value)}
                           />
-                        ) : (
-                          <span className="stock-entry-na">-</span>
-                        )}
-                      </td>
-                      <td className="stock-entry-td-supplier">
-                        <div className="stock-entry-supplier-wrap">
-                          <select
-                            className="stock-entry-select"
-                            value={row.supplierId}
-                            onChange={(e) => updateRowSupplier(row.rowId, e.target.value)}
-                          >
-                            <option value="">Select supplier</option>
-                            {suppliers.map((s) => (
-                              <option key={s.id} value={s.id}>{s.name}</option>
-                            ))}
-                          </select>
-                          {row.suggested && row.supplierId && (
-                            <span className="stock-entry-suggested-badge" title="Auto-suggested from recent batches">Suggested</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="stock-entry-td-actions">
-                        <details className="stock-entry-row-more">
-                          <summary>More</summary>
-                          <label className="stock-entry-more-field">
-                            <span>Batch #</span>
+                          {expiryMissing && <em>Add an expiry date to continue.</em>}
+                        </label>}
+                      </div>
+
+                      <details className="receive-item-details">
+                        <summary>More details and options</summary>
+                        <div className="receive-item-details-grid">
+                          {hasDifferentPurchaseUnit(row.item) && <div className="receive-detail-option">
+                            <span>Quantity unit</span>
+                            <button type="button" className="receive-text-button" onClick={() => setRows((prev) => prev.map((r) => r.rowId === row.rowId ? { ...r, enteredUnit: r.enteredUnit === "purchase" ? "base" : "purchase", qty: "" } : r))}>
+                              {row.enteredUnit === "purchase" ? `Enter loose ${row.item.unit} instead` : `Enter ${row.item.purchaseUnit} instead`}
+                            </button>
+                          </div>}
+                          <label className="receive-field">
+                            <span>Batch / lot number</span>
                             <input
-                              className="stock-entry-input stock-entry-input--batch"
+                              className="stock-entry-input"
                               type="text"
                               value={row.batchNo}
                               onChange={(e) => updateRow(row.rowId, "batchNo", e.target.value)}
                               placeholder="Auto"
                             />
                           </label>
-                          <label className="stock-entry-more-field">
-                            <span>Note</span>
+                          <label className="receive-field">
+                            <span>Item note</span>
                             <input
                               className="stock-entry-input"
                               type="text"
@@ -1210,34 +1220,20 @@ export function StockInPage() {
                               onChange={(e) => updateRow(row.rowId, "note", e.target.value)}
                             />
                           </label>
-                          <div className="stock-entry-more-field">
-                            <span>Calculated unit cost</span>
-                            <strong>{calculatedUnitCost(row) !== null ? `${formatCurrency(calculatedUnitCost(row)!, currency)} / ${row.item.unit}` : "-"}</strong>
-                          </div>
-                          <button
-                            type="button"
-                            className="stock-entry-add-batch-btn"
-                            onClick={() => addBatch(row.rowId)}
-                          >
-                            Add another batch for this item
-                          </button>
-                        </details>
-                        <button
-                          type="button"
-                          className="stock-entry-remove-btn"
-                          onClick={() => removeRow(row.rowId)}
-                          aria-label={`Remove ${row.item.name} ${row.batchNo}`}
-                        >
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                            <path d="M18 6 6 18M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </td>
-                    </tr>
+                          <label className="receive-field">
+                            <span>Supplier override</span>
+                            <select className="stock-entry-select" value={row.supplierId} onChange={(e) => updateRowSupplier(row.rowId, e.target.value)}>
+                              <option value="">Use delivery supplier</option>
+                              {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                            </select>
+                            {row.suggested && row.supplierId && <small>Suggested from recent receipts</small>}
+                          </label>
+                        </div>
+                      </details>
+                      <button type="button" className="receive-add-batch" onClick={() => addBatch(row.rowId)}>+ Split into another batch</button>
+                    </article>
                   );
                 })}
-              </tbody>
-            </table>
           </div>
 
           <div className="stock-entry-footer">
