@@ -124,8 +124,12 @@ export function ReorderSuggestionsPage() {
     setSuccess(null);
 
     const selectedItems = group.items.filter((item) => lines[item.itemId]?.selected);
-    const itemsToCreate = selectedItems.length > 0 ? selectedItems : group.items;
-    const payload = itemsToCreate.map((suggestion) => {
+    if (selectedItems.length === 0) {
+      setError(`Select at least one item for ${group.supplier.name}.`);
+      return;
+    }
+
+    const payload = selectedItems.map((suggestion) => {
       const line = lines[suggestion.itemId];
       const factor = suggestion.purchaseConversionFactor;
       const usesPurchaseUnit = hasPurchaseUnit(suggestion.purchaseUnit, factor);
@@ -141,13 +145,12 @@ export function ReorderSuggestionsPage() {
       };
     });
 
-    if (payload.length === 0) return;
     if (payload.some((item) => !item.supplierId)) {
       setError("Assign a supplier before creating a purchase order.");
       return;
     }
     if (payload.some((item) => item.quantity <= 0)) {
-      setError("Every item needs an order quantity greater than zero.");
+      setError("Every selected item needs an order quantity greater than zero.");
       return;
     }
 
@@ -244,8 +247,7 @@ export function ReorderSuggestionsPage() {
           {groups.map((group) => {
             const isUnlinked = !group.supplier;
             const selected = group.items.filter((item) => lines[item.itemId]?.selected);
-            const selectedOrAll = selected.length > 0 ? selected : group.items;
-            const groupTotal = selectedOrAll.reduce((sum, item) => {
+            const groupTotal = selected.reduce((sum, item) => {
               const line = lines[item.itemId];
               return sum + toNumber(line?.quantity) * toNumber(line?.unitCost);
             }, 0);
@@ -267,15 +269,15 @@ export function ReorderSuggestionsPage() {
                         Include all
                       </label>
                     )}
-                    {!isUnlinked && groupTotal > 0 && <span className="to-order-group-total">{formatCurrency(groupTotal, currency)}</span>}
+                    {!isUnlinked && selected.length > 0 && groupTotal > 0 && <span className="to-order-group-total">{formatCurrency(groupTotal, currency)}</span>}
                     {!isUnlinked && canCreateDrafts && (
                       <button
                         type="button"
                         className="btn btn--primary btn--sm"
                         onClick={() => void createDraftForGroup(group)}
-                        disabled={creatingSupplierId === group.supplier?.id}
+                        disabled={creatingSupplierId === group.supplier?.id || selected.length === 0}
                       >
-                        {creatingSupplierId === group.supplier?.id ? "Creating…" : "Create Draft PO"}
+                        {creatingSupplierId === group.supplier?.id ? "Creating…" : `Create Draft PO${selected.length > 0 ? ` (${selected.length})` : ""}`}
                       </button>
                     )}
                   </div>
