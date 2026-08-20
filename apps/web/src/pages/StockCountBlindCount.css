@@ -1,0 +1,110 @@
+.sc-blind-banner {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 12px;
+  background: var(--surface-muted, #f8fafc);
+}
+
+.sc-blind-banner strong {
+  display: block;
+  margin-bottom: 2px;
+}
+
+.sc-blind-banner p {
+  margin: 0;
+  color: var(--text-muted, #64748b);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.sc-progress-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.sc-progress-card {
+  padding: 12px 14px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+}
+
+.sc-progress-card span {
+  display: block;
+  color: var(--text-muted, #64748b);
+  font-size: 12px;
+}
+
+.sc-progress-card strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 20px;
+}
+
+.sc-review-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.sc-review-card {
+  padding: 14px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+}
+
+.sc-review-card span {
+  display: block;
+  color: var(--text-muted, #64748b);
+  font-size: 12px;
+}
+
+.sc-review-card strong {
+  display: block;
+  margin-top: 5px;
+  font-size: 18px;
+}
+
+.sc-pending-pill {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.sc-counted-pill {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #ecfdf5;
+  color: #047857;
+}
+
+@media (max-width: 720px) {
+  .sc-progress-strip,
+  .sc-review-summary {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .sc-progress-card:last-child,
+  .sc-review-card:last-child {
+    grid-column: 1 / -1;
+  }
+}
