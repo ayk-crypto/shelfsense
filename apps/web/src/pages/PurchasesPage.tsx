@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { PlanFeatureGate } from "../components/PlanFeatureGate";
 import { usePlanFeatures } from "../context/PlanFeaturesContext";
 import {
-  bulkDeletePurchases,
   cancelPurchase,
   closePurchaseWithVariance,
   createPurchase,
@@ -11,7 +10,6 @@ import {
   getPurchase,
   getPurchases,
   orderPurchase,
-  patchPurchaseSupplier,
   type ClosePurchaseVarianceLine,
 } from "../api/purchases";
 import { getItems } from "../api/items";
@@ -31,28 +29,35 @@ import type {
 } from "../types";
 import { formatCurrency } from "../utils/currency";
 import { hasPurchaseUnit, fmtQty } from "../utils/purchaseUnits";
+import "./PurchaseOrdersInbox.css";
 
-const STATUSES: PurchaseStatus[] = [
-  "DRAFT",
-  "ORDERED",
-  "PARTIALLY_RECEIVED",
-  "RECEIVED",
-  "RECEIVED_WITH_VARIANCE",
-  "CLOSED_SHORT",
-  "BACKORDERED",
-  "CANCELLED",
-];
+type InboxLane = "OPEN" | "DRAFT" | "WAITING" | "PARTIAL" | "CLOSED";
+
+const LANE_LABEL: Record<InboxLane, string> = {
+  OPEN: "Open",
+  DRAFT: "Drafts",
+  WAITING: "Waiting delivery",
+  PARTIAL: "Part received",
+  CLOSED: "Closed",
+};
 
 const STATUS_LABEL: Record<PurchaseStatus, string> = {
   DRAFT: "Draft",
-  ORDERED: "Ordered",
-  PARTIALLY_RECEIVED: "Partially Received",
+  ORDERED: "Waiting Delivery",
+  PARTIALLY_RECEIVED: "Part Received",
   RECEIVED: "Received",
-  RECEIVED_WITH_VARIANCE: "Received (Variance)",
-  CLOSED_SHORT: "Closed (Short)",
+  RECEIVED_WITH_VARIANCE: "Received with Variance",
+  CLOSED_SHORT: "Closed Short",
   BACKORDERED: "Backordered",
   CANCELLED: "Cancelled",
 };
+
+const CLOSED_STATUSES = new Set<PurchaseStatus>([
+  "RECEIVED",
+  "RECEIVED_WITH_VARIANCE",
+  "CLOSED_SHORT",
+  "CANCELLED",
+]);
 
 interface Toast {
   id: number;
@@ -60,14 +65,11 @@ interface Toast {
   type: "success" | "error";
 }
 
-let toastSeq = 0;
-let lineSeq = 0;
-
 interface PurchaseLineDraft {
   key: number;
   itemId: string;
-  quantity: string;       // in purchase units if purchaseUnit set, else base units
-  unitCost: string;       // per purchase unit if purchaseUnit set, else per base unit
+  quantity: string;
+  unitCost: string;
   lastCost?: number | null;
   metaLoading?: boolean;
   purchaseUnit?: string | null;
@@ -75,16 +77,19 @@ interface PurchaseLineDraft {
   baseUnit?: string;
 }
 
+let toastSeq = 0;
+let lineSeq = 0;
+
 function newLine(): PurchaseLineDraft {
   return { key: ++lineSeq, itemId: "", quantity: "", unitCost: "" };
 }
 
-function fmt(value: number, currency: string) {
+function money(value: number, currency: string) {
   return formatCurrency(value, currency);
 }
 
 function fmtDate(value: string | null | undefined) {
-  if (!value) return "-";
+  if (!value) return "—";
   return new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
@@ -92,8 +97,21 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function toDateInput(value: string | null | undefined) {
-  return value ? value.slice(0, 10) : "";
+function numberValue(value: string) {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function poRef(purchase: Purchase) {
+  return `PO-${purchase.id.slice(-8).toUpperCase()}`;
+}
+
+function laneMatches(purchase: Purchase, lane: InboxLane) {
+  if (lane === "DRAFT") return purchase.status === "DRAFT";
+  if (lane === "WAITING") return purchase.status === "ORDERED" || purchase.status === "BACKORDERED";
+  if (lane === "PARTIAL") return purchase.status === "PARTIALLY_RECEIVED";
+  if (lane === "CLOSED") return CLOSED_STATUSES.has(purchase.status);
+  return !CLOSED_STATUSES.has(purchase.status);
 }
 
 function getPurchaseLineDisplay(line: Purchase["purchaseItems"][number]) {
@@ -101,27 +119,11 @@ function getPurchaseLineDisplay(line: Purchase["purchaseItems"][number]) {
   const factor = snapshot?.conversionFactor && snapshot.conversionFactor > 0 ? snapshot.conversionFactor : null;
   const purchaseUnit = snapshot?.purchaseUnit ?? null;
   const baseUnit = snapshot?.baseUnit ?? line.baseUnitSnapshot ?? line.item.unit;
-  const hasSnapshotUnit = Boolean(purchaseUnit && factor);
-  const displayUnit = hasSnapshotUnit ? purchaseUnit! : baseUnit;
-  const toDisplayQuantity = (n: number) => hasSnapshotUnit ? n / factor! : n;
-  const toDisplay = (n: number) => fmtQty(toDisplayQuantity(n));
-  const displayCost = hasSnapshotUnit ? line.unitCost * factor! : line.unitCost;
-  return {
-    hasSnapshotUnit,
-    displayUnit,
-    baseUnit,
-    purchaseUnit,
-    factor,
-    toDisplayQuantity,
-    toDisplay,
-    displayCost,
-    conversionText: hasSnapshotUnit ? `1 ${purchaseUnit} = ${fmtQty(factor!)} ${baseUnit}` : snapshot?.message,
-  };
-}
-
-function numberValue(value: string) {
-  const parsed = Number.parseFloat(value);
-  return Number.isFinite(parsed) ? parsed : undefined;
+  const usesPurchaseUnit = Boolean(purchaseUnit && factor);
+  const displayUnit = usesPurchaseUnit ? purchaseUnit! : baseUnit;
+  const displayQty = (qty: number) => usesPurchaseUnit ? qty / factor! : qty;
+  const displayCost = usesPurchaseUnit ? line.unitCost * factor! : line.unitCost;
+  return { displayUnit, displayQty, displayCost };
 }
 
 export function PurchasesPage() {
@@ -132,38 +134,39 @@ export function PurchasesPage() {
   const { activeLocationId } = useLocation();
   const { settings } = useWorkspaceSettings();
   const currency = settings.currency;
+
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [items, setItems] = useState<Item[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [lane, setLane] = useState<InboxLane>("OPEN");
+  const [filters, setFilters] = useState<PurchaseFilters>({});
   const [addOpen, setAddOpen] = useState(false);
   const [detailPurchase, setDetailPurchase] = useState<Purchase | null>(null);
   const [cancelTarget, setCancelTarget] = useState<Purchase | null>(null);
-  const [cancelReason, setCancelReason] = useState("");
-  const [cancelling, setCancelling] = useState(false);
-  const [toasts, setToasts] = useState<Toast[]>([]);
-  const [filters, setFilters] = useState<PurchaseFilters>({});
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [bulkSupplierId, setBulkSupplierId] = useState("");
-  const [bulkAssigning, setBulkAssigning] = useState(false);
+  const [closeTarget, setCloseTarget] = useState<Purchase | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Purchase | null>(null);
-  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [closePOTarget, setClosePOTarget] = useState<Purchase | null>(null);
+  const [toasts, setToasts] = useState<Toast[]>([]);
 
   function showToast(msg: string, type: "success" | "error") {
     const id = ++toastSeq;
-    setToasts((prev) => [...prev, { id, msg, type }]);
-    setTimeout(() => setToasts((prev) => prev.filter((toast) => toast.id !== id)), 3500);
+    setToasts((current) => [...current, { id, msg, type }]);
+    window.setTimeout(() => setToasts((current) => current.filter((toast) => toast.id !== id)), 3500);
   }
 
   async function load(nextFilters = filters) {
     setLoading(true);
     try {
+      const query: PurchaseFilters = {
+        supplierId: nextFilters.supplierId,
+        locationId: nextFilters.locationId,
+        fromDate: nextFilters.fromDate,
+        toDate: nextFilters.toDate,
+      };
       const [purchaseRes, supplierRes, itemRes, locationRes] = await Promise.all([
-        getPurchases(nextFilters),
+        getPurchases(query),
         getSuppliers(),
         getItems(),
         getLocations(),
@@ -174,7 +177,7 @@ export function PurchasesPage() {
       setLocations(locationRes.locations);
       setFetchError(null);
     } catch (err) {
-      setFetchError(err instanceof Error ? err.message : "Failed to load purchases");
+      setFetchError(err instanceof Error ? err.message : "Failed to load purchase orders");
     } finally {
       setLoading(false);
     }
@@ -183,32 +186,48 @@ export function PurchasesPage() {
   useEffect(() => {
     void load(filters);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeLocationId, filters.status, filters.supplierId, filters.fromDate, filters.toDate, filters.locationId]);
+  }, [activeLocationId, filters.supplierId, filters.locationId, filters.fromDate, filters.toDate]);
 
   useEffect(() => {
     const purchaseId = searchParams.get("purchaseId");
     if (!purchaseId || purchases.length === 0 || handledReorderRedirect.current) return;
-
     handledReorderRedirect.current = true;
     const fromReorder = Number(searchParams.get("fromReorder") ?? "0");
     const purchase = purchases.find((entry) => entry.id === purchaseId);
     if (purchase) setDetailPurchase(purchase);
     if (fromReorder > 0) {
-      showToast(
-        fromReorder === 1
-          ? "Created purchase draft from reorder suggestions"
-          : `Created ${fromReorder} purchase drafts from reorder suggestions`,
-        "success",
-      );
+      showToast(fromReorder === 1 ? "Draft PO created from To Order" : `${fromReorder} draft POs created from To Order`, "success");
     }
     setSearchParams({}, { replace: true });
   }, [purchases, searchParams, setSearchParams]);
 
-  const totals = useMemo(() => ({
-    orderedValue: purchases.reduce((sum, purchase) => sum + purchase.totalAmount, 0),
-    receivedValue: purchases.reduce((sum, purchase) => sum + purchase.receivedValue, 0),
-    remainingQuantity: purchases.reduce((sum, purchase) => sum + purchase.remainingQuantity, 0),
+  const laneCounts = useMemo(() => ({
+    OPEN: purchases.filter((p) => laneMatches(p, "OPEN")).length,
+    DRAFT: purchases.filter((p) => laneMatches(p, "DRAFT")).length,
+    WAITING: purchases.filter((p) => laneMatches(p, "WAITING")).length,
+    PARTIAL: purchases.filter((p) => laneMatches(p, "PARTIAL")).length,
+    CLOSED: purchases.filter((p) => laneMatches(p, "CLOSED")).length,
   }), [purchases]);
+
+  const visiblePurchases = useMemo(
+    () => purchases
+      .filter((purchase) => laneMatches(purchase, lane))
+      .sort((a, b) => {
+        const aDate = new Date(a.expectedDeliveryDate ?? a.date).getTime();
+        const bDate = new Date(b.expectedDeliveryDate ?? b.date).getTime();
+        if (lane === "CLOSED") return bDate - aDate;
+        return aDate - bDate;
+      }),
+    [lane, purchases],
+  );
+
+  const openPurchases = purchases.filter((purchase) => laneMatches(purchase, "OPEN"));
+  const openValue = openPurchases.reduce((sum, purchase) => sum + purchase.totalAmount, 0);
+  const waitingToReceive = openPurchases.reduce((sum, purchase) => sum + purchase.remainingQuantity, 0);
+  const overdueCount = openPurchases.filter((purchase) => {
+    if (!purchase.expectedDeliveryDate || purchase.status === "DRAFT") return false;
+    return new Date(purchase.expectedDeliveryDate).getTime() < new Date(todayISO()).getTime();
+  }).length;
 
   async function refreshDetail(id: string) {
     const res = await getPurchase(id);
@@ -216,130 +235,19 @@ export function PurchasesPage() {
     await load(filters);
   }
 
-  function toggleSelect(id: string, checked: boolean) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (checked) next.add(id); else next.delete(id);
-      return next;
-    });
-  }
-
-  function toggleSelectAll(checked: boolean) {
-    if (checked) {
-      setSelectedIds(new Set(purchases.filter((p) => p.status === "DRAFT").map((p) => p.id)));
-    } else {
-      setSelectedIds(new Set());
-    }
-  }
-
-  async function handleBulkAssign() {
-    if (!bulkSupplierId || selectedIds.size === 0) return;
-    setBulkAssigning(true);
-    const ids = [...selectedIds];
-    let successCount = 0;
-    let failCount = 0;
-    for (const id of ids) {
-      try {
-        await patchPurchaseSupplier(id, bulkSupplierId);
-        successCount++;
-      } catch {
-        failCount++;
-      }
-    }
-    setBulkAssigning(false);
-    setSelectedIds(new Set());
-    setBulkSupplierId("");
-    await load(filters);
-    if (failCount === 0) {
-      showToast(`Supplier updated on ${successCount} draft${successCount !== 1 ? "s" : ""}`, "success");
-    } else {
-      showToast(`Updated ${successCount}, failed ${failCount}`, "error");
-    }
-  }
-
   async function handleOrder(purchase: Purchase) {
     try {
       const res = await orderPurchase(purchase.id);
-      showToast("Purchase marked as ordered", "success");
       setDetailPurchase(res.purchase);
+      showToast("PO marked as ordered", "success");
       await load(filters);
     } catch (err) {
-      showToast(err instanceof Error ? err.message : "Failed to order purchase", "error");
-    }
-  }
-
-  function handleCancel(purchase: Purchase) {
-    setCancelTarget(purchase);
-    setCancelReason("");
-  }
-
-  async function confirmCancel() {
-    if (!cancelTarget) return;
-    setCancelling(true);
-    try {
-      const res = await cancelPurchase(cancelTarget.id, cancelReason.trim() || undefined);
-      showToast("Purchase cancelled", "success");
-      setDetailPurchase(res.purchase);
-      setCancelTarget(null);
-      await load(filters);
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : "Failed to cancel purchase", "error");
-    } finally {
-      setCancelling(false);
-    }
-  }
-
-  function handleClosePO(purchase: Purchase) {
-    setClosePOTarget(purchase);
-  }
-
-  function handleDeleteDraft(purchase: Purchase) {
-    setDeleteTarget(purchase);
-  }
-
-  async function confirmDeleteDraft() {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    try {
-      await deletePurchase(deleteTarget.id);
-      showToast("Draft purchase order deleted.", "success");
-      if (detailPurchase?.id === deleteTarget.id) setDetailPurchase(null);
-      setDeleteTarget(null);
-      setSelectedIds((prev) => { const next = new Set(prev); next.delete(deleteTarget.id); return next; });
-      await load(filters);
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : "Failed to delete purchase", "error");
-    } finally {
-      setDeleting(false);
-    }
-  }
-
-  async function confirmBulkDeleteDrafts() {
-    setDeleting(true);
-    try {
-      const res = await bulkDeletePurchases([...selectedIds]);
-      const n = res.deletedCount;
-      showToast(
-        n === 1 ? "Draft purchase order deleted." : `${n} draft purchase orders deleted.`,
-        "success",
-      );
-      setBulkDeleteConfirmOpen(false);
-      setSelectedIds(new Set());
-      await load(filters);
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : "Failed to delete purchases", "error");
-    } finally {
-      setDeleting(false);
+      showToast(err instanceof Error ? err.message : "Failed to order PO", "error");
     }
   }
 
   if (planFeatures.isLoading || loading) {
-    return (
-      <div className="page-loading">
-        <div className="spinner" />
-        <p>Loading purchases...</p>
-      </div>
-    );
+    return <div className="page-loading"><div className="spinner" /><p>Loading purchase orders...</p></div>;
   }
 
   if (!planFeatures.enablePurchases) {
@@ -347,192 +255,89 @@ export function PurchasesPage() {
   }
 
   if (fetchError) {
-    return (
-      <div className="page-error">
-        <div className="alert alert--error">{fetchError}</div>
-      </div>
-    );
+    return <div className="page-error"><div className="alert alert--error">{fetchError}</div></div>;
   }
 
   return (
-    <div className="purchases-page">
-      <div className="page-header">
+    <div className="po-inbox-page">
+      <div className="po-inbox-head">
         <div>
-          <h1 className="page-title">Purchases</h1>
-          <p className="page-subtitle">Create purchase orders, receive stock in parts, and track what is still due.</p>
+          <span className="po-inbox-kicker">Purchasing</span>
+          <h1>Purchase Orders</h1>
+          <p>See what needs ordering, what is on the way, and what still needs receiving.</p>
         </div>
-        <button className="btn btn--primary" onClick={() => setAddOpen(true)}>New Purchase</button>
-      </div>
-
-      <div className="ops-metric-strip" aria-label="Purchase summary">
-        <div className="ops-metric">
-          <span className="ops-metric-label">Purchases</span>
-          <strong className="ops-metric-value">{purchases.length}</strong>
-        </div>
-        <div className="ops-metric">
-          <span className="ops-metric-label">Ordered value</span>
-          <strong className="ops-metric-value">{fmt(totals.orderedValue, currency)}</strong>
-        </div>
-        <div className="ops-metric">
-          <span className="ops-metric-label">Received value</span>
-          <strong className="ops-metric-value">{fmt(totals.receivedValue, currency)}</strong>
-        </div>
-        <div className="ops-metric">
-          <span className="ops-metric-label">Remaining qty</span>
-          <strong className="ops-metric-value">{totals.remainingQuantity}</strong>
+        <div className="po-inbox-head-actions">
+          <button type="button" className="btn btn--secondary" onClick={() => navigate("/reorder-suggestions")}>To Order</button>
+          <button type="button" className="btn btn--primary" onClick={() => setAddOpen(true)}>New Purchase Order</button>
         </div>
       </div>
 
-      <div className="purchase-filters purchase-filters--lifecycle">
+      <div className="po-inbox-summary" aria-label="Purchase order summary">
+        <div><span>Open POs</span><strong>{laneCounts.OPEN}</strong></div>
+        <div><span>Open value</span><strong>{money(openValue, currency)}</strong></div>
+        <div><span>Qty still due</span><strong>{fmtQty(waitingToReceive)}</strong></div>
+        <div className={overdueCount > 0 ? "po-summary-alert" : ""}><span>Overdue</span><strong>{overdueCount}</strong></div>
+      </div>
+
+      <div className="po-lanes" role="tablist" aria-label="Purchase order lifecycle">
+        {(Object.keys(LANE_LABEL) as InboxLane[]).map((key) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={lane === key}
+            className={`po-lane${lane === key ? " po-lane--active" : ""}`}
+            onClick={() => setLane(key)}
+          >
+            <span>{LANE_LABEL[key]}</span>
+            <em>{laneCounts[key]}</em>
+          </button>
+        ))}
+      </div>
+
+      <div className="po-inbox-filters">
         <select
-          className="form-input form-select purchase-filter-select"
-          value={filters.status ?? ""}
-          onChange={(e) => setFilters((current) => ({ ...current, status: e.target.value ? e.target.value as PurchaseStatus : undefined }))}
-        >
-          <option value="">All statuses</option>
-          {STATUSES.map((status) => <option key={status} value={status}>{STATUS_LABEL[status]}</option>)}
-        </select>
-        <select
-          className="form-input form-select purchase-filter-select"
+          className="form-input form-select"
           value={filters.supplierId ?? ""}
-          onChange={(e) => setFilters((current) => ({ ...current, supplierId: e.target.value || undefined }))}
+          onChange={(event) => setFilters((current) => ({ ...current, supplierId: event.target.value || undefined }))}
         >
           <option value="">All suppliers</option>
           {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
         </select>
         <select
-          className="form-input form-select purchase-filter-select"
+          className="form-input form-select"
           value={filters.locationId ?? ""}
-          onChange={(e) => setFilters((current) => ({ ...current, locationId: e.target.value || undefined }))}
+          onChange={(event) => setFilters((current) => ({ ...current, locationId: event.target.value || undefined }))}
         >
           <option value="">Active branch</option>
           {locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
         </select>
-        <input
-          type="date"
-          className="form-input purchase-filter-date"
-          value={filters.fromDate ?? ""}
-          onChange={(e) => setFilters((current) => ({ ...current, fromDate: e.target.value || undefined }))}
-          aria-label="From date"
-        />
-        <input
-          type="date"
-          className="form-input purchase-filter-date"
-          value={filters.toDate ?? ""}
-          onChange={(e) => setFilters((current) => ({ ...current, toDate: e.target.value || undefined }))}
-          aria-label="To date"
-        />
-        {(filters.status || filters.supplierId || filters.locationId || filters.fromDate || filters.toDate) && (
-          <button className="btn btn--ghost btn--sm" onClick={() => setFilters({})}>Clear</button>
+        <input type="date" className="form-input" value={filters.fromDate ?? ""} onChange={(event) => setFilters((current) => ({ ...current, fromDate: event.target.value || undefined }))} aria-label="From date" />
+        <input type="date" className="form-input" value={filters.toDate ?? ""} onChange={(event) => setFilters((current) => ({ ...current, toDate: event.target.value || undefined }))} aria-label="To date" />
+        {(filters.supplierId || filters.locationId || filters.fromDate || filters.toDate) && (
+          <button type="button" className="btn btn--ghost btn--sm" onClick={() => setFilters({})}>Clear</button>
         )}
       </div>
 
-      {/* Bulk action bar — appears when DRAFT rows are selected */}
-      {selectedIds.size > 0 && (
-        <div className="pur-bulk-bar">
-          <span className="pur-bulk-count">{selectedIds.size} draft{selectedIds.size !== 1 ? "s" : ""} selected</span>
-          <select
-            className="pur-bulk-supplier"
-            value={bulkSupplierId}
-            onChange={(e) => setBulkSupplierId(e.target.value)}
-          >
-            <option value="">— pick supplier —</option>
-            {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-          <button
-            className="btn btn--primary btn--sm"
-            disabled={!bulkSupplierId || bulkAssigning}
-            onClick={() => { void handleBulkAssign(); }}
-          >
-            {bulkAssigning ? "Assigning…" : "Assign Supplier"}
-          </button>
-          <button
-            className="btn btn--danger btn--sm"
-            onClick={() => setBulkDeleteConfirmOpen(true)}
-          >
-            Delete Selected
-          </button>
-          <button className="pur-bulk-clear" onClick={() => setSelectedIds(new Set())}>Clear</button>
-        </div>
-      )}
-
-      {purchases.length === 0 ? (
-        <div className="empty-state">
-          <h3>No purchases found</h3>
-          <p>Create a draft purchase order, then receive stock only when items arrive.</p>
-          <button className="btn btn--primary" onClick={() => setAddOpen(true)}>Create draft purchase</button>
+      {visiblePurchases.length === 0 ? (
+        <div className="po-inbox-empty">
+          <div className="po-inbox-empty-icon">✓</div>
+          <h2>No {LANE_LABEL[lane].toLowerCase()} purchase orders</h2>
+          <p>{lane === "OPEN" ? "Nothing needs purchasing attention in this view." : "Switch to another stage or create a new purchase order."}</p>
+          {lane === "OPEN" && <button type="button" className="btn btn--secondary" onClick={() => navigate("/reorder-suggestions")}>Check To Order</button>}
         </div>
       ) : (
-        <div className="pur-list">
-          {/* Select-all header — only shown when there are DRAFTs */}
-          {purchases.some((p) => p.status === "DRAFT") && (
-            <div className="pur-select-all-row">
-              <label className="pur-select-all-label">
-                <input
-                  type="checkbox"
-                  checked={
-                    purchases.filter((p) => p.status === "DRAFT").length > 0 &&
-                    purchases.filter((p) => p.status === "DRAFT").every((p) => selectedIds.has(p.id))
-                  }
-                  onChange={(e) => toggleSelectAll(e.target.checked)}
-                />
-                <span>Select all drafts</span>
-              </label>
-            </div>
-          )}
-          {purchases.map((purchase) => {
-            const isDraft = purchase.status === "DRAFT";
-            const isSelected = selectedIds.has(purchase.id);
-            return (
-              <article
-                key={purchase.id}
-                className={`pur-item pur-item--lifecycle${isDraft ? " pur-item--selectable" : ""}${isSelected ? " pur-item--selected" : ""}`}
-                role="button"
-                tabIndex={0}
-                onClick={() => setDetailPurchase(purchase)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") setDetailPurchase(purchase);
-                }}
-              >
-                {isDraft && (
-                  <div className="pur-check-wrap" onClick={(e) => e.stopPropagation()}>
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={(e) => toggleSelect(purchase.id, e.target.checked)}
-                      aria-label={`Select draft from ${purchase.supplier.name}`}
-                    />
-                  </div>
-                )}
-                <div className="pur-item-body">
-                  <div className="pur-item-row">
-                    <span className="pur-item-supplier">{purchase.supplier.name}</span>
-                    <StatusBadge status={purchase.status} />
-                  </div>
-                  <div className="pur-item-items">
-                    {purchase.purchaseItems.slice(0, 2).map((line) => line.item.name).join(" / ")}
-                    {purchase.purchaseItems.length > 2 && <span className="pur-item-extra"> +{purchase.purchaseItems.length - 2} more</span>}
-                  </div>
-                  <div className="purchase-progress">
-                    <span>Ordered {purchase.orderedQuantity}</span>
-                    <span>Received {purchase.receivedQuantity}</span>
-                    <span>Remaining {purchase.remainingQuantity}</span>
-                    <span>{purchase.location.name}</span>
-                  </div>
-                </div>
-                <div className="pur-item-right">
-                  <span className="pur-item-amount">{fmt(purchase.totalAmount, currency)}</span>
-                  <span className="pur-item-received">{fmt(purchase.receivedValue, currency)} received</span>
-                  <span className="pur-item-date">{fmtDate(purchase.date)}</span>
-                </div>
-                <RowActionMenu
-                  purchase={purchase}
-                  onDeleteDraft={() => handleDeleteDraft(purchase)}
-                  onCancel={() => handleCancel(purchase)}
-                />
-              </article>
-            );
-          })}
+        <div className="po-inbox-list">
+          {visiblePurchases.map((purchase) => (
+            <PurchaseInboxCard
+              key={purchase.id}
+              purchase={purchase}
+              currency={currency}
+              onOpen={() => setDetailPurchase(purchase)}
+              onReceive={() => navigate(`/stock-in?mode=po&poId=${purchase.id}`)}
+              onOrder={() => void handleOrder(purchase)}
+            />
+          ))}
         </div>
       )}
 
@@ -545,8 +350,9 @@ export function PurchasesPage() {
           onError={(message) => showToast(message, "error")}
           onSuccess={async (purchase) => {
             setAddOpen(false);
-            showToast("Draft purchase created", "success");
+            setLane("DRAFT");
             setDetailPurchase(purchase);
+            showToast("Draft purchase order created", "success");
             await load(filters);
           }}
         />
@@ -556,924 +362,257 @@ export function PurchasesPage() {
         <PurchaseDetailModal
           purchase={detailPurchase}
           currency={currency}
-          workspaceName={settings.name || "ShelfSense"}
-          ownerPhone={settings.ownerPhone}
           onClose={() => setDetailPurchase(null)}
-          onOrder={handleOrder}
-          onCancel={handleCancel}
-          onClosePO={handleClosePO}
-          onReceive={(purchase) => {
+          onRefresh={() => void refreshDetail(detailPurchase.id)}
+          onOrder={() => void handleOrder(detailPurchase)}
+          onReceive={() => {
             setDetailPurchase(null);
-            navigate(`/stock-in?mode=po&poId=${purchase.id}`);
+            navigate(`/stock-in?mode=po&poId=${detailPurchase.id}`);
           }}
-        />
-      )}
-
-      {closePOTarget && (
-        <ClosePOModal
-          purchase={closePOTarget}
-          currency={currency}
-          onClose={() => setClosePOTarget(null)}
-          onSuccess={(updated, newDraftId) => {
-            setClosePOTarget(null);
-            setDetailPurchase(updated);
-            if (updated.status === "BACKORDERED" && newDraftId) {
-              showToast(`PO backordered — new draft PO-${newDraftId.slice(-8).toUpperCase()} created.`, "success");
-            } else if (updated.status === "CLOSED_SHORT") {
-              showToast("Purchase order closed (short).", "success");
-            } else {
-              showToast("Partial closure saved — PO remains open for kept items.", "success");
-            }
-            void load(filters);
-          }}
+          onCancel={() => setCancelTarget(detailPurchase)}
+          onClosePO={() => setCloseTarget(detailPurchase)}
+          onDelete={() => setDeleteTarget(detailPurchase)}
         />
       )}
 
       {cancelTarget && (
         <CancelPurchaseModal
-          target={cancelTarget}
-          reason={cancelReason}
-          cancelling={cancelling}
-          onReasonChange={setCancelReason}
-          onConfirm={() => { void confirmCancel(); }}
+          purchase={cancelTarget}
           onClose={() => setCancelTarget(null)}
+          onSuccess={async (updated) => {
+            setCancelTarget(null);
+            setDetailPurchase(updated);
+            showToast("Purchase order cancelled", "success");
+            await load(filters);
+          }}
+        />
+      )}
+
+      {closeTarget && (
+        <ClosePOModal
+          purchase={closeTarget}
+          onClose={() => setCloseTarget(null)}
+          onSuccess={async (updated, newDraftId) => {
+            setCloseTarget(null);
+            setDetailPurchase(updated);
+            showToast(newDraftId ? "PO closed and a new draft was created for pending items" : "PO closure saved", "success");
+            await load(filters);
+          }}
         />
       )}
 
       {deleteTarget && (
         <DeleteDraftModal
           purchase={deleteTarget}
-          deleting={deleting}
-          onConfirm={() => { void confirmDeleteDraft(); }}
           onClose={() => setDeleteTarget(null)}
-        />
-      )}
-
-      {bulkDeleteConfirmOpen && (
-        <BulkDeleteDraftsModal
-          count={selectedIds.size}
-          deleting={deleting}
-          onConfirm={() => { void confirmBulkDeleteDrafts(); }}
-          onClose={() => setBulkDeleteConfirmOpen(false)}
+          onSuccess={async () => {
+            setDeleteTarget(null);
+            setDetailPurchase(null);
+            showToast("Draft purchase order deleted", "success");
+            await load(filters);
+          }}
         />
       )}
 
       <div className="toast-stack">
-        {toasts.map((toast) => (
-          <div key={toast.id} className={`toast toast--${toast.type}`}>{toast.msg}</div>
-        ))}
+        {toasts.map((toast) => <div key={toast.id} className={`toast toast--${toast.type}`}>{toast.msg}</div>)}
       </div>
     </div>
   );
 }
 
-function escHtml(str: string): string {
-  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
-
-function downloadPurchaseOrder(
-  purchase: Purchase,
-  currency: string,
-  workspaceName: string,
-  ownerPhone?: string | null,
-) {
-  const poNum = `PO-${purchase.id.slice(-8).toUpperCase()}`;
-  const statusSlug = purchase.status.toLowerCase().replace(/_/g, "-");
-  const showReceiving = purchase.status !== "DRAFT";
-  const cols = showReceiving ? 6 : 4;
-
-  // ── per-line helpers ─────────────────────────────────────────────────────
-  function lineHelpers(line: (typeof purchase.purchaseItems)[0]) {
-    const display = getPurchaseLineDisplay(line);
-    const displayUnit = display.displayUnit;
-    const toDisplay = display.toDisplay;
-    const dCostPerPU = display.displayCost;
-    const costStr = dCostPerPU > 0 ? fmt(dCostPerPU, currency) : "—";
-    const totalStr = dCostPerPU > 0 ? fmt(line.orderedValue, currency) : "—";
-    return { displayUnit, toDisplay, costStr, totalStr };
-  }
-
-  // ── summary totals in purchase units ────────────────────────────────────
-  let sumOrdered = 0, sumReceived = 0, sumRemaining = 0;
-  let allCostsMissing = true;
-  for (const line of purchase.purchaseItems) {
-    const display = getPurchaseLineDisplay(line);
-    sumOrdered += display.toDisplayQuantity(line.orderedQuantity);
-    sumReceived += display.toDisplayQuantity(line.receivedQuantity);
-    sumRemaining += display.toDisplayQuantity(line.remainingQuantity);
-    const dCost = display.displayCost;
-    if (dCost > 0) allCostsMissing = false;
-  }
-  const estValueStr = allCostsMissing ? "Pricing not set" : fmt(purchase.totalAmount, currency);
-  const recValueStr = allCostsMissing ? "—" : fmt(purchase.receivedValue, currency);
-
-  // ── group line items by category ─────────────────────────────────────────
-  const grouped = new Map<string, typeof purchase.purchaseItems>();
-  for (const line of purchase.purchaseItems) {
-    const cat = line.item.category?.trim() || "Uncategorized";
-    if (!grouped.has(cat)) grouped.set(cat, []);
-    grouped.get(cat)!.push(line);
-  }
-  const sortedCats = [...grouped.keys()].sort((a, b) => {
-    if (a === "Uncategorized") return 1;
-    if (b === "Uncategorized") return -1;
-    return a.localeCompare(b);
-  });
-
-  // ── build table rows ──────────────────────────────────────────────────────
-  const tableRows = sortedCats.map((cat) => {
-    const lines = grouped.get(cat)!;
-    const catRow = `<tr class="cat-row"><td colspan="${cols}"><span class="cat-lbl">${escHtml(cat)}</span></td></tr>`;
-    const lineRows = lines.map((line) => {
-      const { displayUnit, toDisplay, costStr, totalStr } = lineHelpers(line);
-      const minNote = line.item.minStockLevel > 0
-        ? `<span class="item-min">Min: ${fmtQty(line.item.minStockLevel)} ${escHtml(displayUnit)}</span>`
-        : "";
-      const itemCell = `<td><span class="item-nm">${escHtml(line.item.name)}</span> <span class="item-u">/ ${escHtml(displayUnit)}</span>${minNote}</td>`;
-      const ordCell  = `<td class="num">${toDisplay(line.orderedQuantity)}</td>`;
-      const costCell = `<td class="num">${escHtml(costStr)}</td>`;
-      const totCell  = `<td class="num">${escHtml(totalStr)}</td>`;
-      if (showReceiving) {
-        return `<tr>${itemCell}${ordCell}<td class="num">${toDisplay(line.receivedQuantity)}</td><td class="num">${toDisplay(line.remainingQuantity)}</td>${costCell}${totCell}</tr>`;
-      }
-      return `<tr>${itemCell}${ordCell}${costCell}${totCell}</tr>`;
-    }).join("");
-    return catRow + lineRows;
-  }).join("");
-
-  // ── tfoot totals ──────────────────────────────────────────────────────────
-  const tfootOrdered   = `<tr class="tf-row"><td colspan="${cols - 1}">Total ordered value</td><td class="num">${allCostsMissing ? "—" : escHtml(fmt(purchase.totalAmount, currency))}</td></tr>`;
-  const tfootReceived  = showReceiving
-    ? `<tr class="tf-row"><td colspan="${cols - 1}">Total received value</td><td class="num">${allCostsMissing ? "—" : escHtml(fmt(purchase.receivedValue, currency))}</td></tr>`
-    : "";
-
-  // ── supplier info ─────────────────────────────────────────────────────────
-  const suppInfo = [
-    `<div class="info-name">${escHtml(purchase.supplier.name)}</div>`,
-    purchase.supplier.phone ? `<div class="info-line">${escHtml(purchase.supplier.phone)}</div>` : "",
-    purchase.supplier.notes ? `<div class="info-line info-notes">${escHtml(purchase.supplier.notes)}</div>` : "",
-  ].join("");
-
-  // ── buyer info ────────────────────────────────────────────────────────────
-  const buyerInfo = [
-    `<div class="info-name">${escHtml(workspaceName)}</div>`,
-    `<div class="info-line">${escHtml(purchase.location.name)}</div>`,
-    ownerPhone ? `<div class="info-line">${escHtml(ownerPhone)}</div>` : "",
-  ].join("");
-
-  // ── dates ─────────────────────────────────────────────────────────────────
-  function datePill(label: string, value: string | null | undefined) {
-    if (!value) return "";
-    return `<div class="dp"><span class="dp-lbl">${escHtml(label)}</span><strong class="dp-val">${escHtml(fmtDate(value))}</strong></div>`;
-  }
-  const datesHtml = [
-    datePill("PO Date", purchase.date),
-    datePill("Expected Delivery", purchase.expectedDeliveryDate),
-    datePill("Ordered On", purchase.orderedAt),
-    datePill("Received On", purchase.receivedAt),
-    datePill("Cancelled On", purchase.cancelledAt),
-  ].filter(Boolean).join("");
-
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>${escHtml(poNum)} — ${escHtml(purchase.supplier.name)}</title>
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#1e293b;background:#fff;font-size:13px;max-width:960px;margin:0 auto;padding:40px 48px}
-@media print{
-  .no-print{display:none!important}
-  body{padding:20px 28px;font-size:12px}
-  @page{size:A4;margin:14mm 12mm}
-  .page-break-avoid{page-break-inside:avoid}
-}
-
-/* print toolbar */
-.no-print{margin-bottom:28px}
-.print-btn{background:#6366f1;color:#fff;border:none;padding:9px 20px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:8px}
-.print-btn:hover{background:#4f46e5}
-
-/* header */
-.po-header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #6366f1;padding-bottom:18px;margin-bottom:24px;gap:24px}
-.po-brand{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#6366f1;margin-bottom:4px}
-.po-title{font-size:26px;font-weight:800;color:#1e293b;letter-spacing:-.5px;line-height:1.1}
-.po-num{font-size:12px;color:#64748b;margin-top:4px;font-weight:500;font-family:monospace}
-.po-meta{text-align:right;font-size:12px;color:#64748b;line-height:1.9;min-width:200px}
-.po-meta strong{color:#1e293b;font-weight:600}
-.po-badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;vertical-align:middle}
-.po-badge--draft{background:#f1f5f9;color:#475569}
-.po-badge--ordered{background:#eef2ff;color:#4338ca}
-.po-badge--partially-received{background:#fff7ed;color:#c2410c}
-.po-badge--received{background:#ecfdf5;color:#047857}
-.po-badge--cancelled{background:#fef2f2;color:#b91c1c}
-
-/* two-col info boxes */
-.info-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px}
-.info-box{border:1px solid #e2e8f0;border-radius:8px;padding:14px 16px}
-.info-box-lbl{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin-bottom:8px}
-.info-name{font-size:15px;font-weight:700;color:#1e293b;margin-bottom:4px}
-.info-line{font-size:12px;color:#475569;margin-bottom:2px}
-.info-notes{color:#64748b;font-style:italic;margin-top:4px}
-
-/* dates strip */
-.dates-strip{display:flex;flex-wrap:wrap;gap:16px 28px;margin-bottom:18px;padding:12px 16px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0}
-.dp{}
-.dp-lbl{display:block;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#94a3b8;margin-bottom:2px}
-.dp-val{font-size:13px;font-weight:600;color:#1e293b}
-
-/* summary box */
-.summary-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:22px}
-.sum-cell{padding:12px 14px;border-right:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0}
-.sum-cell:nth-child(3n){border-right:none}
-.sum-cell:nth-last-child(-n+3){border-bottom:none}
-.sum-lbl{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#94a3b8;margin-bottom:4px}
-.sum-val{font-size:16px;font-weight:700;color:#1e293b}
-.sum-val--accent{color:#6366f1}
-.sum-val--muted{font-size:13px;color:#64748b;font-weight:500}
-
-/* section heading */
-.sec-head{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin-bottom:8px;margin-top:4px}
-
-/* items table */
-.po-box{border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:20px}
-table{width:100%;border-collapse:collapse}
-thead{background:#f8fafc}
-th{padding:9px 12px;text-align:left;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#64748b;border-bottom:1px solid #e2e8f0;white-space:nowrap}
-th.num,td.num{text-align:right;font-variant-numeric:tabular-nums}
-td{padding:10px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#1e293b;vertical-align:middle}
-.item-nm{font-weight:500}
-.item-u{color:#94a3b8;font-size:12px}
-.item-min{display:block;font-size:10.5px;color:#94a3b8;margin-top:2px}
-.cat-row td{background:#f8fafc;padding:6px 12px;border-bottom:1px solid #e2e8f0}
-.cat-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#475569}
-tr:last-child td{border-bottom:none}
-.tf-row td{background:#f8fafc;font-weight:700;border-top:2px solid #e2e8f0;font-size:13px;border-bottom:none}
-
-/* cancel box */
-.cancel-box{background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px 16px;color:#991b1b;font-size:13px;margin-bottom:20px}
-
-/* approval / receiving sections */
-.sig-section{border:1px solid #e2e8f0;border-radius:8px;padding:16px 18px;margin-bottom:18px;page-break-inside:avoid}
-.sig-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin-bottom:14px}
-.sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 28px}
-.sig-field{padding-bottom:8px;border-bottom:1px solid #cbd5e1}
-.sig-field-lbl{font-size:10px;color:#94a3b8;margin-bottom:18px;display:block}
-.approval-status{margin-top:14px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:12px;color:#475569}
-.approval-status strong{color:#1e293b}
-
-/* footer */
-.po-footer{margin-top:40px;padding-top:12px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:10.5px;color:#94a3b8}
-</style>
-</head>
-<body>
-
-<div class="no-print">
-  <button class="print-btn" onclick="window.print()">
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-    Print / Save as PDF
-  </button>
-</div>
-
-<!-- ── Header ── -->
-<div class="po-header">
-  <div>
-    <div class="po-brand">${escHtml(workspaceName)}</div>
-    <div class="po-title">Purchase Order</div>
-    <div class="po-num">${escHtml(poNum)}</div>
-  </div>
-  <div class="po-meta">
-    <div>Status: <span class="po-badge po-badge--${statusSlug}">${escHtml(STATUS_LABEL[purchase.status])}</span></div>
-    <div>Branch: <strong>${escHtml(purchase.location.name)}</strong></div>
-  </div>
-</div>
-
-<!-- ── Supplier & Buyer ── -->
-<div class="info-row">
-  <div class="info-box">
-    <div class="info-box-lbl">Supplier</div>
-    ${suppInfo || `<div class="info-line">—</div>`}
-  </div>
-  <div class="info-box">
-    <div class="info-box-lbl">Buyer / Business</div>
-    ${buyerInfo}
-  </div>
-</div>
-
-<!-- ── Dates ── -->
-${datesHtml ? `<div class="dates-strip">${datesHtml}</div>` : ""}
-
-<!-- ── Summary ── -->
-<div class="summary-grid">
-  <div class="sum-cell">
-    <div class="sum-lbl">Total items</div>
-    <div class="sum-val">${purchase.purchaseItems.length}</div>
-  </div>
-  <div class="sum-cell">
-    <div class="sum-lbl">Ordered qty</div>
-    <div class="sum-val">${fmtQty(sumOrdered)}</div>
-  </div>
-  <div class="sum-cell">
-    <div class="sum-lbl">Estimated value</div>
-    <div class="${purchase.totalAmount > 0 ? "sum-val sum-val--accent" : "sum-val sum-val--muted"}">${escHtml(estValueStr)}</div>
-  </div>
-  <div class="sum-cell">
-    <div class="sum-lbl">Received qty</div>
-    <div class="sum-val">${fmtQty(sumReceived)}</div>
-  </div>
-  <div class="sum-cell">
-    <div class="sum-lbl">Remaining qty</div>
-    <div class="sum-val">${fmtQty(sumRemaining)}</div>
-  </div>
-  <div class="sum-cell">
-    <div class="sum-lbl">Received value</div>
-    <div class="sum-val">${escHtml(recValueStr)}</div>
-  </div>
-</div>
-
-<!-- ── Line Items ── -->
-<div class="sec-head">Line Items &nbsp;(${purchase.purchaseItems.length})</div>
-<div class="po-box">
-  <table>
-    <thead>
-      <tr>
-        <th>Item</th>
-        <th class="num">Ordered</th>
-        ${showReceiving ? `<th class="num">Received</th><th class="num">Remaining</th>` : ""}
-        <th class="num">Unit Cost</th>
-        <th class="num">Total Value</th>
-      </tr>
-    </thead>
-    <tbody>${tableRows}</tbody>
-    <tfoot>
-      ${tfootOrdered}
-      ${tfootReceived}
-    </tfoot>
-  </table>
-</div>
-
-<!-- ── Cancellation ── -->
-${purchase.cancelReason ? `<div class="cancel-box"><strong>Cancellation reason:</strong> ${escHtml(purchase.cancelReason)}</div>` : ""}
-
-<!-- ── Approval ── -->
-<div class="sig-section page-break-avoid">
-  <div class="sig-title">Approval</div>
-  <div class="sig-grid">
-    <div class="sig-field"><span class="sig-field-lbl">Prepared by</span></div>
-    <div class="sig-field"><span class="sig-field-lbl">Reviewed by</span></div>
-    <div class="sig-field"><span class="sig-field-lbl">Approved by</span></div>
-    <div class="sig-field"><span class="sig-field-lbl">Date approved</span></div>
-  </div>
-  <div class="approval-status">Approval status: <strong>${escHtml(STATUS_LABEL[purchase.status])}</strong></div>
-</div>
-
-<!-- ── Receiving ── -->
-<div class="sig-section page-break-avoid">
-  <div class="sig-title">Receiving</div>
-  <div class="sig-grid">
-    <div class="sig-field"><span class="sig-field-lbl">Received by</span></div>
-    <div class="sig-field"><span class="sig-field-lbl">Receiving date</span></div>
-    <div class="sig-field"><span class="sig-field-lbl">Supplier invoice / bill no.</span></div>
-    <div class="sig-field"><span class="sig-field-lbl">Remarks</span></div>
-  </div>
-</div>
-
-<!-- ── Footer ── -->
-<div class="po-footer">
-  <span>Generated by ShelfSense</span>
-  <span>${escHtml(poNum)} &nbsp;·&nbsp; ${escHtml(purchase.supplier.name)} &nbsp;·&nbsp; ${escHtml(purchase.location.name)}</span>
-  <span>${new Date().toLocaleString()}</span>
-</div>
-
-</body>
-</html>`;
-
-  const win = window.open("", "_blank");
-  if (win) {
-    win.document.write(html);
-    win.document.close();
-    win.focus();
-  }
-}
-
-function CancelPurchaseModal({
-  target,
-  reason,
-  cancelling,
-  onReasonChange,
-  onConfirm,
-  onClose,
+function PurchaseInboxCard({
+  purchase,
+  currency,
+  onOpen,
+  onReceive,
+  onOrder,
 }: {
-  target: Purchase;
-  reason: string;
-  cancelling: boolean;
-  onReasonChange: (v: string) => void;
-  onConfirm: () => void;
-  onClose: () => void;
+  purchase: Purchase;
+  currency: string;
+  onOpen: () => void;
+  onReceive: () => void;
+  onOrder: () => void;
 }) {
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [onClose]);
+  const canReceive = purchase.status === "ORDERED" || purchase.status === "PARTIALLY_RECEIVED" || purchase.status === "BACKORDERED";
+  const isDraft = purchase.status === "DRAFT";
+  const receivedPct = purchase.orderedQuantity > 0 ? Math.min(100, Math.round((purchase.receivedQuantity / purchase.orderedQuantity) * 100)) : 0;
+  const overdue = Boolean(
+    purchase.expectedDeliveryDate
+    && !isDraft
+    && !CLOSED_STATUSES.has(purchase.status)
+    && new Date(purchase.expectedDeliveryDate).getTime() < new Date(todayISO()).getTime(),
+  );
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2 className="modal-title">Cancel Purchase Order</h2>
-          <button type="button" className="modal-close" onClick={onClose} aria-label="Close">
-            <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
-              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"/>
-            </svg>
-          </button>
+    <article className={`po-card${overdue ? " po-card--overdue" : ""}`} onClick={onOpen}>
+      <div className="po-card-main">
+        <div className="po-card-topline">
+          <span className="po-card-ref">{poRef(purchase)}</span>
+          <StatusBadge status={purchase.status} />
+          {overdue && <span className="po-overdue-badge">Overdue</span>}
         </div>
-        <div className="modal-body">
-          <div className="poc-warning">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-            <span>Cancelling the purchase from <strong>{target.supplier.name}</strong> cannot be undone.</span>
+        <h3>{purchase.supplier.name}</h3>
+        <p className="po-card-items">
+          {purchase.purchaseItems.slice(0, 3).map((line) => line.item.name).join(" · ")}
+          {purchase.purchaseItems.length > 3 ? ` · +${purchase.purchaseItems.length - 3} more` : ""}
+        </p>
+        <div className="po-card-meta">
+          <span>{purchase.location.name}</span>
+          <span>{purchase.purchaseItems.length} item{purchase.purchaseItems.length !== 1 ? "s" : ""}</span>
+          <span>{purchase.expectedDeliveryDate ? `Expected ${fmtDate(purchase.expectedDeliveryDate)}` : `Created ${fmtDate(purchase.date)}`}</span>
+        </div>
+        {!isDraft && !CLOSED_STATUSES.has(purchase.status) && (
+          <div className="po-card-progress">
+            <div className="po-card-progress-track"><span style={{ width: `${receivedPct}%` }} /></div>
+            <span>{receivedPct}% received · {fmtQty(purchase.remainingQuantity)} still due</span>
           </div>
-          <label className="form-group">
-            <span className="form-label">Reason (optional)</span>
-            <input
-              className="form-input"
-              type="text"
-              placeholder="e.g. Supplier out of stock"
-              value={reason}
-              onChange={(e) => onReasonChange(e.target.value)}
-              autoFocus
-            />
-          </label>
-        </div>
-        <div className="modal-footer">
-          <button type="button" className="btn btn--ghost" onClick={onClose}>Back</button>
-          <button type="button" className="btn btn--danger" disabled={cancelling} onClick={onConfirm}>
-            {cancelling ? "Cancelling…" : "Yes, Cancel PO"}
-          </button>
+        )}
+      </div>
+      <div className="po-card-side">
+        <strong>{money(purchase.totalAmount, currency)}</strong>
+        {purchase.receivedValue > 0 && <span>{money(purchase.receivedValue, currency)} received</span>}
+        <div className="po-card-actions" onClick={(event) => event.stopPropagation()}>
+          {isDraft && <button type="button" className="btn btn--secondary btn--sm" onClick={onOrder}>Mark Ordered</button>}
+          {canReceive && <button type="button" className="btn btn--primary btn--sm" onClick={onReceive}>Receive</button>}
+          <button type="button" className="btn btn--ghost btn--sm" onClick={onOpen}>View</button>
         </div>
       </div>
-    </div>
+    </article>
   );
 }
 
 function StatusBadge({ status }: { status: PurchaseStatus }) {
-  return <span className={`purchase-status purchase-status--${status.toLowerCase().replace("_", "-")}`}>{STATUS_LABEL[status]}</span>;
-}
-
-function RowActionMenu({
-  purchase,
-  onDeleteDraft,
-  onCancel,
-}: {
-  purchase: Purchase;
-  onDeleteDraft: () => void;
-  onCancel: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  const isDraft = purchase.status === "DRAFT";
-  const canCancel = purchase.status === "ORDERED" || purchase.status === "PARTIALLY_RECEIVED";
-
-  useEffect(() => {
-    if (!open) return;
-    function outside(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", outside);
-    return () => document.removeEventListener("mousedown", outside);
-  }, [open]);
-
-  if (!isDraft && !canCancel) {
-    return (
-      <svg className="pur-item-chevron" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8">
-        <path d="M8 5l5 5-5 5" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    );
-  }
-
-  return (
-    <div className="pur-row-menu" ref={menuRef} onClick={(e) => e.stopPropagation()}>
-      <button
-        type="button"
-        className="pur-row-menu-btn"
-        aria-label="More actions"
-        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
-      >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <circle cx="12" cy="5" r="1.8" />
-          <circle cx="12" cy="12" r="1.8" />
-          <circle cx="12" cy="19" r="1.8" />
-        </svg>
-      </button>
-      {open && (
-        <div className="pur-row-menu-drop">
-          {isDraft && (
-            <button
-              type="button"
-              className="pur-row-menu-item pur-row-menu-item--danger"
-              onClick={() => { setOpen(false); onDeleteDraft(); }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <polyline points="3 6 5 6 21 6" />
-                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                <path d="M10 11v6" /><path d="M14 11v6" />
-                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-              </svg>
-              Delete Draft
-            </button>
-          )}
-          {canCancel && (
-            <button
-              type="button"
-              className="pur-row-menu-item"
-              onClick={() => { setOpen(false); onCancel(); }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <circle cx="12" cy="12" r="10" />
-                <line x1="15" y1="9" x2="9" y2="15" />
-                <line x1="9" y1="9" x2="15" y2="15" />
-              </svg>
-              Cancel PO
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function DeleteDraftModal({
-  purchase,
-  deleting,
-  onConfirm,
-  onClose,
-}: {
-  purchase: Purchase;
-  deleting: boolean;
-  onConfirm: () => void;
-  onClose: () => void;
-}) {
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", h);
-    return () => document.removeEventListener("keydown", h);
-  }, [onClose]);
-
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2 className="modal-title">Delete draft purchase order?</h2>
-          <button type="button" className="modal-close" onClick={onClose} aria-label="Close">
-            <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
-              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-            </svg>
-          </button>
-        </div>
-        <div className="modal-body">
-          <div className="poc-warning poc-warning--danger">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="3 6 5 6 21 6" />
-              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-            </svg>
-            <div>
-              <p>This will permanently delete the draft purchase order from <strong>{purchase.supplier.name}</strong>.</p>
-              <p style={{ marginTop: 6, opacity: 0.85 }}>This cannot be undone. To preserve a record, cancel the purchase order instead.</p>
-            </div>
-          </div>
-        </div>
-        <div className="modal-footer">
-          <button type="button" className="btn btn--ghost" onClick={onClose} disabled={deleting}>Back</button>
-          <button type="button" className="btn btn--danger" disabled={deleting} onClick={onConfirm}>
-            {deleting ? "Deleting…" : "Delete Draft"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function BulkDeleteDraftsModal({
-  count,
-  deleting,
-  onConfirm,
-  onClose,
-}: {
-  count: number;
-  deleting: boolean;
-  onConfirm: () => void;
-  onClose: () => void;
-}) {
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", h);
-    return () => document.removeEventListener("keydown", h);
-  }, [onClose]);
-
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2 className="modal-title">Delete {count} draft purchase order{count !== 1 ? "s" : ""}?</h2>
-          <button type="button" className="modal-close" onClick={onClose} aria-label="Close">
-            <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
-              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-            </svg>
-          </button>
-        </div>
-        <div className="modal-body">
-          <div className="poc-warning poc-warning--danger">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="3 6 5 6 21 6" />
-              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-            </svg>
-            <div>
-              <p>This will permanently delete <strong>{count} selected draft purchase order{count !== 1 ? "s" : ""}</strong>.</p>
-              <p style={{ marginTop: 6, opacity: 0.85 }}>This cannot be undone. Only draft orders will be deleted — any non-draft orders in the selection are ignored.</p>
-            </div>
-          </div>
-        </div>
-        <div className="modal-footer">
-          <button type="button" className="btn btn--ghost" onClick={onClose} disabled={deleting}>Back</button>
-          <button type="button" className="btn btn--danger" disabled={deleting} onClick={onConfirm}>
-            {deleting ? "Deleting…" : `Delete ${count} Draft${count !== 1 ? "s" : ""}`}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+  return <span className={`purchase-status purchase-status--${status.toLowerCase().replaceAll("_", "-")}`}>{STATUS_LABEL[status]}</span>;
 }
 
 function PurchaseDetailModal({
   purchase,
   currency,
-  workspaceName,
-  ownerPhone,
   onClose,
+  onRefresh,
   onOrder,
+  onReceive,
   onCancel,
   onClosePO,
-  onReceive,
+  onDelete,
 }: {
   purchase: Purchase;
   currency: string;
-  workspaceName: string;
-  ownerPhone?: string | null;
   onClose: () => void;
-  onOrder: (purchase: Purchase) => void;
-  onCancel: (purchase: Purchase) => void;
-  onClosePO: (purchase: Purchase) => void;
-  onReceive: (purchase: Purchase) => void;
+  onRefresh: () => void;
+  onOrder: () => void;
+  onReceive: () => void;
+  onCancel: () => void;
+  onClosePO: () => void;
+  onDelete: () => void;
 }) {
   const canOrder = purchase.status === "DRAFT";
-  const canReceive = purchase.status === "ORDERED" || purchase.status === "PARTIALLY_RECEIVED";
-  const canCancel = purchase.status === "DRAFT" || purchase.status === "ORDERED" || purchase.status === "PARTIALLY_RECEIVED";
-  const canClosePO = purchase.status === "ORDERED" || purchase.status === "PARTIALLY_RECEIVED";
-  const receivedPct = purchase.orderedQuantity > 0
-    ? Math.min(100, Math.round((purchase.receivedQuantity / purchase.orderedQuantity) * 100))
-    : 0;
-  const lifecycleDates = [
-    { label: "Ordered", value: purchase.orderedAt },
-    { label: "Expected delivery", value: purchase.expectedDeliveryDate },
-    { label: "Received", value: purchase.receivedAt },
-    { label: "Cancelled", value: purchase.cancelledAt },
-  ].filter((d) => d.value);
-
-  // Sum quantities in purchase units so KPI strip matches what the table shows
-  const poQtys = purchase.purchaseItems.reduce(
-    (acc, line) => {
-      const display = getPurchaseLineDisplay(line);
-      acc.ordered += display.toDisplayQuantity(line.orderedQuantity);
-      acc.received += display.toDisplayQuantity(line.receivedQuantity);
-      acc.remaining += display.toDisplayQuantity(line.remainingQuantity);
-      return acc;
-    },
-    { ordered: 0, received: 0, remaining: 0 },
-  );
+  const canReceive = purchase.status === "ORDERED" || purchase.status === "PARTIALLY_RECEIVED" || purchase.status === "BACKORDERED";
+  const canCancel = purchase.status === "DRAFT" || purchase.status === "ORDERED" || purchase.status === "PARTIALLY_RECEIVED" || purchase.status === "BACKORDERED";
+  const canClose = purchase.status === "ORDERED" || purchase.status === "PARTIALLY_RECEIVED" || purchase.status === "BACKORDERED";
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const handler = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, [onClose]);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal modal--wide pod" onClick={(e) => e.stopPropagation()}>
-
-        {/* ── Header ── */}
-        <div className="pod-head">
-          <div className="pod-head-left">
-            <div className="pod-avatar" aria-hidden="true">
-              {purchase.supplier.name.charAt(0).toUpperCase()}
-            </div>
-            <div className="pod-head-info">
-              <span className="pod-supplier-name">{purchase.supplier.name}</span>
-              <span className="pod-ref">
-                PO-{purchase.id.slice(-8).toUpperCase()}
-                <span className="pod-ref-dot">·</span>
-                {purchase.location.name}
-                <span className="pod-ref-dot">·</span>
-                {fmtDate(purchase.date)}
-              </span>
-            </div>
+      <div className="modal modal--wide po-detail" onClick={(event) => event.stopPropagation()}>
+        <div className="po-detail-head">
+          <div>
+            <span className="po-detail-ref">{poRef(purchase)}</span>
+            <h2>{purchase.supplier.name}</h2>
+            <p>{purchase.location.name} · {fmtDate(purchase.date)}</p>
           </div>
-          <div className="pod-head-right">
+          <div className="po-detail-head-actions">
             <StatusBadge status={purchase.status} />
-            <button
-              type="button"
-              className="btn btn--ghost btn--sm pod-dl-btn"
-              onClick={() => downloadPurchaseOrder(purchase, currency, workspaceName, ownerPhone)}
-              title="Download / Print PO"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="7 10 12 15 17 10"/>
-                <line x1="12" y1="15" x2="12" y2="3"/>
-              </svg>
-              <span className="pod-dl-text">Download PO</span>
-            </button>
-            <button type="button" className="modal-close" onClick={onClose} aria-label="Close">
-              <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
-                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"/>
-              </svg>
-            </button>
+            <button type="button" className="modal-close" onClick={onClose} aria-label="Close">×</button>
           </div>
         </div>
 
-        {/* ── Scrollable body ── */}
-        <div className="pod-body">
+        <div className="po-detail-summary">
+          <div><span>Ordered value</span><strong>{money(purchase.totalAmount, currency)}</strong></div>
+          <div><span>Received value</span><strong>{money(purchase.receivedValue, currency)}</strong></div>
+          <div><span>Remaining qty</span><strong>{fmtQty(purchase.remainingQuantity)}</strong></div>
+          <div><span>Expected</span><strong>{fmtDate(purchase.expectedDeliveryDate)}</strong></div>
+        </div>
 
-          {/* KPI strip */}
-          <div className="pod-kpis">
-            <div className="pod-kpi">
-              <span className="pod-kpi-label">Ordered value</span>
-              <span className="pod-kpi-value pod-kpi-value--accent">{fmt(purchase.totalAmount, currency)}</span>
-            </div>
-            <div className="pod-kpi">
-              <span className="pod-kpi-label">Received value</span>
-              <span className="pod-kpi-value">{fmt(purchase.receivedValue, currency)}</span>
-            </div>
-            <div className="pod-kpi">
-              <span className="pod-kpi-label">Ordered qty</span>
-              <span className="pod-kpi-value">{fmtQty(poQtys.ordered)}</span>
-            </div>
-            <div className="pod-kpi">
-              <span className="pod-kpi-label">Received qty</span>
-              <span className="pod-kpi-value">{fmtQty(poQtys.received)}</span>
-            </div>
-            <div className="pod-kpi">
-              <span className="pod-kpi-label">Remaining</span>
-              <span className={`pod-kpi-value${poQtys.remaining > 0 ? " pod-kpi-value--warn" : " pod-kpi-value--ok"}`}>
-                {fmtQty(poQtys.remaining)}
-              </span>
-            </div>
-          </div>
-
-          {/* Receive progress bar */}
-          {purchase.orderedQuantity > 0 && (
-            <div className="pod-progress-wrap">
-              <div className="pod-progress-track">
-                <div className="pod-progress-fill" style={{ width: `${receivedPct}%` }} />
-              </div>
-              <span className="pod-progress-pct">{receivedPct}% received</span>
-            </div>
-          )}
-
-          {/* Lifecycle dates */}
-          {lifecycleDates.length > 0 && (
-            <div className="pod-dates">
-              {lifecycleDates.map((d) => (
-                <div key={d.label} className="pod-date-cell">
-                  <span className="pod-date-label">{d.label}</span>
-                  <span className="pod-date-value">{fmtDate(d.value)}</span>
+        <div className="po-detail-body">
+          <div className="po-detail-section-head"><span>Items</span><em>{purchase.purchaseItems.length}</em></div>
+          <div className="po-detail-lines">
+            {purchase.purchaseItems.map((line) => {
+              const display = getPurchaseLineDisplay(line);
+              return (
+                <div key={line.id} className="po-detail-line">
+                  <div>
+                    <strong>{line.item.name}</strong>
+                    <span>{display.displayUnit}</span>
+                  </div>
+                  <div><span>Ordered</span><strong>{fmtQty(display.displayQty(line.orderedQuantity))}</strong></div>
+                  <div><span>Received</span><strong>{fmtQty(display.displayQty(line.receivedQuantity))}</strong></div>
+                  <div><span>Remaining</span><strong>{fmtQty(display.displayQty(line.remainingQuantity))}</strong></div>
+                  <div><span>Unit cost</span><strong>{money(display.displayCost, currency)}</strong></div>
                 </div>
-              ))}
-            </div>
-          )}
-
-          {/* Cancel reason */}
-          {purchase.cancelReason && (
-            <div className="pod-cancel-alert">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-              <span><strong>Cancelled:</strong> {purchase.cancelReason}</span>
-            </div>
-          )}
-
-          {/* Closure info (CLOSED_SHORT / BACKORDERED) */}
-          {(purchase.status === "CLOSED_SHORT" || purchase.status === "BACKORDERED") && (
-            <div className="pod-closure-alert">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-              </svg>
-              <div>
-                <div>
-                  <strong>{purchase.status === "BACKORDERED" ? "Backordered" : "Closed short"}</strong>
-                  {purchase.closedAt && <span style={{ opacity: 0.75, marginLeft: 6 }}>{fmtDate(purchase.closedAt)}</span>}
-                </div>
-                {purchase.closureReason && <div style={{ marginTop: 3, opacity: 0.85 }}>{purchase.closureReason}</div>}
-                {purchase.closureNotes && <div style={{ marginTop: 3, opacity: 0.75 }}>{purchase.closureNotes}</div>}
-              </div>
-            </div>
-          )}
-
-          {/* Line items */}
-          <div className="pod-items-heading">
-            <span>Line items</span>
-            <span className="pod-items-count">{purchase.purchaseItems.length}</span>
+              );
+            })}
           </div>
-          <div className="table-wrap">
-            <table className="table pod-table">
-              <thead>
-                <tr>
-                  <th>Item</th>
-                  <th className="text-right">Ordered</th>
-                  <th className="text-right">Received</th>
-                  <th className="text-right">Remaining</th>
-                  <th className="text-right">Unit cost</th>
-                  <th className="text-right">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {purchase.purchaseItems.map((line) => {
-                  const display = getPurchaseLineDisplay(line);
-                  const displayUnit = display.displayUnit;
-                  const dQty = display.toDisplay;
-                  const dCost = display.displayCost;
-                  return (
-                  <tr key={line.id}>
-                    <td>
-                      <span className="td-name">{line.item.name}</span>
-                      <span className="td-unit"> / {displayUnit}</span>
-                      {display.conversionText && <span className="td-unit"> · {display.conversionText}</span>}
-                      {line.closureAction && line.closureAction !== "KEEP_PENDING" && (
-                        <span className={`po-line-status po-line-status--${line.closureAction === "CLOSE_SHORT" ? "closed-short" : "cancel"}`} style={{ marginLeft: 6 }}>
-                          {line.closureAction === "CLOSE_SHORT" ? "Closed short" : "Cancelled"}
-                        </span>
-                      )}
-                    </td>
-                    <td className="text-right td-num">{dQty(line.orderedQuantity)}</td>
-                    <td className="text-right td-num">{dQty(line.receivedQuantity)}</td>
-                    <td className={`text-right td-num${line.remainingQuantity > 0 && !line.closureAction ? " pod-remaining--active" : line.closureAction && line.closureAction !== "KEEP_PENDING" ? " close-variance-pending--actioned" : ""}`}>{dQty(line.remainingQuantity)}</td>
-                    <td className="text-right td-num">{fmt(dCost, currency)}</td>
-                    <td className="text-right td-num">{fmt(line.orderedValue, currency)}</td>
-                  </tr>
-                  );
-                })}
-              </tbody>
-              <tfoot>
-                <tr className="pod-tfoot-row">
-                  <td colSpan={5} className="pod-tfoot-label">Total ordered value</td>
-                  <td className="text-right pod-tfoot-total">{fmt(purchase.totalAmount, currency)}</td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
+          {purchase.cancelReason && <div className="po-detail-note"><strong>Cancellation reason:</strong> {purchase.cancelReason}</div>}
+          {purchase.closureReason && <div className="po-detail-note"><strong>Closure:</strong> {purchase.closureReason}</div>}
         </div>
 
-        {/* ── Footer ── */}
-        <div className="pod-footer">
-          <div className="pod-footer-start">
-            <button type="button" className="btn btn--ghost" onClick={onClose}>Close</button>
-            <button
-              type="button"
-              className="btn btn--ghost btn--sm pod-footer-dl"
-              onClick={() => downloadPurchaseOrder(purchase, currency, workspaceName, ownerPhone)}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="7 10 12 15 17 10"/>
-                <line x1="12" y1="15" x2="12" y2="3"/>
-              </svg>
-              Download PO
-            </button>
-          </div>
-          <div className="pod-footer-actions">
-            {canCancel && (
-              <button type="button" className="btn btn--danger" onClick={() => onCancel(purchase)}>
-                Cancel PO
-              </button>
-            )}
-            {canClosePO && (
-              <button type="button" className="btn btn--secondary" onClick={() => onClosePO(purchase)}>
-                Close PO
-              </button>
-            )}
-            {canOrder && (
-              <button type="button" className="btn btn--secondary" onClick={() => onOrder(purchase)}>
-                Mark as Ordered
-              </button>
-            )}
-            {canReceive && (
-              <button type="button" className="btn btn--primary" onClick={() => onReceive(purchase)}>
-                Receive Items
-              </button>
-            )}
+        <div className="po-detail-footer">
+          <button type="button" className="btn btn--ghost" onClick={onRefresh}>Refresh</button>
+          <div>
+            {purchase.status === "DRAFT" && <button type="button" className="btn btn--danger" onClick={onDelete}>Delete Draft</button>}
+            {canCancel && <button type="button" className="btn btn--ghost" onClick={onCancel}>Cancel PO</button>}
+            {canClose && <button type="button" className="btn btn--secondary" onClick={onClosePO}>Close PO</button>}
+            {canOrder && <button type="button" className="btn btn--secondary" onClick={onOrder}>Mark Ordered</button>}
+            {canReceive && <button type="button" className="btn btn--primary" onClick={onReceive}>Receive Items</button>}
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function CancelPurchaseModal({
+  purchase,
+  onClose,
+  onSuccess,
+}: {
+  purchase: Purchase;
+  onClose: () => void;
+  onSuccess: (purchase: Purchase) => void;
+}) {
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit() {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await cancelPurchase(purchase.id, reason.trim() || undefined);
+      onSuccess(res.purchase);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to cancel purchase order");
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 460 }} onClick={(event) => event.stopPropagation()}>
+        <div className="modal-header"><h2 className="modal-title">Cancel {poRef(purchase)}?</h2><button type="button" className="modal-close" onClick={onClose}>×</button></div>
+        <div className="modal-body">
+          <p className="po-modal-copy">This stops the PO from being received. Add a short reason if useful for the audit trail.</p>
+          <label className="form-group"><span className="form-label">Reason</span><input className="form-input" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="e.g. Supplier unavailable" autoFocus /></label>
+          {error && <div className="alert alert--error">{error}</div>}
+        </div>
+        <div className="modal-footer"><button type="button" className="btn btn--ghost" onClick={onClose}>Back</button><button type="button" className="btn btn--danger" disabled={saving} onClick={() => void submit()}>{saving ? "Cancelling..." : "Cancel PO"}</button></div>
       </div>
     </div>
   );
@@ -1492,220 +631,114 @@ const CLOSURE_REASONS = [
 
 function ClosePOModal({
   purchase,
-  currency,
   onClose,
   onSuccess,
 }: {
   purchase: Purchase;
-  currency: string;
   onClose: () => void;
-  onSuccess: (updated: Purchase, newDraftId: string | null) => void;
+  onSuccess: (purchase: Purchase, newDraftId: string | null) => void;
 }) {
-  const pendingLines = purchase.purchaseItems.filter((l) => l.remainingQuantity > 0 && !l.closureAction);
-  const [lineActions, setLineActions] = useState<Record<string, "KEEP_PENDING" | "CLOSE_SHORT" | "CANCEL">>(
-    Object.fromEntries(pendingLines.map((l) => [l.id, "KEEP_PENDING"])),
+  const pending = purchase.purchaseItems.filter((line) => line.remainingQuantity > 0 && !line.closureAction);
+  const [actions, setActions] = useState<Record<string, "KEEP_PENDING" | "CLOSE_SHORT" | "CANCEL">>(
+    Object.fromEntries(pending.map((line) => [line.id, "KEEP_PENDING"])),
   );
-  const [globalReason, setGlobalReason] = useState("");
-  const [closureNotes, setClosureNotes] = useState("");
-  const [createNewDraft, setCreateNewDraft] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [reason, setReason] = useState("");
+  const [notes, setNotes] = useState("");
+  const [newDraft, setNewDraft] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const anyActioned = Object.values(lineActions).some((a) => a !== "KEEP_PENDING");
-  const anyKeptPending = pendingLines.some((l) => lineActions[l.id] === "KEEP_PENDING");
-  const reasonRequired = anyActioned;
-  const canSubmit = (anyActioned || (createNewDraft && anyKeptPending)) && (!reasonRequired || globalReason.trim().length > 0);
+  const actioned = Object.values(actions).some((action) => action !== "KEEP_PENDING");
+  const kept = pending.some((line) => actions[line.id] === "KEEP_PENDING");
+  const canSave = (actioned || (newDraft && kept)) && (!actioned || Boolean(reason));
 
-  let summaryMsg = "";
-  if (!anyActioned && createNewDraft && anyKeptPending) {
-    summaryMsg = "A new draft PO will be created for all pending items. This PO will be marked as Backordered.";
-  } else if (anyActioned && !anyKeptPending) {
-    summaryMsg = "All pending items will be closed. This PO will be marked as Closed (Short).";
-  } else if (anyActioned && anyKeptPending && createNewDraft) {
-    summaryMsg = "Actioned items will be closed. A new draft PO will be created for items kept pending. This PO will be marked as Backordered.";
-  } else if (anyActioned && anyKeptPending && !createNewDraft) {
-    summaryMsg = "Actioned items will be closed. This PO will stay open for items kept pending.";
-  }
-
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", h);
-    return () => document.removeEventListener("keydown", h);
-  }, [onClose]);
-
-  async function handleSubmit() {
-    if (!canSubmit || submitting) return;
-    setSubmitting(true);
+  async function submit() {
+    if (!canSave) return;
+    setSaving(true);
     setError(null);
     try {
-      const result = await closePurchaseWithVariance(purchase.id, {
-        lines: pendingLines.map((l): ClosePurchaseVarianceLine => ({
-          purchaseItemId: l.id,
-          action: lineActions[l.id] ?? "KEEP_PENDING",
-          reason: globalReason.trim() || undefined,
-        })),
-        globalReason: globalReason.trim() || undefined,
-        closureNotes: closureNotes.trim() || undefined,
-        createNewDraft,
+      const lines: ClosePurchaseVarianceLine[] = pending.map((line) => ({
+        purchaseItemId: line.id,
+        action: actions[line.id] ?? "KEEP_PENDING",
+        reason: reason || undefined,
+      }));
+      const res = await closePurchaseWithVariance(purchase.id, {
+        lines,
+        globalReason: reason || undefined,
+        closureNotes: notes.trim() || undefined,
+        createNewDraft: newDraft,
       });
-      onSuccess(result.purchase, result.newDraftId);
+      onSuccess(res.purchase, res.newDraftId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to close purchase order");
-    } finally {
-      setSubmitting(false);
+      setSaving(false);
     }
-  }
-
-  if (pendingLines.length === 0) {
-    return (
-      <div className="modal-overlay" onClick={onClose}>
-        <div className="modal" style={{ maxWidth: 440 }} onClick={(e) => e.stopPropagation()}>
-          <div className="modal-header">
-            <h2 className="modal-title">Close Purchase Order</h2>
-            <button type="button" className="modal-close" onClick={onClose} aria-label="Close">
-              <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"/></svg>
-            </button>
-          </div>
-          <div className="modal-body" style={{ fontSize: 13, color: "#374151" }}>
-            All items in this PO have already been closed or received. No pending items remain.
-          </div>
-          <div className="modal-footer">
-            <button type="button" className="btn btn--ghost" onClick={onClose}>Close</button>
-          </div>
-        </div>
-      </div>
-    );
   }
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal modal--wide" style={{ maxWidth: 780 }} onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2 className="modal-title">Close Purchase Order</h2>
-          <button type="button" className="modal-close" onClick={onClose} aria-label="Close">
-            <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"/></svg>
-          </button>
-        </div>
+      <div className="modal modal--wide" style={{ maxWidth: 760 }} onClick={(event) => event.stopPropagation()}>
+        <div className="modal-header"><div><h2 className="modal-title">Close {poRef(purchase)}</h2><p className="modal-subtitle">Decide what to do with quantities the supplier has not delivered.</p></div><button type="button" className="modal-close" onClick={onClose}>×</button></div>
         <div className="modal-body">
-          <div className="close-variance-warning">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-            </svg>
-            <div>
-              <p><strong>{pendingLines.length} pending item{pendingLines.length !== 1 ? "s" : ""}</strong> on this PO have not been fully received.</p>
-              <p>Choose how to handle each item to close this PO. Items left as "Keep Pending" will keep the PO open unless you create a new draft.</p>
-            </div>
-          </div>
-
-          {/* Per-line actions */}
-          <div className="table-wrap close-variance-table">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Item</th>
-                  <th className="text-right">Ordered</th>
-                  <th className="text-right">Received</th>
-                  <th className="text-right">Pending</th>
-                  <th className="text-right">Unit cost</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pendingLines.map((line) => {
-                  const display = getPurchaseLineDisplay(line);
-                  const displayUnit = display.displayUnit;
-                  const dQty = display.toDisplay;
-                  const dCost = display.displayCost;
-                  const action = lineActions[line.id] ?? "KEEP_PENDING";
-                  return (
-                    <tr key={line.id}>
-                      <td>
-                        <span className="td-name">{line.item.name}</span>
-                        <span className="td-unit"> / {displayUnit}</span>
-                      </td>
-                      <td className="text-right td-num">{dQty(line.orderedQuantity)}</td>
-                      <td className="text-right td-num">{dQty(line.receivedQuantity)}</td>
-                      <td className={`text-right td-num ${action !== "KEEP_PENDING" ? "close-variance-pending--actioned" : "close-variance-pending--active"}`}>
-                        {dQty(line.remainingQuantity)}
-                      </td>
-                      <td className="text-right td-num">{fmt(dCost, currency)}</td>
-                      <td>
-                        <select
-                          className="close-variance-action-select"
-                          value={action}
-                          onChange={(e) =>
-                            setLineActions((prev) => ({
-                              ...prev,
-                              [line.id]: e.target.value as "KEEP_PENDING" | "CLOSE_SHORT" | "CANCEL",
-                            }))
-                          }
-                        >
-                          <option value="KEEP_PENDING">Keep Pending</option>
-                          <option value="CLOSE_SHORT">Close Short</option>
-                          <option value="CANCEL">Cancel Remaining</option>
-                        </select>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Create new draft for kept items */}
-          {anyKeptPending && (
-            <label className="close-variance-option">
-              <input
-                type="checkbox"
-                checked={createNewDraft}
-                onChange={(e) => setCreateNewDraft(e.target.checked)}
-              />
-              Create a new draft purchase order for items kept pending
-            </label>
+          {pending.length === 0 ? (
+            <div className="po-modal-copy">No pending quantities remain on this PO.</div>
+          ) : (
+            <>
+              <div className="po-close-lines">
+                {pending.map((line) => (
+                  <div className="po-close-line" key={line.id}>
+                    <div><strong>{line.item.name}</strong><span>{fmtQty(line.remainingQuantity)} {line.item.unit} pending</span></div>
+                    <select className="form-input form-select" value={actions[line.id]} onChange={(event) => setActions((current) => ({ ...current, [line.id]: event.target.value as "KEEP_PENDING" | "CLOSE_SHORT" | "CANCEL" }))}>
+                      <option value="KEEP_PENDING">Keep pending</option>
+                      <option value="CLOSE_SHORT">Close short</option>
+                      <option value="CANCEL">Cancel remaining</option>
+                    </select>
+                  </div>
+                ))}
+              </div>
+              {kept && <label className="po-close-new-draft"><input type="checkbox" checked={newDraft} onChange={(event) => setNewDraft(event.target.checked)} /> Create a new draft PO for items kept pending</label>}
+              {actioned && (
+                <label className="form-group"><span className="form-label">Closure reason *</span><select className="form-input form-select" value={reason} onChange={(event) => setReason(event.target.value)}><option value="">Select reason</option>{CLOSURE_REASONS.map((entry) => <option key={entry} value={entry}>{entry}</option>)}</select></label>
+              )}
+              <label className="form-group"><span className="form-label">Notes</span><textarea className="form-input" rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Optional context" /></label>
+            </>
           )}
-
-          {/* Closure reason (required when any line is actioned) */}
-          {anyActioned && (
-            <div className="close-variance-reason-wrap">
-              <label>Closure reason *</label>
-              <select
-                className="close-variance-reason-select"
-                value={globalReason}
-                onChange={(e) => setGlobalReason(e.target.value)}
-              >
-                <option value="">Select a reason…</option>
-                {CLOSURE_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
-              </select>
-            </div>
-          )}
-
-          {/* Notes */}
-          <div className="close-variance-reason-wrap">
-            <label>Notes <span style={{ fontWeight: 400, color: "#94a3b8" }}>(optional)</span></label>
-            <textarea
-              className="close-variance-notes"
-              value={closureNotes}
-              onChange={(e) => setClosureNotes(e.target.value)}
-              placeholder="Any additional context about this closure…"
-            />
-          </div>
-
-          {/* Outcome summary */}
-          {summaryMsg && <div className="close-variance-summary">{summaryMsg}</div>}
-          {error && <div className="close-variance-error">{error}</div>}
+          {error && <div className="alert alert--error">{error}</div>}
         </div>
+        <div className="modal-footer"><button type="button" className="btn btn--ghost" onClick={onClose}>Back</button>{pending.length > 0 && <button type="button" className="btn btn--primary" disabled={!canSave || saving} onClick={() => void submit()}>{saving ? "Saving..." : "Save Closure"}</button>}</div>
+      </div>
+    </div>
+  );
+}
 
-        <div className="modal-footer">
-          <button type="button" className="btn btn--ghost" onClick={onClose} disabled={submitting}>Cancel</button>
-          <button
-            type="button"
-            className="btn btn--primary"
-            disabled={submitting || !canSubmit}
-            onClick={() => void handleSubmit()}
-          >
-            {submitting ? "Closing…" : "Close PO"}
-          </button>
-        </div>
+function DeleteDraftModal({
+  purchase,
+  onClose,
+  onSuccess,
+}: {
+  purchase: Purchase;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function submit() {
+    setSaving(true);
+    setError(null);
+    try {
+      await deletePurchase(purchase.id);
+      onSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete draft");
+      setSaving(false);
+    }
+  }
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 440 }} onClick={(event) => event.stopPropagation()}>
+        <div className="modal-header"><h2 className="modal-title">Delete draft?</h2><button type="button" className="modal-close" onClick={onClose}>×</button></div>
+        <div className="modal-body"><p className="po-modal-copy">{poRef(purchase)} for <strong>{purchase.supplier.name}</strong> will be permanently deleted.</p>{error && <div className="alert alert--error">{error}</div>}</div>
+        <div className="modal-footer"><button type="button" className="btn btn--ghost" onClick={onClose}>Back</button><button type="button" className="btn btn--danger" disabled={saving} onClick={() => void submit()}>{saving ? "Deleting..." : "Delete Draft"}</button></div>
       </div>
     </div>
   );
@@ -1734,216 +767,94 @@ function NewPurchaseModal({
   const [supplierSuggestion, setSupplierSuggestion] = useState<{ id: string; name: string } | null>(null);
 
   async function handleItemChange(key: number, itemId: string) {
-    const selectedItem = items.find((i) => i.id === itemId);
+    const selectedItem = items.find((item) => item.id === itemId);
     const factor = selectedItem?.purchaseConversionFactor ?? null;
-    const hasUnit = hasPurchaseUnit(selectedItem?.purchaseUnit, factor);
-    setLines((prev) => prev.map((l) =>
-      l.key === key
-        ? {
-            ...l,
-            itemId,
-            lastCost: undefined,
-            metaLoading: !!itemId,
-            purchaseUnit: selectedItem?.purchaseUnit ?? null,
-            purchaseConversionFactor: factor,
-            baseUnit: selectedItem?.unit,
-          }
-        : l,
-    ));
+    const usesPurchaseUnit = hasPurchaseUnit(selectedItem?.purchaseUnit, factor);
+    setLines((current) => current.map((line) => line.key === key ? {
+      ...line,
+      itemId,
+      metaLoading: Boolean(itemId),
+      purchaseUnit: selectedItem?.purchaseUnit ?? null,
+      purchaseConversionFactor: factor,
+      baseUnit: selectedItem?.unit,
+    } : line));
     if (!itemId) return;
     try {
-      const [suggRes, priceRes] = await Promise.all([
-        getSupplierSuggestion(itemId),
-        getPriceHistory(itemId, 1),
-      ]);
+      const [supplierRes, priceRes] = await Promise.all([getSupplierSuggestion(itemId), getPriceHistory(itemId, 1)]);
       const baseCost = priceRes.history[0]?.unitCost ?? null;
-      // Convert per-base-unit cost → per-purchase-unit cost for display
-      const displayCost = hasUnit && factor && baseCost != null ? baseCost * factor : baseCost;
-      setLines((prev) => prev.map((l) => {
-        if (l.key !== key) return l;
-        return {
-          ...l,
-          metaLoading: false,
-          lastCost: displayCost,
-          unitCost: l.unitCost || (displayCost != null ? String(displayCost) : ""),
-        };
-      }));
-      if (suggRes.suggestion && !supplierId) {
-        setSupplierSuggestion(suggRes.suggestion);
-      }
+      const displayCost = usesPurchaseUnit && factor && baseCost != null ? baseCost * factor : baseCost;
+      setLines((current) => current.map((line) => line.key === key ? {
+        ...line,
+        metaLoading: false,
+        lastCost: displayCost,
+        unitCost: line.unitCost || (displayCost != null ? String(displayCost) : ""),
+      } : line));
+      if (supplierRes.suggestion && !supplierId) setSupplierSuggestion(supplierRes.suggestion);
     } catch {
-      setLines((prev) => prev.map((l) => l.key === key ? { ...l, metaLoading: false } : l));
+      setLines((current) => current.map((line) => line.key === key ? { ...line, metaLoading: false } : line));
     }
   }
 
-  function updateLine(key: number, patch: Partial<PurchaseLineDraft>) {
-    setLines((current) => current.map((line) => line.key === key ? { ...line, ...patch } : line));
-  }
-
-  function removeLine(key: number) {
-    setLines((current) => current.length > 1 ? current.filter((line) => line.key !== key) : current);
-  }
-
-  const grandTotal = lines.reduce((sum, line) => {
-    const quantity = numberValue(line.quantity) ?? 0;
-    const unitCost = numberValue(line.unitCost) ?? 0;
-    return sum + quantity * unitCost;
-  }, 0);
+  const grandTotal = lines.reduce((sum, line) => sum + (numberValue(line.quantity) ?? 0) * (numberValue(line.unitCost) ?? 0), 0);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     const validLines = lines.filter((line) => line.itemId && (numberValue(line.quantity) ?? 0) > 0 && (numberValue(line.unitCost) ?? -1) >= 0);
     if (!supplierId) return onError("Supplier is required");
-    if (validLines.length === 0) return onError("Add at least one valid purchase line");
-
+    if (validLines.length === 0) return onError("Add at least one item with a quantity");
     const payload: CreatePurchaseInput = {
       supplierId,
       date,
       expectedDeliveryDate: expectedDeliveryDate || undefined,
-      items: validLines.map((line) => {
-        const factor = line.purchaseConversionFactor;
-        const hasUnit = hasPurchaseUnit(line.purchaseUnit, factor);
-        const purchaseQty = numberValue(line.quantity) ?? 0;
-        const purchaseCost = numberValue(line.unitCost) ?? 0;
-        return {
-          itemId: line.itemId,
-          // Convert purchase units → base units before sending
-          quantity: purchaseQty,
-          quantityUnit: hasUnit ? "PURCHASE_UNIT" : "BASE_UNIT",
-          // Convert per-purchase-unit cost → per-base-unit cost before sending
-          unitCost: purchaseCost,
-        };
-      }),
+      items: validLines.map((line) => ({
+        itemId: line.itemId,
+        quantity: numberValue(line.quantity) ?? 0,
+        quantityUnit: hasPurchaseUnit(line.purchaseUnit, line.purchaseConversionFactor) ? "PURCHASE_UNIT" : "BASE_UNIT",
+        unitCost: numberValue(line.unitCost) ?? 0,
+      })),
     };
-
     setSaving(true);
     try {
       const res = await createPurchase(payload);
       await onSuccess(res.purchase);
     } catch (err) {
-      onError(err instanceof Error ? err.message : "Failed to create purchase");
+      onError(err instanceof Error ? err.message : "Failed to create purchase order");
       setSaving(false);
     }
   }
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal modal--wide modal--purchase" onClick={(event) => event.stopPropagation()}>
-        <div className="modal-header purchase-modal-header">
-          <div>
-            <h2 className="modal-title">New Draft Purchase</h2>
-            <p className="modal-subtitle">Build the order first. Stock is added later from Receive Items.</p>
-          </div>
-          <button className="modal-close purchase-modal-close" onClick={onClose} aria-label="Close">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
-        </div>
-        <form onSubmit={(event) => { void submit(event); }}>
-          <div className="modal-body purchase-modal-body">
-            <div className="purchase-info-panel">
-              <div className="purchase-info-heading">
-                <span>Purchase Info</span>
-                <strong>Draft</strong>
-              </div>
-              <div className="purchase-header-fields">
-              <label className="form-group">
-                <span className="form-label">Supplier *</span>
-                <select className="form-input form-select" value={supplierId} onChange={(event) => setSupplierId(event.target.value)}>
-                  <option value="">Select supplier</option>
-                  {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
-                </select>
-              </label>
-              {supplierSuggestion && !supplierId && (
-                <button type="button" className="pur-supplier-hint" onClick={() => { setSupplierId(supplierSuggestion.id); setSupplierSuggestion(null); }}>
-                  Suggested: {supplierSuggestion.name} — tap to use
-                </button>
-              )}
-              <label className="form-group">
-                <span className="form-label">Purchase date *</span>
-                <input className="form-input" type="date" value={date} onChange={(event) => setDate(event.target.value)} />
-              </label>
-              <label className="form-group">
-                <span className="form-label">Expected delivery</span>
-                <input className="form-input" type="date" value={expectedDeliveryDate} onChange={(event) => setExpectedDeliveryDate(event.target.value)} />
-              </label>
-              </div>
+      <div className="modal modal--wide po-new-modal" onClick={(event) => event.stopPropagation()}>
+        <div className="modal-header"><div><h2 className="modal-title">New Purchase Order</h2><p className="modal-subtitle">Create the draft now. Batches and expiry are captured when goods arrive.</p></div><button type="button" className="modal-close" onClick={onClose}>×</button></div>
+        <form onSubmit={(event) => void submit(event)}>
+          <div className="modal-body">
+            <div className="po-new-info">
+              <label className="form-group"><span className="form-label">Supplier *</span><select className="form-input form-select" value={supplierId} onChange={(event) => setSupplierId(event.target.value)}><option value="">Select supplier</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></label>
+              {supplierSuggestion && !supplierId && <button type="button" className="po-supplier-suggestion" onClick={() => { setSupplierId(supplierSuggestion.id); setSupplierSuggestion(null); }}>Use suggested supplier: {supplierSuggestion.name}</button>}
+              <label className="form-group"><span className="form-label">PO date</span><input className="form-input" type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
+              <label className="form-group"><span className="form-label">Expected delivery</span><input className="form-input" type="date" value={expectedDeliveryDate} onChange={(event) => setExpectedDeliveryDate(event.target.value)} /></label>
             </div>
 
-            <div className="purchase-lines-section">
-              <div className="purchase-lines-title-row">
-                <div>
-                  <span className="purchase-lines-label">Line items</span>
-                  <p>Batch numbers and expiry dates are added when you receive the goods.</p>
-                </div>
-                <button type="button" className="btn btn--ghost btn--sm purchase-add-line-btn" onClick={() => setLines((current) => [...current, newLine()])}>Add Line</button>
-              </div>
-              <div className="purchase-line purchase-line--lifecycle purchase-line--header">
-                <span>Item</span><span>Qty</span><span>Unit cost</span><span>Total</span><span />
-              </div>
+            <div className="po-new-lines-head"><div><strong>Items</strong><span>Enter quantities in purchase units where configured.</span></div><button type="button" className="btn btn--secondary btn--sm" onClick={() => setLines((current) => [...current, newLine()])}>Add Item</button></div>
+            <div className="po-new-lines">
               {lines.map((line) => {
-                const quantity = numberValue(line.quantity) ?? 0;
-                const unitCost = numberValue(line.unitCost) ?? 0;
+                const qty = numberValue(line.quantity) ?? 0;
+                const cost = numberValue(line.unitCost) ?? 0;
                 return (
-                  <div key={line.key} className="purchase-line purchase-line--lifecycle">
-                    <select aria-label="Item" className="form-input form-select" value={line.itemId} onChange={(event) => { void handleItemChange(line.key, event.target.value); }}>
-                      <option value="">Select item</option>
-                      {items.map((item) => <option key={item.id} value={item.id}>{item.name} / {item.unit}</option>)}
-                    </select>
-                    <div className="pur-line-qty-cell">
-                      <input
-                        aria-label={line.purchaseUnit ? `Quantity (${line.purchaseUnit})` : "Quantity"}
-                        className="form-input"
-                        type="number"
-                        min="0.01"
-                        step={line.purchaseUnit ? "1" : "0.01"}
-                        value={line.quantity}
-                        onChange={(event) => updateLine(line.key, { quantity: event.target.value })}
-                        placeholder="0"
-                      />
-                      {line.purchaseUnit && line.purchaseConversionFactor && (
-                        <span className="pur-cost-hint">
-                          {(numberValue(line.quantity) ?? 0) > 0
-                            ? `≈ ${fmtQty((numberValue(line.quantity)! * line.purchaseConversionFactor))} ${line.baseUnit}`
-                            : `1 ${line.purchaseUnit} = ${line.purchaseConversionFactor} ${line.baseUnit}`}
-                        </span>
-                      )}
-                    </div>
-                    <div className="pur-line-cost-cell">
-                      <input
-                        aria-label={line.purchaseUnit ? `Cost per ${line.purchaseUnit}` : "Unit cost"}
-                        className="form-input"
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={line.unitCost}
-                        onChange={(event) => updateLine(line.key, { unitCost: event.target.value })}
-                        placeholder="0.00"
-                      />
-                      {line.lastCost != null && <span className="pur-cost-hint">Last: {fmt(line.lastCost, currency)}</span>}
-                    </div>
-                    <span className="purchase-line-total">{fmt(quantity * unitCost, currency)}</span>
-                    <button type="button" className="purchase-line-remove" onClick={() => removeLine(line.key)} disabled={lines.length === 1} aria-label="Remove line">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <line x1="18" y1="6" x2="6" y2="18" />
-                        <line x1="6" y1="6" x2="18" y2="18" />
-                      </svg>
-                    </button>
+                  <div className="po-new-line" key={line.key}>
+                    <select className="form-input form-select" value={line.itemId} onChange={(event) => void handleItemChange(line.key, event.target.value)}><option value="">Select item</option>{items.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
+                    <div><input className="form-input" type="number" min="0" step={line.purchaseUnit ? "1" : "0.01"} placeholder="Qty" value={line.quantity} onChange={(event) => setLines((current) => current.map((entry) => entry.key === line.key ? { ...entry, quantity: event.target.value } : entry))} />{line.purchaseUnit && <span>{line.purchaseUnit}{line.purchaseConversionFactor ? ` · 1 = ${fmtQty(line.purchaseConversionFactor)} ${line.baseUnit}` : ""}</span>}</div>
+                    <div><input className="form-input" type="number" min="0" step="0.01" placeholder="Unit cost" value={line.unitCost} onChange={(event) => setLines((current) => current.map((entry) => entry.key === line.key ? { ...entry, unitCost: event.target.value } : entry))} />{line.lastCost != null && <span>Last {money(line.lastCost, currency)}</span>}</div>
+                    <strong>{money(qty * cost, currency)}</strong>
+                    <button type="button" className="po-line-remove" disabled={lines.length === 1} onClick={() => setLines((current) => current.length > 1 ? current.filter((entry) => entry.key !== line.key) : current)}>×</button>
                   </div>
                 );
               })}
-              <div className="purchase-grand-total">
-                <span className="purchase-grand-total-label">Ordered total</span>
-                <span className="purchase-grand-total-value">{fmt(grandTotal, currency)}</span>
-              </div>
             </div>
+            <div className="po-new-total"><span>Order total</span><strong>{money(grandTotal, currency)}</strong></div>
           </div>
-          <div className="modal-footer">
-            <button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button>
-            <button className="btn btn--primary" disabled={saving}>{saving ? "Saving..." : "Create Draft"}</button>
-          </div>
+          <div className="modal-footer"><button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button><button type="submit" className="btn btn--primary" disabled={saving}>{saving ? "Creating..." : "Create Draft"}</button></div>
         </form>
       </div>
     </div>
