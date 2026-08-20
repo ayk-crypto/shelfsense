@@ -483,7 +483,7 @@ function PurchaseInboxCard({
 }
 
 function StatusBadge({ status }: { status: PurchaseStatus }) {
-  return <span className={`purchase-status purchase-status--${status.toLowerCase().replaceAll("_", "-")}`}>{STATUS_LABEL[status]}</span>;
+  return <span className={`purchase-status purchase-status--${status.toLowerCase().replace(/_/g, "-")}`}>{STATUS_LABEL[status]}</span>;
 }
 
 function PurchaseDetailModal({
