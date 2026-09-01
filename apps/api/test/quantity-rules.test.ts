@@ -7,8 +7,24 @@ import {
   validateQuantityForUnit,
 } from "../src/lib/quantity-rules.js";
 import { buildPurchaseLineSnapshot } from "../src/lib/purchase-unit-snapshots.js";
+import { isItemSettingsRequest } from "../src/middleware/quantity-rules.js";
 
 describe("quantity unit rules", () => {
+  it("does not treat bulk supplier actions as item IDs", () => {
+    expect(isItemSettingsRequest("POST", "/items/bulk-assign-supplier")).toBe(false);
+    expect(isItemSettingsRequest("POST", "/items/bulk-remove-supplier")).toBe(false);
+    expect(isItemSettingsRequest("PATCH", "/items/bulk-assign-supplier")).toBe(false);
+  });
+
+  it("validates only item creation and UUID-based item updates", () => {
+    const itemId = "6f9619ff-8b86-4d11-b42d-00cf4fc964ff";
+    expect(isItemSettingsRequest("POST", "/items")).toBe(true);
+    expect(isItemSettingsRequest("PATCH", `/items/${itemId}`)).toBe(true);
+    expect(isItemSettingsRequest("PUT", `/items/${itemId}`)).toBe(true);
+    expect(isItemSettingsRequest("POST", `/items/${itemId}`)).toBe(false);
+    expect(isItemSettingsRequest("PATCH", `/items/${itemId}/suppliers`)).toBe(false);
+  });
+
   it("allows fractional quantities for continuous units", () => {
     expect(getQuantityUnitKind("kg")).toBe("CONTINUOUS");
     expect(allowsFractionalQuantity("kg", false)).toBe(true);
