@@ -1701,17 +1701,39 @@ function AddItemModal({
   }
 
   return (
-    <Modal title="Add Item" onClose={onClose}>
-      <form onSubmit={(e) => { void handleSubmit(e); }}>
-        <div className="form-group"><label className="form-label">Item Name *</label><input ref={firstRef} className="form-input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Chicken Breast" required /></div>
-        <div className="form-group"><label className="form-label">Stock Unit *</label><select className="form-select" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} required>{unitOptions.map((unit) => <option key={unit} value={unit}>{unit}</option>)}</select></div>
-        <div className="form-group"><label className="form-label">Category</label><input className="form-input" list="add-item-category-options" value={form.category ?? ""} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="Optional category" /><datalist id="add-item-category-options">{categoryOptions.map((category) => <option key={category} value={category}>{category}</option>)}</datalist></div>
-        <div className="form-group"><label className="form-label">Default Supplier</label><select className="form-select" value={supplierId} onChange={(e) => setSupplierId(e.target.value)}><option value="">Select supplier</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></div>
-        <div className="form-group"><label className="form-label">Low Stock Alert</label><input className="form-input" type="number" min={0} step="any" value={form.minStockLevel} onChange={(e) => setForm({ ...form, minStockLevel: e.target.value === "" ? 0 : Number(e.target.value) })} /></div>
-        <div className="form-group form-group--inline"><input id="trackExpiry" type="checkbox" checked={form.trackExpiry} onChange={(e) => setForm({ ...form, trackExpiry: e.target.checked })} /><label htmlFor="trackExpiry" className="form-label form-label--check">Track expiry dates</label></div>
+    <Modal title="Add Item" onClose={onClose} className="modal--add-item">
+      <form className="add-item-form" onSubmit={(e) => { void handleSubmit(e); }}>
+        <p className="add-item-form__intro">Add the details used for stock tracking and purchasing.</p>
+
+        <section className="add-item-form__section" aria-labelledby="add-item-basics-heading">
+          <div className="add-item-form__section-heading">
+            <span className="add-item-form__step">1</span>
+            <div><h3 id="add-item-basics-heading">Item details</h3><p>Name and classify the item.</p></div>
+          </div>
+          <div className="form-group"><label className="form-label">Item name <span aria-hidden="true">*</span></label><input ref={firstRef} className="form-input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Chicken Breast" required /></div>
+          <div className="form-row-2col">
+            <div className="form-group"><label className="form-label">Stock unit <span aria-hidden="true">*</span></label><select className="form-select" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} required>{unitOptions.map((unit) => <option key={unit} value={unit}>{unit}</option>)}</select><p className="form-helper">Unit used when stock is issued.</p></div>
+            <div className="form-group"><label className="form-label">Category <span className="form-label__optional">Optional</span></label><select className="form-select" value={form.category ?? ""} onChange={(e) => setForm({ ...form, category: e.target.value })}><option value="">Select category</option>{categoryOptions.map((category) => <option key={category} value={category}>{category}</option>)}</select><p className="form-helper">Helps with search and reports.</p></div>
+          </div>
+        </section>
+
+        <section className="add-item-form__section" aria-labelledby="add-item-control-heading">
+          <div className="add-item-form__section-heading">
+            <span className="add-item-form__step">2</span>
+            <div><h3 id="add-item-control-heading">Stock control</h3><p>Set when ShelfSense should alert you.</p></div>
+          </div>
+          <div className="form-row-2col">
+            <div className="form-group"><label className="form-label">Default supplier <span className="form-label__optional">Optional</span></label><select className="form-select" value={supplierId} onChange={(e) => setSupplierId(e.target.value)}><option value="">No default supplier</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select><p className="form-helper">Used when creating purchase orders.</p></div>
+            <div className="form-group"><label className="form-label">Low Stock Alert</label><input className="form-input" type="number" min={0} step="any" value={form.minStockLevel} onChange={(e) => setForm({ ...form, minStockLevel: e.target.value === "" ? 0 : Number(e.target.value) })} /></div>
+          </div>
+          <label className="add-item-toggle" htmlFor="trackExpiry">
+            <span><strong>Track expiry dates</strong><small>Enable batch expiry when receiving this item.</small></span>
+            <input id="trackExpiry" type="checkbox" checked={form.trackExpiry} onChange={(e) => setForm({ ...form, trackExpiry: e.target.checked })} />
+          </label>
+        </section>
 
         <details className="more-settings" open={moreSettingsOpen} onToggle={(e) => setMoreSettingsOpen(e.currentTarget.open)}>
-          <summary>More settings</summary>
+          <summary><span>Purchase units & advanced settings</span><small>Optional</small></summary>
           <p className="form-helper">Optional settings for purchase units, barcode, and reorder planning.</p>
           <div className="form-group form-group--inline"><input id="addUsesPurchaseUnit" type="checkbox" checked={usesPurchaseUnit} onChange={(e) => { const checked = e.target.checked; setUsesPurchaseUnit(checked); if (!checked) setForm({ ...form, purchaseUnit: null, purchaseConversionFactor: null, displayBothUnits: false }); }} /><label htmlFor="addUsesPurchaseUnit" className="form-label form-label--check">Do you buy this item in a different unit?</label></div>
           {usesPurchaseUnit && <><div className="form-row-2col"><div className="form-group"><label className="form-label">Purchase Unit *</label>{purchaseUnitOptions.length > 0 ? <select className="form-select" value={form.purchaseUnit ?? ""} onChange={(e) => setForm({ ...form, purchaseUnit: e.target.value || null, purchaseConversionFactor: e.target.value ? form.purchaseConversionFactor : null })} required><option value="">Select purchase unit</option>{purchaseUnitOptions.map((u) => <option key={u} value={u}>{u}</option>)}</select> : <input className="form-input" value={form.purchaseUnit ?? ""} onChange={(e) => setForm({ ...form, purchaseUnit: e.target.value || null })} placeholder="e.g. Carton" required />}</div><div className="form-group"><label className="form-label">How many stock units in one purchase unit? *</label><input className="form-input" type="number" min={0.0001} step="any" value={form.purchaseConversionFactor ?? ""} onChange={(e) => setForm({ ...form, purchaseConversionFactor: e.target.value ? Number(e.target.value) : null })} required /></div></div>{form.purchaseUnit && form.purchaseConversionFactor && form.purchaseConversionFactor > 0 && <p className="uom-hint uom-hint--form">1 {form.purchaseUnit} = {form.purchaseConversionFactor} {form.unit}</p>}<div className="form-group form-group--inline"><input id="displayBothUnits" type="checkbox" checked={form.displayBothUnits ?? false} onChange={(e) => setForm({ ...form, displayBothUnits: e.target.checked })} /><label htmlFor="displayBothUnits" className="form-label form-label--check">Show quantity in both units in inventory</label></div></>}
@@ -3842,10 +3864,12 @@ function Modal({
   title,
   onClose,
   children,
+  className = "",
 }: {
   title: string;
   onClose: () => void;
   children: React.ReactNode;
+  className?: string;
 }) {
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -3857,10 +3881,10 @@ function Modal({
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+      <div className={`modal ${className}`.trim()} role="dialog" aria-modal="true" aria-labelledby="modal-title" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h2 className="modal-title">{title}</h2>
-          <button className="modal-close" onClick={onClose} aria-label="Close">
+          <h2 id="modal-title" className="modal-title">{title}</h2>
+          <button type="button" className="modal-close" onClick={onClose} aria-label="Close">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="18" y1="6" x2="6" y2="18" />
               <line x1="6" y1="6" x2="18" y2="18" />
@@ -3872,6 +3896,5 @@ function Modal({
     </div>
   );
 }
-
 
 
