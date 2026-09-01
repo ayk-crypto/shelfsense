@@ -57,9 +57,10 @@ export async function getSupplierSuggestion(itemId: string): Promise<SupplierSug
   return apiClient.get<SupplierSuggestionResponse>(`/stock/supplier-suggestion?itemId=${encodeURIComponent(itemId)}`);
 }
 
-export async function getPriceHistory(itemId: string, limit?: number): Promise<PriceHistoryResponse> {
+export async function getPriceHistory(itemId: string, limit?: number, supplierId?: string): Promise<PriceHistoryResponse> {
   const params = new URLSearchParams({ itemId });
   if (limit) params.set("limit", String(limit));
+  if (supplierId) params.set("supplierId", supplierId);
   return apiClient.get<PriceHistoryResponse>(`/stock/price-history?${params.toString()}`);
 }
 
