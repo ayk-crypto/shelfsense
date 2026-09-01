@@ -33,6 +33,10 @@ export async function getPurchase(id: string): Promise<PurchaseResponse> {
   return apiClient.get<PurchaseResponse>(`/purchases/${id}`);
 }
 
+export async function refreshPurchaseEstimates(id: string): Promise<PurchaseResponse> {
+  return apiClient.post<PurchaseResponse>(`/purchases/${id}/refresh-estimates`, {}, true);
+}
+
 export async function orderPurchase(id: string): Promise<PurchaseResponse> {
   return apiClient.post<PurchaseResponse>(`/purchases/${id}/order`, {}, true);
 }
