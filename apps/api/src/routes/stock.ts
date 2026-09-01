@@ -1057,24 +1057,44 @@ stockRouter.get("/price-history", requireRole([Role.OWNER, Role.MANAGER]), async
 
   const itemId = parseOptionalString(req.query.itemId);
   if (!itemId) return res.status(400).json({ error: "itemId is required" });
+  const supplierId = parseOptionalString(req.query.supplierId);
 
   const limitRaw = typeof req.query.limit === "string" ? parseInt(req.query.limit, 10) : 20;
   const limit = Number.isFinite(limitRaw) && limitRaw > 0 && limitRaw <= 100 ? limitRaw : 20;
 
-  const history = await prisma.stockBatch.findMany({
+  const priceHistorySelect = {
+    id: true,
+    unitCost: true,
+    quantity: true,
+    batchNo: true,
+    supplierName: true,
+    createdAt: true,
+    supplier: { select: { id: true, name: true } },
+  } as const;
+
+  const latestOverallPromise = prisma.stockBatch.findMany({
     where: { workspaceId, itemId, unitCost: { not: null } },
     orderBy: { createdAt: "desc" },
     take: limit,
-    select: {
-      id: true,
-      unitCost: true,
-      quantity: true,
-      batchNo: true,
-      supplierName: true,
-      createdAt: true,
-      supplier: { select: { id: true, name: true } },
-    },
+    select: priceHistorySelect,
   });
+  const [supplierHistory, overallHistory] = await Promise.all([
+    supplierId
+      ? prisma.stockBatch.findMany({
+          where: { workspaceId, itemId, supplierId, unitCost: { not: null } },
+          orderBy: { createdAt: "desc" },
+          take: limit,
+          select: priceHistorySelect,
+        })
+      : Promise.resolve([]),
+    latestOverallPromise,
+  ]);
+
+  // Prefer the selected supplier's actual receipt price, then fall back to
+  // the latest receipt from any supplier. Keep each batch only once.
+  const history = [...supplierHistory, ...overallHistory]
+    .filter((entry, index, entries) => entries.findIndex((candidate) => candidate.id === entry.id) === index)
+    .slice(0, limit);
 
   return res.json({ history });
 }));
