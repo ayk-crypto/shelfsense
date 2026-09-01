@@ -1,4 +1,4 @@
-import { PurchaseStatus, Role, StockMovementType, UnitSnapshotSource } from "../generated/prisma/enums.js";
+import { ItemSupplierRole, PurchaseStatus, Role, StockMovementType, UnitSnapshotSource } from "../generated/prisma/enums.js";
 import { Router, type Request } from "express";
 import { Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../db/prisma.js";
@@ -470,6 +470,42 @@ purchasesRouter.post("/:id/receive", requireRole([Role.OWNER, Role.MANAGER]), as
             note: line.notes ?? `Received purchase ${purchase.id}`,
           },
         });
+
+        const conversionFactor = purchaseItem.purchaseConversionFactorSnapshot;
+        const supplierFacingPrice = conversionFactor && conversionFactor > 0
+          ? effectiveUnitCost * conversionFactor
+          : effectiveUnitCost;
+        const existingMapping = await tx.itemSupplier.findFirst({
+          where: { workspaceId, itemId: purchaseItem.itemId, supplierId: purchase.supplierId },
+          select: { id: true },
+        });
+        if (existingMapping) {
+          await tx.itemSupplier.updateMany({
+            where: { workspaceId, itemId: purchaseItem.itemId, supplierId: purchase.supplierId },
+            data: {
+              lastPurchasePrice: supplierFacingPrice,
+              lastPurchaseDate: new Date(),
+              preferredPurchaseUnit: purchaseItem.purchaseUnitSnapshot,
+            },
+          });
+        } else {
+          const hasPrimary = await tx.itemSupplier.findFirst({
+            where: { workspaceId, itemId: purchaseItem.itemId, role: ItemSupplierRole.PRIMARY },
+            select: { id: true },
+          });
+          await tx.itemSupplier.create({
+            data: {
+              id: crypto.randomUUID(),
+              workspaceId,
+              itemId: purchaseItem.itemId,
+              supplierId: purchase.supplierId,
+              role: hasPrimary ? ItemSupplierRole.ALTERNATE : ItemSupplierRole.PRIMARY,
+              lastPurchasePrice: supplierFacingPrice,
+              lastPurchaseDate: new Date(),
+              preferredPurchaseUnit: purchaseItem.purchaseUnitSnapshot,
+            },
+          });
+        }
 
         const updatedLine = await tx.purchaseItem.updateMany({
           where: {
