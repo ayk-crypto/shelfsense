@@ -10,6 +10,7 @@ import {
   getPurchase,
   getPurchases,
   orderPurchase,
+  refreshPurchaseEstimates,
   type ClosePurchaseVarianceLine,
 } from "../api/purchases";
 import { getItems } from "../api/items";
@@ -234,9 +235,21 @@ export function PurchasesPage() {
   }).length;
 
   async function refreshDetail(id: string) {
-    const res = await getPurchase(id);
-    setDetailPurchase(res.purchase);
-    await load(filters);
+    try {
+      const current = purchases.find((purchase) => purchase.id === id) ?? detailPurchase;
+      const res = current?.status === "DRAFT" ? await refreshPurchaseEstimates(id) : await getPurchase(id);
+      setDetailPurchase(res.purchase);
+      if (current?.status === "DRAFT") {
+        const priced = res.purchase.purchaseItems.filter((line) => line.unitCost > 0).length;
+        showToast(
+          priced > 0 ? `Updated estimates for ${priced} item${priced === 1 ? "" : "s"}` : "No previous prices found for this draft",
+          priced > 0 ? "success" : "error",
+        );
+      }
+      await load(filters);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Failed to refresh PO estimates", "error");
+    }
   }
 
   async function handleOrder(purchase: Purchase) {
@@ -568,7 +581,7 @@ function PurchaseDetailModal({
         </div>
 
         <div className="po-detail-footer">
-          <button type="button" className="btn btn--ghost" onClick={onRefresh}>Refresh</button>
+          <button type="button" className="btn btn--ghost" onClick={onRefresh}>{purchase.status === "DRAFT" ? "Update estimates" : "Refresh"}</button>
           <div>
             {purchase.status === "DRAFT" && <button type="button" className="btn btn--danger" onClick={onDelete}>Delete Draft</button>}
             {canCancel && <button type="button" className="btn btn--ghost" onClick={onCancel}>Cancel PO</button>}

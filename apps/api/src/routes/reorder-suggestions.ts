@@ -108,6 +108,23 @@ reorderSuggestionsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OP
     }),
   ]);
 
+  const recentItemPrices = await prisma.stockBatch.findMany({
+    where: { workspaceId, itemId: { in: items.map((item) => item.id) }, unitCost: { not: null } },
+    orderBy: { createdAt: "desc" },
+    select: { itemId: true, supplierId: true, unitCost: true },
+    take: Math.min(Math.max(items.length * 20, 100), 3000),
+  });
+  const lastActualCostByItem = new Map<string, number>();
+  const lastActualCostByItemSupplier = new Map<string, number>();
+  for (const price of recentItemPrices) {
+    if (price.unitCost == null || price.unitCost <= 0) continue;
+    if (!lastActualCostByItem.has(price.itemId)) lastActualCostByItem.set(price.itemId, price.unitCost);
+    if (price.supplierId) {
+      const key = `${price.itemId}:${price.supplierId}`;
+      if (!lastActualCostByItemSupplier.has(key)) lastActualCostByItemSupplier.set(key, price.unitCost);
+    }
+  }
+
   const usageByItemId = new Map<string, number>();
   for (const movement of usageMovements) {
     usageByItemId.set(movement.itemId, (usageByItemId.get(movement.itemId) ?? 0) + movement.quantity);
@@ -155,6 +172,10 @@ reorderSuggestionsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OP
       const suggestedQuantity = replenishment.requiredBaseQty ?? 0;
       const lastPurchase = item.purchaseItems[0] ?? null;
       const primaryMappedSupplier = item.itemSuppliers[0]?.supplier ?? null;
+      const preferredSupplier = primaryMappedSupplier ?? lastPurchase?.purchase.supplier ?? null;
+      const lastActualCost = preferredSupplier
+        ? lastActualCostByItemSupplier.get(`${item.id}:${preferredSupplier.id}`) ?? lastActualCostByItem.get(item.id)
+        : lastActualCostByItem.get(item.id);
 
       return {
         itemId: item.id,
@@ -171,8 +192,8 @@ reorderSuggestionsRouter.get("/", requireRole([Role.OWNER, Role.MANAGER, Role.OP
         replenishment,
         trackExpiry: item.trackExpiry,
         location,
-        preferredSupplier: primaryMappedSupplier ?? lastPurchase?.purchase.supplier ?? null,
-        lastPurchaseCost: lastPurchase?.unitCost ?? null,
+        preferredSupplier,
+        lastPurchaseCost: lastActualCost ?? null,
       };
     })
     .filter((item) => ["REORDER_REQUIRED", "ADDITIONAL_QTY_REQUIRED", "ON_ORDER_SHORTAGE_RISK", "OVERDUE_DELIVERY", "CONFIGURATION_REQUIRED", "NO_USAGE_DATA"].includes(item.replenishment.status));
@@ -198,7 +219,7 @@ reorderSuggestionsRouter.post("/create-purchases", requireRole([Role.OWNER, Role
   const itemIds = [...new Set(input.items.map((item) => item.itemId!))];
   const supplierIds = [...new Set(input.items.map((item) => item.supplierId!))];
 
-  const [items, suppliers] = await Promise.all([
+  const [items, suppliers, recentPrices] = await Promise.all([
     prisma.item.findMany({
       where: { workspaceId, id: { in: itemIds }, isActive: true },
       select: {
@@ -213,6 +234,12 @@ reorderSuggestionsRouter.post("/create-purchases", requireRole([Role.OWNER, Role
       where: { workspaceId, id: { in: supplierIds } },
       select: { id: true, name: true },
     }),
+    prisma.stockBatch.findMany({
+      where: { workspaceId, itemId: { in: itemIds }, unitCost: { not: null } },
+      orderBy: { createdAt: "desc" },
+      select: { itemId: true, supplierId: true, unitCost: true },
+      take: Math.min(Math.max(itemIds.length * 20, 100), 3000),
+    }),
   ]);
 
   if (items.length !== itemIds.length) return res.status(404).json({ error: "One or more items were not found" });
@@ -220,10 +247,23 @@ reorderSuggestionsRouter.post("/create-purchases", requireRole([Role.OWNER, Role
 
   const itemById = new Map(items.map((item) => [item.id, item]));
   const supplierById = new Map(suppliers.map((supplier) => [supplier.id, supplier]));
+  const latestCostByItem = new Map<string, number>();
+  const latestCostByItemSupplier = new Map<string, number>();
+  for (const price of recentPrices) {
+    if (price.unitCost == null || price.unitCost <= 0) continue;
+    if (!latestCostByItem.has(price.itemId)) latestCostByItem.set(price.itemId, price.unitCost);
+    if (price.supplierId) {
+      const key = `${price.itemId}:${price.supplierId}`;
+      if (!latestCostByItemSupplier.has(key)) latestCostByItemSupplier.set(key, price.unitCost);
+    }
+  }
   const preparedLines = input.items.map((line) => {
     const dbItem = itemById.get(line.itemId!)!;
     const baseQuantity = line.quantity!;
-    const baseUnitCost = line.unitCost ?? 0;
+    const baseUnitCost = line.unitCost
+      ?? latestCostByItemSupplier.get(`${line.itemId!}:${line.supplierId!}`)
+      ?? latestCostByItem.get(line.itemId!)
+      ?? 0;
     const hasPurchaseUnit = Boolean(
       dbItem.purchaseUnit?.trim()
       && dbItem.purchaseConversionFactor
