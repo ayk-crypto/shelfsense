@@ -266,6 +266,60 @@ purchasesRouter.get("/:id", requireRole([Role.OWNER, Role.MANAGER]), asyncHandle
   return res.json({ purchase: mapPurchaseRecord(purchase) });
 }));
 
+purchasesRouter.post("/:id/refresh-estimates", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
+  const workspaceId = getWorkspaceId(req);
+  if (!workspaceId) return res.status(403).json({ error: "Workspace access required" });
+
+  const result = await runSerializableWrite(async (tx) => {
+    const purchase = await tx.purchase.findFirst({
+      where: { id: req.params.id, workspaceId },
+      include: purchaseInclude,
+    });
+    if (!purchase) throw new HttpError(404, "Purchase not found");
+    if (purchase.status !== PurchaseStatus.DRAFT) throw new HttpError(400, "Only draft PO estimates can be refreshed");
+
+    const zeroCostLines = purchase.purchaseItems.filter((line) => line.unitCost <= 0);
+    if (zeroCostLines.length === 0) return mapPurchase(purchase);
+
+    const itemIds = [...new Set(zeroCostLines.map((line) => line.itemId))];
+    const prices = await tx.stockBatch.findMany({
+      where: { workspaceId, itemId: { in: itemIds }, unitCost: { not: null } },
+      orderBy: { createdAt: "desc" },
+      select: { itemId: true, supplierId: true, unitCost: true },
+      take: Math.min(Math.max(itemIds.length * 20, 100), 3000),
+    });
+    const latestByItem = new Map<string, number>();
+    const latestBySupplier = new Map<string, number>();
+    for (const price of prices) {
+      if (price.unitCost == null || price.unitCost <= 0) continue;
+      if (!latestByItem.has(price.itemId)) latestByItem.set(price.itemId, price.unitCost);
+      if (price.supplierId === purchase.supplierId && !latestBySupplier.has(price.itemId)) {
+        latestBySupplier.set(price.itemId, price.unitCost);
+      }
+    }
+
+    for (const line of zeroCostLines) {
+      const unitCost = latestBySupplier.get(line.itemId) ?? latestByItem.get(line.itemId);
+      if (unitCost == null) continue;
+      await tx.purchaseItem.update({
+        where: { id: line.id },
+        data: { unitCost, total: line.quantity * unitCost },
+      });
+    }
+
+    const refreshedLines = await tx.purchaseItem.findMany({ where: { purchaseId: purchase.id } });
+    const totalAmount = refreshedLines.reduce((sum, line) => sum + line.quantity * line.unitCost, 0);
+    const updated = await tx.purchase.update({
+      where: { id: purchase.id },
+      data: { totalAmount },
+      include: purchaseInclude,
+    });
+    return mapPurchase(updated);
+  });
+
+  return res.json(result);
+}));
+
 purchasesRouter.patch("/:id/supplier", requireRole([Role.OWNER, Role.MANAGER]), asyncHandler(async (req, res) => {
   const workspaceId = getWorkspaceId(req);
   if (!workspaceId) return res.status(403).json({ error: "Workspace access required" });
