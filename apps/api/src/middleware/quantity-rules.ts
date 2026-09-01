@@ -37,7 +37,7 @@ export async function enforceQuantityRules(req: Request, res: Response, next: Ne
 
     const path = req.path;
 
-    if (path === "/items" || /^\/items\/[^/]+$/.test(path)) {
+    if (isItemSettingsRequest(req.method, path)) {
       const error = await validateItemSettingsRequest(req);
       if (error) {
         res.status(400).json({ error, code: "INVALID_QUANTITY_INCREMENT" });
@@ -99,6 +99,17 @@ export async function enforceQuantityRules(req: Request, res: Response, next: Ne
   } catch (error) {
     next(error);
   }
+}
+
+/**
+ * Quantity validation applies only when an item is created or its settings are
+ * edited. Static item actions such as /items/bulk-assign-supplier must never be
+ * interpreted as an item id.
+ */
+export function isItemSettingsRequest(method: string, path: string) {
+  if (method === "POST") return path === "/items";
+  if (method !== "PATCH" && method !== "PUT") return false;
+  return /^\/items\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(path);
 }
 
 async function validateItemSettingsRequest(req: Request) {
