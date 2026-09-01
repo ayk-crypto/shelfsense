@@ -71,6 +71,10 @@ interface PurchaseLineDraft {
   quantity: string;
   unitCost: string;
   lastCost?: number | null;
+  lastCostDate?: string | null;
+  lastCostSupplier?: string | null;
+  estimateMatchesSupplier?: boolean;
+  costEdited?: boolean;
   metaLoading?: boolean;
   purchaseUnit?: string | null;
   purchaseConversionFactor?: number | null;
@@ -766,6 +770,38 @@ function NewPurchaseModal({
   const [saving, setSaving] = useState(false);
   const [supplierSuggestion, setSupplierSuggestion] = useState<{ id: string; name: string } | null>(null);
 
+  async function loadLineEstimate(key: number, itemId: string, targetSupplierId: string) {
+    const selectedItem = items.find((item) => item.id === itemId);
+    if (!selectedItem) return;
+    const factor = selectedItem.purchaseConversionFactor ?? null;
+    const usesPurchaseUnit = hasPurchaseUnit(selectedItem.purchaseUnit, factor);
+    try {
+      const priceRes = await getPriceHistory(itemId, 2, targetSupplierId || undefined);
+      const latest = priceRes.history[0] ?? null;
+      const baseCost = latest?.unitCost ?? null;
+      const displayCost = usesPurchaseUnit && factor && baseCost != null ? baseCost * factor : baseCost;
+      setLines((current) => current.map((line) => line.key === key ? {
+        ...line,
+        metaLoading: false,
+        lastCost: displayCost,
+        lastCostDate: latest?.createdAt ?? null,
+        lastCostSupplier: latest?.supplier?.name ?? latest?.supplierName ?? null,
+        estimateMatchesSupplier: Boolean(targetSupplierId && latest?.supplier?.id === targetSupplierId),
+        unitCost: line.costEdited ? line.unitCost : (displayCost != null ? String(displayCost) : ""),
+      } : line));
+    } catch {
+      setLines((current) => current.map((line) => line.key === key ? { ...line, metaLoading: false } : line));
+    }
+  }
+
+  function handleSupplierChange(nextSupplierId: string) {
+    setSupplierId(nextSupplierId);
+    setSupplierSuggestion(null);
+    for (const line of lines) {
+      if (line.itemId && !line.costEdited) void loadLineEstimate(line.key, line.itemId, nextSupplierId);
+    }
+  }
+
   async function handleItemChange(key: number, itemId: string) {
     const selectedItem = items.find((item) => item.id === itemId);
     const factor = selectedItem?.purchaseConversionFactor ?? null;
@@ -774,21 +810,20 @@ function NewPurchaseModal({
       ...line,
       itemId,
       metaLoading: Boolean(itemId),
+      unitCost: "",
+      lastCost: null,
+      lastCostDate: null,
+      lastCostSupplier: null,
+      estimateMatchesSupplier: false,
+      costEdited: false,
       purchaseUnit: selectedItem?.purchaseUnit ?? null,
       purchaseConversionFactor: factor,
       baseUnit: selectedItem?.unit,
     } : line));
     if (!itemId) return;
     try {
-      const [supplierRes, priceRes] = await Promise.all([getSupplierSuggestion(itemId), getPriceHistory(itemId, 1)]);
-      const baseCost = priceRes.history[0]?.unitCost ?? null;
-      const displayCost = usesPurchaseUnit && factor && baseCost != null ? baseCost * factor : baseCost;
-      setLines((current) => current.map((line) => line.key === key ? {
-        ...line,
-        metaLoading: false,
-        lastCost: displayCost,
-        unitCost: line.unitCost || (displayCost != null ? String(displayCost) : ""),
-      } : line));
+      void loadLineEstimate(key, itemId, supplierId);
+      const supplierRes = await getSupplierSuggestion(itemId);
       if (supplierRes.suggestion && !supplierId) setSupplierSuggestion(supplierRes.suggestion);
     } catch {
       setLines((current) => current.map((line) => line.key === key ? { ...line, metaLoading: false } : line));
@@ -830,8 +865,8 @@ function NewPurchaseModal({
         <form onSubmit={(event) => void submit(event)}>
           <div className="modal-body">
             <div className="po-new-info">
-              <label className="form-group"><span className="form-label">Supplier *</span><select className="form-input form-select" value={supplierId} onChange={(event) => setSupplierId(event.target.value)}><option value="">Select supplier</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></label>
-              {supplierSuggestion && !supplierId && <button type="button" className="po-supplier-suggestion" onClick={() => { setSupplierId(supplierSuggestion.id); setSupplierSuggestion(null); }}>Use suggested supplier: {supplierSuggestion.name}</button>}
+              <label className="form-group"><span className="form-label">Supplier *</span><select className="form-input form-select" value={supplierId} onChange={(event) => handleSupplierChange(event.target.value)}><option value="">Select supplier</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></label>
+              {supplierSuggestion && !supplierId && <button type="button" className="po-supplier-suggestion" onClick={() => handleSupplierChange(supplierSuggestion.id)}>Use suggested supplier: {supplierSuggestion.name}</button>}
               <label className="form-group"><span className="form-label">PO date</span><input className="form-input" type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
               <label className="form-group"><span className="form-label">Expected delivery</span><input className="form-input" type="date" value={expectedDeliveryDate} onChange={(event) => setExpectedDeliveryDate(event.target.value)} /></label>
             </div>
@@ -845,14 +880,14 @@ function NewPurchaseModal({
                   <div className="po-new-line" key={line.key}>
                     <select className="form-input form-select" value={line.itemId} onChange={(event) => void handleItemChange(line.key, event.target.value)}><option value="">Select item</option>{items.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
                     <div><input className="form-input" type="number" min="0" step={line.purchaseUnit ? "1" : "0.01"} placeholder="Qty" value={line.quantity} onChange={(event) => setLines((current) => current.map((entry) => entry.key === line.key ? { ...entry, quantity: event.target.value } : entry))} />{line.purchaseUnit && <span>{line.purchaseUnit}{line.purchaseConversionFactor ? ` · 1 = ${fmtQty(line.purchaseConversionFactor)} ${line.baseUnit}` : ""}</span>}</div>
-                    <div><input className="form-input" type="number" min="0" step="0.01" placeholder="Unit cost" value={line.unitCost} onChange={(event) => setLines((current) => current.map((entry) => entry.key === line.key ? { ...entry, unitCost: event.target.value } : entry))} />{line.lastCost != null && <span>Last {money(line.lastCost, currency)}</span>}</div>
+                    <div className="po-estimate-field"><input className="form-input" type="number" min="0" step="0.01" placeholder={line.metaLoading ? "Checking last price…" : "Estimated unit price"} value={line.unitCost} onChange={(event) => setLines((current) => current.map((entry) => entry.key === line.key ? { ...entry, unitCost: event.target.value, costEdited: true } : entry))} />{line.lastCost != null ? <span className="po-estimate-source">{line.estimateMatchesSupplier ? "Last from this supplier" : "Latest available"}: {money(line.lastCost, currency)} per {line.purchaseUnit ?? line.baseUnit}{line.lastCostDate ? ` · ${fmtDate(line.lastCostDate)}` : ""}</span> : line.itemId && !line.metaLoading ? <span className="po-estimate-source po-estimate-source--empty">No previous price · enter an estimate</span> : null}</div>
                     <strong>{money(qty * cost, currency)}</strong>
                     <button type="button" className="po-line-remove" disabled={lines.length === 1} onClick={() => setLines((current) => current.length > 1 ? current.filter((entry) => entry.key !== line.key) : current)}>×</button>
                   </div>
                 );
               })}
             </div>
-            <div className="po-new-total"><span>Order total</span><strong>{money(grandTotal, currency)}</strong></div>
+            <div className="po-new-total"><span>Estimated PO total<small>Final amount is confirmed when stock is received.</small></span><strong>{money(grandTotal, currency)}</strong></div>
           </div>
           <div className="modal-footer"><button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button><button type="submit" className="btn btn--primary" disabled={saving}>{saving ? "Creating..." : "Create Draft"}</button></div>
         </form>
