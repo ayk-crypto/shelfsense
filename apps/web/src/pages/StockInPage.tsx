@@ -631,6 +631,17 @@ export function StockInPage() {
     }));
   }
 
+  function updatePoBatchQuantity(itemLine: Purchase["purchaseItems"][number], batch: PoBatchDraft, quantity: string) {
+    const previousBaseQuantity = poBatchBaseQuantity(itemLine, batch);
+    const previousTotal = parseFloat(batch.totalAmount);
+    const nextBatch = { ...batch, quantity };
+    const nextBaseQuantity = poBatchBaseQuantity(itemLine, nextBatch);
+    const totalAmount = previousBaseQuantity > 0 && Number.isFinite(previousTotal) && previousTotal > 0 && nextBaseQuantity > 0
+      ? String(roundCurrency((previousTotal / previousBaseQuantity) * nextBaseQuantity))
+      : batch.totalAmount;
+    updatePoBatch(itemLine.id, batch.key, { quantity, totalAmount });
+  }
+
   function addPoBatch(purchaseItemId: string, defaults: { locationId: string; totalAmount: string; enteredUnit?: "base" | "purchase" }) {
     setPoBatches((cur) => ({
       ...cur,
@@ -970,7 +981,7 @@ export function StockInPage() {
                                   <label className="por-field">
                                     <span className="por-field-label">Received quantity *</span>
                                     <div className="por-quantity-input">
-                                      <input className={`form-input${isOver ? " por-field--over" : ""}`} type="number" min="0" step="0.01" placeholder="0" value={batch.quantity} onChange={(e) => updatePoBatch(itemLine.id, batch.key, { quantity: e.target.value })} />
+                                      <input className={`form-input${isOver ? " por-field--over" : ""}`} type="number" min="0" step="0.01" placeholder="0" value={batch.quantity} onChange={(e) => updatePoBatchQuantity(itemLine, batch, e.target.value)} />
                                       <strong>{unitConfig.purchaseUnit ?? unitConfig.baseUnit}</strong>
                                     </div>
                                   </label>
