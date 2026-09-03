@@ -379,6 +379,8 @@ export function PurchasesPage() {
         <PurchaseDetailModal
           purchase={detailPurchase}
           currency={currency}
+          workspaceName={settings.name}
+          ownerPhone={settings.ownerPhone}
           onClose={() => setDetailPurchase(null)}
           onRefresh={() => void refreshDetail(detailPurchase.id)}
           onOrder={() => void handleOrder(detailPurchase)}
@@ -503,9 +505,342 @@ function StatusBadge({ status }: { status: PurchaseStatus }) {
   return <span className={`purchase-status purchase-status--${status.toLowerCase().replace(/_/g, "-")}`}>{STATUS_LABEL[status]}</span>;
 }
 
+function escHtml(str: string): string {
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function downloadPurchaseOrder(
+  purchase: Purchase,
+  currency: string,
+  workspaceName: string,
+  ownerPhone?: string | null,
+) {
+  const poNum = `PO-${purchase.id.slice(-8).toUpperCase()}`;
+  const statusSlug = purchase.status.toLowerCase().replace(/_/g, "-");
+  const showReceiving = purchase.status !== "DRAFT";
+  const cols = showReceiving ? 6 : 4;
+
+  // ── per-line helpers ─────────────────────────────────────────────────────
+  function lineHelpers(line: (typeof purchase.purchaseItems)[0]) {
+    const hasUop = hasPurchaseUnit(line.item.purchaseUnit, line.item.purchaseConversionFactor);
+    const factor = line.item.purchaseConversionFactor ?? 1;
+    const displayUnit = hasUop ? (line.item.purchaseUnit ?? line.item.unit) : line.item.unit;
+    const toDisplay = (n: number) => fmtQty(hasUop ? n / factor : n);
+    const dCostPerPU = hasUop ? line.unitCost * factor : line.unitCost;
+    const costStr = dCostPerPU > 0 ? money(dCostPerPU, currency) : "—";
+    const totalStr = dCostPerPU > 0 ? money(line.orderedValue, currency) : "—";
+    return { displayUnit, toDisplay, costStr, totalStr };
+  }
+
+  // ── summary totals in purchase units ────────────────────────────────────
+  let sumOrdered = 0, sumReceived = 0, sumRemaining = 0;
+  let allCostsMissing = true;
+  for (const line of purchase.purchaseItems) {
+    const hasUop = hasPurchaseUnit(line.item.purchaseUnit, line.item.purchaseConversionFactor);
+    const factor = line.item.purchaseConversionFactor ?? 1;
+    sumOrdered   += hasUop ? line.orderedQuantity / factor : line.orderedQuantity;
+    sumReceived  += hasUop ? line.receivedQuantity / factor : line.receivedQuantity;
+    sumRemaining += hasUop ? line.remainingQuantity / factor : line.remainingQuantity;
+    const dCost = hasUop ? line.unitCost * factor : line.unitCost;
+    if (dCost > 0) allCostsMissing = false;
+  }
+  const estValueStr = allCostsMissing ? "Pricing not set" : money(purchase.totalAmount, currency);
+  const recValueStr = allCostsMissing ? "—" : money(purchase.receivedValue, currency);
+
+  // ── group line items by category ─────────────────────────────────────────
+  const grouped = new Map<string, typeof purchase.purchaseItems>();
+  for (const line of purchase.purchaseItems) {
+    const cat = line.item.category?.trim() || "Uncategorized";
+    if (!grouped.has(cat)) grouped.set(cat, []);
+    grouped.get(cat)!.push(line);
+  }
+  const sortedCats = [...grouped.keys()].sort((a, b) => {
+    if (a === "Uncategorized") return 1;
+    if (b === "Uncategorized") return -1;
+    return a.localeCompare(b);
+  });
+
+  // ── build table rows ──────────────────────────────────────────────────────
+  const tableRows = sortedCats.map((cat) => {
+    const lines = grouped.get(cat)!;
+    const catRow = `<tr class="cat-row"><td colspan="${cols}"><span class="cat-lbl">${escHtml(cat)}</span></td></tr>`;
+    const lineRows = lines.map((line) => {
+      const { displayUnit, toDisplay, costStr, totalStr } = lineHelpers(line);
+      const minNote = line.item.minStockLevel > 0
+        ? `<span class="item-min">Min: ${fmtQty(line.item.minStockLevel)} ${escHtml(displayUnit)}</span>`
+        : "";
+      const itemCell = `<td><span class="item-nm">${escHtml(line.item.name)}</span> <span class="item-u">/ ${escHtml(displayUnit)}</span>${minNote}</td>`;
+      const ordCell  = `<td class="num">${toDisplay(line.orderedQuantity)}</td>`;
+      const costCell = `<td class="num">${escHtml(costStr)}</td>`;
+      const totCell  = `<td class="num">${escHtml(totalStr)}</td>`;
+      if (showReceiving) {
+        return `<tr>${itemCell}${ordCell}<td class="num">${toDisplay(line.receivedQuantity)}</td><td class="num">${toDisplay(line.remainingQuantity)}</td>${costCell}${totCell}</tr>`;
+      }
+      return `<tr>${itemCell}${ordCell}${costCell}${totCell}</tr>`;
+    }).join("");
+    return catRow + lineRows;
+  }).join("");
+
+  // ── tfoot totals ──────────────────────────────────────────────────────────
+  const tfootOrdered   = `<tr class="tf-row"><td colspan="${cols - 1}">Total ordered value</td><td class="num">${allCostsMissing ? "—" : escHtml(money(purchase.totalAmount, currency))}</td></tr>`;
+  const tfootReceived  = showReceiving
+    ? `<tr class="tf-row"><td colspan="${cols - 1}">Total received value</td><td class="num">${allCostsMissing ? "—" : escHtml(money(purchase.receivedValue, currency))}</td></tr>`
+    : "";
+
+  // ── supplier info ─────────────────────────────────────────────────────────
+  const suppInfo = [
+    `<div class="info-name">${escHtml(purchase.supplier.name)}</div>`,
+    purchase.supplier.phone ? `<div class="info-line">${escHtml(purchase.supplier.phone)}</div>` : "",
+    purchase.supplier.notes ? `<div class="info-line info-notes">${escHtml(purchase.supplier.notes)}</div>` : "",
+  ].join("");
+
+  // ── buyer info ────────────────────────────────────────────────────────────
+  const buyerInfo = [
+    `<div class="info-name">${escHtml(workspaceName)}</div>`,
+    `<div class="info-line">${escHtml(purchase.location.name)}</div>`,
+    ownerPhone ? `<div class="info-line">${escHtml(ownerPhone)}</div>` : "",
+  ].join("");
+
+  // ── dates ─────────────────────────────────────────────────────────────────
+  function datePill(label: string, value: string | null | undefined) {
+    if (!value) return "";
+    return `<div class="dp"><span class="dp-lbl">${escHtml(label)}</span><strong class="dp-val">${escHtml(fmtDate(value))}</strong></div>`;
+  }
+  const datesHtml = [
+    datePill("PO Date", purchase.date),
+    datePill("Expected Delivery", purchase.expectedDeliveryDate),
+    datePill("Ordered On", purchase.orderedAt),
+    datePill("Received On", purchase.receivedAt),
+    datePill("Cancelled On", purchase.cancelledAt),
+  ].filter(Boolean).join("");
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>${escHtml(poNum)} — ${escHtml(purchase.supplier.name)}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#1e293b;background:#fff;font-size:13px;max-width:960px;margin:0 auto;padding:40px 48px}
+@media print{
+  .no-print{display:none!important}
+  body{padding:20px 28px;font-size:12px}
+  @page{size:A4;margin:14mm 12mm}
+  .page-break-avoid{page-break-inside:avoid}
+}
+
+/* print toolbar */
+.no-print{margin-bottom:28px}
+.print-btn{background:#6366f1;color:#fff;border:none;padding:9px 20px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+.print-btn:hover{background:#4f46e5}
+
+/* header */
+.po-header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #6366f1;padding-bottom:18px;margin-bottom:24px;gap:24px}
+.po-brand{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#6366f1;margin-bottom:4px}
+.po-title{font-size:26px;font-weight:800;color:#1e293b;letter-spacing:-.5px;line-height:1.1}
+.po-num{font-size:12px;color:#64748b;margin-top:4px;font-weight:500;font-family:monospace}
+.po-meta{text-align:right;font-size:12px;color:#64748b;line-height:1.9;min-width:200px}
+.po-meta strong{color:#1e293b;font-weight:600}
+.po-badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;vertical-align:middle}
+.po-badge--draft{background:#f1f5f9;color:#475569}
+.po-badge--ordered{background:#eef2ff;color:#4338ca}
+.po-badge--partially-received{background:#fff7ed;color:#c2410c}
+.po-badge--received{background:#ecfdf5;color:#047857}
+.po-badge--cancelled{background:#fef2f2;color:#b91c1c}
+
+/* two-col info boxes */
+.info-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px}
+.info-box{border:1px solid #e2e8f0;border-radius:8px;padding:14px 16px}
+.info-box-lbl{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin-bottom:8px}
+.info-name{font-size:15px;font-weight:700;color:#1e293b;margin-bottom:4px}
+.info-line{font-size:12px;color:#475569;margin-bottom:2px}
+.info-notes{color:#64748b;font-style:italic;margin-top:4px}
+
+/* dates strip */
+.dates-strip{display:flex;flex-wrap:wrap;gap:16px 28px;margin-bottom:18px;padding:12px 16px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0}
+.dp{}
+.dp-lbl{display:block;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#94a3b8;margin-bottom:2px}
+.dp-val{font-size:13px;font-weight:600;color:#1e293b}
+
+/* summary box */
+.summary-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:22px}
+.sum-cell{padding:12px 14px;border-right:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0}
+.sum-cell:nth-child(3n){border-right:none}
+.sum-cell:nth-last-child(-n+3){border-bottom:none}
+.sum-lbl{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#94a3b8;margin-bottom:4px}
+.sum-val{font-size:16px;font-weight:700;color:#1e293b}
+.sum-val--accent{color:#6366f1}
+.sum-val--muted{font-size:13px;color:#64748b;font-weight:500}
+
+/* section heading */
+.sec-head{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin-bottom:8px;margin-top:4px}
+
+/* items table */
+.po-box{border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:20px}
+table{width:100%;border-collapse:collapse}
+thead{background:#f8fafc}
+th{padding:9px 12px;text-align:left;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#64748b;border-bottom:1px solid #e2e8f0;white-space:nowrap}
+th.num,td.num{text-align:right;font-variant-numeric:tabular-nums}
+td{padding:10px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#1e293b;vertical-align:middle}
+.item-nm{font-weight:500}
+.item-u{color:#94a3b8;font-size:12px}
+.item-min{display:block;font-size:10.5px;color:#94a3b8;margin-top:2px}
+.cat-row td{background:#f8fafc;padding:6px 12px;border-bottom:1px solid #e2e8f0}
+.cat-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#475569}
+tr:last-child td{border-bottom:none}
+.tf-row td{background:#f8fafc;font-weight:700;border-top:2px solid #e2e8f0;font-size:13px;border-bottom:none}
+
+/* cancel box */
+.cancel-box{background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px 16px;color:#991b1b;font-size:13px;margin-bottom:20px}
+
+/* approval / receiving sections */
+.sig-section{border:1px solid #e2e8f0;border-radius:8px;padding:16px 18px;margin-bottom:18px;page-break-inside:avoid}
+.sig-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin-bottom:14px}
+.sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 28px}
+.sig-field{padding-bottom:8px;border-bottom:1px solid #cbd5e1}
+.sig-field-lbl{font-size:10px;color:#94a3b8;margin-bottom:18px;display:block}
+.approval-status{margin-top:14px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:12px;color:#475569}
+.approval-status strong{color:#1e293b}
+
+/* footer */
+.po-footer{margin-top:40px;padding-top:12px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:10.5px;color:#94a3b8}
+</style>
+</head>
+<body>
+
+<div class="no-print">
+  <button class="print-btn" onclick="window.print()">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+    Print / Save as PDF
+  </button>
+</div>
+
+<!-- ── Header ── -->
+<div class="po-header">
+  <div>
+    <div class="po-brand">${escHtml(workspaceName)}</div>
+    <div class="po-title">Purchase Order</div>
+    <div class="po-num">${escHtml(poNum)}</div>
+  </div>
+  <div class="po-meta">
+    <div>Status: <span class="po-badge po-badge--${statusSlug}">${escHtml(STATUS_LABEL[purchase.status])}</span></div>
+    <div>Branch: <strong>${escHtml(purchase.location.name)}</strong></div>
+  </div>
+</div>
+
+<!-- ── Supplier & Buyer ── -->
+<div class="info-row">
+  <div class="info-box">
+    <div class="info-box-lbl">Supplier</div>
+    ${suppInfo || `<div class="info-line">—</div>`}
+  </div>
+  <div class="info-box">
+    <div class="info-box-lbl">Buyer / Business</div>
+    ${buyerInfo}
+  </div>
+</div>
+
+<!-- ── Dates ── -->
+${datesHtml ? `<div class="dates-strip">${datesHtml}</div>` : ""}
+
+<!-- ── Summary ── -->
+<div class="summary-grid">
+  <div class="sum-cell">
+    <div class="sum-lbl">Total items</div>
+    <div class="sum-val">${purchase.purchaseItems.length}</div>
+  </div>
+  <div class="sum-cell">
+    <div class="sum-lbl">Ordered qty</div>
+    <div class="sum-val">${fmtQty(sumOrdered)}</div>
+  </div>
+  <div class="sum-cell">
+    <div class="sum-lbl">Estimated value</div>
+    <div class="${purchase.totalAmount > 0 ? "sum-val sum-val--accent" : "sum-val sum-val--muted"}">${escHtml(estValueStr)}</div>
+  </div>
+  <div class="sum-cell">
+    <div class="sum-lbl">Received qty</div>
+    <div class="sum-val">${fmtQty(sumReceived)}</div>
+  </div>
+  <div class="sum-cell">
+    <div class="sum-lbl">Remaining qty</div>
+    <div class="sum-val">${fmtQty(sumRemaining)}</div>
+  </div>
+  <div class="sum-cell">
+    <div class="sum-lbl">Received value</div>
+    <div class="sum-val">${escHtml(recValueStr)}</div>
+  </div>
+</div>
+
+<!-- ── Line Items ── -->
+<div class="sec-head">Line Items &nbsp;(${purchase.purchaseItems.length})</div>
+<div class="po-box">
+  <table>
+    <thead>
+      <tr>
+        <th>Item</th>
+        <th class="num">Ordered</th>
+        ${showReceiving ? `<th class="num">Received</th><th class="num">Remaining</th>` : ""}
+        <th class="num">Unit Cost</th>
+        <th class="num">Total Value</th>
+      </tr>
+    </thead>
+    <tbody>${tableRows}</tbody>
+    <tfoot>
+      ${tfootOrdered}
+      ${tfootReceived}
+    </tfoot>
+  </table>
+</div>
+
+<!-- ── Cancellation ── -->
+${purchase.cancelReason ? `<div class="cancel-box"><strong>Cancellation reason:</strong> ${escHtml(purchase.cancelReason)}</div>` : ""}
+
+<!-- ── Approval ── -->
+<div class="sig-section page-break-avoid">
+  <div class="sig-title">Approval</div>
+  <div class="sig-grid">
+    <div class="sig-field"><span class="sig-field-lbl">Prepared by</span></div>
+    <div class="sig-field"><span class="sig-field-lbl">Reviewed by</span></div>
+    <div class="sig-field"><span class="sig-field-lbl">Approved by</span></div>
+    <div class="sig-field"><span class="sig-field-lbl">Date approved</span></div>
+  </div>
+  <div class="approval-status">Approval status: <strong>${escHtml(STATUS_LABEL[purchase.status])}</strong></div>
+</div>
+
+<!-- ── Receiving ── -->
+<div class="sig-section page-break-avoid">
+  <div class="sig-title">Receiving</div>
+  <div class="sig-grid">
+    <div class="sig-field"><span class="sig-field-lbl">Received by</span></div>
+    <div class="sig-field"><span class="sig-field-lbl">Receiving date</span></div>
+    <div class="sig-field"><span class="sig-field-lbl">Supplier invoice / bill no.</span></div>
+    <div class="sig-field"><span class="sig-field-lbl">Remarks</span></div>
+  </div>
+</div>
+
+<!-- ── Footer ── -->
+<div class="po-footer">
+  <span>Generated by ShelfSense</span>
+  <span>${escHtml(poNum)} &nbsp;·&nbsp; ${escHtml(purchase.supplier.name)} &nbsp;·&nbsp; ${escHtml(purchase.location.name)}</span>
+  <span>${new Date().toLocaleString()}</span>
+</div>
+
+</body>
+</html>`;
+
+  const win = window.open("", "_blank");
+  if (win) {
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+  }
+}
+
 function PurchaseDetailModal({
   purchase,
   currency,
+  workspaceName,
+  ownerPhone,
   onClose,
   onRefresh,
   onOrder,
@@ -516,6 +851,8 @@ function PurchaseDetailModal({
 }: {
   purchase: Purchase;
   currency: string;
+  workspaceName: string;
+  ownerPhone?: string | null;
   onClose: () => void;
   onRefresh: () => void;
   onOrder: () => void;
@@ -581,7 +918,13 @@ function PurchaseDetailModal({
         </div>
 
         <div className="po-detail-footer">
-          <button type="button" className="btn btn--ghost" onClick={onRefresh}>{purchase.status === "DRAFT" ? "Update estimates" : "Refresh"}</button>
+          <div>
+            <button type="button" className="btn btn--ghost" onClick={onRefresh}>{purchase.status === "DRAFT" ? "Update estimates" : "Refresh"}</button>
+            <button type="button" className="btn btn--secondary" onClick={() => downloadPurchaseOrder(purchase, currency, workspaceName, ownerPhone)}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+              Download PDF
+            </button>
+          </div>
           <div>
             {purchase.status === "DRAFT" && <button type="button" className="btn btn--danger" onClick={onDelete}>Delete Draft</button>}
             {canCancel && <button type="button" className="btn btn--ghost" onClick={onCancel}>Cancel PO</button>}
