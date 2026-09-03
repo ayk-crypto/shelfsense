@@ -97,7 +97,7 @@ interface PoBatchDraft {
   locationId: string;
   expiryDate: string;
   batchNo: string;
-  unitCost: string;
+  totalAmount: string;
   unitCostExclTax: string;
   unitTax: string;
   unitCostInclTax: string;
@@ -135,14 +135,14 @@ function generatePoBatchNo(poId: string, itemId: string, batchIndex: number) {
   return `PO-${poId.slice(-6).toUpperCase()}-${itemId.slice(-4).toUpperCase()}-${date}-${String(batchIndex + 1).padStart(2, "0")}`;
 }
 
-function newPoBatch(defaults: { locationId: string; unitCost: string; batchNo: string; quantity?: string; enteredUnit?: "base" | "purchase" }): PoBatchDraft {
+function newPoBatch(defaults: { locationId: string; totalAmount: string; batchNo: string; quantity?: string; enteredUnit?: "base" | "purchase" }): PoBatchDraft {
   return {
     key: ++poBatchSeq,
     quantity: defaults.quantity ?? "",
     locationId: defaults.locationId,
     expiryDate: "",
     batchNo: defaults.batchNo,
-    unitCost: defaults.unitCost,
+    totalAmount: defaults.totalAmount,
     unitCostExclTax: "",
     unitTax: "",
     unitCostInclTax: "",
@@ -247,7 +247,7 @@ export function StockInPage() {
                 const usePurchaseUnit = Boolean(poUnitConfig(item).purchaseUnit);
                 init[item.id] = [newPoBatch({
                   locationId: fallbackLoc,
-                  unitCost: String(item.unitCost),
+                  totalAmount: String(roundCurrency(item.remainingQuantity * item.unitCost)),
                   batchNo: generatePoBatchNo(po.id, item.id, 0),
                   quantity: String(poDisplayQuantity(item, item.remainingQuantity)),
                   enteredUnit: usePurchaseUnit ? "purchase" : "base",
@@ -554,14 +554,21 @@ export function StockInPage() {
       const itemLine = selectedPo?.purchaseItems.find((item) => item.id === id);
       const unitConfig = itemLine ? poUnitConfig(itemLine) : null;
       restored[id] = arr.map((b, index) => {
+        const legacyBatch = b as typeof b & { unitCost?: string };
         const wasBaseUnit = (b.enteredUnit ?? "base") === "base";
         const numericQuantity = parseFloat(b.quantity);
+        const originalBaseQuantity = Number.isFinite(numericQuantity)
+          ? (unitConfig?.purchaseUnit && !wasBaseUnit ? numericQuantity * unitConfig.factor : numericQuantity)
+          : 0;
         const quantity = unitConfig?.purchaseUnit && wasBaseUnit && Number.isFinite(numericQuantity)
           ? String(numericQuantity / unitConfig.factor)
           : b.quantity;
         return {
           ...b,
           quantity,
+          totalAmount: b.totalAmount ?? (legacyBatch.unitCost && originalBaseQuantity > 0
+            ? String(roundCurrency(parseFloat(legacyBatch.unitCost) * originalBaseQuantity))
+            : ""),
           batchNo: b.batchNo || generatePoBatchNo(draft.poId, id, index),
           enteredUnit: unitConfig?.purchaseUnit ? "purchase" : "base",
           key: ++poBatchSeq,
@@ -608,7 +615,7 @@ export function StockInPage() {
       const usePurchaseUnit = Boolean(poUnitConfig(item).purchaseUnit);
       init[item.id] = [newPoBatch({
         locationId: fallbackLoc,
-        unitCost: String(item.unitCost),
+        totalAmount: String(roundCurrency(item.remainingQuantity * item.unitCost)),
         batchNo: generatePoBatchNo(po.id, item.id, 0),
         quantity: String(poDisplayQuantity(item, item.remainingQuantity)),
         enteredUnit: usePurchaseUnit ? "purchase" : "base",
@@ -624,7 +631,18 @@ export function StockInPage() {
     }));
   }
 
-  function addPoBatch(purchaseItemId: string, defaults: { locationId: string; unitCost: string; enteredUnit?: "base" | "purchase" }) {
+  function updatePoBatchQuantity(itemLine: Purchase["purchaseItems"][number], batch: PoBatchDraft, quantity: string) {
+    const previousBaseQuantity = poBatchBaseQuantity(itemLine, batch);
+    const previousTotal = parseFloat(batch.totalAmount);
+    const nextBatch = { ...batch, quantity };
+    const nextBaseQuantity = poBatchBaseQuantity(itemLine, nextBatch);
+    const totalAmount = previousBaseQuantity > 0 && Number.isFinite(previousTotal) && previousTotal > 0 && nextBaseQuantity > 0
+      ? String(roundCurrency((previousTotal / previousBaseQuantity) * nextBaseQuantity))
+      : batch.totalAmount;
+    updatePoBatch(itemLine.id, batch.key, { quantity, totalAmount });
+  }
+
+  function addPoBatch(purchaseItemId: string, defaults: { locationId: string; totalAmount: string; enteredUnit?: "base" | "purchase" }) {
     setPoBatches((cur) => ({
       ...cur,
       [purchaseItemId]: [...cur[purchaseItemId], newPoBatch({
@@ -669,7 +687,7 @@ export function StockInPage() {
           locationId: b.locationId || undefined,
           expiryDate: b.expiryDate || undefined,
           batchNo: b.batchNo || undefined,
-          unitCost: parseFloat(b.unitCost) || undefined,
+          totalAmount: parseFloat(b.totalAmount) || undefined,
           unitCostExclTax: parseFloat(b.unitCostExclTax) || undefined,
           unitTax: parseFloat(b.unitTax) || undefined,
           unitCostInclTax: parseFloat(b.unitCostInclTax) || undefined,
@@ -732,7 +750,7 @@ export function StockInPage() {
         locationId: existing[0]?.locationId ?? defaultLocationId ?? "",
         expiryDate: result.expiryDate ?? "",
         batchNo: result.batchNo || generatePoBatchNo(selectedPo!.id, result.purchaseItemId, emptyIdx >= 0 ? emptyIdx : existing.length),
-        unitCost: String(result.unitCost),
+        totalAmount: String(roundCurrency(result.unitCost * result.qty)),
         unitCostExclTax: result.unitCostExclTax != null ? String(result.unitCostExclTax) : "",
         unitTax: result.unitTax != null ? String(result.unitTax) : "",
         unitCostInclTax: result.unitCostInclTax != null ? String(result.unitCostInclTax) : "",
@@ -963,7 +981,7 @@ export function StockInPage() {
                                   <label className="por-field">
                                     <span className="por-field-label">Received quantity *</span>
                                     <div className="por-quantity-input">
-                                      <input className={`form-input${isOver ? " por-field--over" : ""}`} type="number" min="0" step="0.01" placeholder="0" value={batch.quantity} onChange={(e) => updatePoBatch(itemLine.id, batch.key, { quantity: e.target.value })} />
+                                      <input className={`form-input${isOver ? " por-field--over" : ""}`} type="number" min="0" step="0.01" placeholder="0" value={batch.quantity} onChange={(e) => updatePoBatchQuantity(itemLine, batch, e.target.value)} />
                                       <strong>{unitConfig.purchaseUnit ?? unitConfig.baseUnit}</strong>
                                     </div>
                                   </label>
@@ -982,8 +1000,9 @@ export function StockInPage() {
                                       </select>
                                     </label>
                                     <label className="por-field">
-                                      <span className="por-field-label">PO unit cost</span>
-                                      <input className="form-input" type="number" min="0" step="0.01" value={batch.unitCost} onChange={(e) => updatePoBatch(itemLine.id, batch.key, { unitCost: e.target.value })} />
+                                      <span className="por-field-label">Total invoice amount</span>
+                                      <input className="form-input" type="number" min="0" step="0.01" value={batch.totalAmount} onChange={(e) => updatePoBatch(itemLine.id, batch.key, { totalAmount: e.target.value })} />
+                                      <small>{poBatchBaseQuantity(itemLine, batch) > 0 && parseFloat(batch.totalAmount) > 0 ? `${formatCurrency(parseFloat(batch.totalAmount) / poBatchBaseQuantity(itemLine, batch), currency)} per ${unitConfig.baseUnit}` : "Unit cost calculates automatically"}</small>
                                     </label>
                                     <label className="por-field">
                                       <span className="por-field-label">Note</span>
@@ -999,7 +1018,7 @@ export function StockInPage() {
                             ))}
                           </div>
                           <div className="por-add-batch-row">
-                            <button type="button" className="por-add-batch-btn" onClick={() => addPoBatch(itemLine.id, { locationId: lastBatch?.locationId ?? fallbackLoc, unitCost: lastBatch?.unitCost ?? String(itemLine.unitCost), enteredUnit: unitConfig.purchaseUnit ? "purchase" : "base" })}>
+                            <button type="button" className="por-add-batch-btn" onClick={() => addPoBatch(itemLine.id, { locationId: lastBatch?.locationId ?? fallbackLoc, totalAmount: "", enteredUnit: unitConfig.purchaseUnit ? "purchase" : "base" })}>
                               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                 <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
                               </svg>
