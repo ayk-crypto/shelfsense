@@ -505,7 +505,7 @@ function StatusBadge({ status }: { status: PurchaseStatus }) {
   return <span className={`purchase-status purchase-status--${status.toLowerCase().replace(/_/g, "-")}`}>{STATUS_LABEL[status]}</span>;
 }
 
-+function escHtml(str: string): string {
+function escHtml(str: string): string {
   return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
@@ -527,8 +527,8 @@ function downloadPurchaseOrder(
     const displayUnit = hasUop ? (line.item.purchaseUnit ?? line.item.unit) : line.item.unit;
     const toDisplay = (n: number) => fmtQty(hasUop ? n / factor : n);
     const dCostPerPU = hasUop ? line.unitCost * factor : line.unitCost;
-    const costStr = dCostPerPU > 0 ? fmt(dCostPerPU, currency) : "—";
-    const totalStr = dCostPerPU > 0 ? fmt(line.orderedValue, currency) : "—";
+    const costStr = dCostPerPU > 0 ? money(dCostPerPU, currency) : "—";
+    const totalStr = dCostPerPU > 0 ? money(line.orderedValue, currency) : "—";
     return { displayUnit, toDisplay, costStr, totalStr };
   }
 
@@ -544,8 +544,8 @@ function downloadPurchaseOrder(
     const dCost = hasUop ? line.unitCost * factor : line.unitCost;
     if (dCost > 0) allCostsMissing = false;
   }
-  const estValueStr = allCostsMissing ? "Pricing not set" : fmt(purchase.totalAmount, currency);
-  const recValueStr = allCostsMissing ? "—" : fmt(purchase.receivedValue, currency);
+  const estValueStr = allCostsMissing ? "Pricing not set" : money(purchase.totalAmount, currency);
+  const recValueStr = allCostsMissing ? "—" : money(purchase.receivedValue, currency);
 
   // ── group line items by category ─────────────────────────────────────────
   const grouped = new Map<string, typeof purchase.purchaseItems>();
@@ -582,9 +582,9 @@ function downloadPurchaseOrder(
   }).join("");
 
   // ── tfoot totals ──────────────────────────────────────────────────────────
-  const tfootOrdered   = `<tr class="tf-row"><td colspan="${cols - 1}">Total ordered value</td><td class="num">${allCostsMissing ? "—" : escHtml(fmt(purchase.totalAmount, currency))}</td></tr>`;
+  const tfootOrdered   = `<tr class="tf-row"><td colspan="${cols - 1}">Total ordered value</td><td class="num">${allCostsMissing ? "—" : escHtml(money(purchase.totalAmount, currency))}</td></tr>`;
   const tfootReceived  = showReceiving
-    ? `<tr class="tf-row"><td colspan="${cols - 1}">Total received value</td><td class="num">${allCostsMissing ? "—" : escHtml(fmt(purchase.receivedValue, currency))}</td></tr>`
+    ? `<tr class="tf-row"><td colspan="${cols - 1}">Total received value</td><td class="num">${allCostsMissing ? "—" : escHtml(money(purchase.receivedValue, currency))}</td></tr>`
     : "";
 
   // ── supplier info ─────────────────────────────────────────────────────────
