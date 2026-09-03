@@ -1078,6 +1078,7 @@ export interface ReceivePurchaseLineInput {
   expiryDate?: string;
   batchNo?: string;
   unitCost?: number;
+  totalAmount?: number;
   unitCostExclTax?: number;
   unitTax?: number;
   unitCostInclTax?: number;

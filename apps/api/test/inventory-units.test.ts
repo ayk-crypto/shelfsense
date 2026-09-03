@@ -19,6 +19,18 @@ import {
 } from "../src/routes/items.js";
 import { buildEditItemPayload } from "../../web/src/utils/itemPayload.ts";
 import type { CreateItemInput, Item } from "../../web/src/types.ts";
+import { unitCostFromReceiptTotal } from "../src/lib/receipt-cost.js";
+
+describe("invoice receipt costing", () => {
+  it("converts a line total into stock-unit cost", () => {
+    expect(unitCostFromReceiptTotal(6083, 4)).toBe(1520.75);
+  });
+
+  it("uses converted base quantity for purchase units", () => {
+    // Four cartons, twelve cans per carton: Rs 6,083 / 48 cans.
+    expect(unitCostFromReceiptTotal(6083, 4 * 12)).toBe(126.7292);
+  });
+});
 
 describe("inventory unit conversion", () => {
   it("handles exact carton conversion", () => {

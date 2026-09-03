@@ -1,5 +1,6 @@
 import { ItemSupplierRole, PurchaseStatus, Role, StockMovementType, UnitSnapshotSource } from "../generated/prisma/enums.js";
 import { Router, type Request } from "express";
+import { unitCostFromReceiptTotal } from "../lib/receipt-cost.js";
 import { Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../db/prisma.js";
 import { requireActiveWorkspace, requireAuth, requireRole } from "../middleware/auth.js";
@@ -445,8 +446,11 @@ purchasesRouter.post("/:id/receive", requireRole([Role.OWNER, Role.MANAGER]), as
   );
   if (invalidLine) return res.status(400).json({ error: "Each received line needs a positive quantity" });
 
-  const invalidCost = input.lines.find((line) => line.unitCost !== undefined && line.unitCost < 0);
-  if (invalidCost) return res.status(400).json({ error: "Unit cost cannot be negative" });
+  const invalidCost = input.lines.find((line) =>
+    (line.unitCost !== undefined && line.unitCost < 0)
+    || (line.totalAmount !== undefined && line.totalAmount <= 0),
+  );
+  if (invalidCost) return res.status(400).json({ error: "Unit cost cannot be negative and total amount must be greater than zero" });
 
   const invalidDate = input.lines.find((line) => line.expiryDate === "invalid");
   if (invalidDate) return res.status(400).json({ error: "Expiry date must be valid" });
@@ -489,7 +493,11 @@ purchasesRouter.post("/:id/receive", requireRole([Role.OWNER, Role.MANAGER]), as
         }
         accumulatedByItem.set(line.purchaseItemId!, alreadyAccumulated + line.receivedQuantity!);
 
-        const effectiveUnitCost = line.unitCost ?? purchaseItem.unitCost;
+        // Invoice entry supplies the amount paid for the whole received line.
+        // Inventory valuation must always store cost per base/stock unit.
+        const effectiveUnitCost = unitCostFromReceiptTotal(line.totalAmount, line.receivedQuantity!)
+          ?? line.unitCost
+          ?? purchaseItem.unitCost;
         const expiryDate = line.expiryDate instanceof Date ? line.expiryDate : null;
         const batchNo = line.batchNo ?? null;
 
@@ -966,6 +974,7 @@ function parseReceiveLineInput(value: unknown, defaultLocationId: string) {
     expiryDate?: unknown;
     batchNo?: unknown;
     unitCost?: unknown;
+    totalAmount?: unknown;
     unitCostExclTax?: unknown;
     unitTax?: unknown;
     unitCostInclTax?: unknown;
@@ -979,6 +988,7 @@ function parseReceiveLineInput(value: unknown, defaultLocationId: string) {
     expiryDate: parseOptionalDate(input.expiryDate),
     batchNo: parseNullableString(input.batchNo),
     unitCost: parseOptionalNumber(input.unitCost),
+    totalAmount: parseOptionalNumber(input.totalAmount),
     unitCostExclTax: parseOptionalNumber(input.unitCostExclTax),
     unitTax: parseOptionalNumber(input.unitTax),
     unitCostInclTax: parseOptionalNumber(input.unitCostInclTax),
