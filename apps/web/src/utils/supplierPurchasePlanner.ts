@@ -345,7 +345,9 @@ function renderContent(overlay: HTMLElement, state: PlannerState) {
 function renderRow(row: SupplierPlanRow, state: PlannerState) {
   const quantity = state.quantities.get(row.item.id) ?? 0;
   const selected = state.selected.has(row.item.id);
-  const statusLabel = row.status === "BUY" ? "Recommended" : row.status === "REVIEW" ? "Review" : "No purchase";
+  const statusLabel = row.status === "BUY"
+    ? (row.forecastUsageQty === null ? "Review qty" : "Recommended")
+    : row.status === "REVIEW" ? "Review" : "No purchase";
   return `<tr class="${selected ? "selected" : ""}">
     <td><input type="checkbox" data-select-item="${escapeHtml(row.item.id)}"${selected ? " checked" : ""}${quantity <= 0 ? " disabled" : ""}/></td>
     <td><strong>${escapeHtml(row.item.name)}</strong><span>${escapeHtml(row.item.category || "Uncategorized")}</span></td>
@@ -424,9 +426,16 @@ function buildPlanRow(
   const forecastUsageQty = usage ? (usage.total / usage.observedDays) * planDays / factor : null;
   const lowStockQty = item.minStockLevel / factor;
   const projectedQty = forecastUsageQty === null ? null : currentQty + incomingQty - forecastUsageQty;
-  const rawSuggestion = forecastUsageQty === null ? 0 : Math.max(0, lowStockQty + forecastUsageQty - currentQty - incomingQty);
+  // An item with no usage history still needs to be purchasable when there is
+  // neither stock on hand nor an open PO covering it. Previously these rows
+  // were hidden under "Review" with a zero quantity, so linked out-of-stock
+  // items appeared to be missing from the supplier plan entirely.
+  const isUncoveredOutOfStock = currentQty <= 0 && incomingQty <= 0;
+  const rawSuggestion = forecastUsageQty === null
+    ? (isUncoveredOutOfStock ? Math.max(lowStockQty, 1) : 0)
+    : Math.max(0, lowStockQty + forecastUsageQty - currentQty - incomingQty);
   const suggestedQty = usesPurchaseUnit && !item.allowFractionalPurchaseUnit ? Math.ceil(rawSuggestion) : roundQty(rawSuggestion);
-  const status: PlanStatus = forecastUsageQty === null ? "REVIEW" : suggestedQty > 0 ? "BUY" : "ENOUGH";
+  const status: PlanStatus = suggestedQty > 0 ? "BUY" : forecastUsageQty === null ? "REVIEW" : "ENOUGH";
 
   return {
     item,
