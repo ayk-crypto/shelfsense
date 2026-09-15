@@ -80,52 +80,69 @@ costControlIntegrationRouter.get("/costs", requireScope("costs:read"), asyncHand
   const asOf = req.query.asOf ? new Date(String(req.query.asOf)) : new Date();
   if (Number.isNaN(asOf.getTime())) return res.status(400).json({ error: "Invalid asOf date" });
 
-  const purchases = await prisma.purchaseItem.findMany({
+  // StockBatch is the finalized inventory receipt record. It contains the effective
+  // receipt/invoice unit cost and its createdAt is the actual receipt timestamp.
+  // Using it prevents future receipts from leaking into historical as-of costing.
+  const batches = await prisma.stockBatch.findMany({
     where: {
-      purchase: {
-        workspaceId,
-        status: { in: ["RECEIVED", "RECEIVED_WITH_VARIANCE", "PARTIALLY_RECEIVED", "CLOSED_SHORT"] as any },
-        date: { lte: asOf },
-      },
-      receivedQuantity: { gt: 0 },
+      workspaceId,
+      createdAt: { lte: asOf },
+      OR: [
+        { unitCost: { not: null } },
+        { unitCostInclTax: { not: null } },
+        { unitCostExclTax: { not: null } },
+      ],
     },
     select: {
       id: true,
       itemId: true,
-      unitCost: true,
+      quantity: true,
       receivedQuantity: true,
-      baseUnitSnapshot: true,
-      purchaseUnitSnapshot: true,
-      purchaseConversionFactorSnapshot: true,
-      enteredQuantity: true,
-      enteredUnitSnapshot: true,
-      storedBaseQuantitySnapshot: true,
-      updatedAt: true,
-      item: { select: { name: true, unit: true, purchaseUnit: true, purchaseConversionFactor: true, issueUnit: true } },
-      purchase: { select: { id: true, date: true, receivedAt: true, supplier: { select: { id: true, name: true } } } },
+      receivedUnit: true,
+      unitCost: true,
+      unitCostInclTax: true,
+      unitCostExclTax: true,
+      supplierName: true,
+      createdAt: true,
+      item: {
+        select: {
+          name: true,
+          unit: true,
+          purchaseUnit: true,
+          purchaseConversionFactor: true,
+          issueUnit: true,
+        },
+      },
+      supplier: { select: { id: true, name: true } },
     },
-    orderBy: [{ purchase: { date: "desc" } }, { updatedAt: "desc" }],
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
   });
 
   const latest = new Map<string, any>();
-  for (const p of purchases) if (!latest.has(p.itemId)) latest.set(p.itemId, p);
+  for (const batch of batches) {
+    if (!latest.has(batch.itemId)) latest.set(batch.itemId, batch);
+  }
 
-  const costs = [...latest.values()].map((p) => ({
-    shelfSenseItemId: p.itemId,
-    itemName: p.item.name,
-    purchaseItemId: p.id,
-    purchaseId: p.purchase.id,
-    effectiveDate: p.purchase.receivedAt || p.purchase.date,
-    supplier: p.purchase.supplier,
-    receivedQuantity: p.receivedQuantity,
-    unitCost: p.unitCost,
-    baseUnit: p.baseUnitSnapshot || p.item.unit,
-    purchaseUnit: p.purchaseUnitSnapshot || p.item.purchaseUnit,
-    purchaseConversionFactor: p.purchaseConversionFactorSnapshot || p.item.purchaseConversionFactor,
-    enteredQuantity: p.enteredQuantity,
-    enteredUnit: p.enteredUnitSnapshot,
-    storedBaseQuantity: p.storedBaseQuantitySnapshot,
-  }));
+  const costs = [...latest.values()].map((batch) => {
+    const effectiveUnitCost = batch.unitCost ?? batch.unitCostInclTax ?? batch.unitCostExclTax;
+    const supplier = batch.supplier || (batch.supplierName ? { id: null, name: batch.supplierName } : null);
+    return {
+      shelfSenseItemId: batch.itemId,
+      itemName: batch.item.name,
+      sourceBatchId: batch.id,
+      effectiveDate: batch.createdAt,
+      supplier,
+      receivedQuantity: batch.receivedQuantity ?? batch.quantity,
+      unitCost: effectiveUnitCost,
+      baseUnit: batch.item.unit,
+      purchaseUnit: batch.item.purchaseUnit,
+      purchaseConversionFactor: batch.item.purchaseConversionFactor,
+      enteredQuantity: batch.receivedQuantity ?? null,
+      enteredUnit: batch.receivedUnit || batch.item.purchaseUnit || batch.item.unit,
+      storedBaseQuantity: batch.quantity,
+      issueUnit: batch.item.issueUnit,
+    };
+  });
 
   res.json({ workspaceId, asOf: asOf.toISOString(), costs });
 }));
