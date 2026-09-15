@@ -34,6 +34,7 @@ import { webhooksRouter } from "./routes/webhooks.js";
 import { billingRouter } from "./routes/billing.js";
 import { receivingRouter } from "./routes/receiving.js";
 import { physicalCountSettingsRouter } from "./routes/physical-count-settings.js";
+import { costControlIntegrationRouter } from "./routes/integrations-cost-control.js";
 
 export const app = express();
 
@@ -80,7 +81,6 @@ app.use(
         return;
       }
 
-      // Allow Replit dev/preview domains in non-production environments only
       if (env.nodeEnv !== "production" && origin.match(/^https?:\/\/.+\.replit\.dev(:\d+)?$/)) {
         callback(null, true);
         return;
@@ -142,7 +142,6 @@ app.use(
   express.json({
     limit: "1mb",
     verify: (req: import("express").Request & { rawBody?: Buffer }, _res, buf) => {
-      // Capture raw body for Paddle webhook signature verification
       if (req.originalUrl?.startsWith("/webhooks/paddle")) {
         req.rawBody = buf;
       }
@@ -159,11 +158,7 @@ app.get("/api/ready", async (_req, res) => {
   const result = await checkSchemaReadiness();
 
   if (!result.dbReachable) {
-    return res.status(503).json({
-      status: "not_ready",
-      database: "unavailable",
-      schema: "unknown",
-    });
+    return res.status(503).json({ status: "not_ready", database: "unavailable", schema: "unknown" });
   }
 
   if (!result.ready) {
@@ -176,15 +171,11 @@ app.get("/api/ready", async (_req, res) => {
     });
   }
 
-  return res.json({
-    status: "ready",
-    database: "ok",
-    schema: "ok",
-    missingColumns: [],
-  });
+  return res.json({ status: "ready", database: "ok", schema: "ok", missingColumns: [] });
 });
 
 app.use("/auth", authRouter);
+app.use("/integrations/cost-control", costControlIntegrationRouter);
 app.use(enforceQuantityRules);
 app.use("/workspace", workspaceRouter);
 app.use("/locations", locationsRouter);
