@@ -34,157 +34,56 @@ import { webhooksRouter } from "./routes/webhooks.js";
 import { billingRouter } from "./routes/billing.js";
 import { receivingRouter } from "./routes/receiving.js";
 import { physicalCountSettingsRouter } from "./routes/physical-count-settings.js";
+import { costControlIntegrationRouter } from "./routes/integrations-cost-control.js";
+import { integrationCredentialsRouter } from "./routes/integration-credentials.js";
 
 export const app = express();
 
 app.set("trust proxy", 1);
-
 app.use(requestIdMiddleware);
-
 app.use((req, res, next) => {
   const start = Date.now();
   res.on("finish", () => {
-    logRequest({
-      requestId: req.requestId,
-      method: req.method,
-      path: req.originalUrl.split("?")[0],
-      status: res.statusCode,
-      durationMs: Date.now() - start,
-      userId: req.user?.userId ?? null,
-      workspaceId: req.user?.workspaceId ?? null,
-    });
+    logRequest({ requestId: req.requestId, method: req.method, path: req.originalUrl.split("?")[0], status: res.statusCode, durationMs: Date.now() - start, userId: req.user?.userId ?? null, workspaceId: req.user?.workspaceId ?? null });
   });
   next();
 });
 
-class ForbiddenOriginError extends Error {
-  status = 403;
+class ForbiddenOriginError extends Error { status = 403; constructor(origin: string) { super(`CORS origin is not allowed: ${origin}`); } }
 
-  constructor(origin: string) {
-    super(`CORS origin is not allowed: ${origin}`);
-  }
-}
+app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || env.corsAllowedOrigins.includes(origin)) return callback(null, true);
+    if (env.nodeEnv !== "production" && origin.match(/^https?:\/\/.+\.replit\.dev(:\d+)?$/)) return callback(null, true);
+    callback(new ForbiddenOriginError(origin));
+  },
+  allowedHeaders: ["Content-Type", "Authorization", "x-location-id", "x-request-id"],
+  methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], credentials: true,
+}));
 
-app.use(
-  helmet({
-    contentSecurityPolicy: false,
-    crossOriginEmbedderPolicy: false,
-  }),
-);
-
-app.use(
-  cors({
-    origin(origin, callback) {
-      if (!origin || env.corsAllowedOrigins.includes(origin)) {
-        callback(null, true);
-        return;
-      }
-
-      // Allow Replit dev/preview domains in non-production environments only
-      if (env.nodeEnv !== "production" && origin.match(/^https?:\/\/.+\.replit\.dev(:\d+)?$/)) {
-        callback(null, true);
-        return;
-      }
-
-      callback(new ForbiddenOriginError(origin));
-    },
-    allowedHeaders: ["Content-Type", "Authorization", "x-location-id", "x-request-id"],
-    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    credentials: true,
-  }),
-);
-
-app.use(
-  rateLimit({
-    windowMs: 15 * 60 * 1000,
-    limit: 300,
-    standardHeaders: "draft-8",
-    legacyHeaders: false,
-    message: { error: "Too many requests. Please try again later." },
-    skip: () => env.nodeEnv === "test",
-  }),
-);
-
-const authRateLimit = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 20,
-  standardHeaders: "draft-8",
-  legacyHeaders: false,
-  message: { error: "Too many authentication attempts. Please try again later." },
-  skip: () => env.nodeEnv === "test",
-});
-
-const loginRateLimit = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 10,
-  standardHeaders: "draft-8",
-  legacyHeaders: false,
-  message: { error: "Too many login attempts. Please try again later." },
-  skip: () => env.nodeEnv === "test",
-});
-
-const forgotPasswordRateLimit = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 5,
-  standardHeaders: "draft-8",
-  legacyHeaders: false,
-  message: { error: "Too many password reset requests. Please try again later." },
-  skip: () => env.nodeEnv === "test",
-});
-
+app.use(rateLimit({ windowMs: 15 * 60 * 1000, limit: 300, standardHeaders: "draft-8", legacyHeaders: false, message: { error: "Too many requests. Please try again later." }, skip: () => env.nodeEnv === "test" }));
+const authRateLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: "draft-8", legacyHeaders: false, message: { error: "Too many authentication attempts. Please try again later." }, skip: () => env.nodeEnv === "test" });
+const loginRateLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: "draft-8", legacyHeaders: false, message: { error: "Too many login attempts. Please try again later." }, skip: () => env.nodeEnv === "test" });
+const forgotPasswordRateLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 5, standardHeaders: "draft-8", legacyHeaders: false, message: { error: "Too many password reset requests. Please try again later." }, skip: () => env.nodeEnv === "test" });
 app.use("/auth", authRateLimit);
 app.use("/auth/login", loginRateLimit);
 app.use("/auth/forgot-password", forgotPasswordRateLimit);
 app.use("/auth/reset-password", forgotPasswordRateLimit);
 app.use("/auth/resend-verification", forgotPasswordRateLimit);
 
-app.use(
-  express.json({
-    limit: "1mb",
-    verify: (req: import("express").Request & { rawBody?: Buffer }, _res, buf) => {
-      // Capture raw body for Paddle webhook signature verification
-      if (req.originalUrl?.startsWith("/webhooks/paddle")) {
-        req.rawBody = buf;
-      }
-    },
-  }),
-);
-
-app.get("/api/health", (_req, res) => {
-  const response: HealthResponse = { status: "ok" };
-  res.json(response);
-});
-
+app.use(express.json({ limit: "1mb", verify: (req: import("express").Request & { rawBody?: Buffer }, _res, buf) => { if (req.originalUrl?.startsWith("/webhooks/paddle")) req.rawBody = buf; } }));
+app.get("/api/health", (_req, res) => { const response: HealthResponse = { status: "ok" }; res.json(response); });
 app.get("/api/ready", async (_req, res) => {
   const result = await checkSchemaReadiness();
-
-  if (!result.dbReachable) {
-    return res.status(503).json({
-      status: "not_ready",
-      database: "unavailable",
-      schema: "unknown",
-    });
-  }
-
-  if (!result.ready) {
-    return res.status(503).json({
-      status: "not_ready",
-      database: "ok",
-      schema: "not_migrated",
-      missingTables: result.missingTables,
-      missingColumns: result.missingColumns,
-    });
-  }
-
-  return res.json({
-    status: "ready",
-    database: "ok",
-    schema: "ok",
-    missingColumns: [],
-  });
+  if (!result.dbReachable) return res.status(503).json({ status: "not_ready", database: "unavailable", schema: "unknown" });
+  if (!result.ready) return res.status(503).json({ status: "not_ready", database: "ok", schema: "not_migrated", missingTables: result.missingTables, missingColumns: result.missingColumns });
+  return res.json({ status: "ready", database: "ok", schema: "ok", missingColumns: [] });
 });
 
 app.use("/auth", authRouter);
+app.use("/integrations/cost-control", costControlIntegrationRouter);
+app.use("/workspace/integrations", integrationCredentialsRouter);
 app.use(enforceQuantityRules);
 app.use("/workspace", workspaceRouter);
 app.use("/locations", locationsRouter);
@@ -209,9 +108,5 @@ app.use("/team", teamRouter);
 app.use("/support", supportRouter);
 app.use("/receiving", receivingRouter);
 app.use("/physical-count-settings", physicalCountSettingsRouter);
-app.use((req, res) => {
-  const body: Record<string, unknown> = { error: "Route not found", code: "NOT_FOUND" };
-  if (req.requestId) body.requestId = req.requestId;
-  res.status(404).json(body);
-});
+app.use((req, res) => { const body: Record<string, unknown> = { error: "Route not found", code: "NOT_FOUND" }; if (req.requestId) body.requestId = req.requestId; res.status(404).json(body); });
 app.use(errorHandler);
