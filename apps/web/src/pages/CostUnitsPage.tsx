@@ -72,7 +72,7 @@ export function CostUnitsPage() {
   const [storageUnit, setStorageUnit] = useState("");
   const [purchaseUnit, setPurchaseUnit] = useState("");
   const [conversionFactor, setConversionFactor] = useState("");
-  const [unitCost, setUnitCost] = useState("");
+  const [purchaseCost, setPurchaseCost] = useState("");
   const [saving, setSaving] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
 
@@ -127,15 +127,21 @@ export function CostUnitsPage() {
   }, [items, search, filter]);
 
   function openEditor(item: CostUnitItem) {
+    const sameUnit = !item.purchaseUnit || item.purchaseUnit === item.storageUnit;
+    const factor = sameUnit ? 1 : item.conversionFactor;
+    const effectivePurchaseCost = item.purchaseUnitCost
+      ?? (item.storageUnitCost != null && factor ? item.storageUnitCost * factor : null);
+
     setEditing(item);
     setStorageUnit(item.storageUnit);
     setPurchaseUnit(item.purchaseUnit ?? item.storageUnit);
-    setConversionFactor(item.conversionFactor ? String(item.conversionFactor) : item.purchaseUnit === item.storageUnit ? "1" : "");
-    setUnitCost(item.storageUnitCost != null ? String(item.storageUnitCost) : "");
+    setConversionFactor(item.conversionFactor ? String(item.conversionFactor) : sameUnit ? "1" : "");
+    setPurchaseCost(effectivePurchaseCost != null ? String(effectivePurchaseCost) : "");
   }
 
   async function saveEditor() {
     if (!editing) return;
+
     const trimmedStorage = storageUnit.trim();
     const trimmedPurchase = purchaseUnit.trim() || trimmedStorage;
     const factor = Number(conversionFactor);
@@ -150,9 +156,9 @@ export function CostUnitsPage() {
       return;
     }
 
-    const nextCost = unitCost.trim() ? Number(unitCost) : null;
-    if (unitCost.trim() && (!Number.isFinite(nextCost) || Number(nextCost) <= 0)) {
-      showToast("Storage unit cost must be greater than zero", "error");
+    const nextPurchaseCost = purchaseCost.trim() ? Number(purchaseCost) : null;
+    if (purchaseCost.trim() && (!Number.isFinite(nextPurchaseCost) || Number(nextPurchaseCost) <= 0)) {
+      showToast("Purchase price must be greater than zero", "error");
       return;
     }
 
@@ -161,7 +167,7 @@ export function CostUnitsPage() {
       const nextFactor = requiresConversion ? factor : 1;
       const unitsChanged = trimmedStorage !== editing.storageUnit
         || trimmedPurchase !== (editing.purchaseUnit ?? editing.storageUnit)
-        || nextFactor !== (editing.conversionFactor ?? (editing.purchaseUnit === editing.storageUnit ? 1 : null));
+        || nextFactor !== (editing.conversionFactor ?? ((!editing.purchaseUnit || editing.purchaseUnit === editing.storageUnit) ? 1 : null));
 
       if (unitsChanged) {
         await updateItem(editing.itemId, {
@@ -172,21 +178,34 @@ export function CostUnitsPage() {
         });
       }
 
-      const oldCost = editing.storageUnitCost;
-      const costChanged = nextCost != null && (oldCost == null || Math.abs(nextCost - oldCost) > 0.0001);
+      const nextStorageCost = nextPurchaseCost != null ? nextPurchaseCost / nextFactor : null;
+      const oldStorageCost = editing.storageUnitCost;
+      const costChanged = nextStorageCost != null
+        && (oldStorageCost == null || Math.abs(nextStorageCost - oldStorageCost) > 0.0001);
+
       if (costChanged) {
-        await correctLatestStorageUnitCost(editing.itemId, nextCost, "Corrected from Cost & Units screen");
+        await correctLatestStorageUnitCost(
+          editing.itemId,
+          nextStorageCost,
+          "Purchase price corrected from Cost & Units screen",
+        );
       }
 
       await load();
       setEditing(null);
-      showToast("Item units and costing updated", "success");
+      showToast("Item units and purchase price updated", "success");
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Failed to update item", "error");
     } finally {
       setSaving(false);
     }
   }
+
+  const editorSameUnit = purchaseUnit.trim() === storageUnit.trim();
+  const editorFactor = editorSameUnit ? 1 : Number(conversionFactor);
+  const calculatedStorageCost = purchaseCost && Number(purchaseCost) > 0 && Number.isFinite(editorFactor) && editorFactor > 0
+    ? Number(purchaseCost) / editorFactor
+    : null;
 
   if (loading) {
     return <div className="page-loading"><div className="spinner" /><p>Loading Cost & Units...</p></div>;
@@ -360,42 +379,40 @@ export function CostUnitsPage() {
                 </datalist>
                 <label className="form-label">
                   Storage units in 1 purchase unit
-                  <input className="form-input" type="number" min="0.0001" step="any" value={conversionFactor} onChange={(event) => setConversionFactor(event.target.value)} disabled={purchaseUnit.trim() === storageUnit.trim()} />
+                  <input className="form-input" type="number" min="0.0001" step="any" value={conversionFactor} onChange={(event) => setConversionFactor(event.target.value)} disabled={editorSameUnit} />
                 </label>
                 <div className="cost-editor-equation">
                   <span>Conversion</span>
                   <strong>
-                    1 {purchaseUnit || "purchase unit"} = {purchaseUnit.trim() === storageUnit.trim() ? "1" : conversionFactor || "?"} {storageUnit || "storage units"}
+                    1 {purchaseUnit || "purchase unit"} = {editorSameUnit ? "1" : conversionFactor || "?"} {storageUnit || "storage units"}
                   </strong>
                 </div>
               </div>
 
               <div className="cost-editor-section">
-                <h3>Latest cost</h3>
+                <h3>Latest purchase price</h3>
                 {editing.lastPurchase ? (
                   <>
                     <p>
                       Latest receipt: {fmtDate(editing.lastPurchase.date)} · {editing.lastPurchase.sourceType === "PO" ? editing.lastPurchase.poReference || "PO receipt" : "Direct receipt"}
                     </p>
                     <label className="form-label">
-                      Cost per storage unit ({storageUnit || editing.storageUnit})
-                      <input className="form-input" type="number" min="0.0001" step="any" value={unitCost} onChange={(event) => setUnitCost(event.target.value)} />
+                      Purchase price per {purchaseUnit || storageUnit || "purchase unit"}
+                      <input className="form-input" type="number" min="0.0001" step="any" value={purchaseCost} onChange={(event) => setPurchaseCost(event.target.value)} />
                     </label>
                     <div className="cost-editor-equation">
-                      <span>Calculated purchase-unit cost</span>
+                      <span>Calculated storage-unit cost</span>
                       <strong>
-                        {unitCost && Number(unitCost) > 0
-                          ? formatCurrency(Number(unitCost) * (purchaseUnit.trim() === storageUnit.trim() ? 1 : Number(conversionFactor) || 0), currency)
-                          : "—"}
-                        {purchaseUnit ? ` / ${purchaseUnit}` : ""}
+                        {calculatedStorageCost != null ? formatCurrency(calculatedStorageCost, currency) : "—"}
+                        {storageUnit ? ` / ${storageUnit}` : ""}
                       </strong>
                     </div>
                     <div className="cost-editor-warning">
-                      Correcting this value updates the latest inventory receipt cost and is recorded in the Audit Log. It does not rewrite the supplier invoice.
+                      Enter the price paid for one {purchaseUnit || "purchase unit"}. ShelfSense calculates the {storageUnit || "storage unit"} cost automatically using the conversion above. The correction is recorded in the Audit Log and does not rewrite the supplier invoice.
                     </div>
                   </>
                 ) : (
-                  <div className="cost-editor-no-receipt">No received stock exists yet, so there is no cost to correct.</div>
+                  <div className="cost-editor-no-receipt">No received stock exists yet, so there is no purchase price to correct.</div>
                 )}
               </div>
             </div>
