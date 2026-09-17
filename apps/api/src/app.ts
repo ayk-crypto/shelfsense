@@ -36,6 +36,7 @@ import { receivingRouter } from "./routes/receiving.js";
 import { physicalCountSettingsRouter } from "./routes/physical-count-settings.js";
 import { costControlIntegrationRouter } from "./routes/integrations-cost-control.js";
 import { integrationCredentialsRouter } from "./routes/integration-credentials.js";
+import { costUnitsRouter } from "./routes/cost-units.js";
 
 export const app = express();
 
@@ -91,6 +92,7 @@ app.use("/notifications", notificationsRouter);
 app.use("/onboarding", onboardingRouter);
 app.use("/items", itemsRouter);
 app.use("/stock", stockRouter);
+app.use("/cost-units", costUnitsRouter);
 app.use("/stock-counts", stockCountsRouter);
 app.use("/alerts", alertsRouter);
 app.use("/audit-logs", auditLogsRouter);
