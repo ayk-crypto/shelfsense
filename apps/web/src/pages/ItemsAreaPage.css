@@ -1,0 +1,47 @@
+.items-area {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.items-area-tabs {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.items-area-tabs button {
+  min-height: 34px;
+  padding: 7px 13px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.items-area-tabs button:hover {
+  color: #334155;
+  background: #f8fafc;
+}
+
+.items-area-tabs button.is-active {
+  color: #4338ca;
+  background: #eef2ff;
+}
+
+@media (max-width: 767px) {
+  .items-area-tabs {
+    align-self: stretch;
+  }
+
+  .items-area-tabs button {
+    flex: 1;
+  }
+}
