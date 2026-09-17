@@ -30,7 +30,7 @@ import { AlertsPage } from "./pages/AlertsPage";
 import { BatchDetailPage } from "./pages/BatchDetailPage";
 import { DailyOperationsPage } from "./pages/DailyOperationsPage";
 import { DashboardPage } from "./pages/DashboardPage";
-import { ItemsPage } from "./pages/ItemsPage";
+import { ItemsAreaPage } from "./pages/ItemsAreaPage";
 import { LocationsPage } from "./pages/LocationsPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { LoginPage } from "./pages/LoginPage";
@@ -90,7 +90,6 @@ function WorkspaceRequiredRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (user?.workspaceId) return <>{children}</>;
-
 
   function handleSignupRedirect() {
     logout();
@@ -376,7 +375,7 @@ export function App() {
           >
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/daily-operations" element={<DailyOperationsPage />} />
-            <Route path="/items" element={<ItemsPage />} />
+            <Route path="/items/*" element={<ItemsAreaPage />} />
             <Route path="/items/:id/batches" element={<BatchDetailPage />} />
             <Route path="/movements" element={<MovementsPage />} />
             <Route
