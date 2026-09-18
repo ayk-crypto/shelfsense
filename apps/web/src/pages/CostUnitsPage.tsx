@@ -206,6 +206,12 @@ export function CostUnitsPage() {
   const calculatedStorageCost = purchaseCost && Number(purchaseCost) > 0 && Number.isFinite(editorFactor) && editorFactor > 0
     ? Number(purchaseCost) / editorFactor
     : null;
+  const editorPurchaseUnitOptions = purchaseUnit && !purchaseUnitOptions.includes(purchaseUnit)
+    ? [purchaseUnit, ...purchaseUnitOptions]
+    : purchaseUnitOptions;
+  const editorStorageUnitOptions = storageUnit && !storageUnitOptions.includes(storageUnit)
+    ? [storageUnit, ...storageUnitOptions]
+    : storageUnitOptions;
 
   if (loading) {
     return <div className="page-loading"><div className="spinner" /><p>Loading Cost & Units...</p></div>;
@@ -365,18 +371,16 @@ export function CostUnitsPage() {
                 <p>Purchase unit is how you buy it. Storage unit is the unit ShelfSense and Plate Cost use internally.</p>
                 <label className="form-label">
                   Purchase unit
-                  <input className="form-input" list="purchase-unit-options" value={purchaseUnit} onChange={(event) => setPurchaseUnit(event.target.value)} />
+                  <select className="form-input" value={purchaseUnit} onChange={(event) => setPurchaseUnit(event.target.value)}>
+                    {editorPurchaseUnitOptions.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
+                  </select>
                 </label>
-                <datalist id="purchase-unit-options">
-                  {purchaseUnitOptions.map((unit) => <option key={unit} value={unit} />)}
-                </datalist>
                 <label className="form-label">
                   Storage unit
-                  <input className="form-input" list="storage-unit-options" value={storageUnit} onChange={(event) => setStorageUnit(event.target.value)} />
+                  <select className="form-input" value={storageUnit} onChange={(event) => setStorageUnit(event.target.value)}>
+                    {editorStorageUnitOptions.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
+                  </select>
                 </label>
-                <datalist id="storage-unit-options">
-                  {storageUnitOptions.map((unit) => <option key={unit} value={unit} />)}
-                </datalist>
                 <label className="form-label">
                   Storage units in 1 purchase unit
                   <input className="form-input" type="number" min="0.0001" step="any" value={conversionFactor} onChange={(event) => setConversionFactor(event.target.value)} disabled={editorSameUnit} />
