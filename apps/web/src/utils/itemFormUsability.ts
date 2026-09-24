@@ -38,7 +38,8 @@ export function installItemFormUsabilityEnhancements() {
   });
 
   document.addEventListener("change", scheduleEnhancement, true);
-  document.addEventListener("toggle", scheduleEnhancement, true);
+  // Form field changes are enough to recalculate the enhancement. Listening to
+  // native details "toggle" events can retrigger this controlled modal repeatedly.
   scheduleEnhancement();
 }
 
